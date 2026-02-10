@@ -1,3 +1,3 @@
 Window {
-    label: "DefaultApp tbd"
+    Label { text: "DefaultApp tbd" }
 }

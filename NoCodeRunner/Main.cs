@@ -51,7 +51,7 @@ public partial class Main : Node
 	private Vector2 _fixedExpectedRootSize = Vector2.Zero;
 	private int _fixedRootResizeWarnings;
 	private string? _resolvedStartupUiUrl;
-	private const string DefaultStartUrl = "https://crowdware.github.io/NoCodeGodot/SampleProject/UI.sml";
+	private const string DefaultStartUrl = "https://crowdware.github.io/NoCodeGodot/Default/manifest.sml";
 	private const string StartupSettingsFileName = "startup_settings.json";
 	private static readonly System.Net.Http.HttpClient StartupHttpClient = new();
 
