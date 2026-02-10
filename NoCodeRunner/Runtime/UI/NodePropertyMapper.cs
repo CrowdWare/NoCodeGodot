@@ -62,7 +62,7 @@ public sealed class NodePropertyMapper
 
                 if (control is Viewport3DControl viewport)
                 {
-                    viewport.SmlId = idValue;
+                    viewport.SetSmlId(idValue);
                 }
                 return;
 
@@ -180,6 +180,14 @@ public sealed class NodePropertyMapper
                 if (control is Viewport3DControl viewportDefaultAnim)
                 {
                     viewportDefaultAnim.SetDefaultAnimation(value.AsStringOrThrow(propertyName));
+                    return;
+                }
+                break;
+
+            case "playloop":
+                if (control is Viewport3DControl viewportPlayLoop)
+                {
+                    viewportPlayLoop.SetPlayLoop(ToBoolOrThrow(value, propertyName));
                     return;
                 }
                 break;

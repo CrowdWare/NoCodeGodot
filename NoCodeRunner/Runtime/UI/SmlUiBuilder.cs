@@ -63,6 +63,12 @@ public sealed class SmlUiBuilder
             return null;
         }
 
+        if (control is Viewport3DControl viewport3DForInit)
+        {
+            // Must be set before property mapping so `id`/`model` handlers can register animations.
+            viewport3DForInit.AnimationApi = _animationApi;
+        }
+
         foreach (var (propertyName, value) in node.Properties)
         {
             if (TryApplyWindowScalingMetadata(control, node.Name, propertyName, value))
@@ -80,8 +86,6 @@ public sealed class SmlUiBuilder
 
         if (control is Viewport3DControl viewport3D)
         {
-            viewport3D.AnimationApi = _animationApi;
-
             var viewportId = GetMetaString(control, NodePropertyMapper.MetaId);
             if (!string.IsNullOrWhiteSpace(viewportId))
             {

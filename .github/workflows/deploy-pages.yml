@@ -42,6 +42,13 @@ jobs:
           bash build_manifest.sh
           git diff --exit-code -- docs/SampleProject/manifest.sml docs/Default/manifest.sml
 
+      - name: Fail on LFS pointer files in docs
+        run: |
+          if grep -R -n -m 1 "version https://git-lfs.github.com/spec/v1" docs; then
+            echo "LFS pointer file detected in docs/. Pages must contain real binary files."
+            exit 1
+          fi
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 

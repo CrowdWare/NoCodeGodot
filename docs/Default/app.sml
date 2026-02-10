@@ -13,6 +13,7 @@ Window {
             cameraDistance: 2
             lightEnergy: 1
             playAnimation: 1
+            playLoop: true
         }
 
         Label { text: "Animation Controls" }

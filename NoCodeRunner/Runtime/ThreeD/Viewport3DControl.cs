@@ -24,6 +24,7 @@ public sealed partial class Viewport3DControl : SubViewportContainer
     private AnimationPlayer? _animationPlayer;
     private string? _pendingAutoplayAnimation;
     private string? _animationSource;
+    private bool _playLoop;
     private readonly List<AnimationPlayer> _animationPlayers = [];
     private readonly List<AnimationTree> _animationTrees = [];
     private float _yaw = DefaultYaw;
@@ -111,6 +112,18 @@ public sealed partial class Viewport3DControl : SubViewportContainer
         }
 
         AttachLoadedModel(loadedModel, sourceLabel);
+    }
+
+    public void SetSmlId(string id)
+    {
+        SmlId = id;
+        if (_animationPlayer is null)
+        {
+            return;
+        }
+
+        var playerId = string.IsNullOrWhiteSpace(SmlId) ? Name.ToString() : SmlId;
+        AnimationApi?.Register(playerId, _animationPlayer);
     }
 
     public void SetAnimationSource(string source)
@@ -266,6 +279,8 @@ public sealed partial class Viewport3DControl : SubViewportContainer
             TryImportAdditionalAnimations(_animationSource);
         }
 
+        ApplyLoopModeToPlayers();
+
         if (PlayAnimationIndex > 0 && animations.Count > 0)
         {
             QueuePendingAutoplayFromCurrentPlayer();
@@ -284,6 +299,12 @@ public sealed partial class Viewport3DControl : SubViewportContainer
         {
             QueuePendingAutoplayFromCurrentPlayer();
         }
+    }
+
+    public void SetPlayLoop(bool enabled)
+    {
+        _playLoop = enabled;
+        ApplyLoopModeToPlayers();
     }
 
     public void SetDefaultAnimation(string animationName)
@@ -521,6 +542,7 @@ public sealed partial class Viewport3DControl : SubViewportContainer
         animationRoot.QueueFree();
         if (importedCount > 0)
         {
+            ApplyLoopModeToPlayers();
             RunnerLogger.Info("3D", $"Imported {importedCount} animations from '{sourceLabel}'.");
         }
         else
@@ -629,5 +651,26 @@ public sealed partial class Viewport3DControl : SubViewportContainer
 
         _camera.Position = position;
         _camera.LookAtFromPosition(position, _cameraTarget, Vector3.Up);
+    }
+
+    private void ApplyLoopModeToPlayers()
+    {
+        var loopMode = _playLoop
+            ? Animation.LoopModeEnum.Linear
+            : Animation.LoopModeEnum.None;
+
+        foreach (var player in _animationPlayers)
+        {
+            foreach (string animationName in player.GetAnimationList())
+            {
+                var animation = player.GetAnimation(animationName);
+                if (animation is null)
+                {
+                    continue;
+                }
+
+                animation.LoopMode = loopMode;
+            }
+        }
     }
 }
