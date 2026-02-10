@@ -74,30 +74,23 @@ Window {
 
         Label { text: "Camera Interaction" }
         Row {
-                        spacing: 8
-                        Button {
-                            text: "Zoom In"
-                            action: zoomIn
-                            clicked: hero
-                        }
-                        Button {
-                            text: "Zoom Out"
-                            action: zoomOut
-                            clicked: hero
-                        }
-                        Button {
-                            text: "Reset View"
-                            action: cameraReset
-                            clicked: hero
-                        }
-                    }
-
-                    Label { text: "Video sample" }
-                    Video {
-                        width: 480
-                        height: 270
-                        autoplay: false
-                        source: "res://sample.ogv"
-                    }
-                }
+            spacing: 8
+            
+            Button {
+                text: "Zoom In"
+                action: zoomIn
+                clicked: hero
+            }
+            Button {
+                text: "Zoom Out"
+                action: zoomOut
+                clicked: hero
+            }
+            Button {
+                text: "Reset View"
+                action: cameraReset
+                clicked: hero
+            }
+        }        
+    }
 }

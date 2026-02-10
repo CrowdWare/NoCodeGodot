@@ -25,12 +25,19 @@ def compute_sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def collect_entries(root: Path, output_name: str, exclude_extensions: set[str]) -> list[FileEntry]:
+def collect_entries(
+    root: Path,
+    output_name: str,
+    exclude_extensions: set[str],
+    exclude_names: set[str],
+) -> list[FileEntry]:
     entries: list[FileEntry] = []
     for p in sorted(root.rglob("*")):
         if not p.is_file():
             continue
         if p.name == output_name:
+            continue
+        if p.name in exclude_names:
             continue
         if p.suffix.lower() in exclude_extensions:
             continue
@@ -91,6 +98,12 @@ def main() -> int:
         default=[".import", ".cs"],
         help="File extension to exclude from manifest (repeatable). Defaults: .import, .cs",
     )
+    parser.add_argument(
+        "--exclude-name",
+        action="append",
+        default=[".DS_Store"],
+        help="Exact filename to exclude from manifest (repeatable). Default: .DS_Store",
+    )
     args = parser.parse_args()
 
     root = Path(args.root).resolve()
@@ -102,8 +115,9 @@ def main() -> int:
         raise SystemExit(f"Entry file does not exist: {entry_file}")
 
     exclude_extensions = {ext.lower() if ext.startswith(".") else f".{ext.lower()}" for ext in args.exclude_ext}
+    exclude_names = set(args.exclude_name)
 
-    files = collect_entries(root, args.output, exclude_extensions)
+    files = collect_entries(root, args.output, exclude_extensions, exclude_names)
     version = compute_version(files)
     manifest = build_manifest(version=version, entry=args.entry, files=files)
 
