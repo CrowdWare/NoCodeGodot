@@ -3,6 +3,7 @@ using Runtime.Logging;
 using Runtime.Sml;
 using Runtime.ThreeD;
 using System;
+using System.Collections.Generic;
 
 namespace Runtime.UI;
 
@@ -15,6 +16,7 @@ public sealed class SmlUiBuilder
     private readonly NodeFactoryRegistry _registry;
     private readonly NodePropertyMapper _propertyMapper;
     private readonly AnimationControlApi _animationApi;
+    private readonly Dictionary<string, Viewport3DControl> _viewportsById = new(StringComparer.OrdinalIgnoreCase);
 
     public SmlUiBuilder(NodeFactoryRegistry registry, NodePropertyMapper propertyMapper, AnimationControlApi animationApi)
     {
@@ -34,6 +36,8 @@ public sealed class SmlUiBuilder
         {
             RunnerLogger.Warn("UI", warning);
         }
+
+        _viewportsById.Clear();
 
         var rootNode = document.Roots[0];
         var ui = BuildNodeRecursive(rootNode);
@@ -66,6 +70,12 @@ public sealed class SmlUiBuilder
         if (control is Viewport3DControl viewport3D)
         {
             viewport3D.AnimationApi = _animationApi;
+
+            var viewportId = GetMetaString(control, NodePropertyMapper.MetaId);
+            if (!string.IsNullOrWhiteSpace(viewportId))
+            {
+                _viewportsById[viewportId] = viewport3D;
+            }
         }
 
         foreach (var child in node.Children)
@@ -88,7 +98,7 @@ public sealed class SmlUiBuilder
             }
         }
 
-        BindInteractions(control, node);
+        BindInteractions(control);
 
         return control;
     }
@@ -117,7 +127,7 @@ public sealed class SmlUiBuilder
         }
     }
 
-    private static void BindInteractions(Control control, SmlNode node)
+    private void BindInteractions(Control control)
     {
         if (control is Button button)
         {
@@ -125,15 +135,18 @@ public sealed class SmlUiBuilder
             {
                 var id = GetMetaString(control, NodePropertyMapper.MetaId);
                 var action = GetMetaString(control, NodePropertyMapper.MetaAction);
-                var clicked = GetMetaString(control, NodePropertyMapper.MetaClicked);
+                var target = GetMetaString(control, NodePropertyMapper.MetaClicked);
 
-                RunnerLogger.Info("UI", $"Button pressed: id='{id}', action='{action}', clicked='{clicked}'");
+                RunnerLogger.Info("UI", $"Button pressed: id='{id}', action='{action}', target='{target}'");
 
                 if (string.Equals(action, "closeQuery", StringComparison.OrdinalIgnoreCase))
                 {
                     var tree = button.GetTree();
                     tree?.Quit();
+                    return;
                 }
+
+                HandleViewportAction(action, target);
             };
         }
 
@@ -145,6 +158,88 @@ public sealed class SmlUiBuilder
                 RunnerLogger.Info("UI", $"TextEdit changed: id='{id}', length={textEdit.Text.Length}");
             };
         }
+
+        if (control is HSlider slider)
+        {
+            slider.ValueChanged += value =>
+            {
+                var action = GetMetaString(control, NodePropertyMapper.MetaAction);
+                if (!string.Equals(action, "animScrub", StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                var target = GetMetaString(control, NodePropertyMapper.MetaClicked);
+                if (string.IsNullOrWhiteSpace(target))
+                {
+                    RunnerLogger.Warn("UI", "Slider action 'animScrub' requires 'clicked' target id (Viewport3D id).");
+                    return;
+                }
+
+                var normalized = (float)(value / 100.0);
+                _animationApi.SeekNormalized(target, normalized);
+            };
+        }
+    }
+
+    private void HandleViewportAction(string action, string targetId)
+    {
+        if (string.IsNullOrWhiteSpace(action))
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(targetId))
+        {
+            return;
+        }
+
+        switch (action)
+        {
+            case "animPlay":
+            {
+                var animations = _animationApi.ListAnimations(targetId);
+                if (animations.Count == 0)
+                {
+                    RunnerLogger.Warn("UI", $"animPlay: no animations available for target '{targetId}'.");
+                    return;
+                }
+
+                _animationApi.Play(targetId, animations[0]);
+                return;
+            }
+
+            case "animStop":
+                _animationApi.Stop(targetId);
+                return;
+
+            case "animRewind":
+                _animationApi.Rewind(targetId);
+                return;
+
+            case "perspectiveNear":
+                SetViewportCameraDistance(targetId, 2f);
+                return;
+
+            case "perspectiveDefault":
+                SetViewportCameraDistance(targetId, 4f);
+                return;
+
+            case "perspectiveFar":
+                SetViewportCameraDistance(targetId, 7f);
+                return;
+        }
+    }
+
+    private void SetViewportCameraDistance(string viewportId, float distance)
+    {
+        if (!_viewportsById.TryGetValue(viewportId, out var viewport))
+        {
+            RunnerLogger.Warn("UI", $"Perspective action target '{viewportId}' not found.");
+            return;
+        }
+
+        viewport.SetCameraDistance(distance);
     }
 
     private static string GetMetaString(Control control, string key)

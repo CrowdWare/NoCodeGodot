@@ -77,14 +77,23 @@ public sealed class SmlUiLoader
         schema.RegisterKnownNode("Box");
         schema.RegisterKnownNode("Tabs");
         schema.RegisterKnownNode("Tab");
+        schema.RegisterKnownNode("Slider");
         schema.RegisterKnownNode("Video");
         schema.RegisterKnownNode("Viewport3D");
 
         schema.RegisterIdentifierProperty("id");
+        schema.RegisterIdentifierProperty("clicked");
         schema.RegisterEnumValue("action", "closeQuery", 1);
         schema.RegisterEnumValue("action", "open", 2);
         schema.RegisterEnumValue("action", "save", 3);
         schema.RegisterEnumValue("action", "saveAs", 4);
+        schema.RegisterEnumValue("action", "animPlay", 10);
+        schema.RegisterEnumValue("action", "animStop", 11);
+        schema.RegisterEnumValue("action", "animRewind", 12);
+        schema.RegisterEnumValue("action", "animScrub", 13);
+        schema.RegisterEnumValue("action", "perspectiveNear", 14);
+        schema.RegisterEnumValue("action", "perspectiveDefault", 15);
+        schema.RegisterEnumValue("action", "perspectiveFar", 16);
         schema.RegisterEnumValue("scaling", "layout", 1);
         schema.RegisterEnumValue("scaling", "fixed", 2);
 

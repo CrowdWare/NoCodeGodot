@@ -101,6 +101,40 @@ public sealed class NodePropertyMapper
                 }
                 break;
 
+            case "min":
+            case "minvalue":
+                if (control is Godot.Range minRange)
+                {
+                    minRange.MinValue = value.AsIntOrThrow(propertyName);
+                    return;
+                }
+                break;
+
+            case "max":
+            case "maxvalue":
+                if (control is Godot.Range maxRange)
+                {
+                    maxRange.MaxValue = value.AsIntOrThrow(propertyName);
+                    return;
+                }
+                break;
+
+            case "step":
+                if (control is Godot.Range stepRange)
+                {
+                    stepRange.Step = value.AsIntOrThrow(propertyName);
+                    return;
+                }
+                break;
+
+            case "value":
+                if (control is Godot.Range valueRange)
+                {
+                    valueRange.Value = value.AsIntOrThrow(propertyName);
+                    return;
+                }
+                break;
+
             case "model":
             case "modelsource":
                 if (control is Viewport3DControl viewportModel)

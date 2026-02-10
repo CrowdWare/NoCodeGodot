@@ -63,9 +63,63 @@ Window {
                         id: hero
                         fillMaxSize: true
                         model: "res://SampleProject/PaladinIdle.glb"
-                        cameraDistance: 4
+                        cameraDistance: 2
                         lightEnergy: 1
                         playFirstAnimation: true
+                    }
+
+                    Label { text: "Animation Controls" }
+                    Row {
+                        spacing: 8
+                        Button {
+                            text: "Play"
+                            action: animPlay
+                            clicked: hero
+                        }
+                        Button {
+                            text: "Stop"
+                            action: animStop
+                            clicked: hero
+                        }
+                        Button {
+                            text: "Rewind"
+                            action: animRewind
+                            clicked: hero
+                        }
+                    }
+
+                    Row {
+                        spacing: 8
+                        Label { text: "Scrub" }
+                        Slider {
+                            width: 360
+                            min: 0
+                            max: 100
+                            step: 1
+                            value: 0
+                            action: animScrub
+                            clicked: hero
+                        }
+                    }
+
+                    Label { text: "Perspective Presets" }
+                    Row {
+                        spacing: 8
+                        Button {
+                            text: "Near"
+                            action: perspectiveNear
+                            clicked: hero
+                        }
+                        Button {
+                            text: "Default"
+                            action: perspectiveDefault
+                            clicked: hero
+                        }
+                        Button {
+                            text: "Far"
+                            action: perspectiveFar
+                            clicked: hero
+                        }
                     }
 
                     Label { text: "Video sample (res:// or user:// required)" }

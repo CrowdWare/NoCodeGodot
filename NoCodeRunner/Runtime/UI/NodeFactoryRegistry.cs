@@ -47,6 +47,7 @@ public sealed class NodeFactoryRegistry
         Register("Box", () => new PanelContainer());
         Register("Tabs", () => new TabContainer());
         Register("Tab", () => new VBoxContainer());
+        Register("Slider", () => new HSlider());
         Register("Video", () => new VideoStreamPlayer());
         Register("Viewport3D", () => new Viewport3DControl());
     }
