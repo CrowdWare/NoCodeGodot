@@ -1,0 +1,79 @@
+# =========================================================
+# Godot
+# =========================================================
+
+# Godot editor cache & metadata
+.godot/
+.import/
+
+# Godot 3.x legacy
+.export/
+.export_presets.cfg
+
+# Godot 4.x exports
+.export/
+.export_presets.cfg
+
+# =========================================================
+# Builds / Exports
+# =========================================================
+
+# Exported builds (Windows, Linux, macOS, Android, Web)
+build/
+dist/
+bin/
+exports/
+
+# =========================================================
+# Mono / C# (falls genutzt)
+# =========================================================
+
+# Godot Mono temp files
+.mono/
+mono_crash.*.json
+
+# C# build artifacts
+**/bin/
+**/obj/
+
+# Rider / Visual Studio
+.idea/
+.vs/
+*.user
+*.suo
+*.userprefs
+
+# =========================================================
+# OS / Editor Noise
+# =========================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# =========================================================
+# Logs
+# =========================================================
+
+*.log
+
+# =========================================================
+# Temporary / Backup Files
+# =========================================================
+
+*.tmp
+*.bak
+*.old
+*.swp
+*.swo
+
+
+SMLParser/

@@ -1,0 +1,49 @@
+[gd_scene format=3 uid="uid://coixym6cfdwed"]
+
+[ext_resource type="Script" uid="uid://bueqb3fesnmq8" path="res://Main.cs" id="1_h2yge"]
+[ext_resource type="FontFile" uid="uid://b28pps2si3ha3" path="res://Anonymous.ttf" id="1_ig7tw"]
+[ext_resource type="PackedScene" uid="uid://ceeykbc3gos3q" path="res://test.tscn" id="2_0xm2m"]
+
+[sub_resource type="SystemFont" id="SystemFont_7dm0k"]
+
+[sub_resource type="Theme" id="Theme_7dm0k"]
+default_font = SubResource("SystemFont_7dm0k")
+
+[node name="Node2D" type="Node2D" unique_id=1356216633]
+script = ExtResource("1_h2yge")
+
+[node name="Panel" type="Panel" parent="." unique_id=1667452852]
+offset_right = 1920.0
+offset_bottom = 48.0
+theme = SubResource("Theme_7dm0k")
+
+[node name="RichTextLabel" type="Label" parent="." unique_id=1159171485]
+offset_right = 1920.0
+offset_bottom = 40.0
+theme_override_font_sizes/font_size = 36
+text = "NoCodeDesigner"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CodeEdit" type="CodeEdit" parent="." unique_id=199927460]
+offset_top = 100.0
+offset_right = 915.0
+offset_bottom = 1077.0
+theme_override_fonts/font = ExtResource("1_ig7tw")
+line_folding = true
+gutters_draw_line_numbers = true
+gutters_draw_fold_gutter = true
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="." unique_id=1659541992]
+offset_left = 973.0
+offset_top = 104.0
+offset_right = 1920.0
+offset_bottom = 1077.0
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="SubViewportContainer" unique_id=1902379923]
+handle_input_locally = false
+size = Vector2i(947, 973)
+render_target_update_mode = 4
+
+[node name="Node3D" parent="SubViewportContainer/SubViewport" unique_id=2000936699 instance=ExtResource("2_0xm2m")]
