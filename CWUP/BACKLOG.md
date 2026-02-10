@@ -80,7 +80,7 @@
 - [x] tasks/ui_scaling.md
 - [x] tasks/animation_control_ui.md
 - [x] tasks/camera_interaction.md
-- [ ] tasks/action_binding.md
+- [x] tasks/action_binding.md
 - [ ] tasks/caching.md
 - [ ] tasks/documentation.md
 

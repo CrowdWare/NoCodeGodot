@@ -14,12 +14,18 @@ public sealed class SmlUiLoader
     private readonly NodeFactoryRegistry _registry;
     private readonly NodePropertyMapper _propertyMapper;
     private readonly AnimationControlApi _animationApi;
+    private readonly Action<UiActionDispatcher>? _configureActions;
 
-    public SmlUiLoader(NodeFactoryRegistry registry, NodePropertyMapper propertyMapper, AnimationControlApi? animationApi = null)
+    public SmlUiLoader(
+        NodeFactoryRegistry registry,
+        NodePropertyMapper propertyMapper,
+        AnimationControlApi? animationApi = null,
+        Action<UiActionDispatcher>? configureActions = null)
     {
         _registry = registry;
         _propertyMapper = propertyMapper;
         _animationApi = animationApi ?? new AnimationControlApi();
+        _configureActions = configureActions;
     }
 
     public async Task<Control> LoadFromUriAsync(string uri, CancellationToken cancellationToken = default)
@@ -49,6 +55,7 @@ public sealed class SmlUiLoader
         var document = parser.ParseDocument();
 
         var builder = new SmlUiBuilder(_registry, _propertyMapper, _animationApi);
+        _configureActions?.Invoke(builder.Actions);
         return builder.Build(document);
     }
 

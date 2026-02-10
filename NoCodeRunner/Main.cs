@@ -3,6 +3,7 @@ using Runtime.Logging;
 using Runtime.UI;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading.Tasks;
 
 public partial class Main : Node
@@ -37,6 +38,7 @@ public partial class Main : Node
 	private readonly Runtime.Assets.AssetCacheManager _assetCacheManager = new();
 	private readonly NodeFactoryRegistry _nodeFactoryRegistry = new();
 	private readonly NodePropertyMapper _nodePropertyMapper = new();
+	private readonly List<IUiActionModule> _uiActionModules = [];
 	private Control? _runtimeUiHost;
 	private Control? _runtimeUiRoot;
 	private SubViewport? _fixedUiViewport;
@@ -47,6 +49,7 @@ public partial class Main : Node
 
 	public override async void _Ready()
 	{
+		DiscoverUiActionModules();
 		ConfigureWindowContentScale(UiScalingMode.Layout);
 
 		if (EnableStartupSync)
@@ -103,7 +106,11 @@ public partial class Main : Node
 
 		try
 		{
-			var loader = new SmlUiLoader(_nodeFactoryRegistry, _nodePropertyMapper);
+			var loader = new SmlUiLoader(
+				_nodeFactoryRegistry,
+				_nodePropertyMapper,
+				animationApi: null,
+				configureActions: ConfigureProjectActions);
 			var rootControl = await loader.LoadFromUriAsync(uiUrl);
 			AttachUi(rootControl);
 			Runtime.Logging.RunnerLogger.Info("UI", $"UI loaded from '{uiUrl}'.");
@@ -112,6 +119,58 @@ public partial class Main : Node
 		{
 			Runtime.Logging.RunnerLogger.Error("UI", $"Failed to load UI from '{uiUrl}': {ex.Message}");
 		}
+	}
+
+	private void DiscoverUiActionModules()
+	{
+		_uiActionModules.Clear();
+
+		var assembly = Assembly.GetExecutingAssembly();
+		foreach (var type in assembly.GetTypes())
+		{
+			if (type.IsAbstract || type.IsInterface)
+			{
+				continue;
+			}
+
+			if (!typeof(IUiActionModule).IsAssignableFrom(type))
+			{
+				continue;
+			}
+
+			if (Activator.CreateInstance(type) is not IUiActionModule module)
+			{
+				continue;
+			}
+
+			_uiActionModules.Add(module);
+			RunnerLogger.Info("UI", $"Loaded action module: {type.FullName}");
+		}
+	}
+
+	private void ConfigureProjectActions(UiActionDispatcher dispatcher)
+	{
+		foreach (var module in _uiActionModules)
+		{
+			try
+			{
+				module.Configure(dispatcher);
+			}
+			catch (Exception ex)
+			{
+				RunnerLogger.Error("UI", $"Action module '{module.GetType().FullName}' failed during Configure: {ex.Message}");
+			}
+		}
+
+		dispatcher.RegisterActionHandlerIfMissing("save", ctx => RunnerLogger.Info("UI", $"Fallback action executed: save (sourceId='{ctx.SourceId}')."));
+		dispatcher.RegisterActionHandlerIfMissing("open", ctx => RunnerLogger.Info("UI", $"Fallback action executed: open (sourceId='{ctx.SourceId}')."));
+		dispatcher.RegisterActionHandlerIfMissing("saveAs", ctx => RunnerLogger.Info("UI", $"Fallback action executed: saveAs (sourceId='{ctx.SourceId}')."));
+		dispatcher.RegisterIdHandlerIfMissing("saveBtn", ctx => RunnerLogger.Info("UI", $"Fallback id handler executed for '{ctx.SourceId}'."));
+
+		dispatcher.SetPageHandlerIfMissing(path =>
+		{
+			RunnerLogger.Warn("UI", $"page action requested ('{path}') but dynamic page loading is not implemented in Main yet.");
+		});
 	}
 
 	private static string BuildDefaultSampleUiFileUrl()

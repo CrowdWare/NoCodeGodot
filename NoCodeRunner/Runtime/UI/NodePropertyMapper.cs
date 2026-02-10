@@ -8,9 +8,9 @@ namespace Runtime.UI;
 
 public sealed class NodePropertyMapper
 {
-    public const string MetaId = "sml:id";
-    public const string MetaAction = "sml:action";
-    public const string MetaClicked = "sml:clicked";
+    public const string MetaId = "sml_id";
+    public const string MetaAction = "sml_action";
+    public const string MetaClicked = "sml_clicked";
 
     public void Apply(Control control, string propertyName, SmlValue value)
     {

@@ -16,6 +16,7 @@ public sealed class SmlUiBuilder
     private readonly NodeFactoryRegistry _registry;
     private readonly NodePropertyMapper _propertyMapper;
     private readonly AnimationControlApi _animationApi;
+    private readonly UiActionDispatcher _actionDispatcher;
     private readonly Dictionary<string, Viewport3DControl> _viewportsById = new(StringComparer.OrdinalIgnoreCase);
 
     public SmlUiBuilder(NodeFactoryRegistry registry, NodePropertyMapper propertyMapper, AnimationControlApi animationApi)
@@ -23,7 +24,11 @@ public sealed class SmlUiBuilder
         _registry = registry;
         _propertyMapper = propertyMapper;
         _animationApi = animationApi;
+        _actionDispatcher = new UiActionDispatcher();
+        RegisterDefaultActionHandlers();
     }
+
+    public UiActionDispatcher Actions => _actionDispatcher;
 
     public Control Build(SmlDocument document)
     {
@@ -137,16 +142,22 @@ public sealed class SmlUiBuilder
                 var action = GetMetaString(control, NodePropertyMapper.MetaAction);
                 var target = GetMetaString(control, NodePropertyMapper.MetaClicked);
 
-                RunnerLogger.Info("UI", $"Button pressed: id='{id}', action='{action}', target='{target}'");
-
-                if (string.Equals(action, "closeQuery", StringComparison.OrdinalIgnoreCase))
+                if (string.IsNullOrWhiteSpace(id)
+                    && string.IsNullOrWhiteSpace(action)
+                    && string.IsNullOrWhiteSpace(target))
                 {
-                    var tree = button.GetTree();
-                    tree?.Quit();
+                    // Ignore framework/internal buttons that have no SML metadata.
                     return;
                 }
 
-                HandleViewportAction(action, target);
+                RunnerLogger.Info("UI", $"Button pressed: id='{id}', action='{action}', target='{target}'");
+
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    Action: action,
+                    Clicked: target
+                ));
             };
         }
 
@@ -177,70 +188,93 @@ public sealed class SmlUiBuilder
                 }
 
                 var normalized = (float)(value / 100.0);
-                _animationApi.SeekNormalized(target, normalized);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: GetMetaString(control, NodePropertyMapper.MetaId),
+                    Action: action,
+                    Clicked: target,
+                    NumericValue: normalized
+                ));
             };
         }
     }
 
-    private void HandleViewportAction(string action, string targetId)
+    private void RegisterDefaultActionHandlers()
     {
-        if (string.IsNullOrWhiteSpace(action))
+        _actionDispatcher.SetPageHandler(path =>
         {
-            return;
-        }
+            // Hook for Main/runtime navigation integration.
+            RunnerLogger.Warn("UI", $"page action requested ('{path}') but runtime page navigation is not wired yet.");
+        });
 
-        if (string.IsNullOrWhiteSpace(targetId))
+        _actionDispatcher.RegisterActionHandler("closeQuery", ctx =>
         {
-            return;
-        }
+            ctx.Source.GetTree()?.Quit();
+        });
 
-        switch (action)
+        _actionDispatcher.RegisterActionHandler("animPlay", ctx =>
         {
-            case "animPlay":
+            if (string.IsNullOrWhiteSpace(ctx.Clicked))
             {
-                var animations = _animationApi.ListAnimations(targetId);
-                if (animations.Count == 0)
-                {
-                    RunnerLogger.Warn("UI", $"animPlay: no animations available for target '{targetId}'.");
-                    return;
-                }
-
-                _animationApi.Play(targetId, animations[0]);
+                RunnerLogger.Warn("UI", "animPlay requires clicked target id.");
                 return;
             }
 
-            case "animStop":
-                _animationApi.Stop(targetId);
+            var animations = _animationApi.ListAnimations(ctx.Clicked);
+            if (animations.Count == 0)
+            {
+                RunnerLogger.Warn("UI", $"animPlay: no animations available for target '{ctx.Clicked}'.");
                 return;
+            }
 
-            case "animRewind":
-                _animationApi.Rewind(targetId);
-                return;
+            _animationApi.Play(ctx.Clicked, animations[0]);
+        });
 
-            case "perspectiveNear":
-                SetViewportCameraDistance(targetId, 2f);
+        _actionDispatcher.RegisterActionHandler("animStop", ctx =>
+        {
+            if (string.IsNullOrWhiteSpace(ctx.Clicked))
+            {
+                RunnerLogger.Warn("UI", "animStop requires clicked target id.");
                 return;
+            }
 
-            case "perspectiveDefault":
-                SetViewportCameraDistance(targetId, 4f);
-                return;
+            _animationApi.Stop(ctx.Clicked);
+        });
 
-            case "perspectiveFar":
-                SetViewportCameraDistance(targetId, 7f);
+        _actionDispatcher.RegisterActionHandler("animRewind", ctx =>
+        {
+            if (string.IsNullOrWhiteSpace(ctx.Clicked))
+            {
+                RunnerLogger.Warn("UI", "animRewind requires clicked target id.");
                 return;
+            }
 
-            case "zoomIn":
-                AdjustViewportCameraDistance(targetId, -0.6f);
-                return;
+            _animationApi.Rewind(ctx.Clicked);
+        });
 
-            case "zoomOut":
-                AdjustViewportCameraDistance(targetId, 0.6f);
+        _actionDispatcher.RegisterActionHandler("animScrub", ctx =>
+        {
+            if (string.IsNullOrWhiteSpace(ctx.Clicked))
+            {
+                RunnerLogger.Warn("UI", "animScrub requires clicked target id.");
                 return;
+            }
 
-            case "cameraReset":
-                ResetViewportCamera(targetId);
+            if (ctx.NumericValue is null)
+            {
+                RunnerLogger.Warn("UI", "animScrub requires numeric value.");
                 return;
-        }
+            }
+
+            _animationApi.SeekNormalized(ctx.Clicked, (float)ctx.NumericValue.Value);
+        });
+
+        _actionDispatcher.RegisterActionHandler("perspectiveNear", ctx => SetViewportCameraDistance(ctx.Clicked, 2f));
+        _actionDispatcher.RegisterActionHandler("perspectiveDefault", ctx => SetViewportCameraDistance(ctx.Clicked, 4f));
+        _actionDispatcher.RegisterActionHandler("perspectiveFar", ctx => SetViewportCameraDistance(ctx.Clicked, 7f));
+        _actionDispatcher.RegisterActionHandler("zoomIn", ctx => AdjustViewportCameraDistance(ctx.Clicked, -0.6f));
+        _actionDispatcher.RegisterActionHandler("zoomOut", ctx => AdjustViewportCameraDistance(ctx.Clicked, 0.6f));
+        _actionDispatcher.RegisterActionHandler("cameraReset", ctx => ResetViewportCamera(ctx.Clicked));
     }
 
     private void SetViewportCameraDistance(string viewportId, float distance)

@@ -268,7 +268,7 @@ Runner flow:
 Intent: Open a URL externally (system default browser).
 
 Runner flow (Godot/C#):
-	•	Validate scheme (allow http/https)
+	•	Validate scheme (allow only http/https/file)
 	•	Call Godot: OS.ShellOpen(url)
 
 ---
@@ -278,6 +278,30 @@ Runner flow (Godot/C#):
 	•	kind is case-insensitive (page, action, web)
 	•	value is kept as-is (may contain ://, query strings, etc.)
 	•	Unknown kind → log warning and ignore (do not break UI)
+
+---
+
+## C# Action Binding / Dispatcher
+
+The Runner now uses a **central action dispatcher** (`UiActionDispatcher`) that resolves actions in this order:
+
+1. typed action in `clicked` (e.g. `web:https://...`, `page:...`, `action:...`)
+2. typed action in `action`
+3. plain `action` handler lookup
+4. source `id` handler lookup
+5. plain `clicked` as `id` handler lookup
+
+If nothing matches, the dispatcher logs a warning (no hard crash).
+
+### Bind SML IDs to C# handlers
+
+You can register handlers in `Main` via `configureActions` (passed into `SmlUiLoader`):
+
+- `RegisterActionHandlerIfMissing("save", handler)`
+- `RegisterIdHandlerIfMissing("saveBtn", handler)`
+- `SetPageHandlerIfMissing(path => ...)`
+
+This keeps SML declarative while wiring behavior centrally in C#.
 
 ---
 

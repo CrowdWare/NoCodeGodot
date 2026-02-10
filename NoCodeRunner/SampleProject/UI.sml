@@ -31,7 +31,7 @@ Window {
             id: notes
             text: "This UI was loaded from a local SML file URL."
             width: 520
-            height: 180
+            height: 100
             multiline: true
         }
 
