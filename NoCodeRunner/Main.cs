@@ -7,8 +7,9 @@ using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
+using Runtime.Assets;
+using Runtime.Sml;
 
 public partial class Main : Node
 {
@@ -52,8 +53,11 @@ public partial class Main : Node
 	private int _fixedRootResizeWarnings;
 	private string? _resolvedStartupUiUrl;
 	private const string DefaultStartUrl = "https://crowdware.github.io/NoCodeGodot/Default/manifest.sml";
-	private const string StartupSettingsFileName = "startup_settings.json";
+	private const string StartupSettingsFileName = "startup_settings.sml";
 	private static readonly System.Net.Http.HttpClient StartupHttpClient = new();
+	private CanvasLayer? _startupProgressLayer;
+	private ProgressBar? _startupProgressBar;
+	private Label? _startupProgressLabel;
 
 	public override async void _Ready()
 	{
@@ -146,10 +150,31 @@ public partial class Main : Node
 		}
 
 		var offline = false;
+		var progressOverlayVisible = false;
 		try
 		{
 			var manifest = await _manifestLoader.LoadAsync(manifestUrl);
-			var syncResult = await _assetCacheManager.SyncAsync(manifest);
+			var syncPlan = await _assetCacheManager.BuildSyncPlanAsync(manifest);
+			var thresholdBytes = Math.Max(0, settings.ProgressThresholdMb) * 1024L * 1024L;
+			var showProgress = syncPlan.DownloadCount > 0 && syncPlan.PlannedBytes >= thresholdBytes;
+
+			RunnerLogger.Info(
+				"Startup",
+				$"PlannedDownloads: files={syncPlan.DownloadCount}, bytes={syncPlan.PlannedBytes}, unknownSizes={syncPlan.UnknownSizeCount}, progressThresholdBytes={thresholdBytes}, showProgress={showProgress}"
+			);
+
+			IProgress<AssetSyncProgress>? progressReporter = null;
+			if (showProgress)
+			{
+				ShowStartupProgressOverlay(syncPlan);
+				progressOverlayVisible = true;
+				progressReporter = new Progress<AssetSyncProgress>(ReportStartupProgress);
+			}
+
+			var syncResult = await _assetCacheManager.SyncAsync(
+				manifest,
+				progress: progressReporter,
+				planOverride: syncPlan);
 
 			RunnerLogger.Info("Startup", $"Offline: {offline}");
 			RunnerLogger.Info("Startup", $"Cache: {(syncResult.CacheHit ? "hit" : "miss")}");
@@ -183,6 +208,13 @@ public partial class Main : Node
 			RunnerLogger.Info("Startup", "Downloads: 0 and 0");
 			RunnerLogger.Warn("Startup", "No cached content available. Falling back to embedded fallback app.");
 			return BuildFallbackAppFileUrl();
+		}
+		finally
+		{
+			if (progressOverlayVisible)
+			{
+				HideStartupProgressOverlay();
+			}
 		}
 	}
 
@@ -395,11 +427,12 @@ public partial class Main : Node
 
 		try
 		{
-			var json = await File.ReadAllTextAsync(path);
-			return JsonSerializer.Deserialize<StartupSettings>(json) ?? new StartupSettings();
+			var content = await File.ReadAllTextAsync(path);
+			return ParseStartupSettingsSml(content);
 		}
-		catch
+		catch (Exception ex)
 		{
+			RunnerLogger.Warn("Startup", $"Failed to load startup settings from SML. Using defaults. Reason: {ex.Message}");
 			return new StartupSettings();
 		}
 	}
@@ -408,8 +441,8 @@ public partial class Main : Node
 	{
 		var path = ProjectSettings.GlobalizePath($"user://{StartupSettingsFileName}");
 		var temp = path + ".tmp";
-		var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
-		await File.WriteAllTextAsync(temp, json);
+		var sml = BuildStartupSettingsSml(settings);
+		await File.WriteAllTextAsync(temp, sml);
 
 		if (File.Exists(path))
 		{
@@ -424,6 +457,160 @@ public partial class Main : Node
 	private sealed class StartupSettings
 	{
 		public string? StartUrl { get; set; }
+		public int ProgressThresholdMb { get; set; } = 10;
+	}
+
+	private static StartupSettings ParseStartupSettingsSml(string content)
+	{
+		var schema = new SmlParserSchema();
+		schema.RegisterKnownNode("StartupSettings");
+		schema.WarnOnUnknownNodes = true;
+
+		var parser = new SmlParser(content, schema);
+		var document = parser.ParseDocument();
+
+		if (document.Roots.Count == 0)
+		{
+			return new StartupSettings();
+		}
+
+		var root = document.Roots[0];
+		if (!string.Equals(root.Name, "StartupSettings", StringComparison.OrdinalIgnoreCase))
+		{
+			return new StartupSettings();
+		}
+
+		var settings = new StartupSettings();
+		if (root.TryGetProperty("startUrl", out var startUrlValue))
+		{
+			settings.StartUrl = startUrlValue.AsStringOrThrow("startUrl");
+		}
+
+		if (root.TryGetProperty("progressThresholdMb", out var thresholdValue))
+		{
+			settings.ProgressThresholdMb = Math.Max(0, thresholdValue.AsIntOrThrow("progressThresholdMb"));
+		}
+
+		return settings;
+	}
+
+	private static string BuildStartupSettingsSml(StartupSettings settings)
+	{
+		var builder = new StringBuilder();
+		builder.AppendLine("StartupSettings {");
+		if (!string.IsNullOrWhiteSpace(settings.StartUrl))
+		{
+			builder.AppendLine($"    startUrl: \"{EscapeSmlString(settings.StartUrl!)}\"");
+		}
+
+		builder.AppendLine($"    progressThresholdMb: {Math.Max(0, settings.ProgressThresholdMb)}");
+		builder.AppendLine("}");
+		return builder.ToString();
+	}
+
+	private static string EscapeSmlString(string value)
+	{
+		return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+	}
+
+	private void ShowStartupProgressOverlay(AssetSyncPlan plan)
+	{
+		if (_startupProgressLayer is not null)
+		{
+			return;
+		}
+
+		var layer = new CanvasLayer { Name = "StartupProgressLayer", Layer = 1000 };
+		var panel = new PanelContainer
+		{
+			Name = "StartupProgressPanel",
+			CustomMinimumSize = new Vector2(640, 110)
+		};
+		panel.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
+		panel.Position = new Vector2(320, 40);
+
+		var margin = new MarginContainer();
+		margin.AddThemeConstantOverride("margin_left", 16);
+		margin.AddThemeConstantOverride("margin_right", 16);
+		margin.AddThemeConstantOverride("margin_top", 12);
+		margin.AddThemeConstantOverride("margin_bottom", 12);
+
+		var vbox = new VBoxContainer();
+		vbox.AddThemeConstantOverride("separation", 6);
+		var label = new Label
+		{
+			Text = $"Preparing download… files={plan.DownloadCount}, planned={FormatBytes(plan.PlannedBytes)}"
+		};
+
+		var progress = new ProgressBar
+		{
+			MinValue = 0,
+			MaxValue = Math.Max(1, plan.DownloadCount),
+			Value = 0,
+			ShowPercentage = true,
+			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
+		};
+
+		vbox.AddChild(label);
+		vbox.AddChild(progress);
+		margin.AddChild(vbox);
+		panel.AddChild(margin);
+		layer.AddChild(panel);
+		AddChild(layer);
+
+		_startupProgressLayer = layer;
+		_startupProgressBar = progress;
+		_startupProgressLabel = label;
+	}
+
+	private void ReportStartupProgress(AssetSyncProgress progress)
+	{
+		CallDeferred(nameof(ApplyStartupProgress), progress.CompletedCount, progress.TotalCount, progress.DownloadedBytes, progress.PlannedBytes, progress.CurrentPath ?? string.Empty);
+	}
+
+	private void ApplyStartupProgress(int completedCount, int totalCount, long downloadedBytes, long plannedBytes, string currentPath)
+	{
+		if (_startupProgressBar is null || _startupProgressLabel is null)
+		{
+			return;
+		}
+
+		_startupProgressBar.MaxValue = Math.Max(1, totalCount);
+		_startupProgressBar.Value = Math.Min(completedCount, totalCount);
+		var pathPart = string.IsNullOrWhiteSpace(currentPath) ? "" : $", current={currentPath}";
+		_startupProgressLabel.Text = $"Downloading assets… {completedCount}/{totalCount}, bytes={FormatBytes(downloadedBytes)}/{FormatBytes(plannedBytes)}{pathPart}";
+	}
+
+	private void HideStartupProgressOverlay()
+	{
+		if (_startupProgressLayer is null)
+		{
+			return;
+		}
+
+		_startupProgressLayer.QueueFree();
+		_startupProgressLayer = null;
+		_startupProgressBar = null;
+		_startupProgressLabel = null;
+	}
+
+	private static string FormatBytes(long bytes)
+	{
+		if (bytes <= 0)
+		{
+			return "0 B";
+		}
+
+		string[] units = ["B", "KB", "MB", "GB"];
+		double value = bytes;
+		var unit = 0;
+		while (value >= 1024 && unit < units.Length - 1)
+		{
+			value /= 1024;
+			unit++;
+		}
+
+		return $"{value:0.##} {units[unit]}";
 	}
 
 	private void DiscoverUiActionModules()

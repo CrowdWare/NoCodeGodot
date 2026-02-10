@@ -3,6 +3,7 @@ using Runtime.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace Runtime.ThreeD;
 
@@ -22,6 +23,7 @@ public sealed partial class Viewport3DControl : SubViewportContainer
     private Node3D? _modelRoot;
     private AnimationPlayer? _animationPlayer;
     private string? _pendingAutoplayAnimation;
+    private string? _animationSource;
     private readonly List<AnimationPlayer> _animationPlayers = [];
     private readonly List<AnimationTree> _animationTrees = [];
     private float _yaw = DefaultYaw;
@@ -33,7 +35,7 @@ public sealed partial class Viewport3DControl : SubViewportContainer
 
     public AnimationControlApi? AnimationApi { get; set; }
     public string SmlId { get; set; } = string.Empty;
-    public bool PlayFirstAnimationOnLoad { get; set; }
+    public int PlayAnimationIndex { get; private set; }
     public string DefaultAnimation { get; set; } = string.Empty;
 
     public Viewport3DControl()
@@ -103,36 +105,60 @@ public sealed partial class Viewport3DControl : SubViewportContainer
             }
         }
 
+        if (!TryLoadNode3DFromSource(source, out var loadedModel, out var sourceLabel))
+        {
+            return;
+        }
+
+        AttachLoadedModel(loadedModel, sourceLabel);
+    }
+
+    public void SetAnimationSource(string source)
+    {
+        _animationSource = source;
+        if (_modelRoot is null)
+        {
+            return;
+        }
+
+        TryImportAdditionalAnimations(_animationSource);
+    }
+
+    private bool TryLoadNode3DFromSource(string source, out Node3D node3D, out string sourceLabel)
+    {
+        sourceLabel = source;
+        node3D = null!;
+
         if (Path.IsPathRooted(source))
         {
             if (!File.Exists(source))
             {
                 RunnerLogger.Warn("3D", $"Model file does not exist: '{source}'.");
-                return;
+                return false;
             }
 
             if (TryLoadAbsoluteGltf(source, out var absoluteNode))
             {
-                AttachLoadedModel(absoluteNode, source);
-                return;
+                node3D = absoluteNode;
+                return true;
             }
 
             RunnerLogger.Warn("3D", $"Model source '{source}' is an absolute file path and could not be loaded as .glb/.gltf at runtime.");
-            return;
+            return false;
         }
 
         if (!source.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
             && !source.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
         {
             RunnerLogger.Warn("3D", $"Unsupported model source '{source}'. Use res:// or user://.");
-            return;
+            return false;
         }
 
         Resource? resource = GD.Load<Resource>(source);
         if (resource is null)
         {
             RunnerLogger.Warn("3D", $"Could not load 3D resource '{source}'.");
-            return;
+            return false;
         }
 
         Node? instance = resource is PackedScene scene
@@ -142,10 +168,11 @@ public sealed partial class Viewport3DControl : SubViewportContainer
         if (instance is not Node3D node3DFromPackedScene)
         {
             RunnerLogger.Warn("3D", $"Resource '{source}' is not a 3D scene (expected imported .glb/.gltf PackedScene).");
-            return;
+            return false;
         }
 
-        AttachLoadedModel(node3DFromPackedScene, source);
+        node3D = node3DFromPackedScene;
+        return true;
     }
 
     private bool TryLoadAbsoluteGltf(string absolutePath, out Node3D node)
@@ -234,7 +261,12 @@ public sealed partial class Viewport3DControl : SubViewportContainer
 
         RunnerLogger.Info("3D", $"Model loaded from '{sourceLabel}'. AnimationPlayers={_animationPlayers.Count}, AnimationTrees={_animationTrees.Count}, primary='{_animationPlayer.Name}', animations: {string.Join(", ", animations)}");
 
-        if (PlayFirstAnimationOnLoad && animations.Count > 0)
+        if (!string.IsNullOrWhiteSpace(_animationSource))
+        {
+            TryImportAdditionalAnimations(_animationSource);
+        }
+
+        if (PlayAnimationIndex > 0 && animations.Count > 0)
         {
             QueuePendingAutoplayFromCurrentPlayer();
         }
@@ -242,8 +274,13 @@ public sealed partial class Viewport3DControl : SubViewportContainer
 
     public void SetPlayFirstAnimationOnLoad(bool enabled)
     {
-        PlayFirstAnimationOnLoad = enabled;
-        if (enabled)
+        SetPlayAnimation(enabled ? 1 : 0);
+    }
+
+    public void SetPlayAnimation(int index)
+    {
+        PlayAnimationIndex = Math.Max(0, index);
+        if (PlayAnimationIndex > 0)
         {
             QueuePendingAutoplayFromCurrentPlayer();
         }
@@ -252,7 +289,7 @@ public sealed partial class Viewport3DControl : SubViewportContainer
     public void SetDefaultAnimation(string animationName)
     {
         DefaultAnimation = animationName;
-        if (PlayFirstAnimationOnLoad)
+        if (PlayAnimationIndex > 0)
         {
             QueuePendingAutoplayFromCurrentPlayer();
         }
@@ -293,10 +330,13 @@ public sealed partial class Viewport3DControl : SubViewportContainer
         }
         else
         {
-            var animationList = _animationPlayer.GetAnimationList();
-            if (animationList.Length > 0)
+            var animationList = _animationPlayer.GetAnimationList().ToList();
+            if (animationList.Count > 0)
             {
-                _pendingAutoplayAnimation = animationList[0];
+                var selectedIndex = PlayAnimationIndex > 0
+                    ? Math.Min(PlayAnimationIndex, animationList.Count) - 1
+                    : 0;
+                _pendingAutoplayAnimation = animationList[selectedIndex];
             }
         }
 
@@ -419,6 +459,87 @@ public sealed partial class Viewport3DControl : SubViewportContainer
         {
             CollectAnimationTrees(child, trees);
         }
+    }
+
+    private void TryImportAdditionalAnimations(string? source)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return;
+        }
+
+        if (!TryLoadNode3DFromSource(source, out var animationRoot, out var sourceLabel))
+        {
+            RunnerLogger.Warn("3D", $"Could not load additional animation source '{source}'.");
+            return;
+        }
+
+        var sourcePlayers = new List<AnimationPlayer>();
+        CollectAnimationPlayers(animationRoot, sourcePlayers);
+        if (sourcePlayers.Count == 0)
+        {
+            RunnerLogger.Warn("3D", $"Animation source '{sourceLabel}' has no AnimationPlayer.");
+            animationRoot.QueueFree();
+            return;
+        }
+
+        var importedCount = 0;
+        foreach (var sourcePlayer in sourcePlayers)
+        {
+            foreach (string animationName in sourcePlayer.GetAnimationList())
+            {
+                var sourceAnimation = sourcePlayer.GetAnimation(animationName);
+                if (sourceAnimation is null)
+                {
+                    continue;
+                }
+
+                var targetPlayer = FindTargetPlayerForImportedAnimation(sourcePlayer.Name);
+                if (targetPlayer is null)
+                {
+                    continue;
+                }
+
+                if (targetPlayer.HasAnimation(animationName))
+                {
+                    RunnerLogger.Info("3D", $"Skipping imported animation '{animationName}' because it already exists on '{targetPlayer.Name}'.");
+                    continue;
+                }
+
+                var targetLibrary = targetPlayer.GetAnimationLibrary("");
+                if (targetLibrary is null)
+                {
+                    targetLibrary = new AnimationLibrary();
+                    targetPlayer.AddAnimationLibrary("", targetLibrary);
+                }
+
+                targetLibrary.AddAnimation(animationName, (Animation)sourceAnimation.Duplicate(true));
+                importedCount++;
+            }
+        }
+
+        animationRoot.QueueFree();
+        if (importedCount > 0)
+        {
+            RunnerLogger.Info("3D", $"Imported {importedCount} animations from '{sourceLabel}'.");
+        }
+        else
+        {
+            RunnerLogger.Warn("3D", $"No new animations imported from '{sourceLabel}'.");
+        }
+    }
+
+    private AnimationPlayer? FindTargetPlayerForImportedAnimation(string sourcePlayerName)
+    {
+        foreach (var player in _animationPlayers)
+        {
+            if (string.Equals(player.Name, sourcePlayerName, StringComparison.OrdinalIgnoreCase))
+            {
+                return player;
+            }
+        }
+
+        return _animationPlayer;
     }
 
     private void HandleMouseButton(InputEventMouseButton mouseButton)

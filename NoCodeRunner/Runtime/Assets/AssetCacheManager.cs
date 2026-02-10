@@ -28,7 +28,52 @@ public sealed class AssetCacheManager
         _cacheRoot = Path.Combine(userDataRoot, "cache");
     }
 
-    public async Task<AssetSyncResult> SyncAsync(ManifestDocument manifest, CancellationToken cancellationToken = default)
+    public async Task<AssetSyncPlan> BuildSyncPlanAsync(ManifestDocument manifest, CancellationToken cancellationToken = default)
+    {
+        var appCacheRoot = GetAppCacheRoot(manifest.SourceManifestUrl);
+        var assetsRoot = Path.Combine(appCacheRoot, "files");
+        var metadataPath = Path.Combine(appCacheRoot, "metadata.json");
+
+        Directory.CreateDirectory(assetsRoot);
+
+        var metadata = await LoadMetadataAsync(metadataPath, cancellationToken);
+        var previousByPath = metadata.Items.ToDictionary(x => x.RelativePath, StringComparer.OrdinalIgnoreCase);
+
+        var downloadCount = 0;
+        long plannedBytes = 0;
+        var unknownSizeCount = 0;
+
+        foreach (var asset in manifest.Assets)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var relativePath = NormalizeRelativePath(asset.Path);
+            var absolutePath = Path.Combine(assetsRoot, relativePath);
+
+            if (!ShouldDownloadAsset(previousByPath, relativePath, absolutePath, asset.Hash))
+            {
+                continue;
+            }
+
+            downloadCount++;
+            if (asset.Size is { } size && size > 0)
+            {
+                plannedBytes += size;
+            }
+            else
+            {
+                unknownSizeCount++;
+            }
+        }
+
+        return new AssetSyncPlan(downloadCount, plannedBytes, unknownSizeCount);
+    }
+
+    public async Task<AssetSyncResult> SyncAsync(
+        ManifestDocument manifest,
+        CancellationToken cancellationToken = default,
+        IProgress<AssetSyncProgress>? progress = null,
+        AssetSyncPlan? planOverride = null)
     {
         var appCacheRoot = GetAppCacheRoot(manifest.SourceManifestUrl);
         var assetsRoot = Path.Combine(appCacheRoot, "files");
@@ -52,6 +97,10 @@ public sealed class AssetCacheManager
         var reused = 0;
         var failed = 0;
         long downloadedBytes = 0;
+        var completedDownloads = 0;
+
+        var plan = planOverride ?? await BuildSyncPlanAsync(manifest, cancellationToken);
+        progress?.Report(new AssetSyncProgress(0, plan.DownloadCount, 0, plan.PlannedBytes, null));
 
         foreach (var asset in manifest.Assets)
         {
@@ -61,13 +110,7 @@ public sealed class AssetCacheManager
             var absolutePath = Path.Combine(assetsRoot, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
 
-            var shouldDownload = true;
-            if (previousByPath.TryGetValue(relativePath, out var existing)
-                && string.Equals(existing.Hash, asset.Hash, StringComparison.OrdinalIgnoreCase)
-                && File.Exists(absolutePath))
-            {
-                shouldDownload = false;
-            }
+            var shouldDownload = ShouldDownloadAsset(previousByPath, relativePath, absolutePath, asset.Hash);
 
             if (shouldDownload)
             {
@@ -99,6 +142,11 @@ public sealed class AssetCacheManager
 
                     continue;
                 }
+                finally
+                {
+                    completedDownloads++;
+                    progress?.Report(new AssetSyncProgress(completedDownloads, plan.DownloadCount, downloadedBytes, plan.PlannedBytes, relativePath));
+                }
             }
             else
             {
@@ -128,6 +176,17 @@ public sealed class AssetCacheManager
         var entryFileUrl = BuildCachedEntryUrl(assetsRoot, metadata.EntryPoint);
 
         return new AssetSyncResult(downloaded, reused, failed, downloadedBytes, cacheHit, manifestStatus, entryFileUrl);
+    }
+
+    private static bool ShouldDownloadAsset(
+        Dictionary<string, AssetCacheItem> previousByPath,
+        string relativePath,
+        string absolutePath,
+        string expectedHash)
+    {
+        return !previousByPath.TryGetValue(relativePath, out var existing)
+               || !string.Equals(existing.Hash, expectedHash, StringComparison.OrdinalIgnoreCase)
+               || !File.Exists(absolutePath);
     }
 
     public string? TryGetCachedEntryUrl(string manifestUrl)

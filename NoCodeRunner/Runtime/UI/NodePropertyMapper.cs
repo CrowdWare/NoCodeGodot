@@ -148,6 +148,25 @@ public sealed class NodePropertyMapper
                 }
                 break;
 
+            case "animation":
+            case "animationsource":
+                if (control is Viewport3DControl viewportAnimationSource)
+                {
+                    var rawAnimationSource = value.AsStringOrThrow(propertyName);
+                    var resolvedAnimationSource = ResolveAssetPath(rawAnimationSource, resolveAssetPath);
+                    viewportAnimationSource.SetAnimationSource(resolvedAnimationSource);
+                    return;
+                }
+                break;
+
+            case "playanimation":
+                if (control is Viewport3DControl viewportPlayAnimation)
+                {
+                    viewportPlayAnimation.SetPlayAnimation(value.AsIntOrThrow(propertyName));
+                    return;
+                }
+                break;
+
             case "playfirstanimation":
             case "autoplayanimation":
                 if (control is Viewport3DControl viewportAnim)

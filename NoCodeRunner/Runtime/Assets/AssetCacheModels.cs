@@ -30,3 +30,15 @@ public readonly record struct AssetSyncResult(
     bool CacheHit,
     string ManifestStatus,
     string? EntryFileUrl);
+
+public readonly record struct AssetSyncPlan(
+    int DownloadCount,
+    long PlannedBytes,
+    int UnknownSizeCount);
+
+public readonly record struct AssetSyncProgress(
+    int CompletedCount,
+    int TotalCount,
+    long DownloadedBytes,
+    long PlannedBytes,
+    string? CurrentPath);
