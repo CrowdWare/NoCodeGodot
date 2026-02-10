@@ -278,3 +278,60 @@ Runner flow (Godot/C#):
 	•	kind is case-insensitive (page, action, web)
 	•	value is kept as-is (may contain ://, query strings, etc.)
 	•	Unknown kind → log warning and ignore (do not break UI)
+
+---
+
+## Implemented bootstrap (Task: Manifest & Asset System)
+
+The first backlog task is now implemented in the Runner as a startup pipeline:
+
+1. `Main` loads `manifest.sml` from `ManifestUrl`
+2. `ManifestLoader` parses and validates the SML manifest
+3. `AssetCacheManager` compares remote entries with local cache metadata
+4. only changed assets are downloaded
+5. cache metadata is persisted to `user://cache/metadata.json`
+
+### New runtime components
+
+- `Runtime/Sml/SmlParser.cs` – lightweight SML parser (C++ parser semantics adapted to C#)
+- `Runtime/Manifest/ManifestLoader.cs` – HTTP fetch + manifest validation
+- `Runtime/Assets/AssetCacheManager.cs` – cache diff, delta download, metadata persistence
+- `Runtime/Logging/RunnerLogger.cs` – structured subsystem logging wrapper
+
+### Manifest schema
+
+Root node must be `Manifest`.
+
+Root properties:
+
+- `version: int` (optional, default `1`)
+- `baseUrl: string` (optional)
+- `entryPoint: string` (optional)
+
+Child nodes:
+
+- `Asset { ... }`
+
+Asset properties:
+
+- `id: string` (required)
+- `path: string` (required)
+- `hash: string` (required, SHA-256; `sha256:` prefix is accepted)
+- `url: string` (optional; if missing, `path` + `baseUrl`/manifest URL are used)
+- `type: string` (optional)
+- `size: int` (optional)
+
+Numeric rule for SML in Runner:
+
+- **Integer-only numeric values** (no float support).
+- Example: `percent: 90` instead of `percent: 0.9`.
+
+See `manifest.example.sml` for a concrete example.
+
+### How to use
+
+1. Set `ManifestUrl` on the `Main` node (in `main.tscn`) to your hosted `manifest.sml`
+2. Keep `EnableStartupSync = true`
+3. Start Runner → it syncs cache before continuing
+
+If `ManifestUrl` is empty, startup sync is skipped with a warning.

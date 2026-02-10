@@ -1,12 +1,12 @@
-﻿Microsoft Visual Studio Solution File, Format Version 12.00
+Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoCodeRunner", "NoCodeRunner.csproj", "{1B553203-4E5D-4F21-A6F5-8C09AE928AB7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoCodeDesigner", "NoCodeDesigner.csproj", "{1B553203-4E5D-4F21-A6F5-8C09AE928AB7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-	Debug|Any CPU = Debug|Any CPU
-	ExportDebug|Any CPU = ExportDebug|Any CPU
-	ExportRelease|Any CPU = ExportRelease|Any CPU
+		Debug|Any CPU = Debug|Any CPU
+		ExportDebug|Any CPU = ExportDebug|Any CPU
+		ExportRelease|Any CPU = ExportRelease|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{1B553203-4E5D-4F21-A6F5-8C09AE928AB7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU

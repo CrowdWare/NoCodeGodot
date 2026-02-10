@@ -1,0 +1,156 @@
+using Godot;
+using Runtime.Logging;
+using Runtime.Sml;
+using Runtime.ThreeD;
+using System;
+
+namespace Runtime.UI;
+
+public sealed class SmlUiBuilder
+{
+    private readonly NodeFactoryRegistry _registry;
+    private readonly NodePropertyMapper _propertyMapper;
+    private readonly AnimationControlApi _animationApi;
+
+    public SmlUiBuilder(NodeFactoryRegistry registry, NodePropertyMapper propertyMapper, AnimationControlApi animationApi)
+    {
+        _registry = registry;
+        _propertyMapper = propertyMapper;
+        _animationApi = animationApi;
+    }
+
+    public Control Build(SmlDocument document)
+    {
+        if (document.Roots.Count == 0)
+        {
+            return BuildFallback("Empty SML document");
+        }
+
+        foreach (var warning in document.Warnings)
+        {
+            RunnerLogger.Warn("UI", warning);
+        }
+
+        var rootNode = document.Roots[0];
+        var ui = BuildNodeRecursive(rootNode);
+        return ui ?? BuildFallback($"Could not build root node '{rootNode.Name}'.");
+    }
+
+    private Control? BuildNodeRecursive(SmlNode node)
+    {
+        if (!_registry.TryCreate(node.Name, out var control))
+        {
+            RunnerLogger.Warn("UI", $"No factory registered for '{node.Name}'. Node skipped.");
+            return null;
+        }
+
+        foreach (var (propertyName, value) in node.Properties)
+        {
+            _propertyMapper.Apply(control, propertyName, value);
+        }
+
+        if (!node.TryGetProperty("fillMaxSize", out _) && ShouldFillMaxSizeByDefault(node.Name))
+        {
+            NodePropertyMapper.ApplyFillMaxSize(control);
+        }
+
+        if (control is Viewport3DControl viewport3D)
+        {
+            viewport3D.AnimationApi = _animationApi;
+        }
+
+        foreach (var child in node.Children)
+        {
+            var childControl = BuildNodeRecursive(child);
+            if (childControl is not null)
+            {
+                control.AddChild(childControl);
+
+                if (control is TabContainer tabs && string.Equals(child.Name, "Tab", StringComparison.OrdinalIgnoreCase))
+                {
+                    var tabIndex = tabs.GetTabIdxFromControl(childControl);
+                    var tabTitle = child.TryGetProperty("title", out var titleValue)
+                        ? titleValue.AsStringOrThrow("title")
+                        : child.TryGetProperty("label", out var labelValue)
+                            ? labelValue.AsStringOrThrow("label")
+                            : child.Name;
+                    tabs.SetTabTitle(tabIndex, tabTitle);
+                }
+            }
+        }
+
+        BindInteractions(control, node);
+
+        return control;
+    }
+
+    private static void BindInteractions(Control control, SmlNode node)
+    {
+        if (control is Button button)
+        {
+            button.Pressed += () =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                var action = GetMetaString(control, NodePropertyMapper.MetaAction);
+                var clicked = GetMetaString(control, NodePropertyMapper.MetaClicked);
+
+                RunnerLogger.Info("UI", $"Button pressed: id='{id}', action='{action}', clicked='{clicked}'");
+
+                if (string.Equals(action, "closeQuery", StringComparison.OrdinalIgnoreCase))
+                {
+                    var tree = button.GetTree();
+                    tree?.Quit();
+                }
+            };
+        }
+
+        if (control is TextEdit textEdit)
+        {
+            textEdit.TextChanged += () =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                RunnerLogger.Info("UI", $"TextEdit changed: id='{id}', length={textEdit.Text.Length}");
+            };
+        }
+    }
+
+    private static string GetMetaString(Control control, string key)
+    {
+        if (!control.HasMeta(key))
+        {
+            return string.Empty;
+        }
+
+        return control.GetMeta(key).AsString();
+    }
+
+    private static bool ShouldFillMaxSizeByDefault(string nodeName)
+    {
+        return nodeName.Equals("Window", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("Column", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("Box", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("Tabs", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("Tab", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static Control BuildFallback(string message)
+    {
+        var root = new VBoxContainer();
+        root.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        root.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+
+        root.AddChild(new Label
+        {
+            Text = "NoCodeRunner UI fallback",
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+
+        root.AddChild(new Label
+        {
+            Text = message,
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+
+        return root;
+    }
+}

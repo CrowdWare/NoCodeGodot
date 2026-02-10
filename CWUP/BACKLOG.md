@@ -59,7 +59,7 @@
 - Manual and automated backup support with clear rotation strategy.
 - Deterministic serialization order for world and state data.
 
-### Usability (Player & Admin)
+### Usability
 - Clear in-game feedback for core rules (engage range, resets, CC breaks).
 - Companion control limited to turn and XZ movement for predictability.
 - Simple server lifecycle: build → deploy → run as service.
@@ -72,11 +72,12 @@
 ## Use Cases
 
 ## Tasks
-- [ ] tasks/initial.md
-- [ ] tasks/sml_parser_core.md
-- [ ] tasks/node_factory.md
-- [ ] tasks/ui_elements.md
-- [ ] tasks/3d_integration.md
+- [x] tasks/initial.md
+- [x] tasks/sml_parser_core.md
+- [x] tasks/node_factory.md
+- [x] tasks/ui_elements.md
+- [x] tasks/3d_integration.md
+- [x] tasks/ui_scaling.md
 - [ ] tasks/animation_control_ui.md
 - [ ] tasks/camera_interaction.md
 - [ ] tasks/action_binding.md
