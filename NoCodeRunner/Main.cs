@@ -3,6 +3,7 @@ using Runtime.Logging;
 using Runtime.UI;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 
@@ -175,8 +176,19 @@ public partial class Main : Node
 
 	private static string BuildDefaultSampleUiFileUrl()
 	{
-		var samplePath = ProjectSettings.GlobalizePath("res://SampleProject/UI.sml");
-		return new Uri(samplePath).AbsoluteUri;
+		var projectDir = ProjectSettings.GlobalizePath("res://");
+		var projectRoot = Directory.GetParent(projectDir)?.FullName ?? projectDir;
+		var docsSamplePath = Path.Combine(projectRoot, "docs", "SampleProjekt", "UI.sml");
+
+		if (File.Exists(docsSamplePath))
+		{
+			RunnerLogger.Info("UI", $"Using docs sample UI: {docsSamplePath}");
+			return new Uri(docsSamplePath).AbsoluteUri;
+		}
+
+		var legacySamplePath = ProjectSettings.GlobalizePath("res://SampleProject/UI.sml");
+		RunnerLogger.Warn("UI", $"docs/SampleProjekt/UI.sml not found. Falling back to legacy sample path: {legacySamplePath}");
+		return new Uri(legacySamplePath).AbsoluteUri;
 	}
 
 	private void AttachUi(Control rootControl)
