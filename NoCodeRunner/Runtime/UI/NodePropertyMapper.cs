@@ -114,7 +114,7 @@ public sealed class NodePropertyMapper
             case "autoplayanimation":
                 if (control is Viewport3DControl viewportAnim)
                 {
-                    viewportAnim.PlayFirstAnimationOnLoad = ToBoolOrThrow(value, propertyName);
+                    viewportAnim.SetPlayFirstAnimationOnLoad(ToBoolOrThrow(value, propertyName));
                     return;
                 }
                 break;
@@ -122,7 +122,7 @@ public sealed class NodePropertyMapper
             case "defaultanimation":
                 if (control is Viewport3DControl viewportDefaultAnim)
                 {
-                    viewportDefaultAnim.DefaultAnimation = value.AsStringOrThrow(propertyName);
+                    viewportDefaultAnim.SetDefaultAnimation(value.AsStringOrThrow(propertyName));
                     return;
                 }
                 break;

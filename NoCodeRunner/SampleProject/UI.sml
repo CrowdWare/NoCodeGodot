@@ -62,7 +62,7 @@ Window {
                     Viewport3D {
                         id: hero
                         fillMaxSize: true
-                        model: "res://SampleProject/sample.glb"
+                        model: "res://SampleProject/PaladinIdle.glb"
                         cameraDistance: 4
                         lightEnergy: 1
                         playFirstAnimation: true
