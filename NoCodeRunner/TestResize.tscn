@@ -1,0 +1,29 @@
+[gd_scene format=3 uid="uid://c1dgyco8qw7q6"]
+
+[ext_resource type="Script" uid="uid://bpx1utn5enafd" path="res://test_resize.gd" id="1_4sl0u"]
+
+[node name="TestResize" type="Control" unique_id=155426487]
+layout_mode = 0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+offset_right = 0.0
+offset_bottom = 0.0
+script = ExtResource("1_4sl0u")
+
+[node name="PanelContainer" type="PanelContainer" parent="." unique_id=736232969]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="PanelContainer" unique_id=1956839695]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="PanelContainer/MarginContainer" unique_id=249590213]
+layout_mode = 2
+text = "This text should centered on the screen"
