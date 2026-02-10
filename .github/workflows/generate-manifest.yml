@@ -1,16 +1,17 @@
-name: Generate SampleProject manifest
+name: Validate manifests
 
 on:
+  pull_request:
   push:
-    branches:
-      - main
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "scripts/generate_manifest.py"
+      - "build_manifest.sh"
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  generate-manifest:
+  validate-manifests:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,11 +23,8 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Generate manifest.sml
-        run: python scripts/generate_manifest.py --root docs/SampleProject --entry UI.sml --output manifest.sml
+      - name: Generate manifests
+        run: bash build_manifest.sh
 
-      - name: Commit updated manifest
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore(ci): regenerate docs/SampleProject/manifest.sml"
-          file_pattern: docs/SampleProject/manifest.sml
+      - name: Check manifests are up to date
+        run: git diff --exit-code -- docs/SampleProject/manifest.sml docs/Default/manifest.sml
