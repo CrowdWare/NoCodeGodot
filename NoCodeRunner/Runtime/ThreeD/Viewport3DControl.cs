@@ -2,6 +2,7 @@ using Godot;
 using Runtime.Logging;
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace Runtime.ThreeD;
 
@@ -94,6 +95,39 @@ public sealed partial class Viewport3DControl : SubViewportContainer
             return;
         }
 
+        if (source.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Uri.TryCreate(source, UriKind.Absolute, out var fileUri))
+            {
+                source = fileUri.LocalPath;
+            }
+        }
+
+        if (Path.IsPathRooted(source))
+        {
+            if (!File.Exists(source))
+            {
+                RunnerLogger.Warn("3D", $"Model file does not exist: '{source}'.");
+                return;
+            }
+
+            if (TryLoadAbsoluteGltf(source, out var absoluteNode))
+            {
+                AttachLoadedModel(absoluteNode, source);
+                return;
+            }
+
+            RunnerLogger.Warn("3D", $"Model source '{source}' is an absolute file path and could not be loaded as .glb/.gltf at runtime.");
+            return;
+        }
+
+        if (!source.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
+            && !source.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
+        {
+            RunnerLogger.Warn("3D", $"Unsupported model source '{source}'. Use res:// or user://.");
+            return;
+        }
+
         Resource? resource = GD.Load<Resource>(source);
         if (resource is null)
         {
@@ -101,16 +135,54 @@ public sealed partial class Viewport3DControl : SubViewportContainer
             return;
         }
 
-        Node? instance = resource switch
-        {
-            PackedScene scene => scene.Instantiate(),
-            _ => null
-        };
+        Node? instance = resource is PackedScene scene
+            ? scene.Instantiate()
+            : null;
 
-        if (instance is not Node3D node3D)
+        if (instance is not Node3D node3DFromPackedScene)
         {
             RunnerLogger.Warn("3D", $"Resource '{source}' is not a 3D scene (expected imported .glb/.gltf PackedScene).");
             return;
+        }
+
+        AttachLoadedModel(node3DFromPackedScene, source);
+    }
+
+    private bool TryLoadAbsoluteGltf(string absolutePath, out Node3D node)
+    {
+        node = null!;
+
+        var extension = Path.GetExtension(absolutePath).ToLowerInvariant();
+        if (extension is not (".glb" or ".gltf"))
+        {
+            return false;
+        }
+
+        var gltfState = new GltfState();
+        var gltfDocument = new GltfDocument();
+        var appendError = gltfDocument.AppendFromFile(absolutePath, gltfState);
+        if (appendError != Error.Ok)
+        {
+            RunnerLogger.Warn("3D", $"GLTF append failed for '{absolutePath}' with error {appendError}.");
+            return false;
+        }
+
+        var generated = gltfDocument.GenerateScene(gltfState);
+        if (generated is not Node3D generatedNode)
+        {
+            RunnerLogger.Warn("3D", $"GLTF scene generation failed for '{absolutePath}'.");
+            return false;
+        }
+
+        node = generatedNode;
+        return true;
+    }
+
+    private void AttachLoadedModel(Node3D node3D, string sourceLabel)
+    {
+        if (node3D.GetParent() is not null)
+        {
+            node3D.GetParent().RemoveChild(node3D);
         }
 
         if (_modelRoot is not null)
@@ -133,7 +205,7 @@ public sealed partial class Viewport3DControl : SubViewportContainer
         _animationPlayer = FindBestAnimationPlayer(_animationPlayers);
         if (_animationPlayer is null || _animationPlayers.Count == 0)
         {
-            RunnerLogger.Warn("3D", $"Model loaded from '{source}', but no usable AnimationPlayer with animations was found.");
+            RunnerLogger.Warn("3D", $"Model loaded from '{sourceLabel}', but no usable AnimationPlayer with animations was found.");
             return;
         }
 
@@ -160,7 +232,7 @@ public sealed partial class Viewport3DControl : SubViewportContainer
             animations.Add(animationName);
         }
 
-        RunnerLogger.Info("3D", $"Model loaded from '{source}'. AnimationPlayers={_animationPlayers.Count}, AnimationTrees={_animationTrees.Count}, primary='{_animationPlayer.Name}', animations: {string.Join(", ", animations)}");
+        RunnerLogger.Info("3D", $"Model loaded from '{sourceLabel}'. AnimationPlayers={_animationPlayers.Count}, AnimationTrees={_animationTrees.Count}, primary='{_animationPlayer.Name}', animations: {string.Join(", ", animations)}");
 
         if (PlayFirstAnimationOnLoad && animations.Count > 0)
         {

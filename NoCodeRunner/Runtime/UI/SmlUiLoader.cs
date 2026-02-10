@@ -53,10 +53,60 @@ public sealed class SmlUiLoader
         var schema = CreateDefaultSchema();
         var parser = new SmlParser(content, schema);
         var document = parser.ParseDocument();
+        var assetPathResolver = CreateAssetPathResolver(parsedUri);
 
-        var builder = new SmlUiBuilder(_registry, _propertyMapper, _animationApi);
+        var builder = new SmlUiBuilder(_registry, _propertyMapper, _animationApi, assetPathResolver);
         _configureActions?.Invoke(builder.Actions);
         return builder.Build(document);
+    }
+
+    private static Func<string, string> CreateAssetPathResolver(Uri uiUri)
+    {
+        if (!uiUri.Scheme.Equals(Uri.UriSchemeFile, StringComparison.OrdinalIgnoreCase))
+        {
+            return source => source;
+        }
+
+        var uiFilePath = uiUri.LocalPath;
+        var uiDirectory = Path.GetDirectoryName(uiFilePath) ?? string.Empty;
+
+        return source => ResolveAssetPathFromUiDirectory(source, uiDirectory);
+    }
+
+    private static string ResolveAssetPathFromUiDirectory(string source, string uiDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return source;
+        }
+
+        if (source.StartsWith("user://", StringComparison.OrdinalIgnoreCase)
+            || source.StartsWith("file://", StringComparison.OrdinalIgnoreCase)
+            || source.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return source;
+        }
+
+        if (source.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+        {
+            var relative = source["res://".Length..].TrimStart('/', '\\');
+            if (string.IsNullOrWhiteSpace(relative))
+            {
+                return source;
+            }
+
+            var combined = Path.GetFullPath(Path.Combine(uiDirectory, relative));
+            return combined;
+        }
+
+        if (Path.IsPathRooted(source))
+        {
+            return source;
+        }
+
+        var combinedRelative = Path.GetFullPath(Path.Combine(uiDirectory, source));
+        return combinedRelative;
     }
 
     private static async Task<string> LoadFromFileUriAsync(Uri fileUri, CancellationToken cancellationToken)

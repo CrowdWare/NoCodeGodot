@@ -11,11 +11,11 @@ public static class RunnerLogger
 
     public static void Warn(string subsystem, string message)
     {
-        GD.PushWarning($"[{subsystem}] {message}");
+        GD.Print($"WARNING: [{subsystem}] {message}");
     }
 
     public static void Error(string subsystem, string message)
     {
-        GD.PushError($"[{subsystem}] {message}");
+        GD.PrintErr($"ERROR: [{subsystem}] {message}");
     }
 }

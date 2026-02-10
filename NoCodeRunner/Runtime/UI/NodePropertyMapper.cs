@@ -12,7 +12,7 @@ public sealed class NodePropertyMapper
     public const string MetaAction = "sml_action";
     public const string MetaClicked = "sml_clicked";
 
-    public void Apply(Control control, string propertyName, SmlValue value)
+    public void Apply(Control control, string propertyName, SmlValue value, Func<string, string>? resolveAssetPath = null)
     {
         switch (propertyName.ToLowerInvariant())
         {
@@ -86,7 +86,9 @@ public sealed class NodePropertyMapper
             case "url":
                 if (control is VideoStreamPlayer videoPlayer)
                 {
-                    ApplyVideoSource(videoPlayer, value.AsStringOrThrow(propertyName));
+                    var rawSource = value.AsStringOrThrow(propertyName);
+                    var resolvedSource = ResolveAssetPath(rawSource, resolveAssetPath);
+                    ApplyVideoSource(videoPlayer, resolvedSource, rawSource);
                     return;
                 }
                 break;
@@ -139,7 +141,9 @@ public sealed class NodePropertyMapper
             case "modelsource":
                 if (control is Viewport3DControl viewportModel)
                 {
-                    viewportModel.SetModelSource(value.AsStringOrThrow(propertyName));
+                    var rawModelSource = value.AsStringOrThrow(propertyName);
+                    var resolvedModelSource = ResolveAssetPath(rawModelSource, resolveAssetPath);
+                    viewportModel.SetModelSource(resolvedModelSource);
                     return;
                 }
                 break;
@@ -223,12 +227,36 @@ public sealed class NodePropertyMapper
         }
     }
 
-    private static void ApplyVideoSource(VideoStreamPlayer player, string source)
+    private static string ResolveAssetPath(string source, Func<string, string>? resolveAssetPath)
+    {
+        if (resolveAssetPath is null)
+        {
+            return source;
+        }
+
+        try
+        {
+            var resolved = resolveAssetPath(source);
+            if (!string.Equals(resolved, source, StringComparison.Ordinal))
+            {
+                RunnerLogger.Info("UI", $"Resolved asset path '{source}' -> '{resolved}'.");
+            }
+
+            return resolved;
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("UI", $"Asset path resolver failed for '{source}': {ex.Message}");
+            return source;
+        }
+    }
+
+    private static void ApplyVideoSource(VideoStreamPlayer player, string source, string originalSource)
     {
         if (!source.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
             && !source.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
         {
-            RunnerLogger.Warn("UI", $"Video source '{source}' is not loadable by Godot ResourceLoader. Use res:// or user:// path.");
+            RunnerLogger.Warn("UI", $"Video source '{originalSource}' resolved to '{source}', but is not loadable by Godot ResourceLoader. Use res:// or user:// path.");
             return;
         }
 

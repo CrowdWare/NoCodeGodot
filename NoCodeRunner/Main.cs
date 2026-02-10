@@ -101,9 +101,7 @@ public partial class Main : Node
 
 	private async Task RunUiStartup()
 	{
-		var uiUrl = string.IsNullOrWhiteSpace(UiSmlUrl)
-			? BuildDefaultSampleUiFileUrl()
-			: UiSmlUrl;
+		var uiUrl = ResolveStartupUiUrl();
 
 		try
 		{
@@ -120,6 +118,35 @@ public partial class Main : Node
 		{
 			Runtime.Logging.RunnerLogger.Error("UI", $"Failed to load UI from '{uiUrl}': {ex.Message}");
 		}
+	}
+
+	private string ResolveStartupUiUrl()
+	{
+		if (!string.IsNullOrWhiteSpace(UiSmlUrl))
+		{
+			if (UiSmlUrl.Contains("/NoCodeRunner/SampleProject/UI.sml", StringComparison.OrdinalIgnoreCase)
+				|| UiSmlUrl.Contains("\\NoCodeRunner\\SampleProject\\UI.sml", StringComparison.OrdinalIgnoreCase))
+			{
+				RunnerLogger.Warn("UI", $"Configured UiSmlUrl points to deprecated sample path ('{UiSmlUrl}'). Using docs sample path instead.");
+				return BuildDefaultSampleUiFileUrl();
+			}
+
+			if (Uri.TryCreate(UiSmlUrl, UriKind.Absolute, out var configured)
+				&& configured.Scheme.Equals(Uri.UriSchemeFile, StringComparison.OrdinalIgnoreCase))
+			{
+				if (File.Exists(configured.LocalPath))
+				{
+					return UiSmlUrl;
+				}
+
+				RunnerLogger.Warn("UI", $"Configured UiSmlUrl file does not exist: {configured.LocalPath}. Falling back to default sample UI path.");
+				return BuildDefaultSampleUiFileUrl();
+			}
+
+			return UiSmlUrl;
+		}
+
+		return BuildDefaultSampleUiFileUrl();
 	}
 
 	private void DiscoverUiActionModules()
@@ -178,16 +205,37 @@ public partial class Main : Node
 	{
 		var projectDir = ProjectSettings.GlobalizePath("res://");
 		var projectRoot = Directory.GetParent(projectDir)?.FullName ?? projectDir;
-		var docsSamplePath = Path.Combine(projectRoot, "docs", "SampleProjekt", "UI.sml");
+		var cwd = Directory.GetCurrentDirectory();
+		var cwdParent = Directory.GetParent(cwd)?.FullName ?? cwd;
 
-		if (File.Exists(docsSamplePath))
+		var rootCandidates = new[]
 		{
-			RunnerLogger.Info("UI", $"Using docs sample UI: {docsSamplePath}");
-			return new Uri(docsSamplePath).AbsoluteUri;
+			projectRoot,
+			projectDir,
+			cwd,
+			cwdParent
+		};
+
+		foreach (var root in rootCandidates)
+		{
+			var docsSamplePaths = new[]
+			{
+				Path.Combine(root, "docs", "SampleProject", "UI.sml"),
+				Path.Combine(root, "docs", "SampleProjekt", "UI.sml")
+			};
+
+			foreach (var docsSamplePath in docsSamplePaths)
+			{
+				if (File.Exists(docsSamplePath))
+				{
+					RunnerLogger.Info("UI", $"Using docs sample UI: {docsSamplePath}");
+					return new Uri(docsSamplePath).AbsoluteUri;
+				}
+			}
 		}
 
 		var legacySamplePath = ProjectSettings.GlobalizePath("res://SampleProject/UI.sml");
-		RunnerLogger.Warn("UI", $"docs/SampleProjekt/UI.sml not found. Falling back to legacy sample path: {legacySamplePath}");
+		RunnerLogger.Warn("UI", $"docs sample UI not found in known roots (projectDir='{projectDir}', cwd='{cwd}'). Falling back to legacy sample path: {legacySamplePath}");
 		return new Uri(legacySamplePath).AbsoluteUri;
 	}
 

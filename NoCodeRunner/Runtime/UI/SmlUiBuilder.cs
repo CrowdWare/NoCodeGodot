@@ -15,15 +15,21 @@ public sealed class SmlUiBuilder
 
     private readonly NodeFactoryRegistry _registry;
     private readonly NodePropertyMapper _propertyMapper;
+    private readonly Func<string, string>? _resolveAssetPath;
     private readonly AnimationControlApi _animationApi;
     private readonly UiActionDispatcher _actionDispatcher;
     private readonly Dictionary<string, Viewport3DControl> _viewportsById = new(StringComparer.OrdinalIgnoreCase);
 
-    public SmlUiBuilder(NodeFactoryRegistry registry, NodePropertyMapper propertyMapper, AnimationControlApi animationApi)
+    public SmlUiBuilder(
+        NodeFactoryRegistry registry,
+        NodePropertyMapper propertyMapper,
+        AnimationControlApi animationApi,
+        Func<string, string>? resolveAssetPath = null)
     {
         _registry = registry;
         _propertyMapper = propertyMapper;
         _animationApi = animationApi;
+        _resolveAssetPath = resolveAssetPath;
         _actionDispatcher = new UiActionDispatcher();
         RegisterDefaultActionHandlers();
     }
@@ -64,7 +70,7 @@ public sealed class SmlUiBuilder
                 continue;
             }
 
-            _propertyMapper.Apply(control, propertyName, value);
+            _propertyMapper.Apply(control, propertyName, value, _resolveAssetPath);
         }
 
         if (!node.TryGetProperty("fillMaxSize", out _) && ShouldFillMaxSizeByDefault(node.Name))
