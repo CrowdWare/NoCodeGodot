@@ -79,7 +79,7 @@
 - [x] tasks/3d_integration.md
 - [x] tasks/ui_scaling.md
 - [x] tasks/animation_control_ui.md
-- [ ] tasks/camera_interaction.md
+- [x] tasks/camera_interaction.md
 - [ ] tasks/action_binding.md
 - [ ] tasks/caching.md
 - [ ] tasks/documentation.md

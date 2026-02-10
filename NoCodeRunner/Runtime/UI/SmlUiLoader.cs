@@ -94,6 +94,9 @@ public sealed class SmlUiLoader
         schema.RegisterEnumValue("action", "perspectiveNear", 14);
         schema.RegisterEnumValue("action", "perspectiveDefault", 15);
         schema.RegisterEnumValue("action", "perspectiveFar", 16);
+        schema.RegisterEnumValue("action", "zoomIn", 17);
+        schema.RegisterEnumValue("action", "zoomOut", 18);
+        schema.RegisterEnumValue("action", "cameraReset", 19);
         schema.RegisterEnumValue("scaling", "layout", 1);
         schema.RegisterEnumValue("scaling", "fixed", 2);
 

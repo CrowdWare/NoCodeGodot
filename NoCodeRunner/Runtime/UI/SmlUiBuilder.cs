@@ -228,6 +228,18 @@ public sealed class SmlUiBuilder
             case "perspectiveFar":
                 SetViewportCameraDistance(targetId, 7f);
                 return;
+
+            case "zoomIn":
+                AdjustViewportCameraDistance(targetId, -0.6f);
+                return;
+
+            case "zoomOut":
+                AdjustViewportCameraDistance(targetId, 0.6f);
+                return;
+
+            case "cameraReset":
+                ResetViewportCamera(targetId);
+                return;
         }
     }
 
@@ -240,6 +252,28 @@ public sealed class SmlUiBuilder
         }
 
         viewport.SetCameraDistance(distance);
+    }
+
+    private void AdjustViewportCameraDistance(string viewportId, float delta)
+    {
+        if (!_viewportsById.TryGetValue(viewportId, out var viewport))
+        {
+            RunnerLogger.Warn("UI", $"Zoom action target '{viewportId}' not found.");
+            return;
+        }
+
+        viewport.AdjustCameraDistance(delta);
+    }
+
+    private void ResetViewportCamera(string viewportId)
+    {
+        if (!_viewportsById.TryGetValue(viewportId, out var viewport))
+        {
+            RunnerLogger.Warn("UI", $"Camera reset action target '{viewportId}' not found.");
+            return;
+        }
+
+        viewport.ResetView();
     }
 
     private static string GetMetaString(Control control, string key)

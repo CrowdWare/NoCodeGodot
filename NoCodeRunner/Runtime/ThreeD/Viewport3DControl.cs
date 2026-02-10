@@ -7,6 +7,12 @@ namespace Runtime.ThreeD;
 
 public sealed partial class Viewport3DControl : SubViewportContainer
 {
+    private const float DefaultYaw = 0f;
+    private const float DefaultPitch = 0.43f;
+    private const float DefaultDistance = 3.85f;
+    private const float MinDistance = 1.0f;
+    private const float MaxDistance = 20.0f;
+
     private readonly SubViewport _viewport;
     private readonly Node3D _worldRoot;
     private readonly Camera3D _camera;
@@ -17,6 +23,12 @@ public sealed partial class Viewport3DControl : SubViewportContainer
     private string? _pendingAutoplayAnimation;
     private readonly List<AnimationPlayer> _animationPlayers = [];
     private readonly List<AnimationTree> _animationTrees = [];
+    private float _yaw = DefaultYaw;
+    private float _pitch = DefaultPitch;
+    private float _orbitDistance = DefaultDistance;
+    private Vector3 _cameraTarget = Vector3.Zero;
+    private bool _isRotating;
+    private bool _isPanning;
 
     public AnimationControlApi? AnimationApi { get; set; }
     public string SmlId { get; set; } = string.Empty;
@@ -57,6 +69,21 @@ public sealed partial class Viewport3DControl : SubViewportContainer
         AddChild(_viewport);
 
         TreeEntered += OnTreeEntered;
+        ResetView();
+    }
+
+    public override void _GuiInput(InputEvent @event)
+    {
+        switch (@event)
+        {
+            case InputEventMouseButton mouseButton:
+                HandleMouseButton(mouseButton);
+                break;
+
+            case InputEventMouseMotion mouseMotion:
+                HandleMouseMotion(mouseMotion);
+                break;
+        }
     }
 
     public void SetModelSource(string source)
@@ -239,8 +266,23 @@ public sealed partial class Viewport3DControl : SubViewportContainer
 
     public void SetCameraDistance(float z)
     {
-        _camera.Position = new Vector3(_camera.Position.X, _camera.Position.Y, z);
-        _camera.LookAtFromPosition(_camera.Position, Vector3.Zero, Vector3.Up);
+        _orbitDistance = Mathf.Clamp(Mathf.Abs(z), MinDistance, MaxDistance);
+        ApplyCameraOrbit();
+    }
+
+    public void AdjustCameraDistance(float delta)
+    {
+        _orbitDistance = Mathf.Clamp(_orbitDistance + delta, MinDistance, MaxDistance);
+        ApplyCameraOrbit();
+    }
+
+    public void ResetView()
+    {
+        _yaw = DefaultYaw;
+        _pitch = DefaultPitch;
+        _orbitDistance = DefaultDistance;
+        _cameraTarget = Vector3.Zero;
+        ApplyCameraOrbit();
     }
 
     public void SetLightEnergy(float energy)
@@ -305,5 +347,94 @@ public sealed partial class Viewport3DControl : SubViewportContainer
         {
             CollectAnimationTrees(child, trees);
         }
+    }
+
+    private void HandleMouseButton(InputEventMouseButton mouseButton)
+    {
+        if (mouseButton.ButtonIndex == MouseButton.Right)
+        {
+            _isRotating = mouseButton.Pressed;
+            if (_isRotating)
+            {
+                GrabFocus();
+            }
+            AcceptEvent();
+            return;
+        }
+
+        if (mouseButton.ButtonIndex == MouseButton.Middle)
+        {
+            _isPanning = mouseButton.Pressed;
+            if (_isPanning)
+            {
+                GrabFocus();
+            }
+            AcceptEvent();
+            return;
+        }
+
+        if (!mouseButton.Pressed)
+        {
+            return;
+        }
+
+        if (mouseButton.ButtonIndex == MouseButton.WheelUp)
+        {
+            AdjustCameraDistance(-0.35f);
+            AcceptEvent();
+            return;
+        }
+
+        if (mouseButton.ButtonIndex == MouseButton.WheelDown)
+        {
+            AdjustCameraDistance(0.35f);
+            AcceptEvent();
+        }
+    }
+
+    private void HandleMouseMotion(InputEventMouseMotion mouseMotion)
+    {
+        if (_isRotating)
+        {
+            _yaw -= mouseMotion.Relative.X * 0.01f;
+            _pitch = Mathf.Clamp(_pitch + mouseMotion.Relative.Y * 0.01f, -1.2f, 1.2f);
+            ApplyCameraOrbit();
+            AcceptEvent();
+            return;
+        }
+
+        if (_isPanning)
+        {
+            PanCamera(mouseMotion.Relative);
+            AcceptEvent();
+        }
+    }
+
+    private void PanCamera(Vector2 relative)
+    {
+        var basis = _camera.GlobalTransform.Basis;
+        var right = basis.X.Normalized();
+        var up = basis.Y.Normalized();
+        var panFactor = _orbitDistance * 0.0015f;
+
+        _cameraTarget += (-right * relative.X + up * relative.Y) * panFactor;
+        ApplyCameraOrbit();
+    }
+
+    private void ApplyCameraOrbit()
+    {
+        var cosPitch = Mathf.Cos(_pitch);
+        var sinPitch = Mathf.Sin(_pitch);
+        var sinYaw = Mathf.Sin(_yaw);
+        var cosYaw = Mathf.Cos(_yaw);
+
+        var position = new Vector3(
+            _cameraTarget.X + _orbitDistance * cosPitch * sinYaw,
+            _cameraTarget.Y + _orbitDistance * sinPitch,
+            _cameraTarget.Z + _orbitDistance * cosPitch * cosYaw
+        );
+
+        _camera.Position = position;
+        _camera.LookAtFromPosition(position, _cameraTarget, Vector3.Up);
     }
 }
