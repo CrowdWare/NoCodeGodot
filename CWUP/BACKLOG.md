@@ -77,7 +77,7 @@
 - [x] tasks/node_factory.md
 - [x] tasks/ui_elements.md
 - [x] tasks/3d_integration.md
-- [ ] tasks/ui_scaling.md
+- [x] tasks/ui_scaling.md
 - [ ] tasks/animation_control_ui.md
 - [ ] tasks/camera_interaction.md
 - [ ] tasks/action_binding.md

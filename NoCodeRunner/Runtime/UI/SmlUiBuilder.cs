@@ -8,6 +8,10 @@ namespace Runtime.UI;
 
 public sealed class SmlUiBuilder
 {
+    public const string MetaScalingMode = "sml_windowScalingMode";
+    public const string MetaDesignSizeX = "sml_windowDesignSizeX";
+    public const string MetaDesignSizeY = "sml_windowDesignSizeY";
+
     private readonly NodeFactoryRegistry _registry;
     private readonly NodePropertyMapper _propertyMapper;
     private readonly AnimationControlApi _animationApi;
@@ -46,6 +50,11 @@ public sealed class SmlUiBuilder
 
         foreach (var (propertyName, value) in node.Properties)
         {
+            if (TryApplyWindowScalingMetadata(control, node.Name, propertyName, value))
+            {
+                continue;
+            }
+
             _propertyMapper.Apply(control, propertyName, value);
         }
 
@@ -82,6 +91,30 @@ public sealed class SmlUiBuilder
         BindInteractions(control, node);
 
         return control;
+    }
+
+    private static bool TryApplyWindowScalingMetadata(Control control, string nodeName, string propertyName, SmlValue value)
+    {
+        if (!nodeName.Equals("Window", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        switch (propertyName.ToLowerInvariant())
+        {
+            case "scaling":
+                control.SetMeta(MetaScalingMode, Variant.From(value.AsStringOrThrow(propertyName)));
+                return true;
+
+            case "designsize":
+                var designSize = value.AsVec2iOrThrow(propertyName);
+                control.SetMeta(MetaDesignSizeX, Variant.From(designSize.X));
+                control.SetMeta(MetaDesignSizeY, Variant.From(designSize.Y));
+                return true;
+
+            default:
+                return false;
+        }
     }
 
     private static void BindInteractions(Control control, SmlNode node)

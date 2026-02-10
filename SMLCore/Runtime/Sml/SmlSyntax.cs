@@ -84,6 +84,13 @@ public sealed class SmlValue
 
         return enumValue.Value.Value;
     }
+
+    public SmlVec2i AsVec2iOrThrow(string propertyName)
+    {
+        return Kind == SmlValueKind.Vec2i
+            ? (SmlVec2i)Value
+            : throw new SmlParseException($"Property '{propertyName}' must be a 2D integer vector (x, y).");
+    }
 }
 
 public sealed class SmlNode

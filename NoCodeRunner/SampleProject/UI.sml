@@ -1,6 +1,7 @@
 Window {
     id: main
     title: "NoCodeRunner Sample"
+    scaling: layout
     fillMaxSize: true
 
     Column {

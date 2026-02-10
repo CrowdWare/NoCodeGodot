@@ -85,6 +85,8 @@ public sealed class SmlUiLoader
         schema.RegisterEnumValue("action", "open", 2);
         schema.RegisterEnumValue("action", "save", 3);
         schema.RegisterEnumValue("action", "saveAs", 4);
+        schema.RegisterEnumValue("scaling", "layout", 1);
+        schema.RegisterEnumValue("scaling", "fixed", 2);
 
         return schema;
     }
