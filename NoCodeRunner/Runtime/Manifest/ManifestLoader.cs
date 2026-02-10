@@ -38,6 +38,8 @@ public sealed class ManifestLoader
     {
         var schema = new SmlParserSchema();
         schema.RegisterKnownNode("Manifest");
+        schema.RegisterKnownNode("Files");
+        schema.RegisterKnownNode("File");
         schema.RegisterKnownNode("Asset");
         schema.WarnOnUnknownNodes = true;
 
@@ -60,55 +62,35 @@ public sealed class ManifestLoader
         }
 
         var version = root.TryGetProperty("version", out var versionValue)
-            ? versionValue.AsIntOrThrow("version")
-            : 1;
+            ? ParseVersion(versionValue)
+            : "1";
 
         var baseUrl = root.TryGetProperty("baseUrl", out var baseUrlValue)
             ? baseUrlValue.AsStringOrThrow("baseUrl")
             : null;
 
-        var entryPoint = root.TryGetProperty("entryPoint", out var entryValue)
-            ? entryValue.AsStringOrThrow("entryPoint")
-            : null;
+        var entryPoint = root.TryGetProperty("entry", out var entryValue)
+            ? entryValue.AsStringOrThrow("entry")
+            : root.TryGetProperty("entryPoint", out var legacyEntryValue)
+                ? legacyEntryValue.AsStringOrThrow("entryPoint")
+                : null;
 
         var assets = new List<ManifestAssetEntry>();
         foreach (var child in root.Children)
         {
+            if (string.Equals(child.Name, "Files", StringComparison.OrdinalIgnoreCase))
+            {
+                ParseFilesNode(child, assets, sourceManifestUrl, baseUrl);
+                continue;
+            }
+
             if (!string.Equals(child.Name, "Asset", StringComparison.OrdinalIgnoreCase))
             {
                 RunnerLogger.Warn("Manifest", $"Ignoring unsupported node '{child.Name}' in manifest (line {child.Line}).");
                 continue;
             }
 
-            var id = child.GetRequiredProperty("id").AsStringOrThrow("id");
-            var path = child.GetRequiredProperty("path").AsStringOrThrow("path");
-            var hash = child.GetRequiredProperty("hash").AsStringOrThrow("hash");
-
-            var rawUrl = child.TryGetProperty("url", out var urlValue)
-                ? urlValue.AsStringOrThrow("url")
-                : path;
-
-            var resolvedUrl = ResolveAssetUrl(sourceManifestUrl, baseUrl, rawUrl);
-
-            var type = child.TryGetProperty("type", out var typeValue)
-                ? typeValue.AsStringOrThrow("type")
-                : null;
-
-            long? size = null;
-            if (child.TryGetProperty("size", out var sizeValue))
-            {
-                size = sizeValue.AsLongOrThrow("size");
-            }
-
-            assets.Add(new ManifestAssetEntry
-            {
-                Id = id,
-                Path = path,
-                Hash = hash,
-                Url = resolvedUrl,
-                Type = type,
-                Size = size
-            });
+            ParseLegacyAssetNode(child, assets, sourceManifestUrl, baseUrl);
         }
 
         if (assets.Count == 0)
@@ -122,8 +104,86 @@ public sealed class ManifestLoader
             BaseUrl = baseUrl,
             EntryPoint = entryPoint,
             SourceManifestUrl = sourceManifestUrl,
+            RawContent = content,
             Assets = assets
         };
+    }
+
+    private static string ParseVersion(SmlValue value)
+    {
+        return value.Kind switch
+        {
+            SmlValueKind.String => value.AsStringOrThrow("version"),
+            SmlValueKind.Int => value.AsIntOrThrow("version").ToString(),
+            _ => throw new SmlParseException("Property 'version' must be string or integer.")
+        };
+    }
+
+    private static void ParseFilesNode(SmlNode filesNode, List<ManifestAssetEntry> assets, string sourceManifestUrl, string? baseUrl)
+    {
+        foreach (var fileNode in filesNode.Children)
+        {
+            if (!string.Equals(fileNode.Name, "File", StringComparison.OrdinalIgnoreCase))
+            {
+                RunnerLogger.Warn("Manifest", $"Ignoring unsupported node '{fileNode.Name}' in Files block (line {fileNode.Line}).");
+                continue;
+            }
+
+            var path = fileNode.GetRequiredProperty("path").AsStringOrThrow("path");
+            var hash = fileNode.GetRequiredProperty("hash").AsStringOrThrow("hash");
+            var rawUrl = fileNode.TryGetProperty("url", out var urlValue)
+                ? urlValue.AsStringOrThrow("url")
+                : path;
+
+            long? size = null;
+            if (fileNode.TryGetProperty("size", out var sizeValue))
+            {
+                size = sizeValue.AsLongOrThrow("size");
+            }
+
+            assets.Add(new ManifestAssetEntry
+            {
+                Id = path,
+                Path = path,
+                Hash = hash,
+                Url = ResolveAssetUrl(sourceManifestUrl, baseUrl, rawUrl),
+                Type = null,
+                Size = size
+            });
+        }
+    }
+
+    private static void ParseLegacyAssetNode(SmlNode child, List<ManifestAssetEntry> assets, string sourceManifestUrl, string? baseUrl)
+    {
+        var id = child.GetRequiredProperty("id").AsStringOrThrow("id");
+        var path = child.GetRequiredProperty("path").AsStringOrThrow("path");
+        var hash = child.GetRequiredProperty("hash").AsStringOrThrow("hash");
+
+        var rawUrl = child.TryGetProperty("url", out var urlValue)
+            ? urlValue.AsStringOrThrow("url")
+            : path;
+
+        var resolvedUrl = ResolveAssetUrl(sourceManifestUrl, baseUrl, rawUrl);
+
+        var type = child.TryGetProperty("type", out var typeValue)
+            ? typeValue.AsStringOrThrow("type")
+            : null;
+
+        long? size = null;
+        if (child.TryGetProperty("size", out var sizeValue))
+        {
+            size = sizeValue.AsLongOrThrow("size");
+        }
+
+        assets.Add(new ManifestAssetEntry
+        {
+            Id = id,
+            Path = path,
+            Hash = hash,
+            Url = resolvedUrl,
+            Type = type,
+            Size = size
+        });
     }
 
     private static string ResolveAssetUrl(string sourceManifestUrl, string? baseUrl, string rawUrl)

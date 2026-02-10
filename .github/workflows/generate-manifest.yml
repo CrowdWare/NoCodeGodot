@@ -1,0 +1,32 @@
+name: Generate SampleProject manifest
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-manifest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Generate manifest.sml
+        run: python scripts/generate_manifest.py --root docs/SampleProject --entry UI.sml --output manifest.sml
+
+      - name: Commit updated manifest
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(ci): regenerate docs/SampleProject/manifest.sml"
+          file_pattern: docs/SampleProject/manifest.sml

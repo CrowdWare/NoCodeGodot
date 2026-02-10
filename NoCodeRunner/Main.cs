@@ -5,6 +5,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 public partial class Main : Node
@@ -47,20 +50,17 @@ public partial class Main : Node
 	private UiScalingConfig _uiScalingConfig = new(UiScalingMode.Layout, Vector2I.Zero);
 	private Vector2 _fixedExpectedRootSize = Vector2.Zero;
 	private int _fixedRootResizeWarnings;
+	private string? _resolvedStartupUiUrl;
+	private const string DefaultStartUrl = "https://crowdware.github.io/NoCodeGodot/SampleProject/UI.sml";
+	private const string StartupSettingsFileName = "startup_settings.json";
+	private static readonly System.Net.Http.HttpClient StartupHttpClient = new();
 
 	public override async void _Ready()
 	{
 		DiscoverUiActionModules();
 		ConfigureWindowContentScale(UiScalingMode.Layout);
 
-		if (EnableStartupSync)
-		{
-			await RunStartupSync();
-		}
-		else
-		{
-			Runtime.Logging.RunnerLogger.Info("Startup", "Manifest sync disabled (EnableStartupSync=false).");
-		}
+		_resolvedStartupUiUrl = await ResolveStartupUiUrlAsync();
 
 		if (LoadUiOnStartup)
 		{
@@ -68,40 +68,127 @@ public partial class Main : Node
 		}
 	}
 
-	private async Task RunStartupSync()
+	private async Task<string> ResolveStartupUiUrlAsync()
 	{
-		if (string.IsNullOrWhiteSpace(ManifestUrl))
+		var options = ParseStartupOptions();
+		var settings = await LoadStartupSettingsAsync();
+
+		if (options.ResetStartUrl)
 		{
-			Runtime.Logging.RunnerLogger.Warn("Startup", "ManifestUrl is empty. Skipping startup sync.");
-			return;
+			settings.StartUrl = null;
+			await SaveStartupSettingsAsync(settings);
 		}
 
+		var configuredStartUrl = options.UrlOverride
+			?? settings.StartUrl
+			?? (!string.IsNullOrWhiteSpace(UiSmlUrl) ? UiSmlUrl : null)
+			?? (!string.IsNullOrWhiteSpace(ManifestUrl) ? ManifestUrl : null)
+			?? DefaultStartUrl;
+
+		var bootSource = options.UrlOverride is not null
+			? "paramUrl"
+			: settings.StartUrl is not null
+				? "settingsStartUrl"
+				: (!string.IsNullOrWhiteSpace(UiSmlUrl) || !string.IsNullOrWhiteSpace(ManifestUrl))
+					? "legacyExport"
+					: "defaultCrowdWare";
+
+		if (options.ClearCache)
+		{
+			if (options.UrlOverride is not null)
+			{
+				var clearManifestUrl = ToManifestUrl(options.UrlOverride);
+				if (clearManifestUrl is null)
+				{
+					_assetCacheManager.ClearAllCaches();
+				}
+				else
+				{
+					_assetCacheManager.ClearCacheForManifestUrl(clearManifestUrl);
+				}
+			}
+			else
+			{
+				_assetCacheManager.ClearAllCaches();
+			}
+		}
+
+		if (options.UrlOverride is not null)
+		{
+			settings.StartUrl = options.UrlOverride;
+			await SaveStartupSettingsAsync(settings);
+		}
+
+		RunnerLogger.Info("Startup", $"BootSource: {bootSource}");
+
+		if (!EnableStartupSync)
+		{
+			RunnerLogger.Info("Startup", "Manifest sync disabled (EnableStartupSync=false).");
+			return ResolveLegacyStartupUiUrl(configuredStartUrl);
+		}
+
+		var manifestUrl = ToManifestUrl(configuredStartUrl);
+		if (manifestUrl is null)
+		{
+			RunnerLogger.Info("Startup", "Configured start URL is direct UI URL (non-manifest mode).");
+			var directUiFile = await TryDownloadDirectUiAsync(configuredStartUrl);
+			if (!string.IsNullOrWhiteSpace(directUiFile))
+			{
+				RunnerLogger.Info("Startup", "Manifest: missing");
+				RunnerLogger.Info("Startup", "Cache: hit");
+				RunnerLogger.Info("Startup", "Downloads: 1 and 0");
+				RunnerLogger.Info("Startup", "Offline: false");
+				return directUiFile;
+			}
+
+			RunnerLogger.Warn("Startup", "Direct UI URL could not be resolved. Falling back to embedded fallback app.");
+			return BuildFallbackAppFileUrl();
+		}
+
+		var offline = false;
 		try
 		{
-			Runtime.Logging.RunnerLogger.Info("Startup", $"Loading manifest from '{ManifestUrl}'.");
-
-			var manifest = await _manifestLoader.LoadAsync(ManifestUrl);
+			var manifest = await _manifestLoader.LoadAsync(manifestUrl);
 			var syncResult = await _assetCacheManager.SyncAsync(manifest);
 
-			Runtime.Logging.RunnerLogger.Info(
-				"Startup",
-				$"Manifest sync completed. Downloaded={syncResult.DownloadedCount}, Reused={syncResult.ReusedCount}, Failed={syncResult.FailedCount}."
-			);
+			RunnerLogger.Info("Startup", $"Offline: {offline}");
+			RunnerLogger.Info("Startup", $"Cache: {(syncResult.CacheHit ? "hit" : "miss")}");
+			RunnerLogger.Info("Startup", $"Manifest: {syncResult.ManifestStatus}");
+			RunnerLogger.Info("Startup", $"Downloads: {syncResult.DownloadedCount} and {syncResult.DownloadedBytes}");
 
-			if (!string.IsNullOrWhiteSpace(manifest.EntryPoint))
+			if (!string.IsNullOrWhiteSpace(syncResult.EntryFileUrl))
 			{
-				Runtime.Logging.RunnerLogger.Info("Startup", $"Manifest entry point: {manifest.EntryPoint}");
+				return syncResult.EntryFileUrl;
 			}
+
+			throw new InvalidOperationException("Manifest sync completed but no cached entry file is available.");
 		}
 		catch (Exception ex)
 		{
-			Runtime.Logging.RunnerLogger.Error("Startup", $"Manifest sync failed: {ex.Message}");
+			offline = IsOfflineException(ex);
+			RunnerLogger.Warn("Startup", $"Manifest startup failed for '{manifestUrl}': {ex.Message}");
+			RunnerLogger.Info("Startup", $"Offline: {offline}");
+
+			var cachedEntryUrl = _assetCacheManager.TryGetCachedEntryUrl(manifestUrl);
+			if (!string.IsNullOrWhiteSpace(cachedEntryUrl))
+			{
+				RunnerLogger.Info("Startup", "Cache: hit");
+				RunnerLogger.Info("Startup", "Manifest: missing");
+				RunnerLogger.Info("Startup", "Downloads: 0 and 0");
+				return cachedEntryUrl;
+			}
+
+			RunnerLogger.Info("Startup", "Cache: miss");
+			RunnerLogger.Info("Startup", "Manifest: missing");
+			RunnerLogger.Info("Startup", "Downloads: 0 and 0");
+			RunnerLogger.Warn("Startup", "No cached content available. Falling back to embedded fallback app.");
+			return BuildFallbackAppFileUrl();
 		}
 	}
 
 	private async Task RunUiStartup()
 	{
-		var uiUrl = ResolveStartupUiUrl();
+		var uiUrl = _resolvedStartupUiUrl ?? BuildFallbackAppFileUrl();
 
 		try
 		{
@@ -120,33 +207,223 @@ public partial class Main : Node
 		}
 	}
 
-	private string ResolveStartupUiUrl()
+	private string ResolveLegacyStartupUiUrl(string configuredStartUrl)
 	{
-		if (!string.IsNullOrWhiteSpace(UiSmlUrl))
+		if (!string.IsNullOrWhiteSpace(configuredStartUrl))
 		{
-			if (UiSmlUrl.Contains("/NoCodeRunner/SampleProject/UI.sml", StringComparison.OrdinalIgnoreCase)
-				|| UiSmlUrl.Contains("\\NoCodeRunner\\SampleProject\\UI.sml", StringComparison.OrdinalIgnoreCase))
+			if (configuredStartUrl.Contains("/NoCodeRunner/SampleProject/UI.sml", StringComparison.OrdinalIgnoreCase)
+				|| configuredStartUrl.Contains("\\NoCodeRunner\\SampleProject\\UI.sml", StringComparison.OrdinalIgnoreCase))
 			{
-				RunnerLogger.Warn("UI", $"Configured UiSmlUrl points to deprecated sample path ('{UiSmlUrl}'). Using docs sample path instead.");
+				RunnerLogger.Warn("UI", $"Configured UiSmlUrl points to deprecated sample path ('{configuredStartUrl}'). Using docs sample path instead.");
 				return BuildDefaultSampleUiFileUrl();
 			}
 
-			if (Uri.TryCreate(UiSmlUrl, UriKind.Absolute, out var configured)
+			if (Uri.TryCreate(configuredStartUrl, UriKind.Absolute, out var configured)
 				&& configured.Scheme.Equals(Uri.UriSchemeFile, StringComparison.OrdinalIgnoreCase))
 			{
 				if (File.Exists(configured.LocalPath))
 				{
-					return UiSmlUrl;
+					return configuredStartUrl;
 				}
 
-				RunnerLogger.Warn("UI", $"Configured UiSmlUrl file does not exist: {configured.LocalPath}. Falling back to default sample UI path.");
-				return BuildDefaultSampleUiFileUrl();
+				RunnerLogger.Warn("UI", $"Configured UiSmlUrl file does not exist: {configured.LocalPath}. Falling back to embedded fallback app.");
+				return BuildFallbackAppFileUrl();
 			}
 
-			return UiSmlUrl;
+			if (Uri.TryCreate(configuredStartUrl, UriKind.Absolute, out var httpConfigured)
+				&& (httpConfigured.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+					|| httpConfigured.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
+			{
+				return configuredStartUrl;
+			}
+
+			return configuredStartUrl;
 		}
 
-		return BuildDefaultSampleUiFileUrl();
+		return BuildFallbackAppFileUrl();
+	}
+
+	private static bool IsOfflineException(Exception ex)
+	{
+		if (ex is System.Net.Http.HttpRequestException)
+		{
+			return true;
+		}
+
+		return ex.InnerException is not null && IsOfflineException(ex.InnerException);
+	}
+
+	private static string? ToManifestUrl(string urlOrBase)
+	{
+		if (!Uri.TryCreate(urlOrBase, UriKind.Absolute, out var uri))
+		{
+			return null;
+		}
+
+		if (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+			|| uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+		{
+			if (uri.AbsolutePath.EndsWith("/manifest.sml", StringComparison.OrdinalIgnoreCase)
+				|| uri.AbsolutePath.Equals("manifest.sml", StringComparison.OrdinalIgnoreCase))
+			{
+				return uri.ToString();
+			}
+
+			if (uri.AbsolutePath.EndsWith(".sml", StringComparison.OrdinalIgnoreCase))
+			{
+				return null;
+			}
+
+			return new Uri(uri.ToString().TrimEnd('/') + "/manifest.sml").ToString();
+		}
+
+		return null;
+	}
+
+	private async Task<string?> TryDownloadDirectUiAsync(string uiUrl)
+	{
+		if (!Uri.TryCreate(uiUrl, UriKind.Absolute, out var uri)
+			|| (!uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+				&& !uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
+		{
+			if (Uri.TryCreate(uiUrl, UriKind.Absolute, out var fileUri)
+				&& fileUri.Scheme.Equals(Uri.UriSchemeFile, StringComparison.OrdinalIgnoreCase)
+				&& File.Exists(fileUri.LocalPath))
+			{
+				return uiUrl;
+			}
+
+			return null;
+		}
+
+		var cacheRoot = ProjectSettings.GlobalizePath("user://cache/direct-ui");
+		var urlHash = ComputeSha256Hex(uiUrl);
+		var appRoot = Path.Combine(cacheRoot, urlHash);
+		Directory.CreateDirectory(appRoot);
+
+		var targetPath = Path.Combine(appRoot, "app.sml");
+		var tempPath = targetPath + ".tmp";
+
+		try
+		{
+			using var response = await StartupHttpClient.GetAsync(uiUrl);
+			response.EnsureSuccessStatusCode();
+			var content = await response.Content.ReadAsStringAsync();
+			await File.WriteAllTextAsync(tempPath, content);
+
+			if (File.Exists(targetPath))
+			{
+				File.Delete(targetPath);
+			}
+
+			File.Move(tempPath, targetPath);
+			RunnerLogger.Info("Startup", $"Downloaded direct UI: {uiUrl}");
+			return new Uri(targetPath).AbsoluteUri;
+		}
+		catch (Exception ex)
+		{
+			if (File.Exists(targetPath))
+			{
+				RunnerLogger.Warn("Startup", $"Direct UI download failed ({ex.Message}). Using cached direct UI.");
+				return new Uri(targetPath).AbsoluteUri;
+			}
+
+			RunnerLogger.Warn("Startup", $"Direct UI download failed and no cache is available: {ex.Message}");
+			return null;
+		}
+		finally
+		{
+			if (File.Exists(tempPath))
+			{
+				File.Delete(tempPath);
+			}
+		}
+	}
+
+	private static string ComputeSha256Hex(string input)
+	{
+		var bytes = Encoding.UTF8.GetBytes(input);
+		var hash = SHA256.HashData(bytes);
+		return Convert.ToHexString(hash).ToLowerInvariant();
+	}
+
+	private static string BuildFallbackAppFileUrl()
+	{
+		var fallbackPath = ProjectSettings.GlobalizePath("res://fallback/app.sml");
+		return new Uri(fallbackPath).AbsoluteUri;
+	}
+
+	private StartupOptions ParseStartupOptions()
+	{
+		var args = OS.GetCmdlineArgs();
+		string? urlOverride = null;
+		var clearCache = false;
+		var resetStartUrl = false;
+
+		for (var i = 0; i < args.Length; i++)
+		{
+			var arg = args[i];
+			if (arg == "--url" && i + 1 < args.Length)
+			{
+				urlOverride = args[i + 1];
+				i++;
+				continue;
+			}
+
+			if (arg == "--clear-cache")
+			{
+				clearCache = true;
+				continue;
+			}
+
+			if (arg == "--reset-start-url")
+			{
+				resetStartUrl = true;
+			}
+		}
+
+		return new StartupOptions(urlOverride, clearCache, resetStartUrl);
+	}
+
+	private async Task<StartupSettings> LoadStartupSettingsAsync()
+	{
+		var path = ProjectSettings.GlobalizePath($"user://{StartupSettingsFileName}");
+		if (!File.Exists(path))
+		{
+			return new StartupSettings();
+		}
+
+		try
+		{
+			var json = await File.ReadAllTextAsync(path);
+			return JsonSerializer.Deserialize<StartupSettings>(json) ?? new StartupSettings();
+		}
+		catch
+		{
+			return new StartupSettings();
+		}
+	}
+
+	private static async Task SaveStartupSettingsAsync(StartupSettings settings)
+	{
+		var path = ProjectSettings.GlobalizePath($"user://{StartupSettingsFileName}");
+		var temp = path + ".tmp";
+		var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+		await File.WriteAllTextAsync(temp, json);
+
+		if (File.Exists(path))
+		{
+			File.Delete(path);
+		}
+
+		File.Move(temp, path);
+	}
+
+	private sealed record StartupOptions(string? UrlOverride, bool ClearCache, bool ResetStartUrl);
+
+	private sealed class StartupSettings
+	{
+		public string? StartUrl { get; set; }
 	}
 
 	private void DiscoverUiActionModules()

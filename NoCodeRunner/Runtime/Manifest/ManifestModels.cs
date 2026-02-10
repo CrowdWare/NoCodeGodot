@@ -5,10 +5,11 @@ namespace Runtime.Manifest;
 
 public sealed class ManifestDocument
 {
-    public int Version { get; init; } = 1;
+    public string Version { get; init; } = "1";
     public string? BaseUrl { get; init; }
     public string? EntryPoint { get; init; }
     public required string SourceManifestUrl { get; init; }
+    public string RawContent { get; init; } = string.Empty;
     public IReadOnlyList<ManifestAssetEntry> Assets { get; init; } = Array.Empty<ManifestAssetEntry>();
 }
 

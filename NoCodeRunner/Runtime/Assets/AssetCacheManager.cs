@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,39 +21,48 @@ public sealed class AssetCacheManager
     };
 
     private readonly string _cacheRoot;
-    private readonly string _assetsRoot;
-    private readonly string _metadataPath;
 
     public AssetCacheManager()
     {
         var userDataRoot = Godot.ProjectSettings.GlobalizePath("user://");
         _cacheRoot = Path.Combine(userDataRoot, "cache");
-        _assetsRoot = Path.Combine(_cacheRoot, "assets");
-        _metadataPath = Path.Combine(_cacheRoot, "metadata.json");
     }
 
     public async Task<AssetSyncResult> SyncAsync(ManifestDocument manifest, CancellationToken cancellationToken = default)
     {
-        Directory.CreateDirectory(_assetsRoot);
+        var appCacheRoot = GetAppCacheRoot(manifest.SourceManifestUrl);
+        var assetsRoot = Path.Combine(appCacheRoot, "files");
+        var metadataPath = Path.Combine(appCacheRoot, "metadata.json");
+        var manifestCachePath = Path.Combine(appCacheRoot, "manifest.sml");
 
-        var metadata = await LoadMetadataAsync(cancellationToken);
-        var previousById = metadata.Items.ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
+        Directory.CreateDirectory(assetsRoot);
+
+        var metadata = await LoadMetadataAsync(metadataPath, cancellationToken);
+        var previousByPath = metadata.Items.ToDictionary(x => x.RelativePath, StringComparer.OrdinalIgnoreCase);
         var updatedItems = new List<AssetCacheItem>(manifest.Assets.Count);
+
+        var manifestContentHash = ComputeSha256Hex(manifest.RawContent);
+        var manifestStatus = string.IsNullOrWhiteSpace(metadata.ManifestContentHash)
+            ? "missing"
+            : HashEquals(metadata.ManifestContentHash, manifestContentHash)
+                ? "unchanged"
+                : "changed";
 
         var downloaded = 0;
         var reused = 0;
         var failed = 0;
+        long downloadedBytes = 0;
 
         foreach (var asset in manifest.Assets)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var relativePath = NormalizeRelativePath(asset.Path);
-            var absolutePath = Path.Combine(_assetsRoot, relativePath);
+            var absolutePath = Path.Combine(assetsRoot, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
 
             var shouldDownload = true;
-            if (previousById.TryGetValue(asset.Id, out var existing)
+            if (previousByPath.TryGetValue(relativePath, out var existing)
                 && string.Equals(existing.Hash, asset.Hash, StringComparison.OrdinalIgnoreCase)
                 && File.Exists(absolutePath))
             {
@@ -63,21 +73,30 @@ public sealed class AssetCacheManager
             {
                 try
                 {
-                    await DownloadToFileAtomically(asset.Url, absolutePath, cancellationToken);
-
-                    var calculatedHash = await ComputeSha256Async(absolutePath, cancellationToken);
+                    var calculatedHash = await DownloadVerifyWithSingleRetryAsync(asset.Url, absolutePath, asset.Hash, cancellationToken);
                     if (!HashEquals(calculatedHash, asset.Hash))
                     {
                         throw new InvalidDataException($"Hash mismatch for asset '{asset.Id}'. Expected '{asset.Hash}' but got '{calculatedHash}'.");
                     }
 
                     downloaded++;
+                    downloadedBytes += new FileInfo(absolutePath).Length;
                     RunnerLogger.Info("Assets", $"Downloaded '{asset.Id}' -> '{relativePath}'.");
                 }
                 catch (Exception ex)
                 {
                     failed++;
                     RunnerLogger.Error("Assets", $"Failed to download '{asset.Id}' from '{asset.Url}': {ex.Message}");
+
+                    if (previousByPath.TryGetValue(relativePath, out var previous)
+                        && File.Exists(absolutePath)
+                        && HashEquals(previous.Hash, asset.Hash))
+                    {
+                        RunnerLogger.Warn("Assets", $"Using last known good cached file for '{relativePath}'.");
+                        updatedItems.Add(previous);
+                        reused++;
+                    }
+
                     continue;
                 }
             }
@@ -88,7 +107,7 @@ public sealed class AssetCacheManager
 
             updatedItems.Add(new AssetCacheItem
             {
-                Id = asset.Id,
+                Id = string.IsNullOrWhiteSpace(asset.Id) ? relativePath : asset.Id,
                 Hash = asset.Hash,
                 RelativePath = relativePath,
                 SourceUrl = asset.Url,
@@ -96,23 +115,76 @@ public sealed class AssetCacheManager
             });
         }
 
-        metadata.Items = updatedItems;
-        metadata.UpdatedAtUtc = DateTimeOffset.UtcNow;
-        await SaveMetadataAtomicAsync(metadata, cancellationToken);
+        var cacheHit = reused > 0 || (failed == 0 && downloaded == 0 && manifest.Assets.Count > 0);
 
-        return new AssetSyncResult(downloaded, reused, failed);
+        metadata.Items = updatedItems;
+        metadata.ManifestVersion = manifest.Version;
+        metadata.ManifestContentHash = manifestContentHash;
+        metadata.EntryPoint = NormalizeRelativePath(manifest.EntryPoint ?? "app.sml");
+        metadata.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await SaveMetadataAtomicAsync(metadataPath, metadata, cancellationToken);
+        await SaveManifestAtomicAsync(manifestCachePath, manifest.RawContent, cancellationToken);
+
+        var entryFileUrl = BuildCachedEntryUrl(assetsRoot, metadata.EntryPoint);
+
+        return new AssetSyncResult(downloaded, reused, failed, downloadedBytes, cacheHit, manifestStatus, entryFileUrl);
     }
 
-    private async Task<AssetCacheMetadata> LoadMetadataAsync(CancellationToken cancellationToken)
+    public string? TryGetCachedEntryUrl(string manifestUrl)
     {
-        if (!File.Exists(_metadataPath))
+        var appCacheRoot = GetAppCacheRoot(manifestUrl);
+        var metadataPath = Path.Combine(appCacheRoot, "metadata.json");
+        if (!File.Exists(metadataPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(metadataPath);
+            var metadata = JsonSerializer.Deserialize<AssetCacheMetadata>(json, JsonOptions);
+            if (metadata is null)
+            {
+                return null;
+            }
+
+            var assetsRoot = Path.Combine(appCacheRoot, "files");
+            var entry = NormalizeRelativePath(metadata.EntryPoint ?? "app.sml");
+            return BuildCachedEntryUrl(assetsRoot, entry);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public void ClearAllCaches()
+    {
+        if (Directory.Exists(_cacheRoot))
+        {
+            Directory.Delete(_cacheRoot, recursive: true);
+        }
+    }
+
+    public void ClearCacheForManifestUrl(string manifestUrl)
+    {
+        var appCacheRoot = GetAppCacheRoot(manifestUrl);
+        if (Directory.Exists(appCacheRoot))
+        {
+            Directory.Delete(appCacheRoot, recursive: true);
+        }
+    }
+
+    private async Task<AssetCacheMetadata> LoadMetadataAsync(string metadataPath, CancellationToken cancellationToken)
+    {
+        if (!File.Exists(metadataPath))
         {
             return new AssetCacheMetadata();
         }
 
         try
         {
-            await using var stream = File.OpenRead(_metadataPath);
+            await using var stream = File.OpenRead(metadataPath);
             var metadata = await JsonSerializer.DeserializeAsync<AssetCacheMetadata>(stream, JsonOptions, cancellationToken);
             return metadata ?? new AssetCacheMetadata();
         }
@@ -123,10 +195,10 @@ public sealed class AssetCacheManager
         }
     }
 
-    private async Task SaveMetadataAtomicAsync(AssetCacheMetadata metadata, CancellationToken cancellationToken)
+    private async Task SaveMetadataAtomicAsync(string metadataPath, AssetCacheMetadata metadata, CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(_cacheRoot);
-        var tempPath = _metadataPath + ".tmp";
+        Directory.CreateDirectory(Path.GetDirectoryName(metadataPath)!);
+        var tempPath = metadataPath + ".tmp";
 
         await using (var stream = File.Create(tempPath))
         {
@@ -134,12 +206,26 @@ public sealed class AssetCacheManager
             await stream.FlushAsync(cancellationToken);
         }
 
-        if (File.Exists(_metadataPath))
+        if (File.Exists(metadataPath))
         {
-            File.Delete(_metadataPath);
+            File.Delete(metadataPath);
         }
 
-        File.Move(tempPath, _metadataPath);
+        File.Move(tempPath, metadataPath);
+    }
+
+    private static async Task SaveManifestAtomicAsync(string manifestPath, string manifestContent, CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(manifestPath)!);
+        var tempPath = manifestPath + ".tmp";
+        await File.WriteAllTextAsync(tempPath, manifestContent, cancellationToken);
+
+        if (File.Exists(manifestPath))
+        {
+            File.Delete(manifestPath);
+        }
+
+        File.Move(tempPath, manifestPath);
     }
 
     private static async Task DownloadToFileAtomically(string url, string destinationPath, CancellationToken cancellationToken)
@@ -171,6 +257,27 @@ public sealed class AssetCacheManager
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
+    private static async Task<string> DownloadVerifyWithSingleRetryAsync(string url, string destinationPath, string expectedHash, CancellationToken cancellationToken)
+    {
+        await DownloadToFileAtomically(url, destinationPath, cancellationToken);
+        var hash = await ComputeSha256Async(destinationPath, cancellationToken);
+        if (HashEquals(hash, expectedHash))
+        {
+            return hash;
+        }
+
+        RunnerLogger.Warn("Assets", $"Hash mismatch for '{url}'. Retrying once.");
+        await DownloadToFileAtomically(url, destinationPath, cancellationToken);
+        return await ComputeSha256Async(destinationPath, cancellationToken);
+    }
+
+    private static string ComputeSha256Hex(string input)
+    {
+        var bytes = Encoding.UTF8.GetBytes(input);
+        var hash = SHA256.HashData(bytes);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
     private static bool HashEquals(string left, string right)
     {
         return string.Equals(NormalizeHash(left), NormalizeHash(right), StringComparison.OrdinalIgnoreCase);
@@ -197,5 +304,34 @@ public sealed class AssetCacheManager
         }
 
         return normalized;
+    }
+
+    private string GetAppCacheRoot(string manifestUrl)
+    {
+        Directory.CreateDirectory(_cacheRoot);
+        var canonical = CanonicalizeUrl(manifestUrl);
+        var urlHash = ComputeSha256Hex(canonical);
+        return Path.Combine(_cacheRoot, urlHash);
+    }
+
+    private static string CanonicalizeUrl(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return uri.ToString();
+        }
+
+        return url.Trim();
+    }
+
+    private static string? BuildCachedEntryUrl(string assetsRoot, string entryRelativePath)
+    {
+        var absolutePath = Path.Combine(assetsRoot, entryRelativePath);
+        if (!File.Exists(absolutePath))
+        {
+            return null;
+        }
+
+        return new Uri(absolutePath).AbsoluteUri;
     }
 }
