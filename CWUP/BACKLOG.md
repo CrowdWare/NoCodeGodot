@@ -81,7 +81,7 @@
 - [x] tasks/animation_control_ui.md
 - [x] tasks/camera_interaction.md
 - [x] tasks/action_binding.md
-- [ ] tasks/caching.md
+- [x] tasks/caching.md
 - [ ] tasks/documentation.md
 
 
