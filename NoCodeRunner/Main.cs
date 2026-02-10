@@ -526,8 +526,8 @@ public partial class Main : Node
 			Name = "StartupProgressPanel",
 			CustomMinimumSize = new Vector2(640, 110)
 		};
-		panel.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-		panel.Position = new Vector2(320, 40);
+		panel.SetAnchorsPreset(Control.LayoutPreset.Center);
+		panel.Position = new Vector2(-320, -55);
 
 		var margin = new MarginContainer();
 		margin.AddThemeConstantOverride("margin_left", 16);

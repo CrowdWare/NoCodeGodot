@@ -58,7 +58,7 @@ Window {
             Button {
                 text: "Near"
                 action: perspectiveNear
-                licked: hero
+                clicked: hero
             }
             Button {
                 text: "Default"
