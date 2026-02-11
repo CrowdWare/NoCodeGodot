@@ -13,12 +13,12 @@ This task captures the current decisions and turns them into a spec + implementa
 ## 1) Mode: app
 
 1.1 Supported properties (complete)
-
-Each control supports:
+Window inherits from Panel, where layoutMode = app.
+Panel supports:
 	•	Geometry:
-	•	left, top, width, height
+	•	x, y, width, height
 	•	Anchors to parent edges:
-	•	anchorLeft, anchorRight, anchorTop, anchorBottom
+	•	anchors are top, bottom, left, right
 
 Anchor semantics
 
@@ -34,7 +34,7 @@ Anchors keep the corresponding margins constant when the parent resizes.
 
 Optional (already implied by usage)
 	•	centerX: true, centerY: true (centering in parent)
-	•	minWindowSize at Window level (prevents shrinking below usability)
+	•	minSize at Window level (prevents shrinking below usability)
 
 1.2 Non-goals
 	•	No relative constraints like “below/nextTo another control”
@@ -51,20 +51,19 @@ Optional (already implied by usage)
 ## 2) Mode: document
 
 2.1 Core behavior
-
 document is content-first:
-	•	vertical flow (Window behaves like an implicit Column)
+	•	vertical flow
 	•	text wraps
 	•	scrolling is enabled via a property, not a special container type
-
-Window-level defaults in document
-	•	scrollable: true (default)
-	•	flow layout enabled by default (vertical stacking)
+	•	Document containers (Page, Column, Row, Box) do not support x, y, width, height or anchors.
+	•	They always fill the content rectangle of their parent app container (Panel or Window).
+	•	If there is no app-mode parent (Page is root), the viewport is the screen/window client rect.
+	• 	Layout behavior per container:
+        • Column: vertical stacking (top-to-bottom).
+        • Row: horizontal stacking (left-to-right).
+        • Box: overlay layout; children share the same origin; z-order equals declaration order.
 
 2.2 Scrolling properties (current decisions)
-
-Any container (including Window) can be scrollable:
-	•	scrollable: true|false
 
 Scrollbar dimensions:
 	•	scrollBarWidth: <px>  // used for vertical scrollbar
@@ -91,9 +90,12 @@ Semantics rules (must be explicit)
 
 2.4 Acceptance criteria
 	•	Document content flows vertically and wraps.
-	•	Window/container scrolls when content exceeds size.
 	•	Scrollbar visibility behaves as configured (always visible vs only on scroll + fadeout).
 	•	Scrollbar size and position are applied correctly.
+
+2.5 Widgets
+	•	Document mode containers (Page, Column, Row, Box) have layoutMode = document.
+	•	Page ist the Root on Android, where Window is the root on desktop.
 
 ⸻
 
@@ -101,8 +103,7 @@ Semantics rules (must be explicit)
 
 3.1 SML Parsing
 	•	Extend the SML parser to recognize:
-	•	Window { mode: app|document }
-	•	app properties: left/top/width/height, anchors
+	•	app properties: x/y/width/height, anchors
 	•	document properties: scrollable, scrollbar properties
 
 3.2 Layout Engine
@@ -110,9 +111,9 @@ Semantics rules (must be explicit)
 	•	calculate margins at first layout
 	•	apply anchor rules on resize
 	•	Implement document flow resolver:
-	•	treat Window as implicit Column
 	•	stack children vertically
 	•	apply wrapping for text
+	•   treat Page as implicit Column (vertical stacking)
 
 3.3 Scrolling
 	•	Implement scroll behavior as a container capability:
@@ -138,3 +139,57 @@ Add optional debug overlay/logs:
 	•	A small sample SML scene for each mode:
 	•	samples/app_layout_demo.sml
 	•	samples/document_demo.sml
+
+---
+
+## Sample
+This sample shows how we can mix both modes.
+
+```qml
+Window {
+	title: "Window in app layout"
+    minSize: 640, 480
+	size: 1024, 768
+
+
+    // Left app panel (fixed width)
+    Panel {
+        x: 8
+        y: 8
+        width: 320
+		height: 752
+        anchors: top | bottom | left
+    }
+
+    // Right content area (fills rest)
+    Panel {
+        x: 328
+        y: 8
+		height: 752
+		width: 688
+        anchors: right | top | bottom
+
+        Column {
+            scrollable: true
+            scrollBarWidth: 8
+            scrollBarVisibleOnScroll: true
+            scrollBarFadeOutTime: 300 // in ms
+
+            Markdown { 
+				text: "
+# Header
+## Subheader				
+Lorem Ipsum Dolor"
+			}
+        }
+	}
+}
+```
+
+```qml
+Page {
+	padding: 8, 8, 8, 8
+
+	Markdown {src: "docs/doku.md"}
+}
+```
