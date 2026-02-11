@@ -44,6 +44,7 @@ public sealed class NodeFactoryRegistry
         Register("Label", () => new Label());
         Register("Button", () => new Button());
         Register("TextEdit", () => new TextEdit());
+        Register("CodeEdit", () => new CodeEdit());
         Register("Row", () => new HBoxContainer());
         Register("Column", () => new VBoxContainer());
         Register("Markdown", () => new VBoxContainer());

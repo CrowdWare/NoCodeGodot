@@ -60,6 +60,13 @@ public sealed class SmlUiLoader
         {
             try
             {
+                if (source.StartsWith("appres://", StringComparison.OrdinalIgnoreCase)
+                    || source.StartsWith("appres:/", StringComparison.OrdinalIgnoreCase))
+                {
+                    var tail = source[(source.IndexOf(':') + 1)..].TrimStart('/', '\\');
+                    return $"res://{tail}";
+                }
+
                 return _uriResolver.ResolveForResourceLoadAsync(source, baseUri).GetAwaiter().GetResult();
             }
             catch (Exception ex)
@@ -80,6 +87,7 @@ public sealed class SmlUiLoader
         schema.RegisterKnownNode("Label");
         schema.RegisterKnownNode("Button");
         schema.RegisterKnownNode("TextEdit");
+        schema.RegisterKnownNode("CodeEdit");
         schema.RegisterKnownNode("Row");
         schema.RegisterKnownNode("Column");
         schema.RegisterKnownNode("Box");
@@ -273,15 +281,25 @@ public sealed class SmlUiLoader
 
             case MarkdownBlockKind.CodeFence:
                 {
-                    var container = NewNode("Box");
+                    const int codeFontSize = 16;
+                    var codeHeight = CalculateCodeFenceHeight(block.Text, codeFontSize);
+
+                    var container = NewNode("Column");
                     container.Properties["role"] = SmlValue.FromString("codeblock");
                     container.Properties["layoutMode"] = SmlValue.FromString("document");
+                    container.Properties["fillMaxSize"] = SmlValue.FromBool(false);
+                    container.Properties["spacing"] = SmlValue.FromInt(0);
 
-                    var label = NewNode("Label");
+                    var label = NewNode("CodeEdit");
                     label.Properties["role"] = SmlValue.FromString("code");
                     label.Properties["text"] = SmlValue.FromString(block.Text);
+                    label.Properties["editable"] = SmlValue.FromBool(false);
+                    label.Properties["multiline"] = SmlValue.FromBool(true);
                     label.Properties["wrap"] = SmlValue.FromBool(false);
-                    label.Properties["fontSize"] = SmlValue.FromInt(14);
+                    label.Properties["font"] = SmlValue.FromString("appres://Anonymous.ttf");
+                    label.Properties["fontSize"] = SmlValue.FromInt(codeFontSize);
+                    label.Properties["height"] = SmlValue.FromInt(codeHeight);
+                    label.Properties["fillMaxSize"] = SmlValue.FromBool(false);
                     container.Children.Add(label);
                     ApplyMarkdownProperties(container, block.Properties, markdownBaseUri);
                     return container;
@@ -336,6 +354,40 @@ public sealed class SmlUiLoader
         y = 0;
         var parts = raw.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         return parts.Length == 2 && int.TryParse(parts[0], out x) && int.TryParse(parts[1], out y);
+    }
+
+    private static int CalculateCodeFenceHeight(string codeText, int fontSize)
+    {
+        var normalized = (codeText ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal);
+        normalized = normalized.TrimEnd('\n');
+        var lineCount = string.IsNullOrEmpty(normalized)
+            ? 1
+            : normalized.Split('\n').Length;
+
+        var font = GD.Load<Font>("res://Anonymous.ttf") ?? CreateMonospaceSystemFontForMetrics();
+        var lineHeight = Math.Max(1f, font.GetHeight(fontSize));
+
+        const int verticalPadding = 12;
+        const int framePadding = 4;
+
+        var totalHeight = (lineHeight * lineCount) + (verticalPadding * 2) + framePadding;
+        return Math.Max(56, (int)MathF.Ceiling(totalHeight));
+    }
+
+    private static Font CreateMonospaceSystemFontForMetrics()
+    {
+        return new SystemFont
+        {
+            FontNames = new[]
+            {
+                "Menlo",
+                "Monaco",
+                "Consolas",
+                "Courier New",
+                "DejaVu Sans Mono",
+                "monospace"
+            }
+        };
     }
 
     private static string ToBbCode(string text)

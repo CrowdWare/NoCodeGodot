@@ -12,7 +12,7 @@ Window {
         anchors: top | right | bottom
         x: 600
         width: 600
-        padding: 8,8,8,8
+        
         Markdown {
             text: "# Title
 ## Subtitle
@@ -23,6 +23,11 @@ Noch ne Line
 - Item 1
 - Item 2
 - Item 3
+```
+fun test() {
+     println(\"Hello world\")
+}
+```
 :smile:"
         }
     }

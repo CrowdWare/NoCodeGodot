@@ -49,7 +49,9 @@ public sealed class NodePropertyMapper
                 return;
 
             case "role":
-                control.SetMeta("sml_role", Variant.From(value.AsStringOrThrow(propertyName)));
+                var role = value.AsStringOrThrow(propertyName);
+                control.SetMeta("sml_role", Variant.From(role));
+                ApplyRoleStyle(control, role);
                 return;
 
             case "align":
@@ -161,6 +163,11 @@ public sealed class NodePropertyMapper
                 ApplyFontSize(control, value.AsIntOrThrow(propertyName));
                 return;
 
+            case "font":
+            case "fontsource":
+                ApplyFont(control, value.AsStringOrThrow(propertyName), resolveAssetPath);
+                return;
+
             case "halign":
             case "horizontalalignment":
                 ApplyHorizontalAlignment(control, value.AsIntOrThrow(propertyName));
@@ -227,6 +234,22 @@ public sealed class NodePropertyMapper
                     textEdit.WrapMode = ToBoolOrThrow(value, propertyName)
                         ? TextEdit.LineWrappingMode.Boundary
                         : TextEdit.LineWrappingMode.None;
+                    return;
+                }
+                break;
+
+            case "editable":
+                if (control is TextEdit editableTextEdit)
+                {
+                    editableTextEdit.Editable = ToBoolOrThrow(value, propertyName);
+                    return;
+                }
+                break;
+
+            case "readonly":
+                if (control is TextEdit readOnlyTextEdit)
+                {
+                    readOnlyTextEdit.Editable = !ToBoolOrThrow(value, propertyName);
                     return;
                 }
                 break;
@@ -458,6 +481,38 @@ public sealed class NodePropertyMapper
         ApplyHorizontalAlignment(control, value);
     }
 
+    private static void ApplyRoleStyle(Control control, string role)
+    {
+        if (!string.Equals(role, "code", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (control is not TextEdit textEdit)
+        {
+            return;
+        }
+
+        var style = new StyleBoxFlat
+        {
+            BgColor = new Color(0.11f, 0.11f, 0.13f, 1f),
+            BorderColor = new Color(0f, 0f, 0f, 0f),
+            ContentMarginLeft = 8,
+            ContentMarginRight = 8,
+            ContentMarginTop = 6,
+            ContentMarginBottom = 6,
+            CornerRadiusTopLeft = 0,
+            CornerRadiusTopRight = 0,
+            CornerRadiusBottomRight = 0,
+            CornerRadiusBottomLeft = 0
+        };
+        style.SetBorderWidthAll(0);
+
+        textEdit.AddThemeStyleboxOverride("normal", style);
+        textEdit.AddThemeStyleboxOverride("read_only", style);
+        textEdit.AddThemeStyleboxOverride("focus", style);
+    }
+
     private static void ApplyColor(Control control, string rawColor, string propertyName)
     {
         if (!TryParseColor(rawColor, out var color))
@@ -609,6 +664,72 @@ public sealed class NodePropertyMapper
                 RunnerLogger.Warn("UI", $"Property 'fontSize' ignored for node type '{control.GetType().Name}'.");
                 break;
         }
+    }
+
+    private static void ApplyFont(Control control, string rawFontPath, Func<string, string>? resolveAssetPath)
+    {
+        var fontPath = ResolveAssetPath(rawFontPath, resolveAssetPath);
+        Font font;
+        var loadedFont = GD.Load<FontFile>(fontPath);
+        if (loadedFont is not null)
+        {
+            font = loadedFont;
+        }
+        else if (IsLikelyAppMonospaceFont(rawFontPath, fontPath))
+        {
+            font = CreateMonospaceSystemFont();
+            RunnerLogger.Info("UI", $"Font '{fontPath}' not found. Falling back to system monospace font.");
+        }
+        else
+        {
+            RunnerLogger.Warn("UI", $"Could not load font '{fontPath}'.");
+            return;
+        }
+
+        switch (control)
+        {
+            case RichTextLabel richText:
+                richText.AddThemeFontOverride("normal_font", font);
+                break;
+            case Label label:
+                label.AddThemeFontOverride("font", font);
+                break;
+            case Button button:
+                button.AddThemeFontOverride("font", font);
+                break;
+            case TextEdit textEdit:
+                textEdit.AddThemeFontOverride("font", font);
+                break;
+            default:
+                RunnerLogger.Warn("UI", $"Property 'font' ignored for node type '{control.GetType().Name}'.");
+                break;
+        }
+    }
+
+    private static bool IsLikelyAppMonospaceFont(string rawFontPath, string resolvedFontPath)
+    {
+        static string Normalize(string path) => path.Replace('\\', '/').ToLowerInvariant();
+        var raw = Normalize(rawFontPath);
+        var resolved = Normalize(resolvedFontPath);
+        return raw.EndsWith("anonymous.ttf", StringComparison.Ordinal)
+            || resolved.EndsWith("anonymous.ttf", StringComparison.Ordinal);
+    }
+
+    private static Font CreateMonospaceSystemFont()
+    {
+        var font = new SystemFont
+        {
+            FontNames = new[]
+            {
+                "Menlo",
+                "Monaco",
+                "Consolas",
+                "Courier New",
+                "DejaVu Sans Mono",
+                "monospace"
+            }
+        };
+        return font;
     }
 
     private static void ApplyHorizontalAlignment(Control control, int alignment)
