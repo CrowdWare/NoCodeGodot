@@ -1,9 +1,9 @@
 using Godot;
+using Runtime.Assets;
 using Runtime.Logging;
 using Runtime.Sml;
 using Runtime.ThreeD;
 using System;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -15,17 +15,20 @@ public sealed class SmlUiLoader
     private readonly NodePropertyMapper _propertyMapper;
     private readonly AnimationControlApi _animationApi;
     private readonly Action<UiActionDispatcher>? _configureActions;
+    private readonly RunnerUriResolver _uriResolver;
 
     public SmlUiLoader(
         NodeFactoryRegistry registry,
         NodePropertyMapper propertyMapper,
         AnimationControlApi? animationApi = null,
-        Action<UiActionDispatcher>? configureActions = null)
+        Action<UiActionDispatcher>? configureActions = null,
+        RunnerUriResolver? uriResolver = null)
     {
         _registry = registry;
         _propertyMapper = propertyMapper;
         _animationApi = animationApi ?? new AnimationControlApi();
         _configureActions = configureActions;
+        _uriResolver = uriResolver ?? new RunnerUriResolver();
     }
 
     public async Task<Control> LoadFromUriAsync(string uri, CancellationToken cancellationToken = default)
@@ -35,90 +38,33 @@ public sealed class SmlUiLoader
             throw new ArgumentException("UI URI must not be empty.", nameof(uri));
         }
 
-        if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsedUri))
-        {
-            throw new InvalidOperationException($"Invalid UI URI: '{uri}'.");
-        }
-
-        string content;
-        if (parsedUri.Scheme.Equals(Uri.UriSchemeFile, StringComparison.OrdinalIgnoreCase))
-        {
-            content = await LoadFromFileUriAsync(parsedUri, cancellationToken);
-        }
-        else
-        {
-            throw new NotSupportedException($"Unsupported URI scheme '{parsedUri.Scheme}'. Currently only file:/// is supported for UI loading.");
-        }
+        var normalizedUri = _uriResolver.ResolveReference(uri);
+        var content = await _uriResolver.LoadTextAsync(normalizedUri, cancellationToken: cancellationToken);
 
         var schema = CreateDefaultSchema();
         var parser = new SmlParser(content, schema);
         var document = parser.ParseDocument();
-        var assetPathResolver = CreateAssetPathResolver(parsedUri);
+        var assetPathResolver = CreateAssetPathResolver(normalizedUri);
 
         var builder = new SmlUiBuilder(_registry, _propertyMapper, _animationApi, assetPathResolver);
         _configureActions?.Invoke(builder.Actions);
         return builder.Build(document);
     }
 
-    private static Func<string, string> CreateAssetPathResolver(Uri uiUri)
+    private Func<string, string> CreateAssetPathResolver(string baseUri)
     {
-        if (!uiUri.Scheme.Equals(Uri.UriSchemeFile, StringComparison.OrdinalIgnoreCase))
+        return source =>
         {
-            return source => source;
-        }
-
-        var uiFilePath = uiUri.LocalPath;
-        var uiDirectory = Path.GetDirectoryName(uiFilePath) ?? string.Empty;
-
-        return source => ResolveAssetPathFromUiDirectory(source, uiDirectory);
-    }
-
-    private static string ResolveAssetPathFromUiDirectory(string source, string uiDirectory)
-    {
-        if (string.IsNullOrWhiteSpace(source))
-        {
-            return source;
-        }
-
-        if (source.StartsWith("user://", StringComparison.OrdinalIgnoreCase)
-            || source.StartsWith("file://", StringComparison.OrdinalIgnoreCase)
-            || source.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-            || source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            return source;
-        }
-
-        if (source.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
-        {
-            var relative = source["res://".Length..].TrimStart('/', '\\');
-            if (string.IsNullOrWhiteSpace(relative))
+            try
             {
+                return _uriResolver.ResolveForResourceLoadAsync(source, baseUri).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                RunnerLogger.Warn("UI", $"Asset path resolve failed for '{source}' (base '{baseUri}'): {ex.Message}");
                 return source;
             }
-
-            var combined = Path.GetFullPath(Path.Combine(uiDirectory, relative));
-            return combined;
-        }
-
-        if (Path.IsPathRooted(source))
-        {
-            return source;
-        }
-
-        var combinedRelative = Path.GetFullPath(Path.Combine(uiDirectory, source));
-        return combinedRelative;
-    }
-
-    private static async Task<string> LoadFromFileUriAsync(Uri fileUri, CancellationToken cancellationToken)
-    {
-        var localPath = fileUri.LocalPath;
-        if (!File.Exists(localPath))
-        {
-            throw new FileNotFoundException($"UI file not found: {localPath}", localPath);
-        }
-
-        RunnerLogger.Info("UI", $"Loading UI from file URI: {fileUri}");
-        return await File.ReadAllTextAsync(localPath, cancellationToken);
+        };
     }
 
     private static SmlParserSchema CreateDefaultSchema()

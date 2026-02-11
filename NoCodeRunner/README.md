@@ -305,6 +305,55 @@ This keeps SML declarative while wiring behavior centrally in C#.
 
 ---
 
+## URI Resolver (SMLCore + Runner)
+
+The runtime now uses a shared URI resolver core in `SMLCore` (`SmlUriResolver`) and a Runner adapter (`RunnerUriResolver`) for I/O and caching.
+
+### Supported URI schemes
+
+- local (sync): `res:/...`, `res://...`, `user:/...`, `user://...`, `file://...`
+- remote (async + local cache): `http://...`, `https://...`, `ipfs:/<CID>[/path]`
+
+Normalization rules:
+
+- `res:/foo/bar` → `res://foo/bar`
+- `user:/foo/bar` → `user://foo/bar`
+- `ipfs://<cid>/x` → `ipfs:/<cid>/x`
+
+Remote resources are cached under `user://cache/uri/...` and reused when available.
+
+### Relative path resolution
+
+Relative references are resolved against the source URI context.
+
+Example (Markdown source base):
+
+- `src: "res:/docs/book/ch1.md"`
+- `![pic](images/pic.png)` resolves to `res://docs/book/images/pic.png`
+
+This same resolver path is used for SML asset references (e.g. image/video/model paths).
+
+### Startup parameters
+
+Supported startup URL input patterns:
+
+- `--url <uri>`
+- direct URI as first non-flag argument (without `--url`)
+
+Examples:
+
+- `--url file:///Users/art/SourceCode/NoCodeGodot/docs/SampleProject/UI.sml`
+- `file:///Users/art/SourceCode/NoCodeGodot/docs/SampleProject/UI.sml`
+- `--url https://example.com/app.sml`
+- `--url ipfs:/bafybeicid1234567890/app.sml`
+
+Notes:
+
+- IPFS URIs are resolved via a gateway (default: `https://ipfs.io/ipfs`).
+- Non-manifest direct UI URLs are resolved through the URI resolver and cached when remote.
+
+---
+
 ## Implemented bootstrap (Task: Manifest & Asset System)
 
 The first backlog task is now implemented in the Runner as a startup pipeline:

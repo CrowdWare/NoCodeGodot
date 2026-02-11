@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Runtime.Assets;
@@ -41,6 +40,7 @@ public partial class Main : Node
 
 	private readonly Runtime.Manifest.ManifestLoader _manifestLoader = new();
 	private readonly Runtime.Assets.AssetCacheManager _assetCacheManager = new();
+	private readonly Runtime.Assets.RunnerUriResolver _uriResolver = new();
 	private readonly NodeFactoryRegistry _nodeFactoryRegistry = new();
 	private readonly NodePropertyMapper _nodePropertyMapper = new();
 	private readonly List<IUiActionModule> _uiActionModules = [];
@@ -54,7 +54,6 @@ public partial class Main : Node
 	private string? _resolvedStartupUiUrl;
 	private const string DefaultStartUrl = "https://crowdware.github.io/NoCodeGodot/Default/manifest.sml";
 	private const string StartupSettingsFileName = "startup_settings.sml";
-	private static readonly System.Net.Http.HttpClient StartupHttpClient = new();
 	private CanvasLayer? _startupProgressLayer;
 	private ProgressBar? _startupProgressBar;
 	private Label? _startupProgressLabel;
@@ -83,11 +82,13 @@ public partial class Main : Node
 			await SaveStartupSettingsAsync(settings);
 		}
 
-		var configuredStartUrl = options.UrlOverride
+	var configuredStartUrl = options.UrlOverride
 			?? settings.StartUrl
 			?? (!string.IsNullOrWhiteSpace(UiSmlUrl) ? UiSmlUrl : null)
 			?? (!string.IsNullOrWhiteSpace(ManifestUrl) ? ManifestUrl : null)
 			?? DefaultStartUrl;
+
+		configuredStartUrl = _uriResolver.Normalize(configuredStartUrl);
 
 		var bootSource = options.UrlOverride is not null
 			? "paramUrl"
@@ -101,7 +102,7 @@ public partial class Main : Node
 		{
 			if (options.UrlOverride is not null)
 			{
-				var clearManifestUrl = ToManifestUrl(options.UrlOverride);
+				var clearManifestUrl = ToManifestUrl(_uriResolver.Normalize(options.UrlOverride));
 				if (clearManifestUrl is null)
 				{
 					_assetCacheManager.ClearAllCaches();
@@ -119,7 +120,7 @@ public partial class Main : Node
 
 		if (options.UrlOverride is not null)
 		{
-			settings.StartUrl = options.UrlOverride;
+			settings.StartUrl = _uriResolver.Normalize(options.UrlOverride);
 			await SaveStartupSettingsAsync(settings);
 		}
 
@@ -135,7 +136,7 @@ public partial class Main : Node
 		if (manifestUrl is null)
 		{
 			RunnerLogger.Info("Startup", "Configured start URL is direct UI URL (non-manifest mode).");
-			var directUiFile = await TryDownloadDirectUiAsync(configuredStartUrl);
+			var directUiFile = await TryResolveDirectUiAsync(configuredStartUrl);
 			if (!string.IsNullOrWhiteSpace(directUiFile))
 			{
 				RunnerLogger.Info("Startup", "Manifest: missing");
@@ -228,7 +229,8 @@ public partial class Main : Node
 				_nodeFactoryRegistry,
 				_nodePropertyMapper,
 				animationApi: null,
-				configureActions: ConfigureProjectActions);
+				configureActions: ConfigureProjectActions,
+				uriResolver: _uriResolver);
 			var rootControl = await loader.LoadFromUriAsync(uiUrl);
 			AttachUi(rootControl);
 			Runtime.Logging.RunnerLogger.Info("UI", $"UI loaded from '{uiUrl}'.");
@@ -285,16 +287,18 @@ public partial class Main : Node
 		return ex.InnerException is not null && IsOfflineException(ex.InnerException);
 	}
 
-	private static string? ToManifestUrl(string urlOrBase)
+	private string? ToManifestUrl(string urlOrBase)
 	{
-		if (!Uri.TryCreate(urlOrBase, UriKind.Absolute, out var uri))
-		{
-			return null;
-		}
+		var normalized = _uriResolver.Normalize(urlOrBase);
+		var kind = SmlUriResolver.ClassifyScheme(normalized);
 
-		if (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
-			|| uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+		if (kind is SmlUriSchemeKind.Http or SmlUriSchemeKind.Https)
 		{
+			if (!Uri.TryCreate(normalized, UriKind.Absolute, out var uri))
+			{
+				return null;
+			}
+
 			if (uri.AbsolutePath.EndsWith("/manifest.sml", StringComparison.OrdinalIgnoreCase)
 				|| uri.AbsolutePath.Equals("manifest.sml", StringComparison.OrdinalIgnoreCase))
 			{
@@ -309,74 +313,84 @@ public partial class Main : Node
 			return new Uri(uri.ToString().TrimEnd('/') + "/manifest.sml").ToString();
 		}
 
+		if (kind == SmlUriSchemeKind.Ipfs)
+		{
+			var manifestIpfs = normalized.EndsWith("/manifest.sml", StringComparison.OrdinalIgnoreCase)
+				? normalized
+				: normalized.EndsWith(".sml", StringComparison.OrdinalIgnoreCase)
+					? string.Empty
+					: normalized.TrimEnd('/') + "/manifest.sml";
+
+			if (string.IsNullOrWhiteSpace(manifestIpfs))
+			{
+				return null;
+			}
+
+			return SmlUriResolver.MapIpfsToHttp(manifestIpfs, _uriResolver.IpfsGateway);
+		}
+
 		return null;
 	}
 
-	private async Task<string?> TryDownloadDirectUiAsync(string uiUrl)
+	private async Task<string?> TryResolveDirectUiAsync(string uiUrl)
 	{
-		if (!Uri.TryCreate(uiUrl, UriKind.Absolute, out var uri)
-			|| (!uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
-				&& !uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
+		if (string.IsNullOrWhiteSpace(uiUrl))
 		{
-			if (Uri.TryCreate(uiUrl, UriKind.Absolute, out var fileUri)
-				&& fileUri.Scheme.Equals(Uri.UriSchemeFile, StringComparison.OrdinalIgnoreCase)
-				&& File.Exists(fileUri.LocalPath))
-			{
-				return uiUrl;
-			}
-
 			return null;
 		}
-
-		var cacheRoot = ProjectSettings.GlobalizePath("user://cache/direct-ui");
-		var urlHash = ComputeSha256Hex(uiUrl);
-		var appRoot = Path.Combine(cacheRoot, urlHash);
-		Directory.CreateDirectory(appRoot);
-
-		var targetPath = Path.Combine(appRoot, "app.sml");
-		var tempPath = targetPath + ".tmp";
 
 		try
 		{
-			using var response = await StartupHttpClient.GetAsync(uiUrl);
-			response.EnsureSuccessStatusCode();
-			var content = await response.Content.ReadAsStringAsync();
-			await File.WriteAllTextAsync(tempPath, content);
+			var normalized = _uriResolver.ResolveReference(uiUrl);
+			var resolved = await _uriResolver.ResolveForResourceLoadAsync(normalized);
+			var resolvedKind = SmlUriResolver.ClassifyScheme(resolved);
 
-			if (File.Exists(targetPath))
+			if (SmlUriResolver.IsLocalScheme(resolvedKind)
+				&& TryResolveLocalPath(resolved, out var localPath)
+				&& !File.Exists(localPath))
 			{
-				File.Delete(targetPath);
+				RunnerLogger.Warn("Startup", $"Resolved direct UI does not exist: {localPath}");
+				return null;
 			}
 
-			File.Move(tempPath, targetPath);
-			RunnerLogger.Info("Startup", $"Downloaded direct UI: {uiUrl}");
-			return new Uri(targetPath).AbsoluteUri;
+			return resolved;
 		}
 		catch (Exception ex)
 		{
-			if (File.Exists(targetPath))
-			{
-				RunnerLogger.Warn("Startup", $"Direct UI download failed ({ex.Message}). Using cached direct UI.");
-				return new Uri(targetPath).AbsoluteUri;
-			}
-
-			RunnerLogger.Warn("Startup", $"Direct UI download failed and no cache is available: {ex.Message}");
+			RunnerLogger.Warn("Startup", $"Direct UI resolve failed for '{uiUrl}': {ex.Message}");
 			return null;
-		}
-		finally
-		{
-			if (File.Exists(tempPath))
-			{
-				File.Delete(tempPath);
-			}
 		}
 	}
 
-	private static string ComputeSha256Hex(string input)
+	private static bool TryResolveLocalPath(string uriOrPath, out string localPath)
 	{
-		var bytes = Encoding.UTF8.GetBytes(input);
-		var hash = SHA256.HashData(bytes);
-		return Convert.ToHexString(hash).ToLowerInvariant();
+		localPath = string.Empty;
+		var kind = SmlUriResolver.ClassifyScheme(uriOrPath);
+		switch (kind)
+		{
+			case SmlUriSchemeKind.Res:
+			case SmlUriSchemeKind.User:
+				localPath = ProjectSettings.GlobalizePath(uriOrPath);
+				return true;
+
+			case SmlUriSchemeKind.File:
+				if (Uri.TryCreate(uriOrPath, UriKind.Absolute, out var fileUri))
+				{
+					localPath = fileUri.LocalPath;
+					return true;
+				}
+
+				if (Path.IsPathRooted(uriOrPath))
+				{
+					localPath = uriOrPath;
+					return true;
+				}
+
+				return false;
+
+			default:
+				return false;
+		}
 	}
 
 	private static string BuildFallbackAppFileUrl()
@@ -387,15 +401,15 @@ public partial class Main : Node
 
 	private StartupOptions ParseStartupOptions()
 	{
-		var args = OS.GetCmdlineArgs();
+		var args = CollectStartupArgs();
 		string? urlOverride = null;
 		var clearCache = false;
 		var resetStartUrl = false;
 
-		for (var i = 0; i < args.Length; i++)
+		for (var i = 0; i < args.Count; i++)
 		{
 			var arg = args[i];
-			if (arg == "--url" && i + 1 < args.Length)
+			if (arg == "--url" && i + 1 < args.Count)
 			{
 				urlOverride = args[i + 1];
 				i++;
@@ -411,10 +425,55 @@ public partial class Main : Node
 			if (arg == "--reset-start-url")
 			{
 				resetStartUrl = true;
+				continue;
+			}
+
+			if (!arg.StartsWith("--", StringComparison.Ordinal)
+				&& string.IsNullOrWhiteSpace(urlOverride)
+				&& LooksLikeUrlOrPath(arg))
+			{
+				urlOverride = arg;
 			}
 		}
 
 		return new StartupOptions(urlOverride, clearCache, resetStartUrl);
+	}
+
+	private static List<string> CollectStartupArgs()
+	{
+		var args = new List<string>();
+
+		try
+		{
+			var userArgs = OS.GetCmdlineUserArgs();
+			if (userArgs is not null)
+			{
+				args.AddRange(userArgs);
+			}
+		}
+		catch
+		{
+			// Fallback to GetCmdlineArgs only on platforms/runtimes where GetCmdlineUserArgs is unavailable.
+		}
+
+		var rawArgs = OS.GetCmdlineArgs();
+		if (rawArgs is not null)
+		{
+			args.AddRange(rawArgs);
+		}
+
+		return args;
+	}
+
+	private static bool LooksLikeUrlOrPath(string value)
+	{
+		if (string.IsNullOrWhiteSpace(value))
+		{
+			return false;
+		}
+
+		var kind = SmlUriResolver.ClassifyScheme(value);
+		return kind is not (SmlUriSchemeKind.Relative or SmlUriSchemeKind.Unknown);
 	}
 
 	private async Task<StartupSettings> LoadStartupSettingsAsync()
