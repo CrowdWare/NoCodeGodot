@@ -11,6 +11,17 @@ All runtime logic is implemented directly in C# using Godot’s API.
 
 ---
 
+## Documentation Index
+
+Additional focused docs:
+
+- Manifest specification: [`docs/manifest_specification.md`](../docs/manifest_specification.md)
+- Supported SML elements: [`docs/supported_sml_elements.md`](../docs/supported_sml_elements.md)
+- Asset pipeline (Blender → glTF → Runner): [`docs/asset_pipeline_blender_gltf_runner.md`](../docs/asset_pipeline_blender_gltf_runner.md)
+- Runtime lifecycle: [`docs/runtime_lifecycle.md`](../docs/runtime_lifecycle.md)
+
+---
+
 ## Key Goals
 	•	Runtime-generated UI & scenes (no precompiled .tscn)
 	•	Remote-first workflow (SML + assets hosted on GitHub Pages or similar)

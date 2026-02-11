@@ -787,7 +787,7 @@ public partial class Main : Node
 
 	private void AttachUi(Control rootControl)
 	{
-		ApplyWindowMinSize(rootControl);
+		ApplyWindowProperties(rootControl);
 		_uiScalingConfig = ResolveScalingConfig(rootControl);
 		ConfigureWindowContentScale(_uiScalingConfig.Mode);
 
@@ -852,11 +852,35 @@ public partial class Main : Node
 		LogUiScalingState(GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero);
 	}
 
-	private void ApplyWindowMinSize(Control rootControl)
+	private void ApplyWindowProperties(Control rootControl)
 	{
 		if (GetWindow() is not { } window)
 		{
 			return;
+		}
+
+		if (rootControl.HasMeta(NodePropertyMapper.MetaWindowTitle))
+		{
+			window.Title = rootControl.GetMeta(NodePropertyMapper.MetaWindowTitle).AsString();
+			RunnerLogger.Info("UI", $"Window title applied: '{window.Title}'");
+		}
+
+		if (rootControl.HasMeta(NodePropertyMapper.MetaWindowSizeX)
+			&& rootControl.HasMeta(NodePropertyMapper.MetaWindowSizeY))
+		{
+			var width = Math.Max(1, rootControl.GetMeta(NodePropertyMapper.MetaWindowSizeX).AsInt32());
+			var height = Math.Max(1, rootControl.GetMeta(NodePropertyMapper.MetaWindowSizeY).AsInt32());
+			window.Size = new Vector2I(width, height);
+			RunnerLogger.Info("UI", $"Window size applied: {window.Size.X}x{window.Size.Y}");
+		}
+
+		if (rootControl.HasMeta(NodePropertyMapper.MetaWindowPosX)
+			&& rootControl.HasMeta(NodePropertyMapper.MetaWindowPosY))
+		{
+			var x = rootControl.GetMeta(NodePropertyMapper.MetaWindowPosX).AsInt32();
+			var y = rootControl.GetMeta(NodePropertyMapper.MetaWindowPosY).AsInt32();
+			window.Position = new Vector2I(x, y);
+			RunnerLogger.Info("UI", $"Window position applied: {window.Position.X},{window.Position.Y}");
 		}
 
 		if (!rootControl.HasMeta(NodePropertyMapper.MetaWindowMinSizeX)

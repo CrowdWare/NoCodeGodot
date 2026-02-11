@@ -84,7 +84,7 @@
 - [x] tasks/caching.md
 - [x] tasks/layout.md
 - [x] tasks/markdown.md
-- [ ] tasks/documentation.md
+- [x] tasks/documentation.md
 - [ ] tasks/issues.md
 - [ ] tasks/features_missing.md
 

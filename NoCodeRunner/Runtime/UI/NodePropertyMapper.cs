@@ -33,6 +33,11 @@ public sealed class NodePropertyMapper
     public const string MetaScrollbarFadeOutTime = "sml_scrollBarFadeOutTime";
     public const string MetaWindowMinSizeX = "sml_windowMinSizeX";
     public const string MetaWindowMinSizeY = "sml_windowMinSizeY";
+    public const string MetaWindowTitle = "sml_windowTitle";
+    public const string MetaWindowPosX = "sml_windowPosX";
+    public const string MetaWindowPosY = "sml_windowPosY";
+    public const string MetaWindowSizeX = "sml_windowSizeX";
+    public const string MetaWindowSizeY = "sml_windowSizeY";
 
     public void Apply(Control control, string propertyName, SmlValue value, Func<string, string>? resolveAssetPath = null)
     {
@@ -40,8 +45,19 @@ public sealed class NodePropertyMapper
         {
             case "text":
             case "label":
-            case "title":
                 ApplyTextLike(control, value.AsStringOrThrow(propertyName));
+                return;
+
+            case "title":
+                var title = value.AsStringOrThrow(propertyName);
+                if (IsWindowNode(control))
+                {
+                    control.SetMeta(MetaWindowTitle, Variant.From(title));
+                }
+                else
+                {
+                    ApplyTextLike(control, title);
+                }
                 return;
 
             case "wrap":
@@ -70,12 +86,32 @@ public sealed class NodePropertyMapper
                 var width = value.AsIntOrThrow(propertyName);
                 control.SetMeta(MetaWidth, Variant.From(width));
                 control.CustomMinimumSize = new Vector2(width, control.CustomMinimumSize.Y);
+                if (IsWindowNode(control))
+                {
+                    control.SetMeta(MetaWindowSizeX, Variant.From(width));
+                }
                 return;
 
             case "height":
                 var height = value.AsIntOrThrow(propertyName);
                 control.SetMeta(MetaHeight, Variant.From(height));
                 control.CustomMinimumSize = new Vector2(control.CustomMinimumSize.X, height);
+                if (IsWindowNode(control))
+                {
+                    control.SetMeta(MetaWindowSizeY, Variant.From(height));
+                }
+                return;
+
+            case "size":
+                var size = value.AsVec2iOrThrow(propertyName);
+                control.SetMeta(MetaWidth, Variant.From(size.X));
+                control.SetMeta(MetaHeight, Variant.From(size.Y));
+                control.CustomMinimumSize = new Vector2(size.X, size.Y);
+                if (IsWindowNode(control))
+                {
+                    control.SetMeta(MetaWindowSizeX, Variant.From(size.X));
+                    control.SetMeta(MetaWindowSizeY, Variant.From(size.Y));
+                }
                 return;
 
             case "x":
@@ -83,6 +119,10 @@ public sealed class NodePropertyMapper
                 var x = value.AsIntOrThrow(propertyName);
                 control.SetMeta(MetaX, Variant.From(x));
                 control.Position = new Vector2(x, control.Position.Y);
+                if (IsWindowNode(control))
+                {
+                    control.SetMeta(MetaWindowPosX, Variant.From(x));
+                }
                 return;
 
             case "y":
@@ -90,6 +130,22 @@ public sealed class NodePropertyMapper
                 var y = value.AsIntOrThrow(propertyName);
                 control.SetMeta(MetaY, Variant.From(y));
                 control.Position = new Vector2(control.Position.X, y);
+                if (IsWindowNode(control))
+                {
+                    control.SetMeta(MetaWindowPosY, Variant.From(y));
+                }
+                return;
+
+            case "pos":
+                var pos = value.AsVec2iOrThrow(propertyName);
+                control.SetMeta(MetaX, Variant.From(pos.X));
+                control.SetMeta(MetaY, Variant.From(pos.Y));
+                control.Position = new Vector2(pos.X, pos.Y);
+                if (IsWindowNode(control))
+                {
+                    control.SetMeta(MetaWindowPosX, Variant.From(pos.X));
+                    control.SetMeta(MetaWindowPosY, Variant.From(pos.Y));
+                }
                 return;
 
             case "anchors":
@@ -402,6 +458,12 @@ public sealed class NodePropertyMapper
         control.SetMeta(MetaAnchorRight, Variant.From(right));
         control.SetMeta(MetaAnchorTop, Variant.From(top));
         control.SetMeta(MetaAnchorBottom, Variant.From(bottom));
+    }
+
+    private static bool IsWindowNode(Control control)
+    {
+        return control.HasMeta(MetaNodeName)
+            && string.Equals(control.GetMeta(MetaNodeName).AsString(), "Window", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void ApplyTextLike(Control control, string text)

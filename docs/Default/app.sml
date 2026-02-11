@@ -1,7 +1,7 @@
 Window {
-    title: "NoCodeRunner - Test"
+    title: "NoCodeRunner"
     minSize: 600,400
-    //size: 700, 500
+    size: 1024, 768
 
     Panel {
         anchors: top | left | bottom
