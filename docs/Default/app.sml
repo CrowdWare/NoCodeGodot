@@ -8,8 +8,8 @@ Window {
         Label { text: "Default Content" }
         Viewport3D {
             id: hero
-            model: "res://assets/models/Opa.glb"
-            animation: "res://assets/models/Idle.glb"
+            model: "res:/assets/models/Opa.glb"
+            animation: "res:/assets/models/Idle.glb"
             cameraDistance: 2
             lightEnergy: 1
             playAnimation: 1

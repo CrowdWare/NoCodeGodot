@@ -61,7 +61,7 @@ Window {
                     Label { text: "3D Viewport sample (.glb/.gltf imported as PackedScene)" }
                     Viewport3D {
                         id: hero
-                        model: "res://PaladinIdle.glb"
+                        model: "res:/PaladinIdle.glb"
                         cameraDistance: 2
                         lightEnergy: 1
                         playFirstAnimation: true
@@ -146,7 +146,7 @@ Window {
                         width: 480
                         height: 270
                         autoplay: false
-                        source: "res://sample.ogv"
+                        source: "res:/sample.ogv"
                     }
                 }
             }

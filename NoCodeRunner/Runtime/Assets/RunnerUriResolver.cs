@@ -44,6 +44,14 @@ public sealed class RunnerUriResolver
         var referenceKind = SmlUriResolver.ClassifyScheme(normalized);
         if (referenceKind != SmlUriSchemeKind.Relative)
         {
+            if (referenceKind == SmlUriSchemeKind.Res
+                && TryResolveBaseDirectory(baseUri, out var baseDirectory))
+            {
+                var localRelative = normalized["res://".Length..].TrimStart('/', '\\');
+                var combined = Path.GetFullPath(Path.Combine(baseDirectory, localRelative));
+                return NormalizeFilePathIfNeeded(combined);
+            }
+
             return NormalizeFilePathIfNeeded(normalized);
         }
 
@@ -188,6 +196,36 @@ public sealed class RunnerUriResolver
         }
 
         return uriOrPath;
+    }
+
+    private static bool TryResolveBaseDirectory(string? baseUri, out string directory)
+    {
+        directory = string.Empty;
+        if (string.IsNullOrWhiteSpace(baseUri))
+        {
+            return false;
+        }
+
+        var normalizedBase = SmlUriResolver.Normalize(baseUri);
+        var baseKind = SmlUriResolver.ClassifyScheme(normalizedBase);
+        if (baseKind != SmlUriSchemeKind.File)
+        {
+            return false;
+        }
+
+        if (Uri.TryCreate(normalizedBase, UriKind.Absolute, out var fileUri))
+        {
+            directory = Path.GetDirectoryName(fileUri.LocalPath) ?? string.Empty;
+            return !string.IsNullOrWhiteSpace(directory);
+        }
+
+        if (Path.IsPathRooted(normalizedBase))
+        {
+            directory = Path.GetDirectoryName(normalizedBase) ?? string.Empty;
+            return !string.IsNullOrWhiteSpace(directory);
+        }
+
+        return false;
     }
 
     private static string ToAbsolutePath(string resolved, SmlUriSchemeKind kind)
