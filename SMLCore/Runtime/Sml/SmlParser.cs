@@ -131,29 +131,40 @@ public sealed class SmlParser
 
         if (_lookahead.Kind == SmlTokenKind.Int)
         {
-            var first = int.Parse(Consume().Text);
-            SkipIgnorables();
-            if (_lookahead.Kind != SmlTokenKind.Comma)
-            {
-                return SmlValue.FromInt(first);
-            }
-
-            Consume();
-            SkipIgnorables();
-            var secondToken = Expect(SmlTokenKind.Int, "Expected integer component after ','.");
-            var second = int.Parse(secondToken.Text);
+            var values = new List<int> { int.Parse(Consume().Text) };
             SkipIgnorables();
 
-            if (_lookahead.Kind == SmlTokenKind.Comma)
+            while (_lookahead.Kind == SmlTokenKind.Comma)
             {
                 Consume();
                 SkipIgnorables();
-                var thirdToken = Expect(SmlTokenKind.Int, "Expected integer component after ','.");
-                var third = int.Parse(thirdToken.Text);
-                return SmlValue.FromVec3i(first, second, third);
+                var componentToken = Expect(SmlTokenKind.Int, "Expected integer component after ','.");
+                values.Add(int.Parse(componentToken.Text));
+                SkipIgnorables();
             }
 
-            return SmlValue.FromVec2i(first, second);
+            if (propertyName.Equals("padding", StringComparison.OrdinalIgnoreCase))
+            {
+                return values.Count switch
+                {
+                    1 => SmlValue.FromPadding(values[0], values[0], values[0], values[0]),
+                    2 => SmlValue.FromPadding(values[0], values[1], values[0], values[1]),
+                    4 => SmlValue.FromPadding(values[0], values[1], values[2], values[3]),
+                    3 => throw new SmlParseException(
+                        $"Property 'padding' must contain 1, 2, or 4 integer values (top,right,bottom,left). 3 values are not supported. (line {_lookahead.Line}, col {_lookahead.Column})"),
+                    _ => throw new SmlParseException(
+                        $"Property 'padding' must contain 1, 2, or 4 integer values. Found {values.Count}. (line {_lookahead.Line}, col {_lookahead.Column})")
+                };
+            }
+
+            return values.Count switch
+            {
+                1 => SmlValue.FromInt(values[0]),
+                2 => SmlValue.FromVec2i(values[0], values[1]),
+                3 => SmlValue.FromVec3i(values[0], values[1], values[2]),
+                _ => throw new SmlParseException(
+                    $"Property '{propertyName}' supports at most 3 integer tuple values (x,y,z). Found {values.Count}. (line {_lookahead.Line}, col {_lookahead.Column})")
+            };
         }
 
         if (_lookahead.Kind == SmlTokenKind.Identifier)

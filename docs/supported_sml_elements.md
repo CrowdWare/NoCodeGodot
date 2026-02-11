@@ -33,6 +33,7 @@ Commonly supported (depending on node type):
 - Text/content: `text`, `label`, `title`
 - Typographic: `font`, `fontSize`, `wrap`, `align`, `halign`, `color`, `role`
 - Sizing/position: `width`, `height`, `x`, `y`, `fillMaxSize`, `minSize`
+- Spacing: `spacing`, `padding`
 - Anchor/layout metadata: `anchors`, `anchorLeft`, `anchorRight`, `anchorTop`, `anchorBottom`, `centerX`, `centerY`, `layoutMode`
 - Interaction metadata: `id`, `action`, `clicked`
 
@@ -42,6 +43,20 @@ Commonly supported (depending on node type):
 - `Window`, `Page`, `Panel`, `Column`, `Markdown`, `Box`, `Tabs`, `Tab` are expanded to fill available size by default unless overridden.
 
 ## Node-Specific Properties
+
+### Container nodes (`Page`, `Panel`, `Column`, `Row`, `Box`, `Markdown`, `Tab`)
+
+- `spacing` (int): gap between children for `Row`/`Column` (`BoxContainer`-based)
+- `padding` (shorthand, int tuple):
+  - `padding: 8` → top/right/bottom/left = 8
+  - `padding: 8,16` → top/bottom=8, left/right=16
+  - `padding: 8,12,16,20` → top/right/bottom/left
+
+Validation:
+
+- only `1`, `2`, or `4` integer values are accepted
+- `3` values are rejected with parser error
+- floats are rejected (SML numeric rule: integer-only)
 
 ### Window
 

@@ -85,8 +85,7 @@
 - [x] tasks/layout.md
 - [x] tasks/markdown.md
 - [x] tasks/documentation.md
-- [ ] tasks/issues.md
-- [ ] tasks/features_missing.md
+- [x] tasks/padding.md
 
 
   

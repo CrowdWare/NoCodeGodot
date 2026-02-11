@@ -239,4 +239,77 @@ public class SmlParserTests
         var panel = Assert.Single(doc.Roots[0].Children);
         Assert.Equal("top,bottom,left", panel.GetRequiredProperty("anchors").AsStringOrThrow("anchors"));
     }
+
+    [Fact]
+    public void ParseDocument_WithPaddingSingleValue_ParsesAllSides()
+    {
+        const string text = """
+        Panel {
+            padding: 8
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Panel");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        var padding = doc.Roots[0].GetRequiredProperty("padding").AsPaddingOrThrow("padding");
+        Assert.Equal((8, 8, 8, 8), (padding.Top, padding.Right, padding.Bottom, padding.Left));
+    }
+
+    [Fact]
+    public void ParseDocument_WithPaddingTwoValues_ParsesVerticalHorizontal()
+    {
+        const string text = """
+        Panel {
+            padding: 12,24
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Panel");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        var padding = doc.Roots[0].GetRequiredProperty("padding").AsPaddingOrThrow("padding");
+        Assert.Equal((12, 24, 12, 24), (padding.Top, padding.Right, padding.Bottom, padding.Left));
+    }
+
+    [Fact]
+    public void ParseDocument_WithPaddingFourValues_ParsesTopRightBottomLeft()
+    {
+        const string text = """
+        Panel {
+            padding: 1,2,3,4
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Panel");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        var padding = doc.Roots[0].GetRequiredProperty("padding").AsPaddingOrThrow("padding");
+        Assert.Equal((1, 2, 3, 4), (padding.Top, padding.Right, padding.Bottom, padding.Left));
+    }
+
+    [Fact]
+    public void ParseDocument_WithPaddingThreeValues_ThrowsMeaningfulError()
+    {
+        const string text = """
+        Panel {
+            padding: 8,8,8
+        }
+        """;
+
+        var parser = new SmlParser(text);
+        var ex = Assert.Throws<SmlParseException>(() => parser.ParseDocument());
+        Assert.Contains("padding", ex.Message);
+        Assert.Contains("1, 2, or 4", ex.Message);
+        Assert.Contains("3 values are not supported", ex.Message);
+    }
 }

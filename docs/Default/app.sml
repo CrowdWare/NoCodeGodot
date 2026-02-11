@@ -1,6 +1,6 @@
 Window {
     title: "NoCodeRunner"
-    minSize: 600,400
+    minSize: 800,400
     size: 1024, 768
 
     Panel {
@@ -14,6 +14,7 @@ Window {
         width: 600
         
         Markdown {
+            padding: 8,8,8,20
             text: "# Title
 ## Subtitle
 ### Sub Sub

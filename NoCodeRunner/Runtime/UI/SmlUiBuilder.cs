@@ -124,6 +124,11 @@ public sealed class SmlUiBuilder
             control = WrapWithScrollContainer(control, node.Name);
         }
 
+        if (HasPadding(control))
+        {
+            control = WrapWithPaddingContainer(control, node.Name);
+        }
+
         return control;
     }
 
@@ -149,6 +154,59 @@ public sealed class SmlUiBuilder
     {
         return control.HasMeta(NodePropertyMapper.MetaScrollable)
                && control.GetMeta(NodePropertyMapper.MetaScrollable).AsBool();
+    }
+
+    private static bool HasPadding(Control control)
+    {
+        return control.HasMeta(NodePropertyMapper.MetaPaddingTop)
+               || control.HasMeta(NodePropertyMapper.MetaPaddingRight)
+               || control.HasMeta(NodePropertyMapper.MetaPaddingBottom)
+               || control.HasMeta(NodePropertyMapper.MetaPaddingLeft);
+    }
+
+    private static Control WrapWithPaddingContainer(Control content, string nodeName)
+    {
+        var top = content.HasMeta(NodePropertyMapper.MetaPaddingTop)
+            ? content.GetMeta(NodePropertyMapper.MetaPaddingTop).AsInt32()
+            : 0;
+        var right = content.HasMeta(NodePropertyMapper.MetaPaddingRight)
+            ? content.GetMeta(NodePropertyMapper.MetaPaddingRight).AsInt32()
+            : 0;
+        var bottom = content.HasMeta(NodePropertyMapper.MetaPaddingBottom)
+            ? content.GetMeta(NodePropertyMapper.MetaPaddingBottom).AsInt32()
+            : 0;
+        var left = content.HasMeta(NodePropertyMapper.MetaPaddingLeft)
+            ? content.GetMeta(NodePropertyMapper.MetaPaddingLeft).AsInt32()
+            : 0;
+
+        var margin = new MarginContainer
+        {
+            Name = $"{nodeName}Padding"
+        };
+
+        margin.AddThemeConstantOverride("margin_top", top);
+        margin.AddThemeConstantOverride("margin_right", right);
+        margin.AddThemeConstantOverride("margin_bottom", bottom);
+        margin.AddThemeConstantOverride("margin_left", left);
+
+        margin.SetMeta(NodePropertyMapper.MetaNodeName, Variant.From("PaddingContainer"));
+        if (content.HasMeta(NodePropertyMapper.MetaLayoutMode))
+        {
+            margin.SetMeta(NodePropertyMapper.MetaLayoutMode, content.GetMeta(NodePropertyMapper.MetaLayoutMode));
+        }
+
+        if (content.GetParent() is not null)
+        {
+            content.GetParent()?.RemoveChild(content);
+        }
+
+        NodePropertyMapper.ApplyFillMaxSize(margin);
+        NodePropertyMapper.ApplyFillMaxSize(content);
+        content.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        content.SetOffsetsPreset(Control.LayoutPreset.FullRect);
+
+        margin.AddChild(content);
+        return margin;
     }
 
     private static Control WrapWithScrollContainer(Control content, string nodeName)

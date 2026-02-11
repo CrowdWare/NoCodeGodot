@@ -18,6 +18,7 @@ Page {
         }
 
         Box {
+            padding: 8,16
             Label { text: "Box overlay item #1" }
             Label { text: "Box overlay item #2" }
         }

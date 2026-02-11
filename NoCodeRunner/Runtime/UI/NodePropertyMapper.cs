@@ -38,6 +38,10 @@ public sealed class NodePropertyMapper
     public const string MetaWindowPosY = "sml_windowPosY";
     public const string MetaWindowSizeX = "sml_windowSizeX";
     public const string MetaWindowSizeY = "sml_windowSizeY";
+    public const string MetaPaddingTop = "sml_paddingTop";
+    public const string MetaPaddingRight = "sml_paddingRight";
+    public const string MetaPaddingBottom = "sml_paddingBottom";
+    public const string MetaPaddingLeft = "sml_paddingLeft";
 
     public void Apply(Control control, string propertyName, SmlValue value, Func<string, string>? resolveAssetPath = null)
     {
@@ -80,6 +84,14 @@ public sealed class NodePropertyMapper
 
             case "spacing":
                 ApplySpacing(control, value.AsIntOrThrow(propertyName));
+                return;
+
+            case "padding":
+                var padding = value.AsPaddingOrThrow(propertyName);
+                control.SetMeta(MetaPaddingTop, Variant.From(padding.Top));
+                control.SetMeta(MetaPaddingRight, Variant.From(padding.Right));
+                control.SetMeta(MetaPaddingBottom, Variant.From(padding.Bottom));
+                control.SetMeta(MetaPaddingLeft, Variant.From(padding.Left));
                 return;
 
             case "width":
