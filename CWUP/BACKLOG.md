@@ -83,6 +83,7 @@
 - [x] tasks/action_binding.md
 - [x] tasks/caching.md
 - [ ] tasks/layout.md
+- [ ] tasks/markdown.md
 - [ ] tasks/documentation.md
 
 

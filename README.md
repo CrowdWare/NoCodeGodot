@@ -1,4 +1,4 @@
-# The NoCode Vision
+# 🧭 The NoCode Vision
 
 NoCode is not about avoiding code.
 It is about removing unnecessary barriers between ideas and reality.
@@ -9,7 +9,7 @@ NoCode exists to change that.
 
 ---
 
-## Core Idea
+## 🧠 Core Idea
 
 Describe what you want – not how the engine works.
 
@@ -22,10 +22,16 @@ Instead of writing imperative glue code, creators describe UI, behavior, and str
 The NoCodeRunner interprets this description and executes it on the target platform.
 
 ---
+## 📌 Project Status
 
-## SML: Simple, Explicit, Honest
+- Current Process: [CWUP/README.md](CWUP/README.md)
+- Backlog: [BACKLOG.md](CWUP/BACKLOG.md)
+  
+---
 
-SML is intentionally minimal.
+## 📐 SML: Simple, Explicit, Honest
+
+SML is intentionally minimal and means **S**imple **M**arkup **L**anguage.
 	•	No hidden magic
 	•	No complex expressions
 	•	No JavaScript or JSON hacks
@@ -46,7 +52,7 @@ If you can read it, you can reason about it.
 
 ---
 
-## Separation of Concerns (By Design)
+## 🔒 Separation of Concerns (By Design)
 
 NoCode enforces a strict separation:
 	•	Structure & UI → SML
@@ -57,7 +63,7 @@ This prevents the common collapse where UI, logic, and state become tangled and 
 
 ---
 
-## Deterministic, Portable, Durable
+## 🧱 Deterministic, Portable, Durable
 
 NoCode systems are designed to be:
 	•	deterministic
@@ -77,7 +83,7 @@ without rewriting the description.
 
 ---
 
-## NoCode Is Not a Toy
+## 🛠 NoCode Is Not a Toy
 
 NoCode is not a drag-and-drop toy for shallow demos.
 
@@ -98,7 +104,7 @@ Without breaking the simplicity of the core.
 
 ---
 
-## Empowering Humans, Not Replacing Them
+## 🤝 Empowering Humans, Not Replacing Them
 
 NoCode is not about replacing developers.
 
@@ -116,7 +122,7 @@ No black boxes.
 
 ---
 
-## A Long-Term Perspective
+## ⏳ A Long-Term Perspective
 
 NoCode is designed to survive trends.
 	•	Frameworks will come and go
@@ -133,7 +139,7 @@ NoCode aims to be:
 
 ---
 
-## In One Sentence
+## 🧩 In One Sentence
 
 NoCode is a human-first system for building software by describing intent, not fighting tools.
 
