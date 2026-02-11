@@ -3,6 +3,7 @@ using Runtime.Logging;
 using Runtime.Sml;
 using Runtime.ThreeD;
 using System;
+using System.Globalization;
 
 namespace Runtime.UI;
 
@@ -11,6 +12,27 @@ public sealed class NodePropertyMapper
     public const string MetaId = "sml_id";
     public const string MetaAction = "sml_action";
     public const string MetaClicked = "sml_clicked";
+    public const string MetaNodeName = "sml_nodeName";
+    public const string MetaLayoutMode = "sml_layoutMode";
+    public const string MetaX = "sml_x";
+    public const string MetaY = "sml_y";
+    public const string MetaWidth = "sml_width";
+    public const string MetaHeight = "sml_height";
+    public const string MetaCenterX = "sml_centerX";
+    public const string MetaCenterY = "sml_centerY";
+    public const string MetaAnchorLeft = "sml_anchorLeft";
+    public const string MetaAnchorRight = "sml_anchorRight";
+    public const string MetaAnchorTop = "sml_anchorTop";
+    public const string MetaAnchorBottom = "sml_anchorBottom";
+    public const string MetaScrollable = "sml_scrollable";
+    public const string MetaScrollbarWidth = "sml_scrollBarWidth";
+    public const string MetaScrollbarHeight = "sml_scrollBarHeight";
+    public const string MetaScrollbarPosition = "sml_scrollBarPosition";
+    public const string MetaScrollbarVisible = "sml_scrollBarVisible";
+    public const string MetaScrollbarVisibleOnScroll = "sml_scrollBarVisibleOnScroll";
+    public const string MetaScrollbarFadeOutTime = "sml_scrollBarFadeOutTime";
+    public const string MetaWindowMinSizeX = "sml_windowMinSizeX";
+    public const string MetaWindowMinSizeY = "sml_windowMinSizeY";
 
     public void Apply(Control control, string propertyName, SmlValue value, Func<string, string>? resolveAssetPath = null)
     {
@@ -22,24 +44,116 @@ public sealed class NodePropertyMapper
                 ApplyTextLike(control, value.AsStringOrThrow(propertyName));
                 return;
 
+            case "wrap":
+                ApplyWrap(control, ToBoolOrThrow(value, propertyName));
+                return;
+
+            case "role":
+                control.SetMeta("sml_role", Variant.From(value.AsStringOrThrow(propertyName)));
+                return;
+
+            case "align":
+                ApplyAlign(control, value.AsStringOrThrow(propertyName));
+                return;
+
+            case "color":
+                ApplyColor(control, value.AsStringOrThrow(propertyName), propertyName);
+                return;
+
             case "spacing":
                 ApplySpacing(control, value.AsIntOrThrow(propertyName));
                 return;
 
             case "width":
-                control.CustomMinimumSize = new Vector2(value.AsIntOrThrow(propertyName), control.CustomMinimumSize.Y);
+                var width = value.AsIntOrThrow(propertyName);
+                control.SetMeta(MetaWidth, Variant.From(width));
+                control.CustomMinimumSize = new Vector2(width, control.CustomMinimumSize.Y);
                 return;
 
             case "height":
-                control.CustomMinimumSize = new Vector2(control.CustomMinimumSize.X, value.AsIntOrThrow(propertyName));
+                var height = value.AsIntOrThrow(propertyName);
+                control.SetMeta(MetaHeight, Variant.From(height));
+                control.CustomMinimumSize = new Vector2(control.CustomMinimumSize.X, height);
                 return;
 
+            case "x":
             case "left":
-                control.Position = new Vector2(value.AsIntOrThrow(propertyName), control.Position.Y);
+                var x = value.AsIntOrThrow(propertyName);
+                control.SetMeta(MetaX, Variant.From(x));
+                control.Position = new Vector2(x, control.Position.Y);
                 return;
 
+            case "y":
             case "top":
-                control.Position = new Vector2(control.Position.X, value.AsIntOrThrow(propertyName));
+                var y = value.AsIntOrThrow(propertyName);
+                control.SetMeta(MetaY, Variant.From(y));
+                control.Position = new Vector2(control.Position.X, y);
+                return;
+
+            case "anchors":
+                ApplyAnchors(control, value.AsStringOrThrow(propertyName));
+                return;
+
+            case "anchorleft":
+                control.SetMeta(MetaAnchorLeft, Variant.From(ToBoolOrThrow(value, propertyName)));
+                return;
+
+            case "anchorright":
+                control.SetMeta(MetaAnchorRight, Variant.From(ToBoolOrThrow(value, propertyName)));
+                return;
+
+            case "anchortop":
+                control.SetMeta(MetaAnchorTop, Variant.From(ToBoolOrThrow(value, propertyName)));
+                return;
+
+            case "anchorbottom":
+                control.SetMeta(MetaAnchorBottom, Variant.From(ToBoolOrThrow(value, propertyName)));
+                return;
+
+            case "centerx":
+                control.SetMeta(MetaCenterX, Variant.From(ToBoolOrThrow(value, propertyName)));
+                return;
+
+            case "centery":
+                control.SetMeta(MetaCenterY, Variant.From(ToBoolOrThrow(value, propertyName)));
+                return;
+
+            case "layoutmode":
+                control.SetMeta(MetaLayoutMode, Variant.From(value.AsStringOrThrow(propertyName)));
+                return;
+
+            case "scrollable":
+                control.SetMeta(MetaScrollable, Variant.From(ToBoolOrThrow(value, propertyName)));
+                return;
+
+            case "scrollbarwidth":
+                control.SetMeta(MetaScrollbarWidth, Variant.From(value.AsIntOrThrow(propertyName)));
+                return;
+
+            case "scrollbarheight":
+                control.SetMeta(MetaScrollbarHeight, Variant.From(value.AsIntOrThrow(propertyName)));
+                return;
+
+            case "scrollbarposition":
+                control.SetMeta(MetaScrollbarPosition, Variant.From(value.AsStringOrThrow(propertyName)));
+                return;
+
+            case "scrollbarvisible":
+                control.SetMeta(MetaScrollbarVisible, Variant.From(ToBoolOrThrow(value, propertyName)));
+                return;
+
+            case "scrollbarvisibleonscroll":
+                control.SetMeta(MetaScrollbarVisibleOnScroll, Variant.From(ToBoolOrThrow(value, propertyName)));
+                return;
+
+            case "scrollbarfadeouttime":
+                control.SetMeta(MetaScrollbarFadeOutTime, Variant.From(value.AsIntOrThrow(propertyName)));
+                return;
+
+            case "minsize":
+                var minSize = value.AsVec2iOrThrow(propertyName);
+                control.SetMeta(MetaWindowMinSizeX, Variant.From(minSize.X));
+                control.SetMeta(MetaWindowMinSizeY, Variant.From(minSize.Y));
                 return;
 
             case "fontsize":
@@ -92,6 +206,20 @@ public sealed class NodePropertyMapper
                     return;
                 }
                 break;
+
+            case "src":
+                if (control is TextureRect textureRect)
+                {
+                    var rawSource = value.AsStringOrThrow(propertyName);
+                    var resolvedSource = ResolveAssetPath(rawSource, resolveAssetPath);
+                    ApplyImageSource(textureRect, resolvedSource, rawSource);
+                    return;
+                }
+                break;
+
+            case "alt":
+                control.SetMeta("sml_alt", Variant.From(value.AsStringOrThrow(propertyName)));
+                return;
 
             case "multiline":
                 if (control is TextEdit textEdit)
@@ -216,10 +344,51 @@ public sealed class NodePropertyMapper
         RunnerLogger.Warn("UI", $"Property '{propertyName}' ignored for node type '{control.GetType().Name}'.");
     }
 
+    private static void ApplyAnchors(Control control, string anchorsRaw)
+    {
+        var normalized = anchorsRaw
+            .Replace("|", ",", StringComparison.Ordinal)
+            .Replace(";", ",", StringComparison.Ordinal)
+            .ToLowerInvariant();
+
+        var left = false;
+        var right = false;
+        var top = false;
+        var bottom = false;
+
+        foreach (var token in normalized.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            switch (token)
+            {
+                case "left":
+                    left = true;
+                    break;
+                case "right":
+                    right = true;
+                    break;
+                case "top":
+                    top = true;
+                    break;
+                case "bottom":
+                    bottom = true;
+                    break;
+            }
+        }
+
+        control.SetMeta(MetaAnchorLeft, Variant.From(left));
+        control.SetMeta(MetaAnchorRight, Variant.From(right));
+        control.SetMeta(MetaAnchorTop, Variant.From(top));
+        control.SetMeta(MetaAnchorBottom, Variant.From(bottom));
+    }
+
     private static void ApplyTextLike(Control control, string text)
     {
         switch (control)
         {
+            case RichTextLabel richText:
+                richText.BbcodeEnabled = true;
+                richText.Text = text;
+                break;
             case Label label:
                 label.Text = text;
                 break;
@@ -230,7 +399,7 @@ public sealed class NodePropertyMapper
                 textEdit.Text = text;
                 break;
             default:
-                if (control is PanelContainer)
+                if (control is PanelContainer or Panel)
                 {
                     // no-op for now
                     return;
@@ -254,6 +423,107 @@ public sealed class NodePropertyMapper
         }
     }
 
+    private static void ApplyWrap(Control control, bool wrap)
+    {
+        switch (control)
+        {
+            case RichTextLabel richText:
+                richText.AutowrapMode = wrap ? TextServer.AutowrapMode.WordSmart : TextServer.AutowrapMode.Off;
+                break;
+
+            case Label label:
+                label.AutowrapMode = wrap ? TextServer.AutowrapMode.WordSmart : TextServer.AutowrapMode.Off;
+                break;
+
+            case TextEdit textEdit:
+                textEdit.WrapMode = wrap ? TextEdit.LineWrappingMode.Boundary : TextEdit.LineWrappingMode.None;
+                break;
+
+            default:
+                RunnerLogger.Warn("UI", $"Property 'wrap' ignored for node type '{control.GetType().Name}'.");
+                break;
+        }
+    }
+
+    private static void ApplyAlign(Control control, string align)
+    {
+        var normalized = align.Trim().ToLowerInvariant();
+        var value = normalized switch
+        {
+            "center" => 1,
+            "right" => 2,
+            _ => 0
+        };
+
+        ApplyHorizontalAlignment(control, value);
+    }
+
+    private static void ApplyColor(Control control, string rawColor, string propertyName)
+    {
+        if (!TryParseColor(rawColor, out var color))
+        {
+            throw new SmlParseException($"Property '{propertyName}' must be a color in #RRGGBB or #AARRGGBB format.");
+        }
+
+        switch (control)
+        {
+            case RichTextLabel richText:
+                richText.AddThemeColorOverride("default_color", color);
+                break;
+
+            case Label label:
+                label.AddThemeColorOverride("font_color", color);
+                break;
+
+            case Button button:
+                button.AddThemeColorOverride("font_color", color);
+                break;
+
+            default:
+                RunnerLogger.Warn("UI", $"Property 'color' ignored for node type '{control.GetType().Name}'.");
+                break;
+        }
+    }
+
+    private static bool TryParseColor(string raw, out Color color)
+    {
+        color = Colors.White;
+        if (string.IsNullOrWhiteSpace(raw) || !raw.StartsWith('#'))
+        {
+            return false;
+        }
+
+        var hex = raw[1..];
+        if (hex.Length == 6)
+        {
+            if (!byte.TryParse(hex[..2], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r)
+                || !byte.TryParse(hex.Substring(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g)
+                || !byte.TryParse(hex.Substring(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
+            {
+                return false;
+            }
+
+            color = Color.Color8(r, g, b, 255);
+            return true;
+        }
+
+        if (hex.Length == 8)
+        {
+            if (!byte.TryParse(hex[..2], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var a)
+                || !byte.TryParse(hex.Substring(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r)
+                || !byte.TryParse(hex.Substring(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g)
+                || !byte.TryParse(hex.Substring(6, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
+            {
+                return false;
+            }
+
+            color = Color.Color8(r, g, b, a);
+            return true;
+        }
+
+        return false;
+    }
+
     private static string ResolveAssetPath(string source, Func<string, string>? resolveAssetPath)
     {
         if (resolveAssetPath is null)
@@ -273,7 +543,7 @@ public sealed class NodePropertyMapper
         }
         catch (Exception ex)
         {
-            RunnerLogger.Warn("UI", $"Asset path resolver failed for '{source}': {ex.Message}");
+            RunnerLogger.Warn("UI", $"Asset path resolver failed for '{source}'", ex);
             return source;
         }
     }
@@ -297,10 +567,35 @@ public sealed class NodePropertyMapper
         player.Stream = stream;
     }
 
+    private static void ApplyImageSource(TextureRect image, string source, string originalSource)
+    {
+        if (!source.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
+            && !source.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
+        {
+            RunnerLogger.Warn("UI", $"Image source '{originalSource}' resolved to '{source}', but is not loadable by Godot ResourceLoader. Use res:// or user:// path.");
+            return;
+        }
+
+        var texture = GD.Load<Texture2D>(source);
+        if (texture is null)
+        {
+            RunnerLogger.Warn("UI", $"Could not load image '{source}'.");
+            return;
+        }
+
+        image.Texture = texture;
+        image.ExpandMode = TextureRect.ExpandModeEnum.FitWidthProportional;
+        image.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
+    }
+
     private static void ApplyFontSize(Control control, int fontSize)
     {
         switch (control)
         {
+            case RichTextLabel richText:
+                richText.AddThemeFontSizeOverride("normal_font_size", fontSize);
+                break;
+
             case Label label:
                 label.AddThemeFontSizeOverride("font_size", fontSize);
                 break;
@@ -327,6 +622,11 @@ public sealed class NodePropertyMapper
 
         switch (control)
         {
+            case RichTextLabel richText:
+                richText.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+                richText.HorizontalAlignment = horizontalAlignment;
+                break;
+
             case Label label:
                 label.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
                 label.HorizontalAlignment = horizontalAlignment;

@@ -91,7 +91,7 @@ public sealed class UiActionDispatcher
             }
             catch (Exception ex)
             {
-                RunnerLogger.Warn("UI", $"Action observer threw exception: {ex.Message}");
+                RunnerLogger.Warn("UI", "Action observer threw exception", ex);
             }
         }
 

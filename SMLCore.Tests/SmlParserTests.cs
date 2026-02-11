@@ -217,4 +217,26 @@ public class SmlParserTests
         Assert.Equal(1, node.GetRequiredProperty("action").AsEnumIntOrThrow("action"));
         Assert.Empty(doc.Warnings);
     }
+
+    [Fact]
+    public void ParseDocument_WithAnchorsPipeSyntax_ParsesAsStringValue()
+    {
+        const string text = """
+        Window {
+            Panel {
+                anchors: top | bottom | left
+            }
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+        schema.RegisterKnownNode("Panel");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        var panel = Assert.Single(doc.Roots[0].Children);
+        Assert.Equal("top,bottom,left", panel.GetRequiredProperty("anchors").AsStringOrThrow("anchors"));
+    }
 }

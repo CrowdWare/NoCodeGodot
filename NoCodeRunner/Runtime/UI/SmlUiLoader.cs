@@ -4,6 +4,8 @@ using Runtime.Logging;
 using Runtime.Sml;
 using Runtime.ThreeD;
 using System;
+using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -44,6 +46,7 @@ public sealed class SmlUiLoader
         var schema = CreateDefaultSchema();
         var parser = new SmlParser(content, schema);
         var document = parser.ParseDocument();
+        await PreprocessMarkdownNodesAsync(document, normalizedUri, cancellationToken);
         var assetPathResolver = CreateAssetPathResolver(normalizedUri);
 
         var builder = new SmlUiBuilder(_registry, _propertyMapper, _animationApi, assetPathResolver);
@@ -61,7 +64,7 @@ public sealed class SmlUiLoader
             }
             catch (Exception ex)
             {
-                RunnerLogger.Warn("UI", $"Asset path resolve failed for '{source}' (base '{baseUri}'): {ex.Message}");
+                RunnerLogger.Warn("UI", $"Asset path resolve failed for '{source}' (base '{baseUri}')", ex);
                 return source;
             }
         };
@@ -72,6 +75,8 @@ public sealed class SmlUiLoader
         var schema = new SmlParserSchema();
 
         schema.RegisterKnownNode("Window");
+        schema.RegisterKnownNode("Page");
+        schema.RegisterKnownNode("Panel");
         schema.RegisterKnownNode("Label");
         schema.RegisterKnownNode("Button");
         schema.RegisterKnownNode("TextEdit");
@@ -83,6 +88,10 @@ public sealed class SmlUiLoader
         schema.RegisterKnownNode("Slider");
         schema.RegisterKnownNode("Video");
         schema.RegisterKnownNode("Viewport3D");
+        schema.RegisterKnownNode("Markdown");
+        schema.RegisterKnownNode("MarkdownLabel");
+        schema.RegisterKnownNode("Image");
+        schema.RegisterKnownNode("Spacer");
 
         schema.RegisterIdentifierProperty("id");
         schema.RegisterIdentifierProperty("clicked");
@@ -102,7 +111,272 @@ public sealed class SmlUiLoader
         schema.RegisterEnumValue("action", "cameraReset", 19);
         schema.RegisterEnumValue("scaling", "layout", 1);
         schema.RegisterEnumValue("scaling", "fixed", 2);
+        schema.RegisterEnumValue("layoutMode", "app", 1);
+        schema.RegisterEnumValue("layoutMode", "document", 2);
+        schema.RegisterEnumValue("scrollBarPosition", "right", 1);
+        schema.RegisterEnumValue("scrollBarPosition", "left", 2);
+        schema.RegisterEnumValue("scrollBarPosition", "bottom", 3);
+        schema.RegisterEnumValue("scrollBarPosition", "top", 4);
 
         return schema;
+    }
+
+    private async Task PreprocessMarkdownNodesAsync(SmlDocument document, string documentUri, CancellationToken cancellationToken)
+    {
+        foreach (var root in document.Roots)
+        {
+            await PreprocessMarkdownNodeRecursiveAsync(root, documentUri, document, cancellationToken);
+        }
+    }
+
+    private async Task PreprocessMarkdownNodeRecursiveAsync(SmlNode node, string currentBaseUri, SmlDocument document, CancellationToken cancellationToken)
+    {
+        if (string.Equals(node.Name, "Markdown", StringComparison.OrdinalIgnoreCase))
+        {
+            await PreprocessMarkdownContentAsync(node, currentBaseUri, document, cancellationToken);
+        }
+
+        foreach (var child in node.Children)
+        {
+            await PreprocessMarkdownNodeRecursiveAsync(child, currentBaseUri, document, cancellationToken);
+        }
+    }
+
+    private async Task PreprocessMarkdownContentAsync(SmlNode node, string currentBaseUri, SmlDocument document, CancellationToken cancellationToken)
+    {
+        var hasText = node.TryGetProperty("text", out _);
+        var hasSrc = node.TryGetProperty("src", out var srcValue);
+
+        if (hasText && hasSrc)
+        {
+            document.Warnings.Add("Markdown node has both 'text' and 'src'. Preferring 'text'.");
+        }
+
+        if (!hasText && !hasSrc)
+        {
+            document.Warnings.Add("Markdown node requires exactly one of 'text' or 'src'. Rendering empty content.");
+            node.Properties["text"] = SmlValue.FromString(string.Empty);
+            node.Properties["markdownBaseUri"] = SmlValue.FromString(currentBaseUri);
+            return;
+        }
+
+        if (hasText)
+        {
+            node.Properties["markdownBaseUri"] = SmlValue.FromString(currentBaseUri);
+            RenderMarkdownChildren(node, document);
+            return;
+        }
+
+        var rawSource = srcValue!.AsStringOrThrow("src");
+        var resolvedSource = _uriResolver.ResolveReference(rawSource, currentBaseUri);
+        node.Properties["markdownBaseUri"] = SmlValue.FromString(resolvedSource);
+
+        try
+        {
+            var markdown = await _uriResolver.LoadTextAsync(rawSource, currentBaseUri, cancellationToken);
+            node.Properties["text"] = SmlValue.FromString(markdown);
+        }
+        catch (Exception ex)
+        {
+            document.Warnings.Add($"Markdown src load failed for '{rawSource}': {ex.Message}");
+            node.Properties["text"] = SmlValue.FromString(string.Empty);
+        }
+
+        RenderMarkdownChildren(node, document);
+    }
+
+    private void RenderMarkdownChildren(SmlNode node, SmlDocument document)
+    {
+        var markdownText = node.GetRequiredProperty("text").AsStringOrThrow("text");
+        var markdownBase = node.GetRequiredProperty("markdownBaseUri").AsStringOrThrow("markdownBaseUri");
+        var parseResult = MarkdownParser.Parse(markdownText);
+        foreach (var warning in parseResult.Warnings)
+        {
+            document.Warnings.Add($"Markdown: {warning}");
+        }
+
+        node.Properties["layoutMode"] = SmlValue.FromString("document");
+        node.Children.Clear();
+        foreach (var block in parseResult.Blocks)
+        {
+            var rendered = RenderMarkdownBlock(block, markdownBase);
+            if (rendered is not null)
+            {
+                node.Children.Add(rendered);
+            }
+        }
+    }
+
+    private SmlNode? RenderMarkdownBlock(MarkdownBlock block, string markdownBaseUri)
+    {
+        switch (block.Kind)
+        {
+            case MarkdownBlockKind.Heading:
+                {
+                    var heading = NewNode("MarkdownLabel");
+                    heading.Properties["text"] = SmlValue.FromString(ToBbCode(block.Text));
+                    heading.Properties["role"] = SmlValue.FromString(block.HeadingLevel switch
+                    {
+                        1 => "heading1",
+                        2 => "heading2",
+                        _ => "heading3"
+                    });
+                    heading.Properties["wrap"] = SmlValue.FromBool(true);
+                    heading.Properties["fontSize"] = SmlValue.FromInt(block.HeadingLevel switch
+                    {
+                        1 => 32,
+                        2 => 26,
+                        _ => 22
+                    });
+                    ApplyMarkdownProperties(heading, block.Properties, markdownBaseUri);
+                    return heading;
+                }
+
+            case MarkdownBlockKind.Paragraph:
+                {
+                    var paragraph = NewNode("MarkdownLabel");
+                    paragraph.Properties["text"] = SmlValue.FromString(ToBbCode(block.Text));
+                    paragraph.Properties["role"] = SmlValue.FromString("paragraph");
+                    paragraph.Properties["wrap"] = SmlValue.FromBool(true);
+                    ApplyMarkdownProperties(paragraph, block.Properties, markdownBaseUri);
+                    return paragraph;
+                }
+
+            case MarkdownBlockKind.ListItem:
+                {
+                    var row = NewNode("Row");
+                    row.Properties["layoutMode"] = SmlValue.FromString("document");
+
+                    var bullet = NewNode("Label");
+                    bullet.Properties["text"] = SmlValue.FromString("•");
+                    bullet.Properties["width"] = SmlValue.FromInt(18);
+
+                    var text = NewNode("MarkdownLabel");
+                    text.Properties["text"] = SmlValue.FromString(ToBbCode(block.Text));
+                    text.Properties["wrap"] = SmlValue.FromBool(true);
+                    text.Properties["fillMaxSize"] = SmlValue.FromBool(true);
+
+                    row.Children.Add(bullet);
+                    row.Children.Add(text);
+                    ApplyMarkdownProperties(row, block.Properties, markdownBaseUri);
+                    return row;
+                }
+
+            case MarkdownBlockKind.Image:
+                {
+                    var image = NewNode("Image");
+                    image.Properties["src"] = SmlValue.FromString(_uriResolver.ResolveReference(block.Source, markdownBaseUri));
+                    image.Properties["alt"] = SmlValue.FromString(block.AltText);
+                    ApplyMarkdownProperties(image, block.Properties, markdownBaseUri);
+                    return image;
+                }
+
+            case MarkdownBlockKind.CodeFence:
+                {
+                    var container = NewNode("Box");
+                    container.Properties["role"] = SmlValue.FromString("codeblock");
+                    container.Properties["layoutMode"] = SmlValue.FromString("document");
+
+                    var label = NewNode("Label");
+                    label.Properties["role"] = SmlValue.FromString("code");
+                    label.Properties["text"] = SmlValue.FromString(block.Text);
+                    label.Properties["wrap"] = SmlValue.FromBool(false);
+                    label.Properties["fontSize"] = SmlValue.FromInt(14);
+                    container.Children.Add(label);
+                    ApplyMarkdownProperties(container, block.Properties, markdownBaseUri);
+                    return container;
+                }
+
+            default:
+                return null;
+        }
+    }
+
+    private static SmlNode NewNode(string name)
+    {
+        return new SmlNode { Name = name, Line = 0 };
+    }
+
+    private void ApplyMarkdownProperties(SmlNode node, Dictionary<string, string> markdownProperties, string markdownBaseUri)
+    {
+        foreach (var (key, rawValue) in markdownProperties)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            switch (key.ToLowerInvariant())
+            {
+                case "id":
+                case "align":
+                case "color":
+                case "role":
+                    node.Properties[key] = SmlValue.FromString(rawValue);
+                    break;
+
+                case "size":
+                    if (TryParseVec2(rawValue, out var x, out var y))
+                    {
+                        node.Properties["width"] = SmlValue.FromInt(x);
+                        node.Properties["height"] = SmlValue.FromInt(y);
+                    }
+                    break;
+
+                case "src":
+                    node.Properties[key] = SmlValue.FromString(_uriResolver.ResolveReference(rawValue, markdownBaseUri));
+                    break;
+            }
+        }
+    }
+
+    private static bool TryParseVec2(string raw, out int x, out int y)
+    {
+        x = 0;
+        y = 0;
+        var parts = raw.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 2 && int.TryParse(parts[0], out x) && int.TryParse(parts[1], out y);
+    }
+
+    private static string ToBbCode(string text)
+    {
+        var withEmoji = ReplaceEmojiNames(text ?? string.Empty);
+        var escaped = EscapeBbCode(withEmoji);
+
+        // Order matters: first bold+italic, then bold, then italic.
+        escaped = Regex.Replace(escaped, "\\*\\*\\*([^*]+)\\*\\*\\*", "[b][i]$1[/i][/b]");
+        escaped = Regex.Replace(escaped, "\\*\\*([^*]+)\\*\\*", "[b]$1[/b]");
+        escaped = Regex.Replace(escaped, "\\*([^*]+)\\*", "[i]$1[/i]");
+
+        return escaped;
+    }
+
+    private static string EscapeBbCode(string input)
+    {
+        return input
+            .Replace("[", "\\[", StringComparison.Ordinal)
+            .Replace("]", "\\]", StringComparison.Ordinal);
+    }
+
+    private static string ReplaceEmojiNames(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return input;
+        }
+
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["smile"] = "😄",
+            ["warning"] = "⚠️",
+            ["rocket"] = "🚀",
+            ["heart"] = "❤️"
+        };
+
+        return Regex.Replace(input, ":([a-zA-Z0-9_+-]+):", m =>
+        {
+            var key = m.Groups[1].Value;
+            return map.TryGetValue(key, out var emoji) ? emoji : m.Value;
+        });
     }
 }

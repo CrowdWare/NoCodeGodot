@@ -45,7 +45,7 @@ public sealed class SmlUiBuilder
 
         foreach (var warning in document.Warnings)
         {
-            RunnerLogger.Warn("UI", warning);
+            RunnerLogger.ParserWarning(warning);
         }
 
         _viewportsById.Clear();
@@ -69,6 +69,8 @@ public sealed class SmlUiBuilder
             viewport3DForInit.AnimationApi = _animationApi;
         }
 
+        control.SetMeta(NodePropertyMapper.MetaNodeName, Variant.From(node.Name));
+
         foreach (var (propertyName, value) in node.Properties)
         {
             if (TryApplyWindowScalingMetadata(control, node.Name, propertyName, value))
@@ -78,6 +80,8 @@ public sealed class SmlUiBuilder
 
             _propertyMapper.Apply(control, propertyName, value, _resolveAssetPath);
         }
+
+        ApplyDefaultLayoutMode(control, node.Name);
 
         if (!node.TryGetProperty("fillMaxSize", out _) && ShouldFillMaxSizeByDefault(node.Name))
         {
@@ -115,7 +119,61 @@ public sealed class SmlUiBuilder
 
         BindInteractions(control);
 
+        if (IsScrollable(control))
+        {
+            control = WrapWithScrollContainer(control, node.Name);
+        }
+
         return control;
+    }
+
+    private static void ApplyDefaultLayoutMode(Control control, string nodeName)
+    {
+        if (control.HasMeta(NodePropertyMapper.MetaLayoutMode))
+        {
+            return;
+        }
+
+        var mode = nodeName.Equals("Page", StringComparison.OrdinalIgnoreCase)
+                   || nodeName.Equals("Column", StringComparison.OrdinalIgnoreCase)
+                   || nodeName.Equals("Row", StringComparison.OrdinalIgnoreCase)
+                   || nodeName.Equals("Markdown", StringComparison.OrdinalIgnoreCase)
+                   || nodeName.Equals("Box", StringComparison.OrdinalIgnoreCase)
+            ? "document"
+            : "app";
+
+        control.SetMeta(NodePropertyMapper.MetaLayoutMode, Variant.From(mode));
+    }
+
+    private static bool IsScrollable(Control control)
+    {
+        return control.HasMeta(NodePropertyMapper.MetaScrollable)
+               && control.GetMeta(NodePropertyMapper.MetaScrollable).AsBool();
+    }
+
+    private static Control WrapWithScrollContainer(Control content, string nodeName)
+    {
+        var scroll = new DocumentScrollContainer
+        {
+            Name = $"{nodeName}Scroll"
+        };
+
+        scroll.SetMeta(NodePropertyMapper.MetaNodeName, Variant.From("ScrollContainer"));
+        scroll.SetMeta(NodePropertyMapper.MetaLayoutMode, Variant.From("document"));
+        scroll.ConfigureFromSmlMeta(content);
+
+        if (content.GetParent() is not null)
+        {
+            content.GetParent()?.RemoveChild(content);
+        }
+
+        NodePropertyMapper.ApplyFillMaxSize(scroll);
+        NodePropertyMapper.ApplyFillMaxSize(content);
+        content.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        content.SetOffsetsPreset(Control.LayoutPreset.FullRect);
+
+        scroll.AddChild(content);
+        return scroll;
     }
 
     private static bool TryApplyWindowScalingMetadata(Control control, string nodeName, string propertyName, SmlValue value)
@@ -333,7 +391,10 @@ public sealed class SmlUiBuilder
     private static bool ShouldFillMaxSizeByDefault(string nodeName)
     {
         return nodeName.Equals("Window", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("Page", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("Panel", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Column", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("Markdown", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Box", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Tabs", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Tab", StringComparison.OrdinalIgnoreCase);

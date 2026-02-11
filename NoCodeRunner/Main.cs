@@ -57,11 +57,14 @@ public partial class Main : Node
 	private CanvasLayer? _startupProgressLayer;
 	private ProgressBar? _startupProgressBar;
 	private Label? _startupProgressLabel;
+	private bool _viewportSizeChangedConnected;
 
 	public override async void _Ready()
 	{
 		DiscoverUiActionModules();
 		ConfigureWindowContentScale(UiScalingMode.Layout);
+		var startupSettings = await LoadStartupSettingsAsync();
+		RunnerLogger.Configure(startupSettings.IncludeStackTraces, startupSettings.ShowParserWarnings);
 
 		_resolvedStartupUiUrl = await ResolveStartupUiUrlAsync();
 
@@ -192,7 +195,7 @@ public partial class Main : Node
 		catch (Exception ex)
 		{
 			offline = IsOfflineException(ex);
-			RunnerLogger.Warn("Startup", $"Manifest startup failed for '{manifestUrl}': {ex.Message}");
+			RunnerLogger.Warn("Startup", $"Manifest startup failed for '{manifestUrl}'", ex);
 			RunnerLogger.Info("Startup", $"Offline: {offline}");
 
 			var cachedEntryUrl = _assetCacheManager.TryGetCachedEntryUrl(manifestUrl);
@@ -237,7 +240,7 @@ public partial class Main : Node
 		}
 		catch (Exception ex)
 		{
-			Runtime.Logging.RunnerLogger.Error("UI", $"Failed to load UI from '{uiUrl}': {ex.Message}");
+			Runtime.Logging.RunnerLogger.Error("UI", $"Failed to load UI from '{uiUrl}'", ex);
 		}
 	}
 
@@ -357,7 +360,7 @@ public partial class Main : Node
 		}
 		catch (Exception ex)
 		{
-			RunnerLogger.Warn("Startup", $"Direct UI resolve failed for '{uiUrl}': {ex.Message}");
+			RunnerLogger.Warn("Startup", $"Direct UI resolve failed for '{uiUrl}'", ex);
 			return null;
 		}
 	}
@@ -481,7 +484,10 @@ public partial class Main : Node
 		var path = ProjectSettings.GlobalizePath($"user://{StartupSettingsFileName}");
 		if (!File.Exists(path))
 		{
-			return new StartupSettings();
+			var defaults = new StartupSettings();
+			await SaveStartupSettingsAsync(defaults);
+			RunnerLogger.Info("Startup", $"Created default startup settings at '{path}'.");
+			return defaults;
 		}
 
 		try
@@ -491,7 +497,7 @@ public partial class Main : Node
 		}
 		catch (Exception ex)
 		{
-			RunnerLogger.Warn("Startup", $"Failed to load startup settings from SML. Using defaults. Reason: {ex.Message}");
+			RunnerLogger.Warn("Startup", "Failed to load startup settings from SML. Using defaults", ex);
 			return new StartupSettings();
 		}
 	}
@@ -517,6 +523,8 @@ public partial class Main : Node
 	{
 		public string? StartUrl { get; set; }
 		public int ProgressThresholdMb { get; set; } = 10;
+		public bool IncludeStackTraces { get; set; }
+		public bool ShowParserWarnings { get; set; } = true;
 	}
 
 	private static StartupSettings ParseStartupSettingsSml(string content)
@@ -550,6 +558,16 @@ public partial class Main : Node
 			settings.ProgressThresholdMb = Math.Max(0, thresholdValue.AsIntOrThrow("progressThresholdMb"));
 		}
 
+		if (root.TryGetProperty("includeStackTraces", out var includeStackTracesValue))
+		{
+			settings.IncludeStackTraces = includeStackTracesValue.AsBoolOrThrow("includeStackTraces");
+		}
+
+		if (root.TryGetProperty("showParserWarnings", out var showParserWarningsValue))
+		{
+			settings.ShowParserWarnings = showParserWarningsValue.AsBoolOrThrow("showParserWarnings");
+		}
+
 		return settings;
 	}
 
@@ -563,6 +581,8 @@ public partial class Main : Node
 		}
 
 		builder.AppendLine($"    progressThresholdMb: {Math.Max(0, settings.ProgressThresholdMb)}");
+		builder.AppendLine($"    includeStackTraces: {settings.IncludeStackTraces.ToString().ToLowerInvariant()}");
+		builder.AppendLine($"    showParserWarnings: {settings.ShowParserWarnings.ToString().ToLowerInvariant()}");
 		builder.AppendLine("}");
 		return builder.ToString();
 	}
@@ -712,7 +732,7 @@ public partial class Main : Node
 			}
 			catch (Exception ex)
 			{
-				RunnerLogger.Error("UI", $"Action module '{module.GetType().FullName}' failed during Configure: {ex.Message}");
+				RunnerLogger.Error("UI", $"Action module '{module.GetType().FullName}' failed during Configure", ex);
 			}
 		}
 
@@ -767,6 +787,7 @@ public partial class Main : Node
 
 	private void AttachUi(Control rootControl)
 	{
+		ApplyWindowMinSize(rootControl);
 		_uiScalingConfig = ResolveScalingConfig(rootControl);
 		ConfigureWindowContentScale(_uiScalingConfig.Mode);
 
@@ -801,16 +822,14 @@ public partial class Main : Node
 		_runtimeUiHost = host;
 		_runtimeUiRoot = rootControl;
 
-		if (GetWindow() is { } window)
-		{
-			window.SizeChanged += OnViewportSizeChanged;
-		}
-		if (GetViewport() is { } viewport)
+		if (GetViewport() is { } viewport && !_viewportSizeChangedConnected)
 		{
 			viewport.SizeChanged += OnViewportSizeChanged;
+			_viewportSizeChangedConnected = true;
 		}
 
 		OnViewportSizeChanged();
+		LayoutRuntime.Apply(rootControl);
 		LogUiScalingState(GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero);
 	}
 
@@ -825,7 +844,31 @@ public partial class Main : Node
 			ResizeUiRootToViewport();
 		}
 
+		if (_runtimeUiRoot is not null)
+		{
+			LayoutRuntime.Apply(_runtimeUiRoot);
+		}
+
 		LogUiScalingState(GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero);
+	}
+
+	private void ApplyWindowMinSize(Control rootControl)
+	{
+		if (GetWindow() is not { } window)
+		{
+			return;
+		}
+
+		if (!rootControl.HasMeta(NodePropertyMapper.MetaWindowMinSizeX)
+			|| !rootControl.HasMeta(NodePropertyMapper.MetaWindowMinSizeY))
+		{
+			return;
+		}
+
+		var minWidth = rootControl.GetMeta(NodePropertyMapper.MetaWindowMinSizeX).AsInt32();
+		var minHeight = rootControl.GetMeta(NodePropertyMapper.MetaWindowMinSizeY).AsInt32();
+		window.MinSize = new Vector2I(Math.Max(0, minWidth), Math.Max(0, minHeight));
+		RunnerLogger.Info("UI", $"Window minSize applied: {window.MinSize.X}x{window.MinSize.Y}");
 	}
 
 	private void ResizeUiRootToViewport()
@@ -845,12 +888,10 @@ public partial class Main : Node
 		_runtimeUiHost.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 		_runtimeUiHost.SetOffsetsPreset(Control.LayoutPreset.FullRect);
 		_runtimeUiHost.Position = Vector2.Zero;
-		_runtimeUiHost.Size = size;
 
 		_runtimeUiRoot.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 		_runtimeUiRoot.SetOffsetsPreset(Control.LayoutPreset.FullRect);
 		_runtimeUiRoot.Position = Vector2.Zero;
-		_runtimeUiRoot.Size = size;
 	}
 
 	private void ResizeFixedPresentationToViewport()
@@ -868,14 +909,12 @@ public partial class Main : Node
 		_runtimeUiHost.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 		_runtimeUiHost.SetOffsetsPreset(Control.LayoutPreset.FullRect);
 		_runtimeUiHost.Position = Vector2.Zero;
-		_runtimeUiHost.Size = GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero;
 
 		if (_fixedUiTexture is not null)
 		{
 			_fixedUiTexture.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 			_fixedUiTexture.SetOffsetsPreset(Control.LayoutPreset.FullRect);
 			_fixedUiTexture.Position = Vector2.Zero;
-			_fixedUiTexture.Size = _runtimeUiHost.Size;
 		}
 	}
 

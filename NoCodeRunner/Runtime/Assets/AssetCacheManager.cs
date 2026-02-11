@@ -129,7 +129,7 @@ public sealed class AssetCacheManager
                 catch (Exception ex)
                 {
                     failed++;
-                    RunnerLogger.Error("Assets", $"Failed to download '{asset.Id}' from '{asset.Url}': {ex.Message}");
+                    RunnerLogger.Error("Assets", $"Failed to download '{asset.Id}' from '{asset.Url}'", ex);
 
                     if (previousByPath.TryGetValue(relativePath, out var previous)
                         && File.Exists(absolutePath)
@@ -249,7 +249,7 @@ public sealed class AssetCacheManager
         }
         catch (Exception ex)
         {
-            RunnerLogger.Warn("Assets", $"Could not read cache metadata, rebuilding cache index. Reason: {ex.Message}");
+            RunnerLogger.Warn("Assets", "Could not read cache metadata, rebuilding cache index", ex);
             return new AssetCacheMetadata();
         }
     }

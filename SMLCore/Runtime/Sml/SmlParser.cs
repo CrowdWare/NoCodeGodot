@@ -158,6 +158,11 @@ public sealed class SmlParser
 
         if (_lookahead.Kind == SmlTokenKind.Identifier)
         {
+            if (propertyName.Equals("anchors", StringComparison.OrdinalIgnoreCase))
+            {
+                return ParseAnchorsValue();
+            }
+
             var token = Consume();
             var propertyKind = _schema.GetPropertyKind(propertyName);
 
@@ -185,6 +190,24 @@ public sealed class SmlParser
         }
 
         throw Error("Expected value.");
+    }
+
+    private SmlValue ParseAnchorsValue()
+    {
+        var anchors = new List<string>();
+
+        anchors.Add(Expect(SmlTokenKind.Identifier, "Expected anchor name.").Text);
+        SkipIgnorables();
+
+        while (_lookahead.Kind is SmlTokenKind.Pipe or SmlTokenKind.Comma)
+        {
+            Consume();
+            SkipIgnorables();
+            anchors.Add(Expect(SmlTokenKind.Identifier, "Expected anchor name after separator.").Text);
+            SkipIgnorables();
+        }
+
+        return SmlValue.FromString(string.Join(",", anchors));
     }
 
     private void SkipIgnorables()
@@ -240,6 +263,7 @@ internal enum SmlTokenKind
     RBrace,
     Colon,
     Comma,
+    Pipe,
     String,
     Int,
     Bool,
@@ -334,6 +358,12 @@ internal sealed class SmlLexer
         {
             Advance();
             return new SmlToken(SmlTokenKind.Comma, ",", startLine, startColumn);
+        }
+
+        if (c == '|')
+        {
+            Advance();
+            return new SmlToken(SmlTokenKind.Pipe, "|", startLine, startColumn);
         }
 
         if (c == '"')

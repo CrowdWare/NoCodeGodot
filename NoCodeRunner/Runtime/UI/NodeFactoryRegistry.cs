@@ -38,13 +38,23 @@ public sealed class NodeFactoryRegistry
 
     private void RegisterDefaults()
     {
-        Register("Window", () => new PanelContainer());
+        Register("Window", () => new Panel());
+        Register("Page", () => new VBoxContainer());
+        Register("Panel", () => new Panel());
         Register("Label", () => new Label());
         Register("Button", () => new Button());
         Register("TextEdit", () => new TextEdit());
         Register("Row", () => new HBoxContainer());
         Register("Column", () => new VBoxContainer());
-        Register("Box", () => new PanelContainer());
+        Register("Markdown", () => new VBoxContainer());
+        Register("MarkdownLabel", () => new RichTextLabel
+        {
+            FitContent = true,
+            ScrollActive = false
+        });
+        Register("Box", () => new Panel());
+        Register("Image", () => new TextureRect());
+        Register("Spacer", () => new Control());
         Register("Tabs", () => new TabContainer());
         Register("Tab", () => new VBoxContainer());
         Register("Slider", () => new HSlider());

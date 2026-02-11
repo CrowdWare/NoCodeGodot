@@ -82,8 +82,8 @@
 - [x] tasks/camera_interaction.md
 - [x] tasks/action_binding.md
 - [x] tasks/caching.md
-- [ ] tasks/layout.md
-- [ ] tasks/markdown.md
+- [x] tasks/layout.md
+- [x] tasks/markdown.md
 - [ ] tasks/documentation.md
 
 
