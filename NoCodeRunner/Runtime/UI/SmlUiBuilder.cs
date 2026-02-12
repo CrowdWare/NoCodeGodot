@@ -81,6 +81,11 @@ public sealed class SmlUiBuilder
             _propertyMapper.Apply(control, propertyName, value, _resolveAssetPath);
         }
 
+        if (control is CodeEdit && !node.TryGetProperty("font", out _) && !node.TryGetProperty("fontSource", out _))
+        {
+            _propertyMapper.Apply(control, "font", SmlValue.FromString("appres:/Anonymous.ttf"), _resolveAssetPath);
+        }
+
         ApplyDefaultLayoutMode(control, node.Name);
 
         if (!node.TryGetProperty("fillMaxSize", out _) && ShouldFillMaxSizeByDefault(node.Name))
@@ -143,6 +148,7 @@ public sealed class SmlUiBuilder
                    || nodeName.Equals("Column", StringComparison.OrdinalIgnoreCase)
                    || nodeName.Equals("Row", StringComparison.OrdinalIgnoreCase)
                    || nodeName.Equals("Markdown", StringComparison.OrdinalIgnoreCase)
+                   || nodeName.Equals("CodeEdit", StringComparison.OrdinalIgnoreCase)
                    || nodeName.Equals("Box", StringComparison.OrdinalIgnoreCase)
             ? "document"
             : "app";
@@ -452,6 +458,7 @@ public sealed class SmlUiBuilder
                || nodeName.Equals("Page", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Panel", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Column", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("CodeEdit", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Markdown", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Box", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Tabs", StringComparison.OrdinalIgnoreCase)

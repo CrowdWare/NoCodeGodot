@@ -199,6 +199,7 @@ public static class LayoutRuntime
         return nodeName.Equals("Page", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Column", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Row", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("CodeEdit", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Markdown", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Box", StringComparison.OrdinalIgnoreCase);
     }

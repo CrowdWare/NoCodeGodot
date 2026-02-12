@@ -10,7 +10,8 @@ Window {
 
 
         CodeEdit {
-            text: "Here you can write code..."            
+            text: "Window { titel: \"Test\"}"     
+            syntax: "sml"       
         }
     }
 

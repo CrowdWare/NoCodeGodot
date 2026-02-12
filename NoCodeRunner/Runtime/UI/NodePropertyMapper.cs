@@ -322,6 +322,14 @@ public sealed class NodePropertyMapper
                 }
                 break;
 
+            case "syntax":
+                if (control is CodeEdit codeEditor)
+                {
+                    CodeEditSyntaxRuntime.SetSyntax(codeEditor, value.AsStringOrThrow(propertyName));
+                    return;
+                }
+                break;
+
             case "min":
             case "minvalue":
                 if (control is Godot.Range minRange)

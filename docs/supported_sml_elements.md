@@ -85,6 +85,23 @@ Notes:
 - `multiline`
 - `wrap`
 - `font`, `fontSize`
+- `syntax` (`CodeEdit` only): `auto` (default), `sml`, `cs`, `markdown`, or custom `res:/...` rule file
+
+`CodeEdit` runtime syntax behavior (V1):
+
+- Without associated file path:
+  - `syntax: "auto"` → `plain_text` (no highlighter)
+  - `syntax: "sml" | "cs" | "markdown"` → mapped highlighter
+  - `syntax: "res:/..."` → custom rule file highlighter
+- On every `load(path)` or `save_as(path)` call:
+  - syntax is always recomputed from extension (`.sml`, `.cs`, `.md`, `.markdown`, else `plain_text`)
+  - extension mapping always overrides previous syntax (including custom rule paths)
+
+Rule file mapping:
+
+- `sml` → `res:/syntax/sml_syntax.cs`
+- `cs` → `res:/syntax/cs_syntax.cs`
+- `markdown` → `res:/syntax/markdown_syntax.cs`
 
 ### Image
 

@@ -11,4 +11,8 @@
   <ItemGroup>
     <ProjectReference Include="..\SMLCore\SMLCore.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="syntax/**/*.cs" />
+  </ItemGroup>
 </Project>
