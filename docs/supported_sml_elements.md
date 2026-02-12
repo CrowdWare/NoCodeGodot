@@ -32,10 +32,56 @@ Commonly supported (depending on node type):
 
 - Text/content: `text`, `label`, `title`
 - Typographic: `font`, `fontSize`, `wrap`, `align`, `halign`, `color`, `role`
-- Sizing/position: `width`, `height`, `x`, `y`, `fillMaxSize`, `minSize`
+- Sizing/position: `width`, `height`, `x`, `y`, `position`, `size`, `fillMaxSize`, `minSize`
 - Spacing: `spacing`, `padding`
 - Anchor/layout metadata: `anchors`, `anchorLeft`, `anchorRight`, `anchorTop`, `anchorBottom`, `centerX`, `centerY`, `layoutMode`
 - Interaction metadata: `id`, `action`, `clicked`
+
+### `id` semantics (important)
+
+`id` is treated as an **identifier symbol**, not as a generic numeric property.
+
+Allowed:
+
+- `id: mainButton` (identifier)
+- `id: 3` (**numeric identifier**)
+
+Not allowed:
+
+- `id: "mainButton"` (quoted string)
+- `id: 1,2` (tuple)
+
+Notes:
+
+- Numeric `id` values are interpreted as identifier symbols (for example, `"3"`), then mapped by runtime ID scope to internal integer IDs.
+- Duplicate `id` values in the same SML document scope are rejected by the parser.
+
+### Dual layout syntax (`x/y/width/height` + `position/size`)
+
+The runner uses one internal rect-style geometry model. Both syntaxes map to the same internal fields:
+
+- `x` / `y` (WinForms-style)
+- `position: x, y` (Godot-style)
+- `width` / `height` (WinForms-style)
+- `size: width, height` (Godot-style)
+
+Mixed usage is allowed. If multiple geometry properties target the same component, the **last parsed value wins**.
+
+Example:
+
+```qml
+Panel {
+    x: 10
+    position: 50, 60
+    width: 200
+    size: 320, 100
+}
+```
+
+Resulting rect:
+
+- `x = 50`, `y = 60`
+- `width = 320`, `height = 100`
 
 ## Container/Layout Notes
 
@@ -117,6 +163,50 @@ Rule file mapping:
 
 - `min`, `max`, `step`, `value`
 - can dispatch action workflows such as `animScrub`
+
+### TreeView
+
+- `hideRoot` (`bool`, default: `true`)
+- `showGuides` (`bool`, default: `true`)
+- `indent` (`int`)
+- `rowHeight` (`int`)
+
+`Item` children can contain optional `Toggle` children:
+
+- `id` (identifier)
+- `imageOn` (icon when state is `true`, required)
+- `imageOff` (icon when state is `false`, required)
+- `state` (`bool`, default: `true`)
+
+`Item` supports:
+
+- `icon` (optional item icon)
+
+Notes:
+
+- `hideRoot` maps to `Tree.HideRoot`.
+- `showGuides` controls guide-line rendering only (`draw_guides` theme constant).
+- `indent` is applied via tree theme constant override (`item_margin`).
+- `rowHeight` is applied via a theme constant override (`v_separation`).
+- Toggle click event convention:
+  - `<treeId>ItemToggle(Id itemId, TreeViewItem item, ToggleId toggleId, bool isOn)`
+  - fallback: `treeViewItemToggle(Id itemId, TreeViewItem item, ToggleId toggleId, bool isOn)`
+
+Example:
+
+```qml
+Item {
+    id: 11
+    text: "Branch 1.1"
+    icon: "res:/assets/images/document.png"
+
+    Toggle {
+        id: showObject
+        imageOn: "res:/assets/images/eye_open.png"
+        imageOff: "res:/assets/images/eye_closed.png"
+    }
+}
+```
 
 ### Viewport3D
 

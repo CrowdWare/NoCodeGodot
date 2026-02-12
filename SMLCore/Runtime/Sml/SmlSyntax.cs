@@ -108,6 +108,7 @@ public sealed class SmlNode
     public required string Name { get; init; }
     public required int Line { get; init; }
     public Dictionary<string, SmlValue> Properties { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, int> PropertyLines { get; } = new(StringComparer.OrdinalIgnoreCase);
     public List<SmlNode> Children { get; } = [];
 
     public bool TryGetProperty(string key, out SmlValue value)

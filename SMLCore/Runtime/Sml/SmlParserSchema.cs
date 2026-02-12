@@ -7,6 +7,7 @@ public enum SmlPropertyKind
 {
     Default,
     Identifier,
+    Id,
     Enum
 }
 
@@ -26,6 +27,11 @@ public sealed class SmlParserSchema
     public void RegisterIdentifierProperty(string propertyName)
     {
         _propertyKinds[propertyName] = SmlPropertyKind.Identifier;
+    }
+
+    public void RegisterIdProperty(string propertyName = "id")
+    {
+        _propertyKinds[propertyName] = SmlPropertyKind.Id;
     }
 
     public void RegisterEnumValue(string propertyName, string enumName, int enumValue)

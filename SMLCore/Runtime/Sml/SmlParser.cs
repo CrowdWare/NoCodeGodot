@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using System.Text;
 
 namespace Runtime.Sml;
@@ -9,6 +10,8 @@ public sealed class SmlParser
     private readonly SmlLexer _lexer;
     private SmlToken _lookahead;
     private readonly SmlParserSchema _schema;
+    private readonly Dictionary<string, int> _seenIdsInDocument = new(StringComparer.Ordinal);
+    private static readonly Regex IdPattern = new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
 
     public SmlParser(string text, SmlParserSchema? schema = null)
     {
@@ -20,6 +23,7 @@ public sealed class SmlParser
     public SmlDocument ParseDocument()
     {
         var document = new SmlDocument();
+        _seenIdsInDocument.Clear();
         SkipIgnorables();
 
         while (_lookahead.Kind != SmlTokenKind.Eof)
@@ -55,7 +59,8 @@ public sealed class SmlParser
             {
                 Consume();
                 SkipIgnorables();
-                node.Properties[ident.Text] = ParseValue(ident.Text, document);
+                node.Properties[ident.Text] = ParseValue(ident.Text, document, node, ident.Line);
+                node.PropertyLines[ident.Text] = ident.Line;
                 SkipIgnorables();
                 continue;
             }
@@ -96,7 +101,8 @@ public sealed class SmlParser
             {
                 Consume();
                 SkipIgnorables();
-                node.Properties[ident.Text] = ParseValue(ident.Text, document);
+                node.Properties[ident.Text] = ParseValue(ident.Text, document, node, ident.Line);
+                node.PropertyLines[ident.Text] = ident.Line;
                 SkipIgnorables();
                 continue;
             }
@@ -116,10 +122,17 @@ public sealed class SmlParser
         return node;
     }
 
-    private SmlValue ParseValue(string propertyName, SmlDocument document)
+    private SmlValue ParseValue(string propertyName, SmlDocument document, SmlNode node, int propertyLine)
     {
+        var propertyKind = _schema.GetPropertyKind(propertyName);
+
         if (_lookahead.Kind == SmlTokenKind.String)
         {
+            if (propertyKind == SmlPropertyKind.Id)
+            {
+                throw new SmlParseException($"Property '{propertyName}' must be an unquoted identifier symbol (numeric identifier allowed) (line {propertyLine}).");
+            }
+
             return SmlValue.FromString(Consume().Text);
         }
 
@@ -131,7 +144,19 @@ public sealed class SmlParser
 
         if (_lookahead.Kind == SmlTokenKind.Int)
         {
-            var values = new List<int> { int.Parse(Consume().Text) };
+            var firstIntToken = Consume();
+            if (propertyKind == SmlPropertyKind.Id)
+            {
+                if (_lookahead.Kind == SmlTokenKind.Comma)
+                {
+                    throw new SmlParseException($"Property '{propertyName}' id must be a single value, not a tuple (line {propertyLine}).");
+                }
+
+                EnsureUniqueIdInDocument(firstIntToken.Text, node, firstIntToken.Line);
+                return SmlValue.FromIdentifier(firstIntToken.Text);
+            }
+
+            var values = new List<int> { int.Parse(firstIntToken.Text) };
             SkipIgnorables();
 
             while (_lookahead.Kind == SmlTokenKind.Comma)
@@ -175,10 +200,22 @@ public sealed class SmlParser
             }
 
             var token = Consume();
-            var propertyKind = _schema.GetPropertyKind(propertyName);
 
             if (propertyKind == SmlPropertyKind.Identifier)
             {
+                return SmlValue.FromIdentifier(token.Text);
+            }
+
+            if (propertyKind == SmlPropertyKind.Id)
+            {
+                if (!IdPattern.IsMatch(token.Text))
+                {
+                    throw new SmlParseException(
+                        $"Invalid id '{token.Text}' for property '{propertyName}'. " +
+                        "Expected ^[A-Za-z_][A-Za-z0-9_]*$ (line " + token.Line + ", col " + token.Column + ")");
+                }
+
+                EnsureUniqueIdInDocument(token.Text, node, token.Line);
                 return SmlValue.FromIdentifier(token.Text);
             }
 
@@ -201,6 +238,17 @@ public sealed class SmlParser
         }
 
         throw Error("Expected value.");
+    }
+
+    private void EnsureUniqueIdInDocument(string id, SmlNode node, int line)
+    {
+        if (_seenIdsInDocument.TryGetValue(id, out var firstLine))
+        {
+            throw new SmlParseException(
+                $"Duplicate id '{id}' in SML document scope (first at line {firstLine}, duplicate at line {line}, node '{node.Name}').");
+        }
+
+        _seenIdsInDocument[id] = line;
     }
 
     private SmlValue ParseAnchorsValue()

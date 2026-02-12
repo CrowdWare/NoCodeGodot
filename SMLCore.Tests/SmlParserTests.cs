@@ -50,7 +50,7 @@ public class SmlParserTests
 
         var schema = new SmlParserSchema();
         schema.RegisterKnownNode("Window");
-        schema.RegisterIdentifierProperty("id");
+        schema.RegisterIdProperty("id");
 
         var parser = new SmlParser(text, schema);
         var doc = parser.ParseDocument();
@@ -206,7 +206,7 @@ public class SmlParserTests
 
         var schema = new SmlParserSchema();
         schema.RegisterKnownNode("MenuItem");
-        schema.RegisterIdentifierProperty("id");
+        schema.RegisterIdProperty("id");
         schema.RegisterEnumValue("action", "closeQuery", 1);
 
         var parser = new SmlParser(text, schema);
@@ -311,5 +311,63 @@ public class SmlParserTests
         Assert.Contains("padding", ex.Message);
         Assert.Contains("1, 2, or 4", ex.Message);
         Assert.Contains("3 values are not supported", ex.Message);
+    }
+
+    [Fact]
+    public void ParseDocument_WithQuotedId_Throws()
+    {
+        const string text = """
+        Window {
+            id: "main"
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+        schema.RegisterIdProperty("id");
+
+        var parser = new SmlParser(text, schema);
+        var ex = Assert.Throws<SmlParseException>(() => parser.ParseDocument());
+        Assert.Contains("unquoted identifier symbol", ex.Message);
+    }
+
+    [Fact]
+    public void ParseDocument_WithNumericId_ParsesAsIdentifierString()
+    {
+        const string text = """
+        Window {
+            id: 3
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+        schema.RegisterIdProperty("id");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+        Assert.Equal("3", doc.Roots[0].GetRequiredProperty("id").AsStringOrThrow("id"));
+    }
+
+    [Fact]
+    public void ParseDocument_WithDuplicateId_Throws()
+    {
+        const string text = """
+        Window {
+            id: main
+            Panel {
+                id: main
+            }
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+        schema.RegisterKnownNode("Panel");
+        schema.RegisterIdProperty("id");
+
+        var parser = new SmlParser(text, schema);
+        var ex = Assert.Throws<SmlParseException>(() => parser.ParseDocument());
+        Assert.Contains("Duplicate id 'main'", ex.Message);
     }
 }

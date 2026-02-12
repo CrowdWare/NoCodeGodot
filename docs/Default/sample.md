@@ -7,9 +7,9 @@ and another line (no break)
 - Item 1
 - Item 2
 - Item 3
-```
-fun test() {
-     println(\"Hello world\")
+```sml
+Window {
+     title: "Hello World"
 }
 ```
 :smile:

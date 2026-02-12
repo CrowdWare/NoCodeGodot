@@ -10,8 +10,10 @@ namespace Runtime.UI;
 public sealed class NodePropertyMapper
 {
     public const string MetaId = "sml_id";
+    public const string MetaIdValue = "sml_id_value";
     public const string MetaAction = "sml_action";
     public const string MetaClicked = "sml_clicked";
+    public const string MetaClickedIdValue = "sml_clicked_id_value";
     public const string MetaNodeName = "sml_nodeName";
     public const string MetaLayoutMode = "sml_layoutMode";
     public const string MetaX = "sml_x";
@@ -42,6 +44,10 @@ public sealed class NodePropertyMapper
     public const string MetaPaddingRight = "sml_paddingRight";
     public const string MetaPaddingBottom = "sml_paddingBottom";
     public const string MetaPaddingLeft = "sml_paddingLeft";
+    public const string MetaTreeRowHeight = "sml_treeRowHeight";
+    public const string MetaTreeShowGuides = "sml_treeShowGuides";
+    public const string MetaTreeHideRoot = "sml_treeHideRoot";
+    public const string MetaTreeIndent = "sml_treeIndent";
 
     public void Apply(Control control, string propertyName, SmlValue value, Func<string, string>? resolveAssetPath = null)
     {
@@ -149,6 +155,7 @@ public sealed class NodePropertyMapper
                 return;
 
             case "pos":
+            case "position":
                 var pos = value.AsVec2iOrThrow(propertyName);
                 control.SetMeta(MetaX, Variant.From(pos.X));
                 control.SetMeta(MetaY, Variant.From(pos.Y));
@@ -220,6 +227,22 @@ public sealed class NodePropertyMapper
                 control.SetMeta(MetaScrollbarFadeOutTime, Variant.From(value.AsIntOrThrow(propertyName)));
                 return;
 
+            case "rowheight":
+                control.SetMeta(MetaTreeRowHeight, Variant.From(value.AsIntOrThrow(propertyName)));
+                return;
+
+            case "showguides":
+                control.SetMeta(MetaTreeShowGuides, Variant.From(ToBoolOrThrow(value, propertyName)));
+                return;
+
+            case "hideroot":
+                control.SetMeta(MetaTreeHideRoot, Variant.From(ToBoolOrThrow(value, propertyName)));
+                return;
+
+            case "indent":
+                control.SetMeta(MetaTreeIndent, Variant.From(value.AsIntOrThrow(propertyName)));
+                return;
+
             case "minsize":
                 var minSize = value.AsVec2iOrThrow(propertyName);
                 control.SetMeta(MetaWindowMinSizeX, Variant.From(minSize.X));
@@ -248,6 +271,8 @@ public sealed class NodePropertyMapper
             case "id":
                 var idValue = value.AsStringOrThrow(propertyName);
                 control.SetMeta(MetaId, Variant.From(idValue));
+                var controlId = IdRuntimeScope.GetOrCreate(idValue);
+                control.SetMeta(MetaIdValue, Variant.From(controlId.Value));
 
                 if (control is Viewport3DControl viewport)
                 {
@@ -260,7 +285,13 @@ public sealed class NodePropertyMapper
                 return;
 
             case "clicked":
-                control.SetMeta(MetaClicked, Variant.From(value.AsStringOrThrow(propertyName)));
+                var clickedValue = value.AsStringOrThrow(propertyName);
+                control.SetMeta(MetaClicked, Variant.From(clickedValue));
+                if (clickedValue.IndexOf(':') < 0)
+                {
+                    var clickedId = IdRuntimeScope.GetOrCreate(clickedValue);
+                    control.SetMeta(MetaClickedIdValue, Variant.From(clickedId.Value));
+                }
                 return;
 
             case "autoplay":

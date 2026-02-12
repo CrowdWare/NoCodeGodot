@@ -8,15 +8,22 @@ namespace Runtime.UI;
 public readonly record struct UiActionContext(
     Control Source,
     string SourceId,
+    Id SourceIdValue,
     string Action,
     string Clicked,
-    double? NumericValue = null
+    Id ClickedIdValue,
+    double? NumericValue = null,
+    bool? BoolValue = null,
+    Id ItemId = default,
+    ToggleId ToggleIdValue = default,
+    TreeViewItem? TreeItem = null
 );
 
 public sealed class UiActionDispatcher
 {
     private readonly Dictionary<string, Action<UiActionContext>> _actionHandlers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Action<UiActionContext>> _idHandlers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, Action<UiActionContext>> _idValueHandlers = new();
     private readonly List<Action<UiActionContext>> _observers = [];
     private Action<string>? _pageHandler;
 
@@ -71,6 +78,29 @@ public sealed class UiActionDispatcher
         }
     }
 
+    public void RegisterIdHandler(Id id, Action<UiActionContext> handler)
+    {
+        if (!id.IsSet)
+        {
+            throw new ArgumentException("Id must be set (Value != 0).", nameof(id));
+        }
+
+        _idValueHandlers[id.Value] = handler ?? throw new ArgumentNullException(nameof(handler));
+    }
+
+    public void RegisterIdHandlerIfMissing(Id id, Action<UiActionContext> handler)
+    {
+        if (!id.IsSet)
+        {
+            throw new ArgumentException("Id must be set (Value != 0).", nameof(id));
+        }
+
+        if (!_idValueHandlers.ContainsKey(id.Value))
+        {
+            _idValueHandlers[id.Value] = handler ?? throw new ArgumentNullException(nameof(handler));
+        }
+    }
+
     public void SetPageHandler(Action<string> handler)
     {
         _pageHandler = handler;
@@ -111,6 +141,18 @@ public sealed class UiActionDispatcher
             return true;
         }
 
+        if (context.SourceIdValue.IsSet && _idValueHandlers.TryGetValue(context.SourceIdValue.Value, out var sourceIdValueHandler))
+        {
+            sourceIdValueHandler(context);
+            return true;
+        }
+
+        if (context.ClickedIdValue.IsSet && _idValueHandlers.TryGetValue(context.ClickedIdValue.Value, out var clickedIdValueHandler))
+        {
+            clickedIdValueHandler(context);
+            return true;
+        }
+
         if (!string.IsNullOrWhiteSpace(context.SourceId) && _idHandlers.TryGetValue(context.SourceId, out var sourceIdHandler))
         {
             sourceIdHandler(context);
@@ -125,7 +167,7 @@ public sealed class UiActionDispatcher
             return true;
         }
 
-        RunnerLogger.Warn("UI", $"No action handler resolved (id='{context.SourceId}', action='{context.Action}', clicked='{context.Clicked}').");
+        RunnerLogger.Warn("UI", $"No action handler resolved (id='{context.SourceId}'/{context.SourceIdValue.Value}, action='{context.Action}', clicked='{context.Clicked}'/{context.ClickedIdValue.Value}).");
         return false;
     }
 

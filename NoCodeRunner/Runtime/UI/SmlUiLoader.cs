@@ -40,6 +40,8 @@ public sealed class SmlUiLoader
             throw new ArgumentException("UI URI must not be empty.", nameof(uri));
         }
 
+        IdRuntimeScope.Reset();
+
         var normalizedUri = _uriResolver.ResolveReference(uri);
         var content = await _uriResolver.LoadTextAsync(normalizedUri, cancellationToken: cancellationToken);
 
@@ -94,6 +96,9 @@ public sealed class SmlUiLoader
         schema.RegisterKnownNode("Tabs");
         schema.RegisterKnownNode("Tab");
         schema.RegisterKnownNode("Slider");
+        schema.RegisterKnownNode("TreeView");
+        schema.RegisterKnownNode("Item");
+        schema.RegisterKnownNode("Toggle");
         schema.RegisterKnownNode("Video");
         schema.RegisterKnownNode("Viewport3D");
         schema.RegisterKnownNode("Markdown");
@@ -101,7 +106,7 @@ public sealed class SmlUiLoader
         schema.RegisterKnownNode("Image");
         schema.RegisterKnownNode("Spacer");
 
-        schema.RegisterIdentifierProperty("id");
+        schema.RegisterIdProperty("id");
         schema.RegisterIdentifierProperty("clicked");
         schema.RegisterEnumValue("action", "closeQuery", 1);
         schema.RegisterEnumValue("action", "open", 2);
@@ -283,6 +288,7 @@ public sealed class SmlUiLoader
                 {
                     const int codeFontSize = 16;
                     var codeHeight = CalculateCodeFenceHeight(block.Text, codeFontSize);
+                    var fenceSyntax = NormalizeCodeFenceLanguageToSyntax(block.Language);
 
                     var container = NewNode("Column");
                     container.Properties["role"] = SmlValue.FromString("codeblock");
@@ -300,6 +306,10 @@ public sealed class SmlUiLoader
                     label.Properties["fontSize"] = SmlValue.FromInt(codeFontSize);
                     label.Properties["height"] = SmlValue.FromInt(codeHeight);
                     label.Properties["fillMaxSize"] = SmlValue.FromBool(false);
+                    if (!string.IsNullOrWhiteSpace(fenceSyntax))
+                    {
+                        label.Properties["syntax"] = SmlValue.FromString(fenceSyntax);
+                    }
                     container.Children.Add(label);
                     ApplyMarkdownProperties(container, block.Properties, markdownBaseUri);
                     return container;
@@ -354,6 +364,25 @@ public sealed class SmlUiLoader
         y = 0;
         var parts = raw.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         return parts.Length == 2 && int.TryParse(parts[0], out x) && int.TryParse(parts[1], out y);
+    }
+
+    private static string NormalizeCodeFenceLanguageToSyntax(string? language)
+    {
+        if (string.IsNullOrWhiteSpace(language))
+        {
+            return string.Empty;
+        }
+
+        return language.Trim().ToLowerInvariant() switch
+        {
+            "sml" => "sml",
+            "cs" => "cs",
+            "csharp" => "cs",
+            "c#" => "cs",
+            "md" => "markdown",
+            "markdown" => "markdown",
+            _ => string.Empty
+        };
     }
 
     private static int CalculateCodeFenceHeight(string codeText, int fontSize)

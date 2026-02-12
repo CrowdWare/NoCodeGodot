@@ -6,14 +6,14 @@ REPO_ROOT="/Users/art/SourceCode/NoCodeGodot"
 RUNNER_PATH="$REPO_ROOT/NoCodeRunner"
 
 DEFAULT_UI="file://$REPO_ROOT/docs/Default/app.sml"
-SAMPLE_UI="file://$REPO_ROOT/docs/SampleProject/UI.sml"
+SAMPLE_UI="file://$REPO_ROOT/docs/NoCodeDesigner/app.sml"
 
 MODE="${1:-}"
 
 if [[ -z "$MODE" ]]; then
   echo "Bitte Startmodus wählen:"
   echo "  1) default  -> docs/Default/app.sml"
-  echo "  2) sample   -> docs/SampleProject/UI.sml"
+  echo "  2) Designer -> docs/NoCodeDesigner/app.sml"
   echo "  3) none     -> ohne URL-Override"
   read -r -p "Auswahl [1-3]: " CHOICE
 
@@ -34,7 +34,7 @@ case "$MODE" in
     exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --url "$DEFAULT_UI"
     ;;
   sample)
-    echo "Starting NoCodeRunner with SampleProject UI.sml"
+    echo "Starting NoCodeRunner with NoCodeDesigner app.sml"
     exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --url "$SAMPLE_UI"
     ;;
   none)

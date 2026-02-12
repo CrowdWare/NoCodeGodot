@@ -61,5 +61,6 @@ public sealed class NodeFactoryRegistry
         Register("Slider", () => new HSlider());
         Register("Video", () => new VideoStreamPlayer());
         Register("Viewport3D", () => new Viewport3DControl());
+        Register("TreeView", () => new Tree());
     }
 }

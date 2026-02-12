@@ -44,6 +44,7 @@ public partial class Main : Node
 	private readonly NodeFactoryRegistry _nodeFactoryRegistry = new();
 	private readonly NodePropertyMapper _nodePropertyMapper = new();
 	private readonly List<IUiActionModule> _uiActionModules = [];
+	private DynamicUiActionModuleLoader? _dynamicUiActionModuleLoader;
 	private Control? _runtimeUiHost;
 	private Control? _runtimeUiRoot;
 	private SubViewport? _fixedUiViewport;
@@ -225,6 +226,7 @@ public partial class Main : Node
 	private async Task RunUiStartup()
 	{
 		var uiUrl = _resolvedStartupUiUrl ?? BuildFallbackAppFileUrl();
+		await LoadDynamicUiActionModulesAsync(uiUrl);
 
 		try
 		{
@@ -241,6 +243,32 @@ public partial class Main : Node
 		catch (Exception ex)
 		{
 			Runtime.Logging.RunnerLogger.Error("UI", $"Failed to load UI from '{uiUrl}'", ex);
+		}
+	}
+
+	private async Task LoadDynamicUiActionModulesAsync(string uiUrl)
+	{
+		_dynamicUiActionModuleLoader ??= new DynamicUiActionModuleLoader(_uriResolver);
+		IReadOnlyList<IUiActionModule> dynamicModules;
+		try
+		{
+			dynamicModules = await _dynamicUiActionModuleLoader.TryLoadCompanionModulesAsync(uiUrl);
+		}
+		catch (Exception ex)
+		{
+			RunnerLogger.Warn("UI", $"Dynamic module discovery failed for '{uiUrl}'.", ex);
+			return;
+		}
+
+		if (dynamicModules.Count == 0)
+		{
+			return;
+		}
+
+		foreach (var module in dynamicModules)
+		{
+			_uiActionModules.Add(module);
+			RunnerLogger.Info("UI", $"Loaded dynamic action module: {module.GetType().FullName}");
 		}
 	}
 
