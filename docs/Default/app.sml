@@ -6,9 +6,40 @@ Window {
 
     Panel {
         anchors: top | left | bottom
-        width: 320
+        width: 300
 
+        TreeView {
+            id: treeview
 
+            Item { 
+                id: 0
+                text: "Root" 
+
+                Item {
+                    id: 1
+                    text: "Branch 1"
+ 
+                    Item {
+                        id: 11
+                        text: "Branch 1.1"
+                    }
+                }
+                Item {
+                    id: 2
+                    text: "Branch 2"
+                }
+                Item {
+                    id: 3
+                    text: "Branch 3"
+                }
+            }
+        }
+    }
+
+    Panel {
+        anchors: top | bottom | right | left
+        x: 300
+        
         CodeEdit {
             text: "Window { titel: \"Test\"}"     
             syntax: "sml"       

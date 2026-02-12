@@ -86,7 +86,7 @@
 - [x] tasks/markdown.md
 - [x] tasks/documentation.md
 - [x] tasks/padding.md
-- [ ] tasks/code_edit.md
-
-
-  
+- [x] tasks/code_edit.md
+- [ ] tasks/id.md
+- [ ] tasks/dual_layout_properties.md
+- [ ] tasks/treeview.md
