@@ -1,11 +1,17 @@
 Window {
     title: "NoCodeRunner"
     minSize: 800,400
+    pos: 448, 156 // centered
     size: 1024, 768
 
     Panel {
         anchors: top | left | bottom
         width: 320
+
+
+        CodeEdit {
+            text: "Here you can write code..."            
+        }
     }
 
     Panel {
@@ -14,22 +20,9 @@ Window {
         width: 600
         
         Markdown {
+            layoutMode: document
             padding: 8,8,8,20
-            text: "# Title
-## Subtitle
-### Sub Sub
-Lorem *ipsum* **dolor**  
-Next Line
-Noch ne Line
-- Item 1
-- Item 2
-- Item 3
-```
-fun test() {
-     println(\"Hello world\")
-}
-```
-:smile:"
+            src: "res:/sample.md"
         }
     }
 }
