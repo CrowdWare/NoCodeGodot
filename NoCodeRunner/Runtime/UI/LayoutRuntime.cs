@@ -64,7 +64,6 @@ public static class LayoutRuntime
             control.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             control.SetOffsetsPreset(Control.LayoutPreset.FullRect);
             control.Position = Vector2.Zero;
-            control.Size = parent.Size;
             NodePropertyMapper.ApplyFillMaxSize(control);
 
             RunnerLogger.Info("UI", $"[layout/document] node={nodeName}, parentMode=app, size={control.Size.X:0}x{control.Size.Y:0}");

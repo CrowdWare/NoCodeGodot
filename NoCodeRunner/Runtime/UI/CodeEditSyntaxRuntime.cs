@@ -185,7 +185,9 @@ public static class CodeEditSyntaxRuntime
         var commentColor = new Color(0.52f, 0.57f, 0.55f, 1f);
 
         highlighter.AddColorRegion("\"", "\"", literalColor);
-        highlighter.AddColorRegion("//", "\n", commentColor, true);
+        // For line comments Godot expects an empty end key when lineOnly=true.
+        // Using "\n" triggers engine errors with C# backtraces.
+        highlighter.AddColorRegion("//", string.Empty, commentColor, true);
 
         foreach (var nodeName in ExtractSmlNodeNames(text))
         {
@@ -269,7 +271,8 @@ public static class CodeEditSyntaxRuntime
         highlighter.AddKeywordColor("void", new Color(0.82f, 0.53f, 1f, 1f));
         highlighter.AddKeywordColor("string", new Color(0.36f, 0.8f, 0.95f, 1f));
         highlighter.AddColorRegion("\"", "\"", new Color(0.63f, 0.85f, 0.58f, 1f));
-        highlighter.AddColorRegion("//", "\n", new Color(0.5f, 0.56f, 0.5f, 1f), true);
+        // For line comments Godot expects an empty end key when lineOnly=true.
+        highlighter.AddColorRegion("//", string.Empty, new Color(0.5f, 0.56f, 0.5f, 1f), true);
         return highlighter;
     }
 

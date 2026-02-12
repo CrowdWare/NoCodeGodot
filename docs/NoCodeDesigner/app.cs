@@ -1,79 +1,113 @@
+using Godot;
 using Runtime.Logging;
 using Runtime.UI;
+using System;
+using System.IO;
+using System.Threading.Tasks;
 
-namespace DefaultProject;
+namespace NoCodeDesigner;
 
-/// <summary>
-/// Beispiel-Action-Module für docs/Default/app.sml
-/// - treeviewItemSelected(...)
-/// - treeviewItemToggle(..., bool isOn)
-/// </summary>
 public sealed class App : IUiActionModule
 {
-    public void Configure(UiActionDispatcher dispatcher)
+    // Wird jetzt von Main nach UI-Attach automatisch aufgerufen.
+    private async Task OnReadyAsync(UiActionDispatcher dispatcher)
     {
-        RunnerLogger.Info("Default.App", "App action module configured.");
-
-        // Optional: globale Beobachtung aller Action-Events (Buttons, Slider, etc.)
-        dispatcher.RegisterObserver(ctx =>
+        var tree = await UiRuntimeApi.GetObjectByIdAsync("treeview") as TreeView;
+        if (tree is null)
         {
-            RunnerLogger.Info(
-                "Default.App",
-                $"Observer -> sourceId='{ctx.SourceId}', action='{ctx.Action}', clicked='{ctx.Clicked}', value={(ctx.NumericValue?.ToString("0.###") ?? "-")}, itemId={ctx.ItemId.Value}, toggleId={ctx.ToggleIdValue.Value}, isOn={(ctx.BoolValue?.ToString() ?? "-")}"
-            );
-        });
-
-        dispatcher.RegisterActionHandler("treeItemSelected", ctx =>
-        {
-            var item = ctx.TreeItem;
-            RunnerLogger.Info(
-                "Default.App",
-                $"Dispatcher treeItemSelected -> itemId={ctx.ItemId.Value}, text='{item?.Text ?? "<null>"}'"
-            );
-        });
-
-        dispatcher.RegisterActionHandler("treeItemToggle", ctx =>
-        {
-            var item = ctx.TreeItem;
-            RunnerLogger.Info(
-                "Default.App",
-                $"Dispatcher treeItemToggle -> itemId={ctx.ItemId.Value}, text='{item?.Text ?? "<null>"}', toggleId={ctx.ToggleIdValue.Value}, isOn={(ctx.BoolValue?.ToString() ?? "-")}"
-            );
-        });
-    }
-
-    /// <summary>
-    /// Wird aufgerufen, wenn ein TreeView-Item selektiert wird
-    /// (Fallback-Handlername, da TreeView in app.sml die id 'treeview' hat)
-    /// </summary>
-    private void treeviewItemSelected(Id itemId, TreeViewItem item)
-    {
-        RunnerLogger.Info(
-            "Default.App",
-            $"Tree selection -> id={itemId.Value}, text='{item.Text}', children={item.Children.Count}"
-        );
-    }
-
-    /// <summary>
-    /// Wird aufgerufen, wenn ein Toggle in einem TreeView-Item geklickt wird.
-    /// Signatur mit isOn ist wichtig.
-    /// </summary>
-    private void treeviewItemToggle(Id itemId, TreeViewItem item, ToggleId toggleId, bool isOn)
-    {
-        RunnerLogger.Info(
-            "Default.App",
-            $"Tree toggle -> itemId={itemId.Value}, itemText='{item.Text}', toggleId={toggleId.Value}, isOn={isOn}"
-        );
-
-        // Beispiel: Reagiere gezielt auf den Toggle mit id: showObject
-        // (id wird intern zu ToggleId aufgelöst; zur Demo prüfen wir über den Namen in item.Toggles)
-        var toggled = item.Toggles.Find(t => t.ToggleId == toggleId);
-        if (toggled is not null)
-        {
-            RunnerLogger.Info(
-                "Default.App",
-                $"Toggle '{toggled.Name}' switched to {(isOn ? "ON" : "OFF")}"
-            );
+            RunnerLogger.Info("NoCodeDesigner.App", "Kein TreeView mit id 'treeview' gefunden – nichts zu befüllen.");
+            return;
         }
+
+        PopulateTreeWithDocsContent(tree);
+        UiRuntimeApi.BindTreeViewEvents(tree, dispatcher);
+        RunnerLogger.Info("NoCodeDesigner.App", "TreeView 'treeview' wurde mit Inhalten aus /docs befüllt.");
+    }
+
+    private static void PopulateTreeWithDocsContent(TreeView tree)
+    {
+        tree.Clear();
+        tree.Columns = 1;
+
+        var docsPath = ResolveDocsPath();
+        if (string.IsNullOrWhiteSpace(docsPath) || !Directory.Exists(docsPath))
+        {
+            var rootFallback = tree.CreateItem();
+            rootFallback.SetText(0, "docs (not found)");
+            rootFallback.Collapsed = false;
+            RunnerLogger.Warn("NoCodeDesigner.App", "Konnte /docs nicht finden. TreeView enthält nur Fallback-Knoten.");
+            return;
+        }
+
+        var root = tree.CreateItem();
+        root.SetText(0, "docs");
+        root.Collapsed = false;
+
+        AddDirectoryRecursive(tree, root, docsPath);
+    }
+
+    private static void AddDirectoryRecursive(Tree tree, TreeItem parent, string directoryPath)
+    {
+        foreach (var dir in Directory.GetDirectories(directoryPath))
+        {
+            var dirName = Path.GetFileName(dir);
+            if (string.Equals(dirName, ".DS_Store", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var dirItem = tree.CreateItem(parent);
+            dirItem.SetText(0, dirName + "/");
+            AddDirectoryRecursive(tree, dirItem, dir);
+        }
+
+        foreach (var file in Directory.GetFiles(directoryPath))
+        {
+            var fileName = Path.GetFileName(file);
+            if (string.Equals(fileName, ".DS_Store", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var fileItem = tree.CreateItem(parent);
+            fileItem.SetText(0, fileName);
+        }
+    }
+
+    private static string? ResolveDocsPath()
+    {
+        var cwd = Directory.GetCurrentDirectory();
+        var projectDir = ProjectSettings.GlobalizePath("res://");
+        var candidates = new[]
+        {
+            Path.Combine(projectDir, "..", "docs"),
+            Path.Combine(projectDir, "docs"),
+            Path.Combine(cwd, "docs"),
+            Path.Combine(AppContext.BaseDirectory, "docs"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "docs")
+        };
+
+        foreach (var candidate in candidates)
+        {
+            var full = Path.GetFullPath(candidate);
+            if (Directory.Exists(full))
+            {
+                return full;
+            }
+        }
+
+        return null;
+    }
+
+    // Einheitliche Script-Konvention
+    private void treeItemSelected(Id treeView, TreeViewItem item)
+    {
+        RunnerLogger.Info("NoCodeDesigner.App", $"treeItemSelected -> treeView={treeView.Value}, text='{item.Text}'");
+    }
+
+    // Einheitliche Script-Konvention
+    private void treeItemToggled(Id treeView, TreeViewItem item, bool isOn)
+    {
+        RunnerLogger.Info("NoCodeDesigner.App", $"treeItemToggled -> treeView={treeView.Value}, text='{item.Text}', isOn={isOn}");
     }
 }

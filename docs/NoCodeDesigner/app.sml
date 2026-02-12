@@ -1,6 +1,6 @@
 Window {
     id: mainWindow
-    title: "NoCodeRunner"
+    title: "NoCodeDesigner"
     minSize: 800,400
     pos: 448, 156 // centered
     size: 1024, 768
@@ -13,36 +13,6 @@ Window {
         TreeView {
             id: treeview
             showGuides: false
-
-            Item { 
-                text: "Root" 
-                expanded: true
-
-                Item {
-                    id: 1
-                    text: "Branch 1"
- 
-                    Item {
-                        id: 11
-                        text: "Branch 1.1"
-                        icon: "res:/assets/images/document.png"
-
-                        Toggle {
-                            id: showObject
-                            imageOn: "res:/assets/images/eye_open.png"
-                            imageOff: "res:/assets/images/eye_closed.png"
-                        }
-                    }
-                }
-                Item {
-                    id: 2
-                    text: "Branch 2"
-                }
-                Item {
-                    id: 3
-                    text: "Branch 3"
-                }
-            }
         }
     }
 

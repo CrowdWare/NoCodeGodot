@@ -71,7 +71,7 @@
 
 ## Use Cases
 
-## Tasks
+## Tasks for NoCodeRunner
 - [x] tasks/initial.md
 - [x] tasks/sml_parser_core.md
 - [x] tasks/node_factory.md
@@ -90,3 +90,8 @@
 - [x] tasks/id.md
 - [x] tasks/dual_layout_properties.md
 - [x] tasks/treeview.md
+
+## Tasks for NoCodeDesigner
+- [ ] Lifecycle-Template für neue Scripts einführen (OnInit / OnReadyAsync sichtbar als optionaler Einstieg)
+- [ ] Konventionsbasierte UI-Event-Hooks im Script-Template dokumentieren (z. B. treeItemSelected, treeItemToggled, listItemSelected)
+- [ ] Script-Erzeugung im Designer auf neues Template umstellen

@@ -44,6 +44,7 @@ public partial class Main : Node
 	private readonly NodeFactoryRegistry _nodeFactoryRegistry = new();
 	private readonly NodePropertyMapper _nodePropertyMapper = new();
 	private readonly List<IUiActionModule> _uiActionModules = [];
+	private UiActionDispatcher? _uiDispatcher;
 	private DynamicUiActionModuleLoader? _dynamicUiActionModuleLoader;
 	private Control? _runtimeUiHost;
 	private Control? _runtimeUiRoot;
@@ -239,10 +240,81 @@ public partial class Main : Node
 			var rootControl = await loader.LoadFromUriAsync(uiUrl);
 			AttachUi(rootControl);
 			Runtime.Logging.RunnerLogger.Info("UI", $"UI loaded from '{uiUrl}'.");
+			await InvokeUiReadyHandlersAsync();
 		}
 		catch (Exception ex)
 		{
 			Runtime.Logging.RunnerLogger.Error("UI", $"Failed to load UI from '{uiUrl}'", ex);
+		}
+	}
+
+	private async Task InvokeUiReadyHandlersAsync()
+	{
+		var dispatcher = _uiDispatcher;
+		if (dispatcher is null)
+		{
+			return;
+		}
+
+		foreach (var module in _uiActionModules)
+		{
+			var moduleType = module.GetType();
+			try
+			{
+				var asyncWithDispatcher = moduleType.GetMethod(
+					"OnReadyAsync",
+					BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase,
+					binder: null,
+					types: [typeof(UiActionDispatcher)],
+					modifiers: null);
+				if (asyncWithDispatcher is not null)
+				{
+					if (asyncWithDispatcher.Invoke(module, [dispatcher]) is Task readyTask)
+					{
+						await readyTask;
+					}
+					continue;
+				}
+
+				var syncWithDispatcher = moduleType.GetMethod(
+					"OnReady",
+					BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase,
+					binder: null,
+					types: [typeof(UiActionDispatcher)],
+					modifiers: null);
+				if (syncWithDispatcher is not null)
+				{
+					syncWithDispatcher.Invoke(module, [dispatcher]);
+					continue;
+				}
+
+				var asyncNoArgs = moduleType.GetMethod(
+					"OnReadyAsync",
+					BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase,
+					binder: null,
+					types: Type.EmptyTypes,
+					modifiers: null);
+				if (asyncNoArgs is not null)
+				{
+					if (asyncNoArgs.Invoke(module, null) is Task readyTask)
+					{
+						await readyTask;
+					}
+					continue;
+				}
+
+				var syncNoArgs = moduleType.GetMethod(
+					"OnReady",
+					BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase,
+					binder: null,
+					types: Type.EmptyTypes,
+					modifiers: null);
+				syncNoArgs?.Invoke(module, null);
+			}
+			catch (Exception ex)
+			{
+				RunnerLogger.Warn("UI", $"Action module '{moduleType.FullName}' failed during OnReady invocation.", ex);
+			}
 		}
 	}
 
@@ -752,6 +824,8 @@ public partial class Main : Node
 
 	private void ConfigureProjectActions(UiActionDispatcher dispatcher)
 	{
+		_uiDispatcher = dispatcher;
+
 		foreach (var module in _uiActionModules)
 		{
 			try
@@ -773,6 +847,76 @@ public partial class Main : Node
 		{
 			RunnerLogger.Warn("UI", $"page action requested ('{path}') but dynamic page loading is not implemented in Main yet.");
 		});
+
+		dispatcher.RegisterActionHandlerIfMissing("treeItemSelected", ctx =>
+		{
+			InvokeTreeConventionHandlers("treeItemSelected", ctx);
+		});
+
+		dispatcher.RegisterActionHandlerIfMissing("treeItemToggle", ctx =>
+		{
+			InvokeTreeConventionHandlers("treeItemToggled", ctx);
+		});
+
+		dispatcher.RegisterActionHandlerIfMissing("treeItemToggled", ctx =>
+		{
+			InvokeTreeConventionHandlers("treeItemToggled", ctx);
+		});
+	}
+
+	private void InvokeTreeConventionHandlers(string methodName, UiActionContext ctx)
+	{
+		foreach (var module in _uiActionModules)
+		{
+			var moduleType = module.GetType();
+
+			if (string.Equals(methodName, "treeItemSelected", StringComparison.OrdinalIgnoreCase))
+			{
+				var method = moduleType.GetMethod(
+					methodName,
+					BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase,
+					binder: null,
+					types: [typeof(Id), typeof(TreeViewItem)],
+					modifiers: null);
+
+				if (method is null)
+				{
+					continue;
+				}
+
+				try
+				{
+					method.Invoke(module, [ctx.SourceIdValue, ctx.TreeItem ?? new TreeViewItem { Text = string.Empty }]);
+				}
+				catch (Exception ex)
+				{
+					RunnerLogger.Warn("UI", $"Action module '{moduleType.FullName}' failed in '{methodName}'.", ex);
+				}
+			}
+			else if (string.Equals(methodName, "treeItemToggled", StringComparison.OrdinalIgnoreCase))
+			{
+				var method = moduleType.GetMethod(
+					methodName,
+					BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase,
+					binder: null,
+					types: [typeof(Id), typeof(TreeViewItem), typeof(bool)],
+					modifiers: null);
+
+				if (method is null)
+				{
+					continue;
+				}
+
+				try
+				{
+					method.Invoke(module, [ctx.SourceIdValue, ctx.TreeItem ?? new TreeViewItem { Text = string.Empty }, ctx.BoolValue ?? false]);
+				}
+				catch (Exception ex)
+				{
+					RunnerLogger.Warn("UI", $"Action module '{moduleType.FullName}' failed in '{methodName}'.", ex);
+				}
+			}
+		}
 	}
 
 	private static string BuildDefaultSampleUiFileUrl()
