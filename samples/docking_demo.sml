@@ -50,6 +50,10 @@ Window {
             id: viewport
             title: "Viewport"
             area: "center"
+            closeable: false
+            floatable: false
+            dockable: false
+            isDropTarget: false
 
             Column {
                 spacing: 8

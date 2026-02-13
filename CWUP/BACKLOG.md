@@ -97,7 +97,7 @@
 - [x] tasks/docking_menu_commands.md
 - [x] tasks/docking_floating_windows.md
 - [x] tasks/docking_tabs_reordering.md
-- [ ] tasks/docking_dragdrop_ux.md
+- [x] tasks/docking_dragdrop_ux.md
 - [ ] tasks/docking_layout_persistence.md
 
 ## Tasks for NoCodeDesigner

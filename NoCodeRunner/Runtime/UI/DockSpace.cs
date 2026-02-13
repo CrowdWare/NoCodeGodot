@@ -2,13 +2,29 @@ using Godot;
 using Runtime.Logging;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 
 namespace Runtime.UI;
 
 public partial class DockSpace : VBoxContainer
 {
+    private sealed class DockLayoutDocument
+    {
+        public int LayoutVersion { get; set; }
+        public DockLayoutState Layout { get; set; } = new();
+    }
+
     private sealed record SideColumn(DockSlotId TopSlot, DockSlotId BottomSlot, VBoxContainer Column, TabContainer TopTabs, TabContainer BottomTabs);
+
+    private const int CurrentLayoutVersion = 1;
+    private const string DefaultLayoutFileName = "dock_layout.json";
+    private static readonly JsonSerializerOptions LayoutJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true
+    };
 
     private readonly Dictionary<DockSlotId, TabContainer> _slotTabs = new();
     private readonly Dictionary<DockSlotId, SideColumn> _sideColumnsBySlot = new();
@@ -30,6 +46,9 @@ public partial class DockSpace : VBoxContainer
     private const float DragStartThreshold = 8f;
     private const float MinDropTargetWidth = 120f;
     private const float MinDropTargetHeight = 80f;
+    private DockLayoutState? _defaultLayoutState;
+    private readonly List<(string PanelId, DockSlotId Slot, int TabIndex)> _pendingLockedPanelRestores = new();
+    private bool _isRestoringLockedPanels;
 
     public override void _Ready()
     {
@@ -72,7 +91,100 @@ public partial class DockSpace : VBoxContainer
         };
     }
 
+    public bool SaveLayout(string? absolutePath = null)
+    {
+        try
+        {
+            var path = ResolveLayoutPath(absolutePath);
+            var document = new DockLayoutDocument
+            {
+                LayoutVersion = CurrentLayoutVersion,
+                Layout = CaptureLayoutState()
+            };
+
+            var json = JsonSerializer.Serialize(document, LayoutJsonOptions);
+            var tempPath = path + ".tmp";
+            File.WriteAllText(tempPath, json);
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+
+            File.Move(tempPath, path);
+            RunnerLogger.Info("UI", $"Dock layout saved to '{path}'.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("UI", "SaveLayout failed.", ex);
+            return false;
+        }
+    }
+
+    public bool LoadLayout(string? absolutePath = null)
+    {
+        try
+        {
+            var path = ResolveLayoutPath(absolutePath);
+            if (!File.Exists(path))
+            {
+                RunnerLogger.Info("UI", $"No persisted dock layout found at '{path}'.");
+                return false;
+            }
+
+            var json = File.ReadAllText(path);
+            var document = JsonSerializer.Deserialize<DockLayoutDocument>(json, LayoutJsonOptions);
+            if (document is null)
+            {
+                RunnerLogger.Warn("UI", "LoadLayout failed: parsed document is null. Resetting to default layout.");
+                ResetDefaultLayout();
+                return false;
+            }
+
+            if (document.LayoutVersion != CurrentLayoutVersion)
+            {
+                RunnerLogger.Warn("UI", $"LoadLayout layoutVersion mismatch (saved={document.LayoutVersion}, expected={CurrentLayoutVersion}). Resetting to default layout.");
+                ResetDefaultLayout();
+                return false;
+            }
+
+            if (!ValidateLayout(document.Layout, out var reason))
+            {
+                RunnerLogger.Warn("UI", $"LoadLayout validation failed: {reason}. Resetting to default layout.");
+                ResetDefaultLayout();
+                return false;
+            }
+
+            ApplyLayout(document.Layout);
+            RunnerLogger.Info("UI", $"Dock layout loaded from '{path}'.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("UI", "LoadLayout failed. Resetting to default layout.", ex);
+            ResetDefaultLayout();
+            return false;
+        }
+    }
+
+    public void ResetDefaultLayout()
+    {
+        if (_defaultLayoutState is null)
+        {
+            RunnerLogger.Warn("UI", "ResetDefaultLayout requested but no default snapshot is available yet.");
+            return;
+        }
+
+        ApplyLayout(CloneLayoutState(_defaultLayoutState));
+        RunnerLogger.Info("UI", "Dock layout reset to default snapshot.");
+    }
+
     public bool MovePanelToSlot(string panelId, DockSlotId slot)
+    {
+        return MovePanelToSlotInternal(panelId, slot, ignoreDockable: false);
+    }
+
+    private bool MovePanelToSlotInternal(string panelId, DockSlotId slot, bool ignoreDockable)
     {
         if (string.IsNullOrWhiteSpace(panelId) || !_slotTabs.TryGetValue(slot, out var targetSlot))
         {
@@ -81,6 +193,14 @@ public partial class DockSpace : VBoxContainer
 
         var panel = FindPanel(panelId);
         if (panel is null)
+        {
+            return false;
+        }
+
+        if (!ignoreDockable
+            && !panel.IsDockable()
+            && _panels.TryGetValue(panelId, out var panelState)
+            && panelState.CurrentSlot != slot)
         {
             return false;
         }
@@ -249,6 +369,159 @@ public partial class DockSpace : VBoxContainer
 
         EnsureClosedPanelsMenuButton();
         UpdateClosedPanelsMenu();
+
+        _defaultLayoutState ??= CloneLayoutState(CaptureLayoutState());
+        LoadLayout();
+        UpdateAllSlotInteractionRules();
+    }
+
+    private void ApplyLayout(DockLayoutState layout)
+    {
+        ReconcilePanelStatesFromUi();
+
+        // Step 1: ensure all panels are docked (clear closed/floating states) before deterministic re-apply.
+        foreach (var panelId in _panelNodes.Keys.ToArray())
+        {
+            if (_floatingWindows.ContainsKey(panelId))
+            {
+                MovePanelToSlot(panelId, _panels.TryGetValue(panelId, out var existing) ? existing.LastDockedSlot : DockSlotId.Center);
+            }
+
+            if (_panels.TryGetValue(panelId, out var state) && state.IsClosed)
+            {
+                ReopenPanel(panelId);
+            }
+        }
+
+        // Step 2: place all non-floating/non-closed panels into target slots.
+        foreach (var panel in layout.Panels
+                     .Where(p => !p.IsFloating && !p.IsClosed)
+                     .OrderBy(p => p.CurrentSlot)
+                     .ThenBy(p => p.TabIndex))
+        {
+            if (_panelNodes.ContainsKey(panel.Id))
+            {
+                MovePanelToSlot(panel.Id, panel.CurrentSlot);
+            }
+        }
+
+        // Step 3: reorder tabs deterministically within each slot.
+        foreach (DockSlotId slot in Enum.GetValues(typeof(DockSlotId)))
+        {
+            if (!_slotTabs.TryGetValue(slot, out var tabs) || !IsAlive(tabs))
+            {
+                continue;
+            }
+
+            var desiredOrder = layout.Panels
+                .Where(p => p.CurrentSlot == slot && !p.IsFloating && !p.IsClosed)
+                .OrderBy(p => p.TabIndex)
+                .Select(p => p.Id)
+                .ToArray();
+
+            for (var i = 0; i < desiredOrder.Length; i++)
+            {
+                var panelId = desiredOrder[i];
+                if (!_panelNodes.TryGetValue(panelId, out var panel) || panel.GetParent() != tabs)
+                {
+                    continue;
+                }
+
+                tabs.MoveChild(panel, i);
+            }
+
+            var active = layout.Panels.FirstOrDefault(p => p.CurrentSlot == slot && p.IsActiveTab && !p.IsFloating && !p.IsClosed);
+            if (active is not null && _panelNodes.TryGetValue(active.Id, out var activePanel) && activePanel.GetParent() == tabs)
+            {
+                var activeIndex = tabs.GetTabIdxFromControl(activePanel);
+                if (activeIndex >= 0)
+                {
+                    tabs.CurrentTab = activeIndex;
+                }
+            }
+        }
+
+        // Step 4: floating and closed flags.
+        foreach (var panel in layout.Panels.Where(p => p.IsFloating && !p.IsClosed))
+        {
+            MarkPanelFloating(panel.Id);
+        }
+
+        foreach (var panel in layout.Panels.Where(p => p.IsClosed))
+        {
+            ClosePanel(panel.Id);
+        }
+
+        ReconcilePanelStatesFromUi();
+    }
+
+    private bool ValidateLayout(DockLayoutState layout, out string reason)
+    {
+        reason = string.Empty;
+        if (layout.Panels is null)
+        {
+            reason = "Panels collection is null.";
+            return false;
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var panel in layout.Panels)
+        {
+            if (string.IsNullOrWhiteSpace(panel.Id))
+            {
+                reason = "Panel id is empty.";
+                return false;
+            }
+
+            if (!seen.Add(panel.Id))
+            {
+                reason = $"Duplicate panel id '{panel.Id}'.";
+                return false;
+            }
+
+            if (!_panelNodes.ContainsKey(panel.Id))
+            {
+                reason = $"Unknown panel id '{panel.Id}'.";
+                return false;
+            }
+
+            if (panel.IsClosed && panel.IsFloating)
+            {
+                reason = $"Panel '{panel.Id}' cannot be both closed and floating.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static DockLayoutState CloneLayoutState(DockLayoutState source)
+    {
+        return new DockLayoutState
+        {
+            UpdatedAtUtc = source.UpdatedAtUtc,
+            Panels = source.Panels.Select(p => new DockPanelState
+            {
+                Id = p.Id,
+                Title = p.Title,
+                CurrentSlot = p.CurrentSlot,
+                LastDockedSlot = p.LastDockedSlot,
+                TabIndex = p.TabIndex,
+                IsActiveTab = p.IsActiveTab,
+                IsFloating = p.IsFloating,
+                IsClosed = p.IsClosed
+            }).ToArray()
+        };
+    }
+
+    private static string ResolveLayoutPath(string? absolutePath)
+    {
+        if (!string.IsNullOrWhiteSpace(absolutePath))
+        {
+            return absolutePath;
+        }
+
+        return ProjectSettings.GlobalizePath($"user://{DefaultLayoutFileName}");
     }
 
     private void EnsureSlotContainers()
@@ -432,11 +705,23 @@ public partial class DockSpace : VBoxContainer
             return;
         }
 
+        if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true })
+        {
+            UpdateSlotInteractionRules(tabs);
+        }
+
         switch (@event)
         {
             case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } press:
                 if (press.Position.Y <= 32f)
                 {
+                    if (!IsCurrentTabDockable(tabs))
+                    {
+                        tabs.DragToRearrangeEnabled = false;
+                        return;
+                    }
+
+                    tabs.DragToRearrangeEnabled = true;
                     _isDockDragCandidate = true;
                     _dragStartGlobal = press.GlobalPosition;
                     _dragSourceSlot = slot;
@@ -457,6 +742,7 @@ public partial class DockSpace : VBoxContainer
                 break;
 
             case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: false }:
+                tabs.DragToRearrangeEnabled = true;
                 EndDockDrag();
                 break;
         }
@@ -522,7 +808,9 @@ public partial class DockSpace : VBoxContainer
             }
 
             hoveredTarget = tabs;
-            hoveredValid = rect.Size.X >= MinDropTargetWidth && rect.Size.Y >= MinDropTargetHeight;
+            hoveredValid = rect.Size.X >= MinDropTargetWidth
+                          && rect.Size.Y >= MinDropTargetHeight
+                          && IsSlotDropTargetEnabled(tabs);
             break;
         }
 
@@ -781,6 +1069,8 @@ public partial class DockSpace : VBoxContainer
             return;
         }
 
+        var restoreCandidates = new List<(string PanelId, DockSlotId Slot, int TabIndex)>();
+
         foreach (var (slot, tabs) in _slotTabs)
         {
             if (!IsAlive(tabs))
@@ -796,9 +1086,18 @@ public partial class DockSpace : VBoxContainer
                 {
                     continue;
                 }
-
                 var panelId = panel.ResolvePanelId();
-                if (!_panels.TryGetValue(panelId, out var state))
+                var hasState = _panels.TryGetValue(panelId, out var state);
+
+                if (panel.IsDockable() == false && hasState && state is not null)
+                {
+                    if (state.CurrentSlot != slot || state.TabIndex != index)
+                    {
+                        restoreCandidates.Add((panelId, state.CurrentSlot, state.TabIndex));
+                    }
+                }
+
+                if (!hasState || state is null)
                 {
                     state = new DockPanelState { Id = panelId };
                     _panels[panelId] = state;
@@ -818,6 +1117,118 @@ public partial class DockSpace : VBoxContainer
 
             RefreshSideColumnLayout(slot);
         }
+
+        UpdateAllSlotInteractionRules();
+
+        if (restoreCandidates.Count > 0)
+        {
+            EnqueueLockedPanelRestores(restoreCandidates);
+        }
+    }
+
+    private void EnqueueLockedPanelRestores(IEnumerable<(string PanelId, DockSlotId Slot, int TabIndex)> candidates)
+    {
+        foreach (var candidate in candidates)
+        {
+            _pendingLockedPanelRestores.RemoveAll(x => string.Equals(x.PanelId, candidate.PanelId, StringComparison.OrdinalIgnoreCase));
+            _pendingLockedPanelRestores.Add(candidate);
+        }
+
+        if (!_isRestoringLockedPanels)
+        {
+            CallDeferred(nameof(RestoreLockedPanelsDeferred));
+        }
+    }
+
+    private void RestoreLockedPanelsDeferred()
+    {
+        if (_isRestoringLockedPanels || _pendingLockedPanelRestores.Count == 0)
+        {
+            return;
+        }
+
+        _isRestoringLockedPanels = true;
+        try
+        {
+            var pending = _pendingLockedPanelRestores.ToArray();
+            _pendingLockedPanelRestores.Clear();
+
+            foreach (var item in pending)
+            {
+                if (!_panelNodes.TryGetValue(item.PanelId, out var panel)
+                    || !IsAlive(panel)
+                    || !_slotTabs.TryGetValue(item.Slot, out var tabs)
+                    || !IsAlive(tabs))
+                {
+                    continue;
+                }
+
+                if (panel.GetParent() != tabs)
+                {
+                    MovePanelToSlotInternal(item.PanelId, item.Slot, ignoreDockable: true);
+                }
+
+                if (panel.GetParent() == tabs)
+                {
+                    var maxIndex = Math.Max(0, tabs.GetChildCount() - 1);
+                    var clamped = Math.Clamp(item.TabIndex, 0, maxIndex);
+                    tabs.CallDeferred("move_child", panel, clamped);
+                }
+            }
+        }
+        finally
+        {
+            _isRestoringLockedPanels = false;
+            CallDeferred(nameof(ReconcilePanelStatesFromUi));
+        }
+    }
+
+    private bool IsCurrentTabDockable(TabContainer tabs)
+    {
+        var panel = GetCurrentTabPanel(tabs);
+        return panel is null || panel.IsDockable();
+    }
+
+    private void UpdateSlotInteractionRules(TabContainer tabs)
+    {
+        tabs.DragToRearrangeEnabled = IsCurrentTabDockable(tabs);
+        tabs.TabsRearrangeGroup = IsSlotDropTargetEnabled(tabs) ? 1 : -1;
+    }
+
+    private void UpdateAllSlotInteractionRules()
+    {
+        foreach (var tabs in _slotTabs.Values)
+        {
+            if (!IsAlive(tabs))
+            {
+                continue;
+            }
+
+            UpdateSlotInteractionRules(tabs);
+        }
+    }
+
+    private static bool IsSlotDropTargetEnabled(TabContainer tabs)
+    {
+        var panel = GetCurrentTabPanel(tabs);
+        if (panel is null)
+        {
+            return true;
+        }
+
+        return panel.IsDropTarget();
+    }
+
+    private static DockPanel? GetCurrentTabPanel(TabContainer tabs)
+    {
+        var current = tabs.CurrentTab;
+        if (current < 0 || current >= tabs.GetTabCount())
+        {
+            return null;
+        }
+
+        var control = tabs.GetTabControl(current);
+        return control as DockPanel;
     }
 
     private static bool IsAlive(GodotObject? instance)

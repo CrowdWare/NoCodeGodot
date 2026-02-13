@@ -62,6 +62,26 @@ public partial class DockPanel : PanelContainer
         return fallback;
     }
 
+    public bool IsDockable()
+    {
+        if (!HasMeta(NodePropertyMapper.MetaDockDockable))
+        {
+            return true;
+        }
+
+        return GetMeta(NodePropertyMapper.MetaDockDockable).AsBool();
+    }
+
+    public bool IsDropTarget()
+    {
+        if (!HasMeta(NodePropertyMapper.MetaDockIsDropTarget))
+        {
+            return true;
+        }
+
+        return GetMeta(NodePropertyMapper.MetaDockIsDropTarget).AsBool();
+    }
+
     private void EnsureChrome()
     {
         if (GetNodeOrNull<Control>("DockPanelRoot/DockHeader") is not null)
@@ -140,6 +160,14 @@ public partial class DockPanel : PanelContainer
             return;
         }
 
+        if (!IsDockable())
+        {
+            menuButton.Visible = false;
+            return;
+        }
+
+        menuButton.Visible = true;
+
         var popup = menuButton.GetPopup();
         popup.Clear();
         _menuCommands.Clear();
@@ -154,8 +182,14 @@ public partial class DockPanel : PanelContainer
         AddMenuEntry(popup, "Bottom Right", "bottom-right");
         AddMenuEntry(popup, "Bottom Far Right", "bottom-far-right");
         popup.AddSeparator();
-        AddMenuEntry(popup, "Floating", "floating");
-        AddMenuEntry(popup, "Closed", "closed");
+        if (IsFloatable())
+        {
+            AddMenuEntry(popup, "Floating", "floating");
+        }
+        if (IsCloseable())
+        {
+            AddMenuEntry(popup, "Closed", "closed");
+        }
 
         if (!_dockMenuConnected)
         {
@@ -180,4 +214,25 @@ public partial class DockPanel : PanelContainer
 
         EmitSignal(SignalName.DockCommandRequested, ResolvePanelId(), command);
     }
+
+    private bool IsCloseable()
+    {
+        if (!HasMeta(NodePropertyMapper.MetaDockCloseable))
+        {
+            return true;
+        }
+
+        return GetMeta(NodePropertyMapper.MetaDockCloseable).AsBool();
+    }
+
+    private bool IsFloatable()
+    {
+        if (!HasMeta(NodePropertyMapper.MetaDockFloatable))
+        {
+            return true;
+        }
+
+        return GetMeta(NodePropertyMapper.MetaDockFloatable).AsBool();
+    }
+
 }

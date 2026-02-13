@@ -50,6 +50,10 @@ public sealed class NodePropertyMapper
     public const string MetaTreeIndent = "sml_treeIndent";
     public const string MetaDockArea = "sml_dockArea";
     public const string MetaDockPanelTitle = "sml_dockPanelTitle";
+    public const string MetaDockCloseable = "sml_dockCloseable";
+    public const string MetaDockFloatable = "sml_dockFloatable";
+    public const string MetaDockDockable = "sml_dockDockable";
+    public const string MetaDockIsDropTarget = "sml_dockIsDropTarget";
     public const string MetaDockAllowFloating = "sml_dockAllowFloating";
     public const string MetaDockAllowTabbing = "sml_dockAllowTabbing";
     public const string MetaDockAllowSplitting = "sml_dockAllowSplitting";
@@ -84,6 +88,41 @@ public sealed class NodePropertyMapper
                 if (IsDockPanelNode(control))
                 {
                     control.SetMeta(MetaDockArea, Variant.From(value.AsStringOrThrow(propertyName)));
+                    return;
+                }
+                break;
+
+            case "closeable":
+            case "closable":
+                if (IsDockPanelNode(control))
+                {
+                    control.SetMeta(MetaDockCloseable, Variant.From(ToBoolOrThrow(value, propertyName)));
+                    return;
+                }
+                break;
+
+            case "floatable":
+                if (IsDockPanelNode(control))
+                {
+                    control.SetMeta(MetaDockFloatable, Variant.From(ToBoolOrThrow(value, propertyName)));
+                    return;
+                }
+                break;
+
+            case "moveable":
+            case "movable":
+            case "dockable":
+                if (IsDockPanelNode(control))
+                {
+                    control.SetMeta(MetaDockDockable, Variant.From(ToBoolOrThrow(value, propertyName)));
+                    return;
+                }
+                break;
+
+            case "isdroptarget":
+                if (IsDockPanelNode(control))
+                {
+                    control.SetMeta(MetaDockIsDropTarget, Variant.From(ToBoolOrThrow(value, propertyName)));
                     return;
                 }
                 break;
