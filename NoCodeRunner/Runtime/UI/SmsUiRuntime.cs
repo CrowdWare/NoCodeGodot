@@ -14,12 +14,14 @@ namespace Runtime.UI;
 public sealed class SmsUiRuntime
 {
     private const string MetaSmsPath = "sms_path";
+    private const string MetaSmsSaveShortcutHooked = "sms_saveShortcutHooked";
 
     private readonly RunnerUriResolver _uriResolver;
     private readonly string _uiSmlUri;
     private readonly ScriptEngine _engine = new();
     private UiActionDispatcher? _dispatcher;
     private readonly Dictionary<int, TreeItem> _treeHandles = [];
+    private readonly Dictionary<string, string> _codeEditSaveCallbacks = new(StringComparer.OrdinalIgnoreCase);
     private int _nextTreeHandle = 1;
     private string? _projectRoot;
 
@@ -96,9 +98,20 @@ public sealed class SmsUiRuntime
             ExecuteCall($"treeItemToggled({Quote(treeId)}, {Quote(treeText)}, {Quote(selectedPath)}, {isOn})");
         });
 
-        dispatcher.RegisterActionHandlerIfMissing("save", _ =>
+        // SMS should own save behavior so codeEdit.onSave(...) callbacks always fire,
+        // even if a generic fallback handler was registered earlier.
+        dispatcher.RegisterActionHandler("save", ctx =>
         {
-            ExecuteCall("CodeEditOnSave(\"codeEdit\")");
+            var editorId = string.IsNullOrWhiteSpace(ctx.SourceId) ? "codeEdit" : ctx.SourceId;
+            if (_codeEditSaveCallbacks.TryGetValue(editorId, out var callbackName)
+                && !string.IsNullOrWhiteSpace(callbackName))
+            {
+                ExecuteCall($"{callbackName}({Quote(editorId)})");
+            }
+            else
+            {
+                RunnerLogger.Warn("SMS", $"Save ignored for '{editorId}': no onSave callback registered.");
+            }
         });
     }
 
@@ -133,6 +146,28 @@ public sealed class SmsUiRuntime
             return UiRuntimeApi.GetObjectById(id) is not null;
         });
 
+        _engine.RegisterFunction("getObject", args =>
+        {
+            var id = ValueArgString(args, 0);
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return NullValue.Instance;
+            }
+
+            var node = UiRuntimeApi.GetObjectById(id);
+            if (node is TreeView tree)
+            {
+                return CreateTreeObject(id, tree);
+            }
+
+            if (node is CodeEdit editor)
+            {
+                return CreateCodeEditObject(id, editor);
+            }
+
+            return NullValue.Instance;
+        });
+
         _engine.RegisterFunction("BindTreeEvents", args =>
         {
             var id = ArgString(args, 0);
@@ -149,115 +184,6 @@ public sealed class SmsUiRuntime
             }
 
             return null;
-        });
-
-        _engine.RegisterFunction("TreeClear", args =>
-        {
-            var tree = ResolveTree(args);
-            tree?.Clear();
-            if (tree is not null)
-            {
-                tree.Columns = 1;
-            }
-
-            return null;
-        });
-
-        _engine.RegisterFunction("TreeCreateRoot", args =>
-        {
-            var tree = ResolveTree(args);
-            if (tree is null)
-            {
-                return 0;
-            }
-
-            var text = ArgString(args, 1);
-            var path = ArgString(args, 2);
-            var item = tree.CreateItem();
-            item.SetText(0, text);
-            item.Collapsed = false;
-            item.SetMetadata(0, path);
-            return RegisterTreeHandle(item);
-        });
-
-        _engine.RegisterFunction("TreeCreateChild", args =>
-        {
-            var tree = ResolveTree(args);
-            if (tree is null)
-            {
-                return 0;
-            }
-
-            var parentHandle = ArgInt(args, 1);
-            if (!_treeHandles.TryGetValue(parentHandle, out var parent))
-            {
-                return 0;
-            }
-
-            var text = ArgString(args, 2);
-            var path = ArgString(args, 3);
-            var isDirectory = ArgBool(args, 4);
-
-            var item = tree.CreateItem(parent);
-            item.SetText(0, isDirectory ? text + "/" : text);
-            item.SetMetadata(0, path);
-            item.Collapsed = true;
-            return RegisterTreeHandle(item);
-        });
-
-        _engine.RegisterFunction("CodeEditSetPath", args =>
-        {
-            var editor = ResolveCodeEdit(args);
-            var path = ArgString(args, 1);
-            if (editor is not null && !string.IsNullOrWhiteSpace(path))
-            {
-                editor.SetMeta(MetaSmsPath, path);
-                CodeEditSyntaxRuntime.Load(editor, path);
-            }
-
-            return null;
-        });
-
-        _engine.RegisterFunction("CodeEditSetText", args =>
-        {
-            var editor = ResolveCodeEdit(args);
-            var text = ArgString(args, 1);
-            if (editor is not null)
-            {
-                editor.Text = text;
-
-                // Re-apply syntax after content update to avoid first-render glitches
-                // (e.g. partially unstyled/black text until manual edit).
-                if (editor.HasMeta(MetaSmsPath))
-                {
-                    var path = editor.GetMeta(MetaSmsPath).AsString();
-                    if (!string.IsNullOrWhiteSpace(path))
-                    {
-                        CodeEditSyntaxRuntime.Load(editor, path);
-                    }
-                }
-
-                editor.QueueRedraw();
-            }
-
-            return null;
-        });
-
-        _engine.RegisterFunction("CodeEditGetText", args =>
-        {
-            var editor = ResolveCodeEdit(args);
-            return editor?.Text ?? string.Empty;
-        });
-
-        _engine.RegisterFunction("CodeEditGetPath", args =>
-        {
-            var editor = ResolveCodeEdit(args);
-            if (editor is null)
-            {
-                return string.Empty;
-            }
-
-            return editor.HasMeta(MetaSmsPath) ? editor.GetMeta(MetaSmsPath).AsString() : string.Empty;
         });
 
         _engine.RegisterFunction("ProjectFS_List", NativeList);
@@ -403,16 +329,167 @@ public sealed class SmsUiRuntime
             : null;
     }
 
-    private TreeView? ResolveTree(IReadOnlyList<object?> args)
+    private ObjectValue CreateTreeObject(string id, TreeView tree)
     {
-        var id = ArgString(args, 0);
-        return UiRuntimeApi.GetObjectById(id) as TreeView;
+        return new ObjectValue("TreeView", new Dictionary<string, Value>(StringComparer.Ordinal)
+        {
+            ["Clear"] = new NativeFunctionValue(_ =>
+            {
+                tree.Clear();
+                tree.Columns = 1;
+                _treeHandles.Clear();
+                return NullValue.Instance;
+            }),
+            ["CreateRoot"] = new NativeFunctionValue(methodArgs =>
+            {
+                var text = ValueArgString(methodArgs, 0);
+                var path = ValueArgString(methodArgs, 1);
+                var item = tree.CreateItem();
+                item.SetText(0, text);
+                item.Collapsed = false;
+                item.SetMetadata(0, path);
+                return new NumberValue(RegisterTreeHandle(item));
+            }),
+            ["CreateChild"] = new NativeFunctionValue(methodArgs =>
+            {
+                var parentHandle = ValueArgInt(methodArgs, 0);
+                if (!_treeHandles.TryGetValue(parentHandle, out var parent))
+                {
+                    return new NumberValue(0);
+                }
+
+                var text = ValueArgString(methodArgs, 1);
+                var path = ValueArgString(methodArgs, 2);
+                var isDirectory = ValueArgBool(methodArgs, 3);
+
+                var item = tree.CreateItem(parent);
+                item.SetText(0, isDirectory ? text + "/" : text);
+                item.SetMetadata(0, path);
+                item.Collapsed = true;
+                return new NumberValue(RegisterTreeHandle(item));
+            }),
+            ["BindEvents"] = new NativeFunctionValue(_ =>
+            {
+                var dispatcher = _dispatcher ?? ResolveDispatcherFromMain();
+                if (dispatcher is not null)
+                {
+                    UiRuntimeApi.BindTreeViewEvents(tree, dispatcher);
+                    RunnerLogger.Info("SMS", $"TreeView events bound for '{id}'.");
+                }
+                else
+                {
+                    RunnerLogger.Warn("SMS", $"BindEvents skipped for '{id}' (dispatcher not found).");
+                }
+
+                return NullValue.Instance;
+            })
+        });
     }
 
-    private CodeEdit? ResolveCodeEdit(IReadOnlyList<object?> args)
+    private ObjectValue CreateCodeEditObject(string id, CodeEdit editor)
     {
-        var id = ArgString(args, 0);
-        return UiRuntimeApi.GetObjectById(id) as CodeEdit;
+        EnsureCodeEditSaveShortcut(id, editor);
+
+        return new ObjectValue("CodeEdit", new Dictionary<string, Value>(StringComparer.Ordinal)
+        {
+            ["SetPath"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    editor.SetMeta(MetaSmsPath, path);
+                    CodeEditSyntaxRuntime.Load(editor, path);
+                }
+
+                return NullValue.Instance;
+            }),
+            ["SetText"] = new NativeFunctionValue(methodArgs =>
+            {
+                var text = ValueArgString(methodArgs, 0);
+                editor.Text = text;
+
+                if (editor.HasMeta(MetaSmsPath))
+                {
+                    var path = editor.GetMeta(MetaSmsPath).AsString();
+                    if (!string.IsNullOrWhiteSpace(path))
+                    {
+                        CodeEditSyntaxRuntime.Load(editor, path);
+                    }
+                }
+
+                editor.QueueRedraw();
+                return NullValue.Instance;
+            }),
+            ["GetText"] = new NativeFunctionValue(_ => new StringValue(editor.Text ?? string.Empty)),
+            ["GetPath"] = new NativeFunctionValue(_ =>
+            {
+                var path = editor.HasMeta(MetaSmsPath) ? editor.GetMeta(MetaSmsPath).AsString() : string.Empty;
+                return new StringValue(path ?? string.Empty);
+            }),
+            ["onSave"] = new NativeFunctionValue(methodArgs =>
+            {
+                var callbackName = ValueArgString(methodArgs, 0);
+                if (!string.IsNullOrWhiteSpace(callbackName))
+                {
+                    _codeEditSaveCallbacks[id] = callbackName;
+                    RunnerLogger.Info("SMS", $"Registered onSave callback '{callbackName}' for '{id}'.");
+                }
+
+                return NullValue.Instance;
+            })
+        });
+    }
+
+    private void EnsureCodeEditSaveShortcut(string id, CodeEdit editor)
+    {
+        if (editor.HasMeta(MetaSmsSaveShortcutHooked) && editor.GetMeta(MetaSmsSaveShortcutHooked).AsBool())
+        {
+            return;
+        }
+
+        editor.GuiInput += @event =>
+        {
+            if (@event is not InputEventKey keyEvent)
+            {
+                return;
+            }
+
+            if (!keyEvent.Pressed || keyEvent.Echo)
+            {
+                return;
+            }
+
+            if (keyEvent.Keycode != Key.S)
+            {
+                return;
+            }
+
+            var isSaveShortcut = keyEvent.CtrlPressed || keyEvent.MetaPressed;
+            if (!isSaveShortcut)
+            {
+                return;
+            }
+
+            var sourceId = string.IsNullOrWhiteSpace(id)
+                ? (editor.HasMeta(NodePropertyMapper.MetaId) ? editor.GetMeta(NodePropertyMapper.MetaId).AsString() : "codeEdit")
+                : id;
+            var sourceIdValue = editor.HasMeta(NodePropertyMapper.MetaIdValue)
+                ? new Id(editor.GetMeta(NodePropertyMapper.MetaIdValue).AsInt32())
+                : new Id(0);
+
+            _dispatcher?.Dispatch(new UiActionContext(
+                Source: editor,
+                SourceId: sourceId,
+                SourceIdValue: sourceIdValue,
+                Action: "save",
+                Clicked: string.Empty,
+                ClickedIdValue: new Id(0)
+            ));
+
+            editor.AcceptEvent();
+        };
+
+        editor.SetMeta(MetaSmsSaveShortcutHooked, Variant.From(true));
     }
 
     private int RegisterTreeHandle(TreeItem item)
@@ -452,6 +529,51 @@ public sealed class SmsUiRuntime
     {
         var raw = ArgString(args, index);
         return string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ValueArgString(IReadOnlyList<Value> args, int index)
+    {
+        if (index >= args.Count)
+        {
+            return string.Empty;
+        }
+
+        return args[index] switch
+        {
+            StringValue s => s.Value,
+            NumberValue n => n.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            BooleanValue b => b.Value ? "true" : "false",
+            NullValue => string.Empty,
+            _ => args[index].ToString()
+        };
+    }
+
+    private static int ValueArgInt(IReadOnlyList<Value> args, int index)
+    {
+        if (index >= args.Count)
+        {
+            return 0;
+        }
+
+        return args[index] switch
+        {
+            NumberValue n => n.ToInt(),
+            _ => int.TryParse(ValueArgString(args, index), out var parsed) ? parsed : 0
+        };
+    }
+
+    private static bool ValueArgBool(IReadOnlyList<Value> args, int index)
+    {
+        if (index >= args.Count)
+        {
+            return false;
+        }
+
+        return args[index] switch
+        {
+            BooleanValue b => b.Value,
+            _ => string.Equals(ValueArgString(args, index), "true", StringComparison.OrdinalIgnoreCase)
+        };
     }
 
     private static string Quote(string value)

@@ -1,34 +1,38 @@
-var treeId = "treeview"
-var codeEditId = "codeEdit"
+﻿var tree = null
+var codeEdit = null
 var selectedPath = null
 
 fun ready() {
-    if (UiExists(treeId) == false) {
-        Info("NoCodeDesigner.App", "Kein TreeView mit id 'treeview' gefunden – nichts zu befüllen.")
+    tree = getObject("treeview")
+    codeEdit = getObject("codeEdit")
+
+    if (tree == null || codeEdit == null) {
+        Info("NoCodeDesigner.App", "TreeView oder CodeEdit nicht gefunden – nichts zu befüllen.")
         return
     }
 
-    PopulateTree(treeId, ".")
-    BindTreeEvents(treeId)
+    codeEdit.onSave("codeEditOnSave")
+    tree.BindEvents()
+    PopulateTree(tree, ".")
     Info("NoCodeDesigner.App", "TreeView 'treeview' wurde mit Inhalten aus ProjectFS befüllt.")
 }
 
-fun PopulateTree(treeViewId, rootPath) {
-    TreeClear(treeViewId)
-    var root = TreeCreateRoot(treeViewId, rootPath, rootPath)
-    PopulateTreeChildren(treeViewId, root, rootPath)
+fun PopulateTree(treeObj, rootPath) {
+    treeObj.Clear()
+    var root = treeObj.CreateRoot(rootPath, rootPath)
+    PopulateTreeChildren(treeObj, root, rootPath)
 }
 
-fun PopulateTreeChildren(treeViewId, parentHandle, dirPath) {
+fun PopulateTreeChildren(treeObj, parentHandle, dirPath) {
     var entries = ProjectFS_List(dirPath)
     for (entry in entries) {
         if (entry.Name == ".DS_Store") {
             continue
         }
 
-        var child = TreeCreateChild(treeViewId, parentHandle, entry.Name, entry.Path, entry.IsDirectory)
+        var child = treeObj.CreateChild(parentHandle, entry.Name, entry.Path, entry.IsDirectory)
         if (entry.IsDirectory) {
-            PopulateTreeChildren(treeViewId, child, entry.Path)
+            PopulateTreeChildren(treeObj, child, entry.Path)
         }
     }
 }
@@ -42,8 +46,8 @@ fun treeItemSelected(treeView, itemText, itemPath) {
 
     if (ProjectFS_Exists(itemPath)) {
         selectedPath = itemPath
-        CodeEditSetPath(codeEditId, itemPath)
-        CodeEditSetText(codeEditId, ProjectFS_ReadText(itemPath))
+        codeEdit.SetPath(itemPath)
+        codeEdit.SetText(ProjectFS_ReadText(itemPath))
     }
 }
 
@@ -51,14 +55,15 @@ fun treeItemToggled(treeView, itemText, itemPath, isOn) {
     Info("NoCodeDesigner.App", "treeItemToggled -> treeView=${treeView}, text='${itemText}', isOn=${isOn}")
 }
 
-fun CodeEditOnSave(editorId) {
+// User Defined Event
+fun codeEditOnSave(editorId) {
     var path = selectedPath
     if (path == null || path == "") {
         Info("NoCodeDesigner.App", "Save abgebrochen: kein Pfad gesetzt.")
         return
     }
 
-    var text = CodeEditGetText(editorId)
+    var text = codeEdit.GetText()
     ProjectFS_WriteText(path, text)
     Info("NoCodeDesigner.App", "Saved via SMS: ${path}")
 }
