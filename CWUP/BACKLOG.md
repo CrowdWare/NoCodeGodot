@@ -93,10 +93,10 @@
 - [x] tasks/dual_layout_properties.md
 - [x] tasks/treeview.md
 - [x] tasks/sms_integration.md
-- [ ] tasks/docking_foundation.md
-- [ ] tasks/docking_menu_commands.md
-- [ ] tasks/docking_floating_windows.md
-- [ ] tasks/docking_tabs_reordering.md
+- [x] tasks/docking_foundation.md
+- [x] tasks/docking_menu_commands.md
+- [x] tasks/docking_floating_windows.md
+- [x] tasks/docking_tabs_reordering.md
 - [ ] tasks/docking_dragdrop_ux.md
 - [ ] tasks/docking_layout_persistence.md
 

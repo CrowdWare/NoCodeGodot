@@ -19,10 +19,31 @@ public partial class DockSpace : VBoxContainer
 
     private MenuButton? _closedPanelsMenuButton;
     private bool _closedMenuConnected;
+    private bool _isDockDragActive;
+    private bool _isDockDragCandidate;
+    private Vector2 _dragStartGlobal;
+    private DockSlotId _dragSourceSlot;
+    private string _dragPreviewTitle = "Dock";
+    private TabContainer? _currentDragTarget;
+    private PanelContainer? _dragGhost;
+    private Label? _dragGhostLabel;
+    private const float DragStartThreshold = 8f;
+    private const float MinDropTargetWidth = 120f;
+    private const float MinDropTargetHeight = 80f;
 
     public override void _Ready()
     {
         CallDeferred(nameof(InitializeDocking));
+    }
+
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: false })
+        {
+            EndDockDrag();
+        }
+
+        base._UnhandledInput(@event);
     }
 
     public DockLayoutState CaptureLayoutState()
@@ -398,9 +419,214 @@ public partial class DockSpace : VBoxContainer
         tabs.ChildEnteredTree += _ => ReconcilePanelStatesFromUi();
         tabs.ChildExitingTree += _ => ReconcilePanelStatesFromUi();
         tabs.ChildOrderChanged += () => ReconcilePanelStatesFromUi();
+        tabs.GuiInput += e => OnSlotGuiInput(slot, tabs, e);
 
         _slotTabs[slot] = tabs;
         row.AddChild(tabs);
+    }
+
+    private void OnSlotGuiInput(DockSlotId slot, TabContainer tabs, InputEvent @event)
+    {
+        if (!IsAlive(tabs))
+        {
+            return;
+        }
+
+        switch (@event)
+        {
+            case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } press:
+                if (press.Position.Y <= 32f)
+                {
+                    _isDockDragCandidate = true;
+                    _dragStartGlobal = press.GlobalPosition;
+                    _dragSourceSlot = slot;
+                    _dragPreviewTitle = ResolveCurrentTabTitle(tabs);
+                }
+                break;
+
+            case InputEventMouseMotion motion when _isDockDragCandidate && !_isDockDragActive:
+                if (motion.GlobalPosition.DistanceTo(_dragStartGlobal) >= DragStartThreshold)
+                {
+                    BeginDockDrag();
+                    UpdateDockDragFeedback(motion.GlobalPosition);
+                }
+                break;
+
+            case InputEventMouseMotion motion when _isDockDragActive:
+                UpdateDockDragFeedback(motion.GlobalPosition);
+                break;
+
+            case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: false }:
+                EndDockDrag();
+                break;
+        }
+    }
+
+    private void BeginDockDrag()
+    {
+        _isDockDragActive = true;
+        EnsureDragGhost();
+        if (_dragGhost is not null)
+        {
+            _dragGhost.Visible = true;
+        }
+
+        Input.SetDefaultCursorShape(Input.CursorShape.PointingHand);
+    }
+
+    private void EndDockDrag()
+    {
+        _isDockDragCandidate = false;
+        if (!_isDockDragActive)
+        {
+            return;
+        }
+
+        _isDockDragActive = false;
+        _currentDragTarget = null;
+        if (_dragGhost is not null)
+        {
+            _dragGhost.Visible = false;
+        }
+
+        ResetAllSlotHighlighting();
+        Input.SetDefaultCursorShape(Input.CursorShape.Arrow);
+
+        // Let Godot finish internal tab move first, then reconcile runtime state.
+        CallDeferred(nameof(ReconcilePanelStatesFromUi));
+    }
+
+    private void UpdateDockDragFeedback(Vector2 globalMouse)
+    {
+        if (!_isDockDragActive)
+        {
+            return;
+        }
+
+        UpdateDragGhost(globalMouse);
+
+        TabContainer? hoveredTarget = null;
+        var hoveredValid = false;
+
+        foreach (var tabs in _slotTabs.Values)
+        {
+            if (!IsAlive(tabs) || !tabs.Visible)
+            {
+                continue;
+            }
+
+            var rect = tabs.GetGlobalRect();
+            if (!rect.HasPoint(globalMouse))
+            {
+                continue;
+            }
+
+            hoveredTarget = tabs;
+            hoveredValid = rect.Size.X >= MinDropTargetWidth && rect.Size.Y >= MinDropTargetHeight;
+            break;
+        }
+
+        _currentDragTarget = hoveredTarget;
+        ApplySlotHighlighting(hoveredTarget, hoveredValid);
+        Input.SetDefaultCursorShape(hoveredValid ? Input.CursorShape.PointingHand : Input.CursorShape.Forbidden);
+    }
+
+    private void EnsureDragGhost()
+    {
+        if (_dragGhost is not null)
+        {
+            _dragGhostLabel!.Text = _dragPreviewTitle;
+            return;
+        }
+
+        _dragGhost = new PanelContainer
+        {
+            Name = "DockDragGhost",
+            TopLevel = true,
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+            Modulate = new Color(1f, 1f, 1f, 0.9f),
+            CustomMinimumSize = new Vector2(180f, 36f)
+        };
+
+        _dragGhostLabel = new Label
+        {
+            Text = _dragPreviewTitle,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            SizeFlagsVertical = SizeFlags.ExpandFill
+        };
+
+        var content = new MarginContainer();
+        content.AddThemeConstantOverride("margin_left", 8);
+        content.AddThemeConstantOverride("margin_right", 8);
+        content.AddThemeConstantOverride("margin_top", 6);
+        content.AddThemeConstantOverride("margin_bottom", 6);
+        content.AddChild(_dragGhostLabel);
+
+        _dragGhost.AddChild(content);
+        AddChild(_dragGhost);
+    }
+
+    private void UpdateDragGhost(Vector2 globalMouse)
+    {
+        if (_dragGhost is null)
+        {
+            return;
+        }
+
+        _dragGhost.Position = globalMouse + new Vector2(14f, 10f);
+        if (_dragGhostLabel is not null)
+        {
+            _dragGhostLabel.Text = _dragPreviewTitle;
+        }
+    }
+
+    private void ResetAllSlotHighlighting()
+    {
+        foreach (var tabs in _slotTabs.Values)
+        {
+            if (!IsAlive(tabs))
+            {
+                continue;
+            }
+
+            tabs.SelfModulate = Colors.White;
+        }
+    }
+
+    private void ApplySlotHighlighting(TabContainer? hovered, bool isValid)
+    {
+        foreach (var tabs in _slotTabs.Values)
+        {
+            if (!IsAlive(tabs))
+            {
+                continue;
+            }
+
+            if (tabs == hovered)
+            {
+                tabs.SelfModulate = isValid
+                    ? new Color(0.78f, 1.0f, 0.78f, 1f)
+                    : new Color(1.0f, 0.78f, 0.78f, 1f);
+            }
+            else
+            {
+                tabs.SelfModulate = Colors.White;
+            }
+        }
+    }
+
+    private static string ResolveCurrentTabTitle(TabContainer tabs)
+    {
+        var current = tabs.CurrentTab;
+        if (current >= 0 && current < tabs.GetTabCount())
+        {
+            return tabs.GetTabTitle(current);
+        }
+
+        return "Dock";
     }
 
     private void AddDualColumn(HBoxContainer parentRow, DockSlotId topSlot, DockSlotId bottomSlot, float stretchRatio)
