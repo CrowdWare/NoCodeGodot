@@ -41,7 +41,7 @@ Window {
             id: leftTop
             title: "Projekt"
             area: "left"
-            width: 300
+            //width: 300
 
             TreeView {
                 id: treeview
@@ -69,7 +69,7 @@ Window {
             id: rightTop
             title: "Markdown"
             area: "right"
-            width: 300
+            //width: 300
 
             Markdown {
                 layoutMode: document

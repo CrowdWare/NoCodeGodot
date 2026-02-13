@@ -44,9 +44,12 @@ public partial class DockSpace : VBoxContainer
     private const float DragStartThreshold = 8f;
     private const float MinDropTargetWidth = 120f;
     private const float MinDropTargetHeight = 80f;
+    private const int MinCenterColumnWidth = 160;
     private DockLayoutState? _defaultLayoutState;
     private readonly List<(string PanelId, DockSlotId Slot, int TabIndex)> _pendingLockedPanelRestores = new();
     private bool _isRestoringLockedPanels;
+    private bool _pendingInitialSplitterHintApply;
+    private bool _isApplyingInitialSplitterHint;
 
     public override void _Ready()
     {
@@ -155,6 +158,7 @@ public partial class DockSpace : VBoxContainer
             }
 
             ApplyLayout(document.Layout);
+            _pendingInitialSplitterHintApply = false;
             RunnerLogger.Info("UI", $"Dock layout loaded from '{path}'.");
             return true;
         }
@@ -175,6 +179,7 @@ public partial class DockSpace : VBoxContainer
         }
 
         ApplyLayout(CloneLayoutState(_defaultLayoutState));
+        _pendingInitialSplitterHintApply = false;
         RunnerLogger.Info("UI", "Dock layout reset to default snapshot.");
     }
 
@@ -642,6 +647,7 @@ public partial class DockSpace : VBoxContainer
             RefreshSideColumnLayout(sideColumn);
         }
 
+        _pendingInitialSplitterHintApply = IsSplittingEnabled();
         RecomputeSideColumnWidthHints();
     }
 
@@ -1343,6 +1349,95 @@ public partial class DockSpace : VBoxContainer
         {
             centerTabs.CustomMinimumSize = new Vector2(0f, centerTabs.CustomMinimumSize.Y);
         }
+
+        if (_pendingInitialSplitterHintApply)
+        {
+            CallDeferred(nameof(ApplyInitialSplitterOffsetsFromWidthHintsDeferred));
+        }
+    }
+
+    private void ApplyInitialSplitterOffsetsFromWidthHintsDeferred()
+    {
+        if (!_pendingInitialSplitterHintApply || _isApplyingInitialSplitterHint || !IsSplittingEnabled())
+        {
+            return;
+        }
+
+        var split0 = FindChild("DockColumnsSplit0", recursive: true, owned: false) as HSplitContainer;
+        var split1 = FindChild("DockColumnsSplit1", recursive: true, owned: false) as HSplitContainer;
+        var split2 = FindChild("DockColumnsSplit2", recursive: true, owned: false) as HSplitContainer;
+        var split3 = FindChild("DockColumnsSplit3", recursive: true, owned: false) as HSplitContainer;
+
+        if (split0 is null || split1 is null || split2 is null || split3 is null
+            || !IsAlive(split0) || !IsAlive(split1) || !IsAlive(split2) || !IsAlive(split3))
+        {
+            return;
+        }
+
+        _isApplyingInitialSplitterHint = true;
+        try
+        {
+            if (split0.Size.X <= 0 || split1.Size.X <= 0 || split2.Size.X <= 0 || split3.Size.X <= 0)
+            {
+                CallDeferred(nameof(ApplyInitialSplitterOffsetsFromWidthHintsDeferred));
+                return;
+            }
+
+            var split0Width = (int)split0.Size.X;
+            var split1Width = (int)split1.Size.X;
+            var split2Width = (int)split2.Size.X;
+            var split3Width = (int)split3.Size.X;
+
+            var farLeftWidth = ResolveColumnWidthHint(DockSlotId.FarLeft, DockSlotId.BottomFarLeft);
+            var leftWidth = ResolveColumnWidthHint(DockSlotId.Left, DockSlotId.BottomLeft);
+            var rightWidth = ResolveColumnWidthHint(DockSlotId.Right, DockSlotId.BottomRight);
+            var farRightWidth = ResolveColumnWidthHint(DockSlotId.FarRight, DockSlotId.BottomFarRight);
+
+            split0.SplitOffset = Math.Clamp(
+                farLeftWidth,
+                0,
+                Math.Max(0, split0Width - MinCenterColumnWidth));
+
+            split1.SplitOffset = Math.Clamp(
+                leftWidth,
+                0,
+                Math.Max(0, split1Width - MinCenterColumnWidth));
+
+            var desiredRightTotal = rightWidth + farRightWidth;
+            var minCenter = Math.Min(MinCenterColumnWidth, split2Width);
+            var desiredCenterWidth = split2Width - desiredRightTotal;
+            split2.SplitOffset = Math.Clamp(desiredCenterWidth, minCenter, split2Width);
+
+            split3.SplitOffset = Math.Clamp(
+                rightWidth,
+                0,
+                Math.Max(0, split3Width - farRightWidth));
+
+            _pendingInitialSplitterHintApply = false;
+        }
+        finally
+        {
+            _isApplyingInitialSplitterHint = false;
+        }
+    }
+
+    private int ResolveColumnWidthHint(DockSlotId topSlot, DockSlotId bottomSlot)
+    {
+        if (!_sideColumnsBySlot.TryGetValue(topSlot, out var sideColumn)
+            || !IsAlive(sideColumn.Column)
+            || !sideColumn.Column.Visible)
+        {
+            return 0;
+        }
+
+        if (!IsAlive(sideColumn.TopTabs) || !IsAlive(sideColumn.BottomTabs))
+        {
+            return 0;
+        }
+
+        return Math.Max(
+            ResolveSlotWidthHint(topSlot, sideColumn.TopTabs),
+            ResolveSlotWidthHint(bottomSlot, sideColumn.BottomTabs));
     }
 
     private static int ResolveSlotWidthHint(DockSlotId slot, TabContainer tabs)
