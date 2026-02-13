@@ -217,6 +217,8 @@ public static class CodeEditSyntaxRuntime
         var highlighter = new CodeHighlighter();
         highlighter.NumberColor = new Color(0.97f, 0.82f, 0.58f, 1f);
         highlighter.SymbolColor = new Color(0.83f, 0.86f, 0.90f, 1f);
+        highlighter.FunctionColor = new Color(0.94f, 0.96f, 0.99f, 1f);
+        highlighter.MemberVariableColor = new Color(0.80f, 0.90f, 1f, 1f);
         highlighter.AddColorRegion("\"", "\"", new Color(0.73f, 0.92f, 0.67f, 1f));
         highlighter.AddColorRegion("//", string.Empty, new Color(0.58f, 0.64f, 0.60f, 1f), true);
 
@@ -288,6 +290,8 @@ public static class CodeEditSyntaxRuntime
         var highlighter = new CodeHighlighter();
         highlighter.NumberColor = new Color(0.97f, 0.82f, 0.58f, 1f);
         highlighter.SymbolColor = new Color(0.83f, 0.86f, 0.90f, 1f);
+        highlighter.FunctionColor = new Color(0.94f, 0.96f, 0.99f, 1f);
+        highlighter.MemberVariableColor = new Color(0.80f, 0.90f, 1f, 1f);
         highlighter.AddKeywordColor("public", new Color(0.86f, 0.70f, 1f, 1f));
         highlighter.AddKeywordColor("private", new Color(0.86f, 0.70f, 1f, 1f));
         highlighter.AddKeywordColor("class", new Color(0.86f, 0.70f, 1f, 1f));
@@ -303,28 +307,25 @@ public static class CodeEditSyntaxRuntime
         var highlighter = new CodeHighlighter();
         highlighter.NumberColor = new Color(0.97f, 0.82f, 0.58f, 1f);
         highlighter.SymbolColor = new Color(0.86f, 0.88f, 0.92f, 1f);
+        highlighter.FunctionColor = new Color(0.94f, 0.96f, 0.99f, 1f);
+        highlighter.MemberVariableColor = new Color(0.94f, 0.96f, 0.99f, 1f);
 
-        var headerColor = new Color(0.92f, 0.72f, 1f, 1f);
-        var codeColor = new Color(0.58f, 0.80f, 1f, 1f);
+        var h1Color = new Color(0.92f, 0.72f, 1f, 1f);
+        var h2Color = new Color(0.82f, 0.76f, 1f, 1f);
+        var h3Color = new Color(0.75f, 0.82f, 1f, 1f);
+        var boldItalicColor = new Color(1f, 0.82f, 0.66f, 1f);
         var boldColor = new Color(0.98f, 0.84f, 0.65f, 1f);
         var italicColor = new Color(0.96f, 0.78f, 0.72f, 1f);
-        var linkTextColor = new Color(0.74f, 0.90f, 0.98f, 1f);
-        var linkTargetColor = new Color(0.70f, 0.82f, 0.65f, 1f);
-        var commentColor = new Color(0.60f, 0.66f, 0.60f, 1f);
 
-        highlighter.AddColorRegion("```", "```", codeColor);
-        highlighter.AddColorRegion("`", "`", codeColor);
+        // Markdown emphasis: longest token first to avoid partial matches.
+        highlighter.AddColorRegion("***", "***", boldItalicColor);
         highlighter.AddColorRegion("**", "**", boldColor);
         highlighter.AddColorRegion("*", "*", italicColor);
-        highlighter.AddColorRegion("[", "]", linkTextColor);
-        highlighter.AddColorRegion("(", ")", linkTargetColor);
-        highlighter.AddColorRegion(">", string.Empty, commentColor, true);
-        highlighter.AddColorRegion("<!--", "-->", commentColor);
 
-        highlighter.AddKeywordColor("#", headerColor);
-        highlighter.AddKeywordColor("##", headerColor);
-        highlighter.AddKeywordColor("###", headerColor);
-        highlighter.AddKeywordColor("-", new Color(0.85f, 0.88f, 0.94f, 1f));
+        // Markdown headings by level: color line from marker to line end.
+        highlighter.AddColorRegion("### ", string.Empty, h3Color, true);
+        highlighter.AddColorRegion("## ", string.Empty, h2Color, true);
+        highlighter.AddColorRegion("# ", string.Empty, h1Color, true);
 
         return highlighter;
     }
