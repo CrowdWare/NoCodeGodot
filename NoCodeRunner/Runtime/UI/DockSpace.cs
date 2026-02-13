@@ -16,7 +16,7 @@ public partial class DockSpace : VBoxContainer
         public DockLayoutState Layout { get; set; } = new();
     }
 
-    private sealed record SideColumn(DockSlotId TopSlot, DockSlotId BottomSlot, VBoxContainer Column, TabContainer TopTabs, TabContainer BottomTabs);
+    private sealed record SideColumn(DockSlotId TopSlot, DockSlotId BottomSlot, Container Column, TabContainer TopTabs, TabContainer BottomTabs);
 
     private const int CurrentLayoutVersion = 1;
     private const string DefaultLayoutFileName = "dock_layout.json";
@@ -535,15 +535,38 @@ public partial class DockSpace : VBoxContainer
         Name = string.IsNullOrWhiteSpace(currentName) ? "DockSpace" : currentName;
         NodePropertyMapper.ApplyFillMaxSize(this);
 
-        var columns = new HBoxContainer { Name = "DockColumns" };
-        NodePropertyMapper.ApplyFillMaxSize(columns);
-        AddChild(columns);
+        if (IsSplittingEnabled())
+        {
+            var split0 = CreateHorizontalSplit("DockColumnsSplit0");
+            AddChild(split0);
 
-        AddDualColumn(columns, DockSlotId.FarLeft, DockSlotId.BottomFarLeft, stretchRatio: 0.9f);
-        AddDualColumn(columns, DockSlotId.Left, DockSlotId.BottomLeft, stretchRatio: 1.1f);
-        AddSlot(columns, DockSlotId.Center, stretchRatio: 1.7f);
-        AddDualColumn(columns, DockSlotId.Right, DockSlotId.BottomRight, stretchRatio: 1.1f);
-        AddDualColumn(columns, DockSlotId.FarRight, DockSlotId.BottomFarRight, stretchRatio: 0.9f);
+            AddDualColumn(split0, DockSlotId.FarLeft, DockSlotId.BottomFarLeft, stretchRatio: 1f);
+
+            var split1 = CreateHorizontalSplit("DockColumnsSplit1");
+            split0.AddChild(split1);
+            AddDualColumn(split1, DockSlotId.Left, DockSlotId.BottomLeft, stretchRatio: 1f);
+
+            var split2 = CreateHorizontalSplit("DockColumnsSplit2");
+            split1.AddChild(split2);
+            AddSlot(split2, DockSlotId.Center, stretchRatio: 1f);
+
+            var split3 = CreateHorizontalSplit("DockColumnsSplit3");
+            split2.AddChild(split3);
+            AddDualColumn(split3, DockSlotId.Right, DockSlotId.BottomRight, stretchRatio: 1f);
+            AddDualColumn(split3, DockSlotId.FarRight, DockSlotId.BottomFarRight, stretchRatio: 1f);
+        }
+        else
+        {
+            var columns = new HBoxContainer { Name = "DockColumns" };
+            NodePropertyMapper.ApplyFillMaxSize(columns);
+            AddChild(columns);
+
+            AddDualColumn(columns, DockSlotId.FarLeft, DockSlotId.BottomFarLeft, stretchRatio: 0.9f);
+            AddDualColumn(columns, DockSlotId.Left, DockSlotId.BottomLeft, stretchRatio: 1.1f);
+            AddSlot(columns, DockSlotId.Center, stretchRatio: 1.7f);
+            AddDualColumn(columns, DockSlotId.Right, DockSlotId.BottomRight, stretchRatio: 1.1f);
+            AddDualColumn(columns, DockSlotId.FarRight, DockSlotId.BottomFarRight, stretchRatio: 0.9f);
+        }
 
         foreach (var sideColumn in _sideColumnsBySlot.Values.Distinct())
         {
@@ -917,15 +940,58 @@ public partial class DockSpace : VBoxContainer
         return "Dock";
     }
 
-    private void AddDualColumn(HBoxContainer parentRow, DockSlotId topSlot, DockSlotId bottomSlot, float stretchRatio)
+    private bool IsSplittingEnabled()
     {
-        var column = new VBoxContainer
+        if (!HasMeta(NodePropertyMapper.MetaDockAllowSplitting))
         {
-            Name = $"DockColumn_{topSlot.ToSmlValue()}",
-            SizeFlagsHorizontal = SizeFlags.ExpandFill,
-            SizeFlagsVertical = SizeFlags.ExpandFill,
-            SizeFlagsStretchRatio = stretchRatio
-        };
+            return true;
+        }
+
+        return GetMeta(NodePropertyMapper.MetaDockAllowSplitting).AsBool();
+    }
+
+    private int ResolveSplitterSize()
+    {
+        if (!HasMeta(NodePropertyMapper.MetaDockSplitterSize))
+        {
+            return 6;
+        }
+
+        return Math.Max(1, GetMeta(NodePropertyMapper.MetaDockSplitterSize).AsInt32());
+    }
+
+    private HSplitContainer CreateHorizontalSplit(string name)
+    {
+        var split = new HSplitContainer { Name = name };
+        NodePropertyMapper.ApplyFillMaxSize(split);
+        split.AddThemeConstantOverride("separation", ResolveSplitterSize());
+        return split;
+    }
+
+    private void AddDualColumn(Container parentRow, DockSlotId topSlot, DockSlotId bottomSlot, float stretchRatio)
+    {
+        Container column;
+        if (IsSplittingEnabled())
+        {
+            var split = new VSplitContainer
+            {
+                Name = $"DockColumn_{topSlot.ToSmlValue()}"
+            };
+            NodePropertyMapper.ApplyFillMaxSize(split);
+            split.SizeFlagsStretchRatio = stretchRatio;
+            split.AddThemeConstantOverride("separation", ResolveSplitterSize());
+            column = split;
+        }
+        else
+        {
+            column = new VBoxContainer
+            {
+                Name = $"DockColumn_{topSlot.ToSmlValue()}",
+                SizeFlagsHorizontal = SizeFlags.ExpandFill,
+                SizeFlagsVertical = SizeFlags.ExpandFill,
+                SizeFlagsStretchRatio = stretchRatio
+            };
+        }
 
         parentRow.AddChild(column);
 
