@@ -92,7 +92,7 @@
 - [x] tasks/id.md
 - [x] tasks/dual_layout_properties.md
 - [x] tasks/treeview.md
-- [ ] tasks/sms_integration.md
+- [x] tasks/sms_integration.md
 
 ## Tasks for NoCodeDesigner
 - [ ] Lifecycle-Template für neue Scripts einführen (OnInit / OnReadyAsync sichtbar als optionaler Einstieg)

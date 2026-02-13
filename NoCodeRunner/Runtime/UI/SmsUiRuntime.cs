@@ -225,6 +225,19 @@ public sealed class SmsUiRuntime
             if (editor is not null)
             {
                 editor.Text = text;
+
+                // Re-apply syntax after content update to avoid first-render glitches
+                // (e.g. partially unstyled/black text until manual edit).
+                if (editor.HasMeta(MetaSmsPath))
+                {
+                    var path = editor.GetMeta(MetaSmsPath).AsString();
+                    if (!string.IsNullOrWhiteSpace(path))
+                    {
+                        CodeEditSyntaxRuntime.Load(editor, path);
+                    }
+                }
+
+                editor.QueueRedraw();
             }
 
             return null;

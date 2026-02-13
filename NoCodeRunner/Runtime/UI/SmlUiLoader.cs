@@ -376,6 +376,7 @@ public sealed class SmlUiLoader
         return language.Trim().ToLowerInvariant() switch
         {
             "sml" => "sml",
+            "sms" => "sms",
             "cs" => "cs",
             "csharp" => "cs",
             "c#" => "cs",

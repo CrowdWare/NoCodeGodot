@@ -11,6 +11,7 @@ public static class CodeEditSyntaxRuntime
 {
     public const string SyntaxAuto = "auto";
     public const string SyntaxSml = "sml";
+    public const string SyntaxSms = "sms";
     public const string SyntaxCs = "cs";
     public const string SyntaxMarkdown = "markdown";
     public const string SyntaxPlainText = "plain_text";
@@ -75,6 +76,7 @@ public static class CodeEditSyntaxRuntime
         var syntax = requestedSyntax switch
         {
             SyntaxSml => SyntaxSml,
+            SyntaxSms => SyntaxSms,
             SyntaxCs => SyntaxCs,
             SyntaxMarkdown => SyntaxMarkdown,
             _ when requestedSyntax.StartsWith("res://", StringComparison.OrdinalIgnoreCase) => requestedSyntax,
@@ -96,6 +98,7 @@ public static class CodeEditSyntaxRuntime
         return extension switch
         {
             ".sml" => SyntaxSml,
+            ".sms" => SyntaxSms,
             ".cs" => SyntaxCs,
             ".md" => SyntaxMarkdown,
             ".markdown" => SyntaxMarkdown,
@@ -118,6 +121,7 @@ public static class CodeEditSyntaxRuntime
         }
 
         editor.SetMeta(MetaActiveSyntax, Variant.From(syntax));
+        ApplyCodeEditorTheme(editor);
         editor.SyntaxHighlighter = CreateHighlighter(editor, syntax);
 
         if (!string.Equals(previousSyntax, syntax, StringComparison.Ordinal))
@@ -142,6 +146,11 @@ public static class CodeEditSyntaxRuntime
             return CreateSmlStructuralHighlighter(editor.Text);
         }
 
+        if (string.Equals(syntax, SyntaxMarkdown, StringComparison.OrdinalIgnoreCase))
+        {
+            return CreateMarkdownHighlighter();
+        }
+
         if (syntax.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
         {
             return CreateHighlighterFromRuleFile(syntax);
@@ -150,8 +159,8 @@ public static class CodeEditSyntaxRuntime
         var mappedRulePath = syntax.ToLowerInvariant() switch
         {
             SyntaxSml => "res://syntax/sml_syntax.cs",
+            SyntaxSms => "res://syntax/sms_syntax.cs",
             SyntaxCs => "res://syntax/cs_syntax.cs",
-            SyntaxMarkdown => "res://syntax/markdown_syntax.cs",
             _ => string.Empty
         };
 
@@ -167,7 +176,7 @@ public static class CodeEditSyntaxRuntime
         return syntax.ToLowerInvariant() switch
         {
             SyntaxCs => CreateCsFallbackHighlighter(),
-            SyntaxMarkdown => CreateMarkdownFallbackHighlighter(),
+            SyntaxMarkdown => CreateMarkdownHighlighter(),
             _ => null
         };
     }
@@ -185,8 +194,6 @@ public static class CodeEditSyntaxRuntime
         var commentColor = new Color(0.52f, 0.57f, 0.55f, 1f);
 
         highlighter.AddColorRegion("\"", "\"", literalColor);
-        // For line comments Godot expects an empty end key when lineOnly=true.
-        // Using "\n" triggers engine errors with C# backtraces.
         highlighter.AddColorRegion("//", string.Empty, commentColor, true);
 
         foreach (var nodeName in ExtractSmlNodeNames(text))
@@ -208,8 +215,25 @@ public static class CodeEditSyntaxRuntime
     private static SyntaxHighlighter? CreateHighlighterFromRuleFile(string rulePath)
     {
         var highlighter = new CodeHighlighter();
-        highlighter.NumberColor = new Color(0.86f, 0.69f, 0.44f, 1f);
-        highlighter.SymbolColor = new Color(0.76f, 0.76f, 0.76f, 1f);
+        highlighter.NumberColor = new Color(0.97f, 0.82f, 0.58f, 1f);
+        highlighter.SymbolColor = new Color(0.83f, 0.86f, 0.90f, 1f);
+        highlighter.AddColorRegion("\"", "\"", new Color(0.73f, 0.92f, 0.67f, 1f));
+        highlighter.AddColorRegion("//", string.Empty, new Color(0.58f, 0.64f, 0.60f, 1f), true);
+
+        var keywordColor = new Color(0.70f, 0.80f, 1f, 1f);
+        var rulePathLower = rulePath.ToLowerInvariant();
+        if (rulePathLower.Contains("cs_syntax"))
+        {
+            keywordColor = new Color(0.86f, 0.70f, 1f, 1f);
+        }
+        else if (rulePathLower.Contains("sms_syntax"))
+        {
+            keywordColor = new Color(0.87f, 0.75f, 1f, 1f);
+        }
+        else if (rulePathLower.Contains("sml_syntax"))
+        {
+            keywordColor = new Color(0.61f, 0.86f, 0.80f, 1f);
+        }
 
         var globalPath = ProjectSettings.GlobalizePath(rulePath);
         if (!File.Exists(globalPath))
@@ -221,6 +245,7 @@ public static class CodeEditSyntaxRuntime
 
         var content = File.ReadAllText(globalPath);
         var hasKeyword = false;
+
         foreach (Match match in Regex.Matches(content, "\"([^\"\\r\\n]+)\""))
         {
             var token = match.Groups[1].Value.Trim();
@@ -229,25 +254,23 @@ public static class CodeEditSyntaxRuntime
                 continue;
             }
 
-            highlighter.AddKeywordColor(token, new Color(0.53f, 0.73f, 1f, 1f));
+            highlighter.AddKeywordColor(token, keywordColor);
             hasKeyword = true;
         }
 
-        if (hasKeyword)
+        if (!hasKeyword)
         {
-            return highlighter;
-        }
-
-        foreach (var line in File.ReadAllLines(globalPath))
-        {
-            var trimmed = line.Trim();
-            if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("//", StringComparison.Ordinal))
+            foreach (var line in File.ReadAllLines(globalPath))
             {
-                continue;
-            }
+                var trimmed = line.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("//", StringComparison.Ordinal))
+                {
+                    continue;
+                }
 
-            highlighter.AddKeywordColor(trimmed, new Color(0.53f, 0.73f, 1f, 1f));
-            hasKeyword = true;
+                highlighter.AddKeywordColor(trimmed, keywordColor);
+                hasKeyword = true;
+            }
         }
 
         if (!hasKeyword)
@@ -263,27 +286,46 @@ public static class CodeEditSyntaxRuntime
     private static SyntaxHighlighter CreateCsFallbackHighlighter()
     {
         var highlighter = new CodeHighlighter();
-        highlighter.NumberColor = new Color(0.86f, 0.69f, 0.44f, 1f);
-        highlighter.SymbolColor = new Color(0.76f, 0.76f, 0.76f, 1f);
-        highlighter.AddKeywordColor("public", new Color(0.82f, 0.53f, 1f, 1f));
-        highlighter.AddKeywordColor("private", new Color(0.82f, 0.53f, 1f, 1f));
-        highlighter.AddKeywordColor("class", new Color(0.82f, 0.53f, 1f, 1f));
-        highlighter.AddKeywordColor("void", new Color(0.82f, 0.53f, 1f, 1f));
-        highlighter.AddKeywordColor("string", new Color(0.36f, 0.8f, 0.95f, 1f));
-        highlighter.AddColorRegion("\"", "\"", new Color(0.63f, 0.85f, 0.58f, 1f));
-        // For line comments Godot expects an empty end key when lineOnly=true.
-        highlighter.AddColorRegion("//", string.Empty, new Color(0.5f, 0.56f, 0.5f, 1f), true);
+        highlighter.NumberColor = new Color(0.97f, 0.82f, 0.58f, 1f);
+        highlighter.SymbolColor = new Color(0.83f, 0.86f, 0.90f, 1f);
+        highlighter.AddKeywordColor("public", new Color(0.86f, 0.70f, 1f, 1f));
+        highlighter.AddKeywordColor("private", new Color(0.86f, 0.70f, 1f, 1f));
+        highlighter.AddKeywordColor("class", new Color(0.86f, 0.70f, 1f, 1f));
+        highlighter.AddKeywordColor("void", new Color(0.86f, 0.70f, 1f, 1f));
+        highlighter.AddKeywordColor("string", new Color(0.58f, 0.84f, 1f, 1f));
+        highlighter.AddColorRegion("\"", "\"", new Color(0.73f, 0.92f, 0.67f, 1f));
+        highlighter.AddColorRegion("//", string.Empty, new Color(0.58f, 0.64f, 0.60f, 1f), true);
         return highlighter;
     }
 
-    private static SyntaxHighlighter CreateMarkdownFallbackHighlighter()
+    private static SyntaxHighlighter CreateMarkdownHighlighter()
     {
         var highlighter = new CodeHighlighter();
-        highlighter.NumberColor = new Color(0.86f, 0.69f, 0.44f, 1f);
-        highlighter.SymbolColor = new Color(0.76f, 0.76f, 0.76f, 1f);
-        highlighter.AddColorRegion("```", "```", new Color(0.53f, 0.73f, 1f, 1f));
-        highlighter.AddColorRegion("`", "`", new Color(0.53f, 0.73f, 1f, 1f));
-        highlighter.AddColorRegion("[", ")", new Color(0.63f, 0.85f, 0.58f, 1f));
+        highlighter.NumberColor = new Color(0.97f, 0.82f, 0.58f, 1f);
+        highlighter.SymbolColor = new Color(0.86f, 0.88f, 0.92f, 1f);
+
+        var headerColor = new Color(0.92f, 0.72f, 1f, 1f);
+        var codeColor = new Color(0.58f, 0.80f, 1f, 1f);
+        var boldColor = new Color(0.98f, 0.84f, 0.65f, 1f);
+        var italicColor = new Color(0.96f, 0.78f, 0.72f, 1f);
+        var linkTextColor = new Color(0.74f, 0.90f, 0.98f, 1f);
+        var linkTargetColor = new Color(0.70f, 0.82f, 0.65f, 1f);
+        var commentColor = new Color(0.60f, 0.66f, 0.60f, 1f);
+
+        highlighter.AddColorRegion("```", "```", codeColor);
+        highlighter.AddColorRegion("`", "`", codeColor);
+        highlighter.AddColorRegion("**", "**", boldColor);
+        highlighter.AddColorRegion("*", "*", italicColor);
+        highlighter.AddColorRegion("[", "]", linkTextColor);
+        highlighter.AddColorRegion("(", ")", linkTargetColor);
+        highlighter.AddColorRegion(">", string.Empty, commentColor, true);
+        highlighter.AddColorRegion("<!--", "-->", commentColor);
+
+        highlighter.AddKeywordColor("#", headerColor);
+        highlighter.AddKeywordColor("##", headerColor);
+        highlighter.AddKeywordColor("###", headerColor);
+        highlighter.AddKeywordColor("-", new Color(0.85f, 0.88f, 0.94f, 1f));
+
         return highlighter;
     }
 
@@ -304,6 +346,7 @@ public static class CodeEditSyntaxRuntime
         {
             SyntaxAuto => SyntaxAuto,
             SyntaxSml => SyntaxSml,
+            SyntaxSms => SyntaxSms,
             SyntaxCs => SyntaxCs,
             SyntaxMarkdown => SyntaxMarkdown,
             _ => value
@@ -325,7 +368,9 @@ public static class CodeEditSyntaxRuntime
         editor.TextChanged += () =>
         {
             var activeSyntax = GetMetaString(editor, MetaActiveSyntax);
-            if (!string.Equals(activeSyntax, SyntaxSml, StringComparison.OrdinalIgnoreCase))
+            var isSml = string.Equals(activeSyntax, SyntaxSml, StringComparison.OrdinalIgnoreCase);
+            var isSms = string.Equals(activeSyntax, SyntaxSms, StringComparison.OrdinalIgnoreCase);
+            if (!isSml && !isSms)
             {
                 return;
             }
@@ -340,13 +385,26 @@ public static class CodeEditSyntaxRuntime
                 old.Dispose();
             }
 
-            editor.SyntaxHighlighter = CreateSmlStructuralHighlighter(editor.Text);
+            editor.SyntaxHighlighter = isSml
+                ? CreateSmlStructuralHighlighter(editor.Text)
+                : CreateHighlighter(editor, SyntaxSms);
+
             editor.ScrollVertical = previousScroll;
             editor.ScrollHorizontal = previousScrollHorizontal;
             editor.QueueRedraw();
         };
 
         editor.SetMeta(MetaSyntaxHooked, Variant.From(true));
+    }
+
+    private static void ApplyCodeEditorTheme(CodeEdit editor)
+    {
+        editor.AddThemeColorOverride("font_color", new Color(0.96f, 0.97f, 0.99f, 1f));
+        editor.AddThemeColorOverride("font_readonly_color", new Color(0.89f, 0.92f, 0.95f, 1f));
+        editor.AddThemeColorOverride("caret_color", new Color(0.98f, 0.98f, 1f, 1f));
+        editor.AddThemeColorOverride("selection_color", new Color(0.30f, 0.46f, 0.68f, 0.58f));
+        editor.AddThemeColorOverride("current_line_color", new Color(1f, 1f, 1f, 0.06f));
+        editor.AddThemeColorOverride("line_number_color", new Color(0.74f, 0.78f, 0.84f, 1f));
     }
 
     private static HashSet<string> ExtractSmlNodeNames(string text)
