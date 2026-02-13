@@ -48,6 +48,12 @@ public sealed class NodePropertyMapper
     public const string MetaTreeShowGuides = "sml_treeShowGuides";
     public const string MetaTreeHideRoot = "sml_treeHideRoot";
     public const string MetaTreeIndent = "sml_treeIndent";
+    public const string MetaDockArea = "sml_dockArea";
+    public const string MetaDockPanelTitle = "sml_dockPanelTitle";
+    public const string MetaDockAllowFloating = "sml_dockAllowFloating";
+    public const string MetaDockAllowTabbing = "sml_dockAllowTabbing";
+    public const string MetaDockAllowSplitting = "sml_dockAllowSplitting";
+    public const string MetaDockSplitterSize = "sml_dockSplitterSize";
 
     public void Apply(Control control, string propertyName, SmlValue value, Func<string, string>? resolveAssetPath = null)
     {
@@ -64,11 +70,55 @@ public sealed class NodePropertyMapper
                 {
                     control.SetMeta(MetaWindowTitle, Variant.From(title));
                 }
+                else if (IsDockPanelNode(control))
+                {
+                    control.SetMeta(MetaDockPanelTitle, Variant.From(title));
+                }
                 else
                 {
                     ApplyTextLike(control, title);
                 }
                 return;
+
+            case "area":
+                if (IsDockPanelNode(control))
+                {
+                    control.SetMeta(MetaDockArea, Variant.From(value.AsStringOrThrow(propertyName)));
+                    return;
+                }
+                break;
+
+            case "allowfloating":
+                if (IsDockSpaceNode(control))
+                {
+                    control.SetMeta(MetaDockAllowFloating, Variant.From(ToBoolOrThrow(value, propertyName)));
+                    return;
+                }
+                break;
+
+            case "allowtabbing":
+                if (IsDockSpaceNode(control))
+                {
+                    control.SetMeta(MetaDockAllowTabbing, Variant.From(ToBoolOrThrow(value, propertyName)));
+                    return;
+                }
+                break;
+
+            case "allowsplitting":
+                if (IsDockSpaceNode(control))
+                {
+                    control.SetMeta(MetaDockAllowSplitting, Variant.From(ToBoolOrThrow(value, propertyName)));
+                    return;
+                }
+                break;
+
+            case "splittersize":
+                if (IsDockSpaceNode(control))
+                {
+                    control.SetMeta(MetaDockSplitterSize, Variant.From(value.AsIntOrThrow(propertyName)));
+                    return;
+                }
+                break;
 
             case "wrap":
                 ApplyWrap(control, ToBoolOrThrow(value, propertyName));
@@ -515,6 +565,18 @@ public sealed class NodePropertyMapper
     {
         return control.HasMeta(MetaNodeName)
             && string.Equals(control.GetMeta(MetaNodeName).AsString(), "Window", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsDockPanelNode(Control control)
+    {
+        return control.HasMeta(MetaNodeName)
+            && string.Equals(control.GetMeta(MetaNodeName).AsString(), "DockPanel", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsDockSpaceNode(Control control)
+    {
+        return control.HasMeta(MetaNodeName)
+            && string.Equals(control.GetMeta(MetaNodeName).AsString(), "DockSpace", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void ApplyTextLike(Control control, string text)

@@ -95,6 +95,8 @@ public sealed class SmlUiLoader
         schema.RegisterKnownNode("Box");
         schema.RegisterKnownNode("Tabs");
         schema.RegisterKnownNode("Tab");
+        schema.RegisterKnownNode("DockSpace");
+        schema.RegisterKnownNode("DockPanel");
         schema.RegisterKnownNode("Slider");
         schema.RegisterKnownNode("TreeView");
         schema.RegisterKnownNode("Item");
@@ -130,6 +132,15 @@ public sealed class SmlUiLoader
         schema.RegisterEnumValue("scrollBarPosition", "left", 2);
         schema.RegisterEnumValue("scrollBarPosition", "bottom", 3);
         schema.RegisterEnumValue("scrollBarPosition", "top", 4);
+        schema.RegisterEnumValue("area", "left", 1);
+        schema.RegisterEnumValue("area", "far-left", 2);
+        schema.RegisterEnumValue("area", "right", 3);
+        schema.RegisterEnumValue("area", "far-right", 4);
+        schema.RegisterEnumValue("area", "bottom-left", 5);
+        schema.RegisterEnumValue("area", "bottom-far-left", 6);
+        schema.RegisterEnumValue("area", "bottom-right", 7);
+        schema.RegisterEnumValue("area", "bottom-far-right", 8);
+        schema.RegisterEnumValue("area", "center", 9);
 
         return schema;
     }

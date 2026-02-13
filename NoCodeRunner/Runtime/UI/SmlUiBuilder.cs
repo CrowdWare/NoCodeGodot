@@ -486,6 +486,8 @@ public sealed class SmlUiBuilder
                || nodeName.Equals("Box", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Tabs", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Tab", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("DockSpace", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("DockPanel", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("TreeView", StringComparison.OrdinalIgnoreCase);
     }
 
