@@ -34,6 +34,8 @@
 - Business logic executes server-side only.
 - Clear separation between admin and player privileges.
 - No remote code execution through content or configuration.
+- Sandbox security rules (e.g., ProjectFS root jail, no absolute paths, no traversal, no symlink escapes) must be strictly enforced and must not be bypassed.
+- No backdoors or implicit bypass paths may be introduced; all new features must explicitly respect the existing security model.
 
 ### Maintainability
 - KISS principle: one scripting and behavior system for bots, bosses, doors, traps, switches, and interactions.
