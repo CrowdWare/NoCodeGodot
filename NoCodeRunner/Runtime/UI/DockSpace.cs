@@ -27,6 +27,8 @@ public partial class DockSpace : VBoxContainer
 
     public DockLayoutState CaptureLayoutState()
     {
+        ReconcilePanelStatesFromUi();
+
         var panels = _panels.Values
             .OrderBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
             .Select(p => new DockPanelState
@@ -35,6 +37,8 @@ public partial class DockSpace : VBoxContainer
                 Title = p.Title,
                 CurrentSlot = p.CurrentSlot,
                 LastDockedSlot = p.LastDockedSlot,
+                TabIndex = p.TabIndex,
+                IsActiveTab = p.IsActiveTab,
                 IsFloating = p.IsFloating,
                 IsClosed = p.IsClosed
             })
@@ -388,6 +392,13 @@ public partial class DockSpace : VBoxContainer
             SizeFlagsStretchRatio = stretchRatio
         };
 
+        tabs.DragToRearrangeEnabled = true;
+        tabs.TabsRearrangeGroup = 1;
+        tabs.TabChanged += _ => ReconcilePanelStatesFromUi();
+        tabs.ChildEnteredTree += _ => ReconcilePanelStatesFromUi();
+        tabs.ChildExitingTree += _ => ReconcilePanelStatesFromUi();
+        tabs.ChildOrderChanged += () => ReconcilePanelStatesFromUi();
+
         _slotTabs[slot] = tabs;
         row.AddChild(tabs);
     }
@@ -428,6 +439,13 @@ public partial class DockSpace : VBoxContainer
 
     private static void RefreshSideColumnLayout(SideColumn sideColumn)
     {
+        if (!IsAlive(sideColumn.Column)
+            || !IsAlive(sideColumn.TopTabs)
+            || !IsAlive(sideColumn.BottomTabs))
+        {
+            return;
+        }
+
         var topHasPanels = sideColumn.TopTabs.GetTabCount() > 0;
         var bottomHasPanels = sideColumn.BottomTabs.GetTabCount() > 0;
 
@@ -528,5 +546,56 @@ public partial class DockSpace : VBoxContainer
         }
 
         return null;
+    }
+
+    private void ReconcilePanelStatesFromUi()
+    {
+        if (!IsInsideTree())
+        {
+            return;
+        }
+
+        foreach (var (slot, tabs) in _slotTabs)
+        {
+            if (!IsAlive(tabs))
+            {
+                continue;
+            }
+
+            var activeTab = tabs.CurrentTab;
+            var index = 0;
+            foreach (var child in tabs.GetChildren())
+            {
+                if (child is not DockPanel panel)
+                {
+                    continue;
+                }
+
+                var panelId = panel.ResolvePanelId();
+                if (!_panels.TryGetValue(panelId, out var state))
+                {
+                    state = new DockPanelState { Id = panelId };
+                    _panels[panelId] = state;
+                }
+
+                state.Title = panel.ResolvePanelTitle();
+                state.CurrentSlot = slot;
+                state.LastDockedSlot = slot;
+                state.TabIndex = index;
+                state.IsActiveTab = index == activeTab;
+                state.IsFloating = false;
+                state.IsClosed = false;
+
+                _panelNodes[panelId] = panel;
+                index++;
+            }
+
+            RefreshSideColumnLayout(slot);
+        }
+    }
+
+    private static bool IsAlive(GodotObject? instance)
+    {
+        return instance is not null && GodotObject.IsInstanceValid(instance);
     }
 }
