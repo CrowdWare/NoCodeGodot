@@ -18,4 +18,11 @@ public sealed class DockLayoutState
 {
     public DateTime UpdatedAtUtc { get; init; } = DateTime.UtcNow;
     public DockPanelState[] Panels { get; init; } = Array.Empty<DockPanelState>();
+    public DockSplitterState[] Splitters { get; init; } = Array.Empty<DockSplitterState>();
+}
+
+public sealed class DockSplitterState
+{
+    public string Name { get; init; } = string.Empty;
+    public int Offset { get; init; }
 }

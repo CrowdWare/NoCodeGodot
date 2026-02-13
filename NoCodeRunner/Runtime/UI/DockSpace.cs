@@ -87,7 +87,8 @@ public partial class DockSpace : VBoxContainer
         return new DockLayoutState
         {
             UpdatedAtUtc = DateTime.UtcNow,
-            Panels = panels
+            Panels = panels,
+            Splitters = CaptureSplitterStates()
         };
     }
 
@@ -452,6 +453,8 @@ public partial class DockSpace : VBoxContainer
             ClosePanel(panel.Id);
         }
 
+        ApplySplitterStates(layout.Splitters);
+
         ReconcilePanelStatesFromUi();
     }
 
@@ -492,6 +495,15 @@ public partial class DockSpace : VBoxContainer
             }
         }
 
+        foreach (var splitter in layout.Splitters ?? Array.Empty<DockSplitterState>())
+        {
+            if (string.IsNullOrWhiteSpace(splitter.Name))
+            {
+                reason = "Splitter name is empty.";
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -510,8 +522,72 @@ public partial class DockSpace : VBoxContainer
                 IsActiveTab = p.IsActiveTab,
                 IsFloating = p.IsFloating,
                 IsClosed = p.IsClosed
+            }).ToArray(),
+            Splitters = source.Splitters.Select(s => new DockSplitterState
+            {
+                Name = s.Name,
+                Offset = s.Offset
             }).ToArray()
         };
+    }
+
+    private DockSplitterState[] CaptureSplitterStates()
+    {
+        if (!IsSplittingEnabled())
+        {
+            return Array.Empty<DockSplitterState>();
+        }
+
+        return GetChildren()
+            .OfType<SplitContainer>()
+            .SelectMany(GetAllSplitContainers)
+            .Where(s => !string.IsNullOrWhiteSpace(s.Name))
+            .Select(s => new DockSplitterState
+            {
+                Name = s.Name,
+                Offset = s.SplitOffset
+            })
+            .DistinctBy(s => s.Name)
+            .OrderBy(s => s.Name, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private void ApplySplitterStates(IReadOnlyCollection<DockSplitterState>? splitters)
+    {
+        if (!IsSplittingEnabled() || splitters is null || splitters.Count == 0)
+        {
+            return;
+        }
+
+        var byName = splitters
+            .Where(s => !string.IsNullOrWhiteSpace(s.Name))
+            .GroupBy(s => s.Name, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Last().Offset, StringComparer.Ordinal);
+
+        foreach (var split in GetChildren().OfType<SplitContainer>().SelectMany(GetAllSplitContainers))
+        {
+            if (string.IsNullOrWhiteSpace(split.Name))
+            {
+                continue;
+            }
+
+            if (byName.TryGetValue(split.Name, out var offset))
+            {
+                split.SplitOffset = offset;
+            }
+        }
+    }
+
+    private static IEnumerable<SplitContainer> GetAllSplitContainers(SplitContainer root)
+    {
+        yield return root;
+        foreach (var child in root.GetChildren().OfType<SplitContainer>())
+        {
+            foreach (var nested in GetAllSplitContainers(child))
+            {
+                yield return nested;
+            }
+        }
     }
 
     private static string ResolveLayoutPath(string? absolutePath)
