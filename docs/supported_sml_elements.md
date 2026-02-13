@@ -25,6 +25,8 @@ This reference describes SML elements currently supported by `NoCodeRunner`.
 | `Markdown` | `VBoxContainer` (rendered markdown blocks) |
 | `Image` | `TextureRect` |
 | `Spacer` | `Control` |
+| `DockSpace` | `DockSpace` (custom, `VBoxContainer`-based) |
+| `DockPanel` | `DockPanel` (custom, `PanelContainer`-based) |
 
 ## Common Properties
 
@@ -219,6 +221,36 @@ Item {
 - `cameraDistance`
 - `lightEnergy`
 - `id` (used for camera/animation action targeting)
+
+### DockSpace
+
+- `allowFloating` (`bool`, default: `true`)
+- `allowTabbing` (`bool`, default: `true`)
+- `allowSplitting` (`bool`, default: `true`)
+- `splitterSize` (`int`, default: `6`)
+
+Behavior:
+
+- If `allowSplitting` is enabled, the dock layout uses split containers with draggable split handles.
+- `splitterSize` controls the visual/interactive thickness of split separators.
+- Dock layout persistence stores both:
+  - panel state (`slot`, `tabIndex`, `active`, `floating`, `closed`)
+  - splitter offsets (panel widths/heights after manual resize)
+
+### DockPanel
+
+- `id` (`string`/identifier)
+- `title` (`string`)
+- `area` (`string`): `far-left`, `left`, `center`, `right`, `far-right`, `bottom-far-left`, `bottom-left`, `bottom-right`, `bottom-far-right`
+- `closeable` / `closable` (`bool`, default: `true`)
+- `floatable` (`bool`, default: `true`)
+- `dockable` / `moveable` / `movable` (`bool`, default: `true`)
+- `isDropTarget` (`bool`, default: `true`)
+
+Behavior:
+
+- `dockable: false` prevents re-docking via drag & drop and blocks slot changes via docking move commands.
+- `isDropTarget: false` prevents other dock panels from being dropped into that panel/slot (useful e.g. for a fixed viewport area).
 
 ## Markdown Node Behavior
 
