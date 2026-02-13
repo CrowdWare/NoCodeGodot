@@ -22,7 +22,7 @@ public static class RunnerLogger
 
     public static void Warn(string subsystem, string message)
     {
-        GD.Print($"WARNING: [{subsystem}] {message}");
+        PrintRichColored($"WARNING: [{subsystem}] {message}", "#ffd166");
     }
 
     public static void Warn(string subsystem, string message, Exception ex)
@@ -32,7 +32,12 @@ public static class RunnerLogger
 
     public static void Error(string subsystem, string message)
     {
-        GD.PrintErr($"ERROR: [{subsystem}] {message}");
+        PrintRichColored($"ERROR: [{subsystem}] {message}", "#ff6b6b");
+    }
+
+    public static void Success(string subsystem, string message)
+    {
+        PrintRichColored($"SUCCESS: [{subsystem}] {message}", "#70e000");
     }
 
     public static void Error(string subsystem, string message, Exception ex)
@@ -58,5 +63,10 @@ public static class RunnerLogger
         }
 
         return $"{message}: {ex}";
+    }
+
+    private static void PrintRichColored(string message, string colorHex)
+    {
+        GD.PrintRich($"[color={colorHex}]{message}[/color]");
     }
 }

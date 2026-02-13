@@ -59,6 +59,7 @@ public sealed class SmsUiRuntime
 
         _projectRoot = ResolveProjectRoot(_uiSmlUri);
         RegisterNativeFunctions();
+        ExecuteBootstrapGlobals();
 
         try
         {
@@ -127,18 +128,8 @@ public sealed class SmsUiRuntime
 
     private void RegisterNativeFunctions()
     {
-        _engine.RegisterFunction("Info", args =>
-        {
-            var subsystem = ArgString(args, 0);
-            if (string.IsNullOrWhiteSpace(subsystem))
-            {
-                subsystem = "SMS";
-            }
-
-            var message = ArgString(args, 1);
-            RunnerLogger.Info(subsystem, message);
-            return null;
-        });
+        _engine.RegisterFunction("__sms_fs", _ => CreateFsObject());
+        _engine.RegisterFunction("__sms_log", _ => CreateLogObject());
 
         _engine.RegisterFunction("UiExists", args =>
         {
@@ -186,27 +177,18 @@ public sealed class SmsUiRuntime
             return null;
         });
 
-        _engine.RegisterFunction("ProjectFS_List", NativeList);
+    }
 
-        _engine.RegisterFunction("ProjectFS_Exists", args =>
+    private void ExecuteBootstrapGlobals()
+    {
+        try
         {
-            var path = ArgString(args, 0);
-            return ResolveProjectFs().Exists(path);
-        });
-
-        _engine.RegisterFunction("ProjectFS_ReadText", args =>
+            _engine.Execute("var fs = __sms_fs()\nvar log = __sms_log()");
+        }
+        catch (Exception ex)
         {
-            var path = ArgString(args, 0);
-            return ResolveProjectFs().ReadText(path);
-        });
-
-        _engine.RegisterFunction("ProjectFS_WriteText", args =>
-        {
-            var path = ArgString(args, 0);
-            var text = ArgString(args, 1);
-            ResolveProjectFs().WriteText(path, text);
-            return null;
-        });
+            RunnerLogger.Error("SMS", "Failed to bootstrap global SMS objects (fs/log).", ex);
+        }
     }
 
     private void ExecuteCall(string source)
@@ -269,6 +251,69 @@ public sealed class SmsUiRuntime
             ["IsDirectory"] = new BooleanValue(e.IsDirectory)
         })).ToList();
         return new ArrayValue(items);
+    }
+
+    private ObjectValue CreateFsObject()
+    {
+        return new ObjectValue("ProjectFs", new Dictionary<string, Value>(StringComparer.Ordinal)
+        {
+            ["readText"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                return new StringValue(ResolveProjectFs().ReadText(path));
+            }),
+            ["writeText"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                var content = ValueArgString(methodArgs, 1);
+                ResolveProjectFs().WriteText(path, content);
+                return NullValue.Instance;
+            }),
+            ["exists"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                return new BooleanValue(ResolveProjectFs().Exists(path));
+            }),
+            ["list"] = new NativeFunctionValue(methodArgs =>
+            {
+                var dir = methodArgs.Count > 0 ? ValueArgString(methodArgs, 0) : ".";
+                var entries = ResolveProjectFs().List(dir);
+                var items = entries.Select(e => (Value)new ObjectValue("ProjectFsEntry", new Dictionary<string, Value>
+                {
+                    ["Path"] = new StringValue(e.Path),
+                    ["Name"] = new StringValue(e.Name),
+                    ["IsDirectory"] = new BooleanValue(e.IsDirectory)
+                })).ToList();
+                return new ArrayValue(items);
+            })
+        });
+    }
+
+    private static ObjectValue CreateLogObject()
+    {
+        return new ObjectValue("Log", new Dictionary<string, Value>(StringComparer.Ordinal)
+        {
+            ["info"] = new NativeFunctionValue(methodArgs =>
+            {
+                RunnerLogger.Info("SMS", ValueArgString(methodArgs, 0));
+                return NullValue.Instance;
+            }),
+            ["warn"] = new NativeFunctionValue(methodArgs =>
+            {
+                RunnerLogger.Warn("SMS", ValueArgString(methodArgs, 0));
+                return NullValue.Instance;
+            }),
+            ["error"] = new NativeFunctionValue(methodArgs =>
+            {
+                RunnerLogger.Error("SMS", ValueArgString(methodArgs, 0));
+                return NullValue.Instance;
+            }),
+            ["success"] = new NativeFunctionValue(methodArgs =>
+            {
+                RunnerLogger.Success("SMS", ValueArgString(methodArgs, 0));
+                return NullValue.Instance;
+            })
+        });
     }
 
     private static string TryGetSelectedTreePath(TreeView? tree)
