@@ -58,6 +58,8 @@ public sealed class NodePropertyMapper
     public const string MetaDockAllowTabbing = "sml_dockAllowTabbing";
     public const string MetaDockAllowSplitting = "sml_dockAllowSplitting";
     public const string MetaDockSplitterSize = "sml_dockSplitterSize";
+    public const string MetaMenuPreferGlobal = "sml_menuPreferGlobal";
+    public const string MetaMenuShortcut = "sml_menuShortcut";
 
     public void Apply(Control control, string propertyName, SmlValue value, Func<string, string>? resolveAssetPath = null)
     {
@@ -158,6 +160,14 @@ public sealed class NodePropertyMapper
                     return;
                 }
                 break;
+
+            case "preferglobalmenu":
+                control.SetMeta(MetaMenuPreferGlobal, Variant.From(ToBoolOrThrow(value, propertyName)));
+                return;
+
+            case "shortcut":
+                control.SetMeta(MetaMenuShortcut, Variant.From(value.AsStringOrThrow(propertyName)));
+                return;
 
             case "wrap":
                 ApplyWrap(control, ToBoolOrThrow(value, propertyName));

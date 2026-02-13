@@ -5,6 +5,7 @@ using Runtime.ThreeD;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 
 namespace Runtime.UI;
@@ -104,9 +105,18 @@ public sealed class SmlUiBuilder
             }
         }
 
+        if (string.Equals(node.Name, "MenuBar", StringComparison.OrdinalIgnoreCase))
+        {
+            BuildMenuBar(control, node);
+        }
+
         if (control is Tree treeControl && string.Equals(node.Name, "TreeView", StringComparison.OrdinalIgnoreCase))
         {
             BuildTreeViewItems(treeControl, node);
+        }
+        else if (string.Equals(node.Name, "MenuBar", StringComparison.OrdinalIgnoreCase))
+        {
+            // Menu children are consumed by BuildMenuBar.
         }
         else
         {
@@ -144,6 +154,419 @@ public sealed class SmlUiBuilder
         }
 
         return control;
+    }
+
+    private void BuildMenuBar(Control menuBarControl, SmlNode menuBarNode)
+    {
+        // Ensure app-layout runtime places the menu bar at the top even without explicit x/y/size in SML.
+        if (!menuBarControl.HasMeta(NodePropertyMapper.MetaX))
+        {
+            menuBarControl.SetMeta(NodePropertyMapper.MetaX, Variant.From(0));
+        }
+        if (!menuBarControl.HasMeta(NodePropertyMapper.MetaY))
+        {
+            menuBarControl.SetMeta(NodePropertyMapper.MetaY, Variant.From(0));
+        }
+        if (!menuBarControl.HasMeta(NodePropertyMapper.MetaHeight))
+        {
+            menuBarControl.SetMeta(NodePropertyMapper.MetaHeight, Variant.From(28));
+        }
+        if (!menuBarControl.HasMeta(NodePropertyMapper.MetaAnchorLeft))
+        {
+            menuBarControl.SetMeta(NodePropertyMapper.MetaAnchorLeft, Variant.From(true));
+        }
+        if (!menuBarControl.HasMeta(NodePropertyMapper.MetaAnchorRight))
+        {
+            menuBarControl.SetMeta(NodePropertyMapper.MetaAnchorRight, Variant.From(true));
+        }
+        if (!menuBarControl.HasMeta(NodePropertyMapper.MetaAnchorTop))
+        {
+            menuBarControl.SetMeta(NodePropertyMapper.MetaAnchorTop, Variant.From(true));
+        }
+
+        menuBarControl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        menuBarControl.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
+        menuBarControl.CustomMinimumSize = new Vector2(menuBarControl.CustomMinimumSize.X, Math.Max(menuBarControl.CustomMinimumSize.Y, 28f));
+        menuBarControl.ZIndex = 1000;
+
+        var preferGlobalMenu = false;
+        if (menuBarControl.HasMeta(NodePropertyMapper.MetaMenuPreferGlobal))
+        {
+            preferGlobalMenu = menuBarControl.GetMeta(NodePropertyMapper.MetaMenuPreferGlobal).AsBool();
+        }
+
+        var isMacOs = string.Equals(OS.GetName(), "macOS", StringComparison.OrdinalIgnoreCase);
+
+        if (menuBarControl is MenuBar nativeMenuBar)
+        {
+            nativeMenuBar.PreferGlobalMenu = isMacOs && preferGlobalMenu;
+
+            foreach (var menuNode in menuBarNode.Children.Where(c => string.Equals(c.Name, "Menu", StringComparison.OrdinalIgnoreCase)))
+            {
+                AddNativeMenuPopup(nativeMenuBar, menuNode, isMacOs && preferGlobalMenu);
+            }
+        }
+        else if (menuBarControl is BoxContainer menuBar)
+        {
+            foreach (var menuNode in menuBarNode.Children.Where(c => string.Equals(c.Name, "Menu", StringComparison.OrdinalIgnoreCase)))
+            {
+                var menuId = menuNode.TryGetProperty("id", out var menuIdValue)
+                    ? menuIdValue.AsStringOrThrow("id")
+                    : string.Empty;
+                var title = menuNode.TryGetProperty("title", out var titleValue)
+                    ? titleValue.AsStringOrThrow("title")
+                    : (string.IsNullOrWhiteSpace(menuId) ? "Menu" : menuId);
+
+                var button = new MenuButton
+                {
+                    Text = title,
+                    Name = string.IsNullOrWhiteSpace(menuId) ? $"Menu_{title}" : $"Menu_{menuId}"
+                };
+
+                if (!string.IsNullOrWhiteSpace(menuId))
+                {
+                    button.SetMeta(NodePropertyMapper.MetaId, menuId);
+                    var menuIdRuntime = IdRuntimeScope.GetOrCreate(menuId);
+                    button.SetMeta(NodePropertyMapper.MetaIdValue, menuIdRuntime.Value);
+                }
+
+                PopulateMenuButton(button, menuNode, menuId, isMacOs && preferGlobalMenu);
+                menuBar.AddChild(button);
+            }
+        }
+
+        if (menuBarControl.GetParent() is Control parent)
+        {
+            parent.MoveChild(menuBarControl, parent.GetChildCount() - 1);
+        }
+    }
+
+    private void AddNativeMenuPopup(MenuBar menuBar, SmlNode menuNode, bool globalMacMenuMode)
+    {
+        var menuId = menuNode.TryGetProperty("id", out var menuIdValue)
+            ? menuIdValue.AsStringOrThrow("id")
+            : string.Empty;
+
+        if (globalMacMenuMode && string.Equals(menuId, "appMenu", StringComparison.OrdinalIgnoreCase))
+        {
+            // Defer merge until the native menu is fully available on macOS.
+            ScheduleMacAppMenuMerge(menuBar, menuNode, menuId, attemptsLeft: 6);
+            return;
+        }
+
+        var title = menuNode.TryGetProperty("title", out var titleValue)
+            ? titleValue.AsStringOrThrow("title")
+            : (string.IsNullOrWhiteSpace(menuId) ? "Menu" : menuId);
+
+        var popup = new PopupMenu
+        {
+            Name = string.IsNullOrWhiteSpace(title) ? (string.IsNullOrWhiteSpace(menuId) ? "Menu" : menuId) : title
+        };
+
+        PopulatePopupMenu(popup, menuBar, menuNode, menuId, globalMacMenuMode);
+        menuBar.AddChild(popup);
+    }
+
+    private void PopulateMenuButton(MenuButton button, SmlNode menuNode, string menuId, bool globalMacMenuMode)
+    {
+        var popup = button.GetPopup();
+        PopulatePopupMenu(popup, button, menuNode, menuId, globalMacMenuMode);
+    }
+
+    private void PopulatePopupMenu(PopupMenu popup, Control dispatchSource, SmlNode menuNode, string menuId, bool globalMacMenuMode)
+    {
+        popup.Clear();
+
+        var actionMap = new Dictionary<long, (string MenuId, string ItemId)>();
+        var hasSettingsItem = false;
+        string? appMenuAboutText = null;
+        string? appMenuQuitText = null;
+        long itemIdSeed = 1;
+
+        foreach (var child in menuNode.Children)
+        {
+            if (string.Equals(child.Name, "Separator", StringComparison.OrdinalIgnoreCase))
+            {
+                popup.AddSeparator();
+                continue;
+            }
+
+            if (!string.Equals(child.Name, "MenuItem", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var text = child.TryGetProperty("text", out var textValue)
+                ? textValue.AsStringOrThrow("text")
+                : "Menu Item";
+            var itemId = child.TryGetProperty("id", out var itemIdValue)
+                ? itemIdValue.AsStringOrThrow("id")
+                : $"item_{itemIdSeed}";
+
+            if (string.IsNullOrWhiteSpace(text) && string.Equals(itemId, "about", StringComparison.OrdinalIgnoreCase))
+            {
+                text = "About";
+            }
+            else if (string.IsNullOrWhiteSpace(text) && string.Equals(itemId, "quit", StringComparison.OrdinalIgnoreCase))
+            {
+                text = "Quit";
+            }
+            else if (string.IsNullOrWhiteSpace(text))
+            {
+                text = itemId;
+            }
+
+            if (string.Equals(itemId, "settings", StringComparison.OrdinalIgnoreCase))
+            {
+                hasSettingsItem = true;
+            }
+
+            if (globalMacMenuMode
+                && string.Equals(menuId, "appMenu", StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(itemId, "about", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(itemId, "quit", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (string.Equals(itemId, "about", StringComparison.OrdinalIgnoreCase))
+                {
+                    appMenuAboutText = text;
+                }
+                else
+                {
+                    appMenuQuitText = text;
+                }
+
+                // On macOS global menu, About/Quit are system entries and should be merged/replaced,
+                // not duplicated as extra items.
+                continue;
+            }
+
+            popup.AddItem(text, (int)itemIdSeed);
+            actionMap[itemIdSeed] = (menuId, itemId);
+            itemIdSeed++;
+        }
+
+        if (globalMacMenuMode
+            && string.Equals(menuId, "appMenu", StringComparison.OrdinalIgnoreCase)
+            && !hasSettingsItem)
+        {
+            popup.AddSeparator();
+            popup.AddItem("Settings", (int)itemIdSeed);
+            actionMap[itemIdSeed] = (menuId, "settings");
+        }
+
+        if (globalMacMenuMode && string.Equals(menuId, "appMenu", StringComparison.OrdinalIgnoreCase))
+        {
+            MergeMacSystemAppMenu(
+                dispatchSource,
+                menuId,
+                appMenuAboutText,
+                settingsText: null,
+                appMenuQuitText,
+                hasSettings: hasSettingsItem);
+        }
+
+        popup.IdPressed += id =>
+        {
+            if (!actionMap.TryGetValue(id, out var mapped))
+            {
+                return;
+            }
+
+            var sourceId = string.IsNullOrWhiteSpace(mapped.MenuId) ? "menu" : mapped.MenuId;
+            var clickedId = mapped.ItemId;
+            _actionDispatcher.Dispatch(new UiActionContext(
+                Source: dispatchSource,
+                SourceId: sourceId,
+                SourceIdValue: IdRuntimeScope.GetOrCreate(sourceId),
+                Action: "menuItemSelected",
+                Clicked: clickedId,
+                ClickedIdValue: IdRuntimeScope.GetOrCreate(clickedId)
+            ));
+        };
+    }
+
+    private void MergeMacSystemAppMenuFromSml(Control dispatchSource, SmlNode menuNode, string menuId, int attemptsLeft)
+    {
+        string? aboutText = null;
+        string? settingsText = null;
+        string? quitText = null;
+        var hasSettings = false;
+
+        foreach (var child in menuNode.Children)
+        {
+            if (!string.Equals(child.Name, "MenuItem", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var itemId = child.TryGetProperty("id", out var itemIdValue)
+                ? itemIdValue.AsStringOrThrow("id")
+                : string.Empty;
+            var text = child.TryGetProperty("text", out var textValue)
+                ? textValue.AsStringOrThrow("text")
+                : string.Empty;
+
+            if (string.Equals(itemId, "about", StringComparison.OrdinalIgnoreCase))
+            {
+                aboutText = text;
+            }
+            else if (string.Equals(itemId, "settings", StringComparison.OrdinalIgnoreCase))
+            {
+                settingsText = text;
+                hasSettings = true;
+            }
+            else if (string.Equals(itemId, "quit", StringComparison.OrdinalIgnoreCase))
+            {
+                quitText = text;
+            }
+        }
+
+        var merged = MergeMacSystemAppMenu(dispatchSource, menuId, aboutText, settingsText, quitText, hasSettings);
+        if (!merged && attemptsLeft > 0)
+        {
+            ScheduleMacAppMenuMerge(dispatchSource, menuNode, menuId, attemptsLeft - 1);
+        }
+    }
+
+    private void ScheduleMacAppMenuMerge(Control dispatchSource, SmlNode menuNode, string menuId, int attemptsLeft)
+    {
+        if (!GodotObject.IsInstanceValid(dispatchSource))
+        {
+            return;
+        }
+
+        if (!dispatchSource.IsInsideTree())
+        {
+            if (attemptsLeft <= 0)
+            {
+                return;
+            }
+
+            void OnTreeEntered()
+            {
+                dispatchSource.TreeEntered -= OnTreeEntered;
+                ScheduleMacAppMenuMerge(dispatchSource, menuNode, menuId, attemptsLeft);
+            }
+
+            dispatchSource.TreeEntered += OnTreeEntered;
+            return;
+        }
+
+        var tree = dispatchSource.GetTree();
+        if (tree is null)
+        {
+            return;
+        }
+
+        var timer = tree.CreateTimer(0.05);
+        timer.Timeout += () => MergeMacSystemAppMenuFromSml(dispatchSource, menuNode, menuId, attemptsLeft);
+    }
+
+    private bool MergeMacSystemAppMenu(Control dispatchSource, string menuId, string? aboutText, string? settingsText, string? quitText, bool hasSettings)
+    {
+        if (!string.Equals(OS.GetName(), "macOS", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!Engine.HasSingleton("NativeMenu"))
+        {
+            return false;
+        }
+
+        var singleton = Engine.GetSingleton("NativeMenu");
+        if (singleton is not NativeMenuInstance nativeMenu)
+        {
+            return false;
+        }
+
+        if (!nativeMenu.HasSystemMenu(NativeMenu.SystemMenus.ApplicationMenuId))
+        {
+            return false;
+        }
+
+        var appMenuRid = nativeMenu.GetSystemMenu(NativeMenu.SystemMenus.ApplicationMenuId);
+        var itemCount = nativeMenu.GetItemCount(appMenuRid);
+        var aboutIndex = -1;
+        var settingsIndex = -1;
+        var quitIndex = -1;
+
+        for (var i = 0; i < itemCount; i++)
+        {
+            var text = nativeMenu.GetItemText(appMenuRid, i);
+            if (aboutIndex < 0 && text.StartsWith("About", StringComparison.OrdinalIgnoreCase))
+            {
+                aboutIndex = i;
+            }
+
+            if (settingsIndex < 0
+                && (text.StartsWith("Settings", StringComparison.OrdinalIgnoreCase)
+                    || text.StartsWith("Preferences", StringComparison.OrdinalIgnoreCase)))
+            {
+                settingsIndex = i;
+            }
+
+            if (quitIndex < 0 && text.StartsWith("Quit", StringComparison.OrdinalIgnoreCase))
+            {
+                quitIndex = i;
+            }
+        }
+
+        if (aboutIndex >= 0)
+        {
+            if (!string.IsNullOrWhiteSpace(aboutText))
+            {
+                nativeMenu.SetItemText(appMenuRid, aboutIndex, aboutText);
+            }
+
+            nativeMenu.SetItemTag(appMenuRid, aboutIndex, Variant.From("about"));
+            nativeMenu.SetItemCallback(appMenuRid, aboutIndex, Callable.From(() =>
+            {
+                DispatchMenuSelection(dispatchSource, menuId, "about");
+            }));
+        }
+
+        if (hasSettings && settingsIndex >= 0)
+        {
+            if (!string.IsNullOrWhiteSpace(settingsText))
+            {
+                nativeMenu.SetItemText(appMenuRid, settingsIndex, settingsText);
+            }
+
+            nativeMenu.SetItemTag(appMenuRid, settingsIndex, Variant.From("settings"));
+            nativeMenu.SetItemCallback(appMenuRid, settingsIndex, Callable.From(() =>
+            {
+                DispatchMenuSelection(dispatchSource, menuId, "settings");
+            }));
+        }
+
+        if (quitIndex >= 0)
+        {
+            if (!string.IsNullOrWhiteSpace(quitText))
+            {
+                nativeMenu.SetItemText(appMenuRid, quitIndex, quitText);
+            }
+
+            nativeMenu.SetItemTag(appMenuRid, quitIndex, Variant.From("quit"));
+            nativeMenu.SetItemCallback(appMenuRid, quitIndex, Callable.From(() =>
+            {
+                DispatchMenuSelection(dispatchSource, menuId, "quit");
+            }));
+        }
+
+        return aboutIndex >= 0 || settingsIndex >= 0 || quitIndex >= 0;
+    }
+
+    private void DispatchMenuSelection(Control source, string menuId, string itemId)
+    {
+        _actionDispatcher.Dispatch(new UiActionContext(
+            Source: source,
+            SourceId: menuId,
+            SourceIdValue: IdRuntimeScope.GetOrCreate(menuId),
+            Action: "menuItemSelected",
+            Clicked: itemId,
+            ClickedIdValue: IdRuntimeScope.GetOrCreate(itemId)
+        ));
     }
 
     private static void ApplyDefaultLayoutMode(Control control, string nodeName)

@@ -37,6 +37,10 @@ fun populateTreeChildren(treeObj, parentHandle, dirPath) {
     }
 }
 
+fun menuItemSelected(menu, item) {
+    log.info("menuItemSelected -> menu=${menu}, item='${item}'")
+}
+
 fun treeItemSelected(treeView, itemText, itemPath) {
     log.info("treeItemSelected -> treeView=${treeView}, text='${itemText}'")
 

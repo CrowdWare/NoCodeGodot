@@ -76,6 +76,48 @@ public partial class Main : Node
 		}
 	}
 
+	public override void _Notification(int what)
+	{
+		if (what == NotificationWMAbout)
+		{
+			DispatchMacAboutAsMenuItemSelected();
+		}
+
+		base._Notification(what);
+	}
+
+	private void DispatchMacAboutAsMenuItemSelected()
+	{
+		if (!string.Equals(OS.GetName(), "macOS", StringComparison.OrdinalIgnoreCase))
+		{
+			return;
+		}
+
+		if (_uiDispatcher is null)
+		{
+			RunnerLogger.Warn("UI", "Received macOS About notification, but UI dispatcher is not initialized yet.");
+			return;
+		}
+
+		var source = _runtimeUiRoot ?? _runtimeUiHost;
+		if (source is null)
+		{
+			RunnerLogger.Warn("UI", "Received macOS About notification, but no runtime UI source control is available.");
+			return;
+		}
+
+		RunnerLogger.Info("UI", "Received macOS About notification -> dispatch menuItemSelected(appMenu, about).");
+
+		_uiDispatcher.Dispatch(new UiActionContext(
+			Source: source,
+			SourceId: "appMenu",
+			SourceIdValue: IdRuntimeScope.GetOrCreate("appMenu"),
+			Action: "menuItemSelected",
+			Clicked: "about",
+			ClickedIdValue: IdRuntimeScope.GetOrCreate("about")
+		));
+	}
+
 	private async Task<string> ResolveStartupUiUrlAsync()
 	{
 		var options = ParseStartupOptions();

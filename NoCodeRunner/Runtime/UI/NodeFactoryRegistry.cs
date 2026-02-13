@@ -60,6 +60,10 @@ public sealed class NodeFactoryRegistry
         Register("Tab", () => new VBoxContainer());
         Register("DockSpace", () => new DockSpace());
         Register("DockPanel", () => new DockPanel());
+        Register("MenuBar", () => new MenuBar());
+        Register("Menu", () => new Control());
+        Register("MenuItem", () => new Control());
+        Register("Separator", () => new Control());
         Register("Slider", () => new HSlider());
         Register("Video", () => new VideoStreamPlayer());
         Register("Viewport3D", () => new Viewport3DControl());

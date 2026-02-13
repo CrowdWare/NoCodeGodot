@@ -99,6 +99,7 @@
 - [x] tasks/docking_tabs_reordering.md
 - [x] tasks/docking_dragdrop_ux.md
 - [x] tasks/docking_layout_persistence.md
+- [ ] tasks/mainmenu.md
 
 ## Tasks for NoCodeDesigner
 - [ ] Lifecycle-Template für neue Scripts einführen (OnInit / OnReadyAsync sichtbar als optionaler Einstieg)

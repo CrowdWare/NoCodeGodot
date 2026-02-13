@@ -99,6 +99,13 @@ public sealed class SmsUiRuntime
             ExecuteCall($"treeItemToggled({Quote(treeId)}, {Quote(treeText)}, {Quote(selectedPath)}, {isOn})");
         });
 
+        dispatcher.RegisterActionHandler("menuItemSelected", ctx =>
+        {
+            var menuId = ctx.SourceId;
+            var itemId = ctx.Clicked;
+            ExecuteCall($"menuItemSelected({Quote(menuId)}, {Quote(itemId)})");
+        });
+
         // SMS should own save behavior so codeEdit.onSave(...) callbacks always fire,
         // even if a generic fallback handler was registered earlier.
         dispatcher.RegisterActionHandler("save", ctx =>

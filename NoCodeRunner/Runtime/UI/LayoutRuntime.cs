@@ -72,6 +72,8 @@ public static class LayoutRuntime
 
     private static void ResolveAppChildren(Control parent)
     {
+        var menuTopInset = CalculateMenuTopInset(parent);
+
         foreach (Node childNode in parent.GetChildren())
         {
             if (childNode is not Control child)
@@ -138,6 +140,16 @@ public static class LayoutRuntime
                 y = top;
             }
 
+            if (menuTopInset > 0f && !IsMenuBarNode(child))
+            {
+                y += menuTopInset;
+
+                if (anchorTop && anchorBottom)
+                {
+                    height = Math.Max(0f, height - menuTopInset);
+                }
+            }
+
             child.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
             child.SetOffsetsPreset(Control.LayoutPreset.TopLeft);
             child.Position = new Vector2(x, y);
@@ -148,6 +160,35 @@ public static class LayoutRuntime
                 $"[layout/app] child={GetMetaString(child, NodePropertyMapper.MetaNodeName)}, parent={GetMetaString(parent, NodePropertyMapper.MetaNodeName)}, rect={x:0},{y:0},{width:0},{height:0}, anchors(LRTB)={anchorLeft}/{anchorRight}/{anchorTop}/{anchorBottom}, centerXY={centerX}/{centerY}"
             );
         }
+    }
+
+    private static float CalculateMenuTopInset(Control parent)
+    {
+        var inset = 0f;
+        foreach (Node childNode in parent.GetChildren())
+        {
+            if (childNode is not Control child || !IsMenuBarNode(child))
+            {
+                continue;
+            }
+
+            var isMac = string.Equals(OS.GetName(), "macOS", StringComparison.OrdinalIgnoreCase);
+            var preferGlobal = child.HasMeta(NodePropertyMapper.MetaMenuPreferGlobal)
+                && child.GetMeta(NodePropertyMapper.MetaMenuPreferGlobal).AsBool();
+
+            // Global macOS menu does not consume in-window layout space.
+            if (isMac && preferGlobal)
+            {
+                continue;
+            }
+
+            var height = child.HasMeta(NodePropertyMapper.MetaHeight)
+                ? child.GetMeta(NodePropertyMapper.MetaHeight).AsSingle()
+                : Math.Max(child.Size.Y, child.CustomMinimumSize.Y);
+            inset = Math.Max(inset, Math.Max(0f, height));
+        }
+
+        return inset;
     }
 
     private static bool HasAnyAppGeometryMetadata(Control control)
@@ -178,12 +219,21 @@ public static class LayoutRuntime
 
         var x = child.HasMeta(NodePropertyMapper.MetaX) ? child.GetMeta(NodePropertyMapper.MetaX).AsSingle() : child.Position.X;
         var y = child.HasMeta(NodePropertyMapper.MetaY) ? child.GetMeta(NodePropertyMapper.MetaY).AsSingle() : child.Position.Y;
+        var anchorLeft = GetMetaBool(child, NodePropertyMapper.MetaAnchorLeft);
+        var anchorRight = GetMetaBool(child, NodePropertyMapper.MetaAnchorRight);
+        var anchorTop = GetMetaBool(child, NodePropertyMapper.MetaAnchorTop);
+        var anchorBottom = GetMetaBool(child, NodePropertyMapper.MetaAnchorBottom);
+
         var width = child.HasMeta(NodePropertyMapper.MetaWidth)
             ? child.GetMeta(NodePropertyMapper.MetaWidth).AsSingle()
-            : Math.Max(child.Size.X, child.CustomMinimumSize.X);
+            : (anchorLeft && anchorRight
+                ? Math.Max(0f, parentSize.X - x)
+                : Math.Max(child.Size.X, child.CustomMinimumSize.X));
         var height = child.HasMeta(NodePropertyMapper.MetaHeight)
             ? child.GetMeta(NodePropertyMapper.MetaHeight).AsSingle()
-            : Math.Max(child.Size.Y, child.CustomMinimumSize.Y);
+            : (anchorTop && anchorBottom
+                ? Math.Max(0f, parentSize.Y - y)
+                : Math.Max(child.Size.Y, child.CustomMinimumSize.Y));
 
         child.SetMeta(MetaBaseLeft, Variant.From(x));
         child.SetMeta(MetaBaseTop, Variant.From(y));
@@ -191,6 +241,12 @@ public static class LayoutRuntime
         child.SetMeta(MetaBaseHeight, Variant.From(height));
         child.SetMeta(MetaBaseRight, Variant.From(parentSize.X - x - width));
         child.SetMeta(MetaBaseBottom, Variant.From(parentSize.Y - y - height));
+    }
+
+    private static bool IsMenuBarNode(Control control)
+    {
+        var nodeName = GetMetaString(control, NodePropertyMapper.MetaNodeName);
+        return nodeName.Equals("MenuBar", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsDocumentNode(string nodeName)

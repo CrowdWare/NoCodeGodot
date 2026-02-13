@@ -97,6 +97,10 @@ public sealed class SmlUiLoader
         schema.RegisterKnownNode("Tab");
         schema.RegisterKnownNode("DockSpace");
         schema.RegisterKnownNode("DockPanel");
+        schema.RegisterKnownNode("MenuBar");
+        schema.RegisterKnownNode("Menu");
+        schema.RegisterKnownNode("MenuItem");
+        schema.RegisterKnownNode("Separator");
         schema.RegisterKnownNode("Slider");
         schema.RegisterKnownNode("TreeView");
         schema.RegisterKnownNode("Item");

@@ -5,6 +5,31 @@ Window {
     pos: 448, 156 // centered
     size: 1024, 768
 
+    MenuBar {
+        id: mainMenu
+        preferGlobalMenu: true
+
+        Menu {
+            id: appMenu
+            title: "Programm" 
+
+            MenuItem { text: "About NoCodeDesigner"  id: about }
+            MenuItem { text: "Settings" id: settings}
+            Separator {}
+            MenuItem { text: "Quit NoCodeDesigner" id: quit shortcut: "Cmd+Q" }
+        }
+
+        Menu { 
+            title: "File"  
+            MenuItem { text: "New"  id: newFile }
+            MenuItem { text: "Open"  id: openFile }
+            MenuItem { text: "Save"  id: saveFile }
+            MenuItem { text: "Save As"  id: saveFileAs }
+        }
+        Menu { title: "Edit"  }
+        Menu { title: "View"  }
+    }
+
     Panel {
         id: leftPanel
         anchors: top | left | bottom

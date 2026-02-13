@@ -27,6 +27,10 @@ This reference describes SML elements currently supported by `NoCodeRunner`.
 | `Spacer` | `Control` |
 | `DockSpace` | `DockSpace` (custom, `VBoxContainer`-based) |
 | `DockPanel` | `DockPanel` (custom, `PanelContainer`-based) |
+| `MenuBar` | `MenuBar` |
+| `Menu` | `MenuButton` (built from SML `Menu` data) |
+| `MenuItem` | `PopupMenu` item (built from SML `MenuItem` data) |
+| `Separator` | `PopupMenu` separator |
 
 ## Common Properties
 
@@ -251,6 +255,44 @@ Behavior:
 
 - `dockable: false` prevents re-docking via drag & drop and blocks slot changes via docking move commands.
 - `isDropTarget: false` prevents other dock panels from being dropped into that panel/slot (useful e.g. for a fixed viewport area).
+
+### MenuBar / Menu / MenuItem
+
+`MenuBar` supports:
+
+- `id`
+- `preferGlobalMenu` (`bool`, default platform behavior)
+
+`Menu` supports:
+
+- `id`
+- `title`
+
+`MenuItem` supports:
+
+- `id`
+- `text`
+- `shortcut` (stored as metadata; visual shortcut rendering is runtime/platform dependent)
+
+`Separator` has no properties.
+
+Runtime behavior:
+
+- Menu clicks dispatch action `menuItemSelected` with:
+  - `SourceId` = menu id
+  - `Clicked` = menu item id
+- Companion SMS scripts can handle this via:
+
+```sms
+fun menuItemSelected(menu, id) {
+    log.info("menuItemSelected -> menu=${menu}, id=${id}")
+}
+```
+
+macOS notes:
+
+- If `preferGlobalMenu: true`, the runtime prefers global menu integration.
+- For `appMenu`, a `settings` entry is auto-added when missing.
 
 ## Markdown Node Behavior
 
