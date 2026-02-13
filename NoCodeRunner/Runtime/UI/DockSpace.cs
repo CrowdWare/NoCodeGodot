@@ -33,8 +33,6 @@ public partial class DockSpace : VBoxContainer
     private readonly Dictionary<string, Window> _floatingWindows = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Action> _floatingCloseHandlers = new(StringComparer.OrdinalIgnoreCase);
 
-    private MenuButton? _closedPanelsMenuButton;
-    private bool _closedMenuConnected;
     private bool _isDockDragActive;
     private bool _isDockDragCandidate;
     private Vector2 _dragStartGlobal;
@@ -257,7 +255,6 @@ public partial class DockSpace : VBoxContainer
         state.IsFloating = false;
         state.LastDockedSlot = state.CurrentSlot;
         RefreshSideColumnLayout(state.CurrentSlot);
-        UpdateClosedPanelsMenu();
         return true;
     }
 
@@ -285,7 +282,6 @@ public partial class DockSpace : VBoxContainer
         DockPanelIntoSlot(panel, slotTabs, targetSlot);
         state.IsClosed = false;
         state.IsFloating = false;
-        UpdateClosedPanelsMenu();
         return true;
     }
 
@@ -367,9 +363,6 @@ public partial class DockSpace : VBoxContainer
             var slotTabs = _slotTabs[slot];
             DockPanelIntoSlot(panel, slotTabs, slot);
         }
-
-        EnsureClosedPanelsMenuButton();
-        UpdateClosedPanelsMenu();
 
         _defaultLayoutState ??= CloneLayoutState(CaptureLayoutState());
         LoadLayout();
@@ -648,67 +641,13 @@ public partial class DockSpace : VBoxContainer
         {
             RefreshSideColumnLayout(sideColumn);
         }
-    }
 
-    private void EnsureClosedPanelsMenuButton()
-    {
-        if (_closedPanelsMenuButton is not null)
-        {
-            return;
-        }
-
-        _closedPanelsMenuButton = new MenuButton
-        {
-            Name = "ClosedDocksMenu",
-            Text = "Docks",
-            SizeFlagsHorizontal = SizeFlags.ShrinkEnd,
-            SizeFlagsVertical = SizeFlags.ShrinkCenter
-        };
-
-        AddChild(_closedPanelsMenuButton);
-        MoveChild(_closedPanelsMenuButton, 0);
+        RecomputeSideColumnWidthHints();
     }
 
     private void UpdateClosedPanelsMenu()
     {
-        if (_closedPanelsMenuButton is null)
-        {
-            return;
-        }
-
-        var popup = _closedPanelsMenuButton.GetPopup();
-        popup.Clear();
-
-        var closedPanels = GetClosedPanels();
-        if (closedPanels.Count == 0)
-        {
-            popup.AddItem("No closed docks");
-            popup.SetItemDisabled(0, true);
-            return;
-        }
-
-        for (var i = 0; i < closedPanels.Count; i++)
-        {
-            var panel = closedPanels[i];
-            popup.AddItem(panel.Title, i);
-        }
-
-        if (!_closedMenuConnected)
-        {
-            popup.IdPressed += OnClosedPanelsMenuIdPressed;
-            _closedMenuConnected = true;
-        }
-    }
-
-    private void OnClosedPanelsMenuIdPressed(long id)
-    {
-        var closedPanels = GetClosedPanels();
-        if (id < 0 || id >= closedPanels.Count)
-        {
-            return;
-        }
-
-        ReopenPanel(closedPanels[(int)id].Id);
+        // Intentionally left blank: closed-docks popup was removed from DockSpace UI.
     }
 
     private void OnDockPanelCommandRequested(string panelId, string command)
@@ -1191,7 +1130,8 @@ public partial class DockSpace : VBoxContainer
             RefreshSideColumnLayout(previousSlot.Value);
         }
 
-        UpdateClosedPanelsMenu();
+        RecomputeSideColumnWidthHints();
+
     }
 
     private DockPanel? FindPanel(string panelId)
@@ -1259,6 +1199,8 @@ public partial class DockSpace : VBoxContainer
 
             RefreshSideColumnLayout(slot);
         }
+
+        RecomputeSideColumnWidthHints();
 
         UpdateAllSlotInteractionRules();
 
@@ -1376,5 +1318,60 @@ public partial class DockSpace : VBoxContainer
     private static bool IsAlive(GodotObject? instance)
     {
         return instance is not null && GodotObject.IsInstanceValid(instance);
+    }
+
+    private void RecomputeSideColumnWidthHints()
+    {
+        foreach (var sideColumn in _sideColumnsBySlot.Values.Distinct())
+        {
+            if (!IsAlive(sideColumn.TopTabs) || !IsAlive(sideColumn.BottomTabs))
+            {
+                continue;
+            }
+
+            var widthHint = Math.Max(
+                ResolveSlotWidthHint(sideColumn.TopSlot, sideColumn.TopTabs),
+                ResolveSlotWidthHint(sideColumn.BottomSlot, sideColumn.BottomTabs));
+
+            var width = Math.Max(0, widthHint);
+            sideColumn.TopTabs.CustomMinimumSize = new Vector2(width, sideColumn.TopTabs.CustomMinimumSize.Y);
+            sideColumn.BottomTabs.CustomMinimumSize = new Vector2(width, sideColumn.BottomTabs.CustomMinimumSize.Y);
+        }
+
+        // Center panel width is intentionally layout-driven and should fill remaining space.
+        if (_slotTabs.TryGetValue(DockSlotId.Center, out var centerTabs) && IsAlive(centerTabs))
+        {
+            centerTabs.CustomMinimumSize = new Vector2(0f, centerTabs.CustomMinimumSize.Y);
+        }
+    }
+
+    private static int ResolveSlotWidthHint(DockSlotId slot, TabContainer tabs)
+    {
+        if (slot == DockSlotId.Center)
+        {
+            return 0;
+        }
+
+        var maxWidth = 0;
+        foreach (var child in tabs.GetChildren())
+        {
+            if (child is not DockPanel panel)
+            {
+                continue;
+            }
+
+            if (!panel.HasMeta(NodePropertyMapper.MetaWidth))
+            {
+                continue;
+            }
+
+            var width = panel.GetMeta(NodePropertyMapper.MetaWidth).AsInt32();
+            if (width > maxWidth)
+            {
+                maxWidth = width;
+            }
+        }
+
+        return maxWidth;
     }
 }

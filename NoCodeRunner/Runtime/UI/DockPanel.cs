@@ -90,6 +90,7 @@ public partial class DockPanel : PanelContainer
             if (_titleLabel is not null)
             {
                 _titleLabel.Text = ResolvePanelTitle();
+                _titleLabel.Visible = false; // TabContainer tab already shows the panel title.
             }
             return;
         }
@@ -119,7 +120,8 @@ public partial class DockPanel : PanelContainer
             Name = "Title",
             Text = ResolvePanelTitle(),
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            Visible = false
         };
 
         var menuButton = new MenuButton

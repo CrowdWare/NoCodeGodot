@@ -30,40 +30,52 @@ Window {
         Menu { title: "View"  }
     }
 
-    Panel {
-        id: leftPanel
-        anchors: top | left | bottom
-        width: 300
+    DockSpace {
+        id: editorDock
+        allowFloating: true
+        allowTabbing: true
+        allowSplitting: true
+        splitterSize: 6
 
-        TreeView {
-            id: treeview
-            showGuides: false
+        DockPanel {
+            id: leftTop
+            title: "Projekt"
+            area: "left"
+            width: 300
+
+            TreeView {
+                id: treeview
+                showGuides: false
+            }
         }
-    }
 
-    Panel {
-        id: middlePanel
-        anchors: top | bottom | right | left
-        x: 300
-        width: 300
+        DockPanel {
+            id: viewport
+            title: "Viewport"
+            area: "center"
+            closeable: false
+            floatable: false
+            dockable: false
+            isDropTarget: false
 
-        CodeEdit {
-            id: codeEdit
-            text: "Window { titel: \"Test\"}"     
-            syntax: "sml"       
+            CodeEdit {
+                id: codeEdit
+                text: "Window { titel: \"Test\"}"     
+                syntax: "sml"       
+            }
         }
-    }
 
-    Panel {
-        id: rightPanel
-        anchors: top | right | bottom
-        x: 600
-        width: 600
-        
-        Markdown {
-            layoutMode: document
-            padding: 8,8,8,20
-            src: "res:/sample.md"
+        DockPanel {
+            id: rightTop
+            title: "Markdown"
+            area: "right"
+            width: 300
+
+            Markdown {
+                layoutMode: document
+                padding: 8,8,8,20
+                src: "res:/sample.md"
+            }
         }
     }
 }
