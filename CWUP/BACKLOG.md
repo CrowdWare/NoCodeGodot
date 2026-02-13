@@ -101,6 +101,7 @@
 - [x] tasks/docking_layout_persistence.md
 - [x] tasks/mainmenu.md
 - [ ] tasks/issues.md
+- [ ] tasks/missing_features.md
 
 ## Tasks for NoCodeDesigner
 - [ ] Lifecycle-Template für neue Scripts einführen (OnInit / OnReadyAsync sichtbar als optionaler Einstieg)
