@@ -45,7 +45,7 @@ public partial class Main : Node
 	private readonly NodePropertyMapper _nodePropertyMapper = new();
 	private readonly List<IUiActionModule> _uiActionModules = [];
 	private UiActionDispatcher? _uiDispatcher;
-	private DynamicUiActionModuleLoader? _dynamicUiActionModuleLoader;
+	private SmsUiRuntime? _smsUiRuntime;
 	private Control? _runtimeUiHost;
 	private Control? _runtimeUiRoot;
 	private SubViewport? _fixedUiViewport;
@@ -227,7 +227,8 @@ public partial class Main : Node
 	private async Task RunUiStartup()
 	{
 		var uiUrl = _resolvedStartupUiUrl ?? BuildFallbackAppFileUrl();
-		await LoadDynamicUiActionModulesAsync(uiUrl);
+		_smsUiRuntime = new SmsUiRuntime(_uriResolver, uiUrl);
+		await _smsUiRuntime.InitializeAsync();
 
 		try
 		{
@@ -241,6 +242,7 @@ public partial class Main : Node
 			AttachUi(rootControl);
 			Runtime.Logging.RunnerLogger.Info("UI", $"UI loaded from '{uiUrl}'.");
 			await InvokeUiReadyHandlersAsync();
+			_smsUiRuntime?.InvokeReady();
 		}
 		catch (Exception ex)
 		{
@@ -315,32 +317,6 @@ public partial class Main : Node
 			{
 				RunnerLogger.Warn("UI", $"Action module '{moduleType.FullName}' failed during OnReady invocation.", ex);
 			}
-		}
-	}
-
-	private async Task LoadDynamicUiActionModulesAsync(string uiUrl)
-	{
-		_dynamicUiActionModuleLoader ??= new DynamicUiActionModuleLoader(_uriResolver);
-		IReadOnlyList<IUiActionModule> dynamicModules;
-		try
-		{
-			dynamicModules = await _dynamicUiActionModuleLoader.TryLoadCompanionModulesAsync(uiUrl);
-		}
-		catch (Exception ex)
-		{
-			RunnerLogger.Warn("UI", $"Dynamic module discovery failed for '{uiUrl}'.", ex);
-			return;
-		}
-
-		if (dynamicModules.Count == 0)
-		{
-			return;
-		}
-
-		foreach (var module in dynamicModules)
-		{
-			_uiActionModules.Add(module);
-			RunnerLogger.Info("UI", $"Loaded dynamic action module: {module.GetType().FullName}");
 		}
 	}
 
@@ -825,6 +801,7 @@ public partial class Main : Node
 	private void ConfigureProjectActions(UiActionDispatcher dispatcher)
 	{
 		_uiDispatcher = dispatcher;
+		_smsUiRuntime?.BindDispatcher(dispatcher);
 
 		foreach (var module in _uiActionModules)
 		{
@@ -917,6 +894,12 @@ public partial class Main : Node
 				}
 			}
 		}
+	}
+
+	public bool TryGetDispatcher(out UiActionDispatcher dispatcher)
+	{
+		dispatcher = _uiDispatcher!;
+		return dispatcher is not null;
 	}
 
 	private static string BuildDefaultSampleUiFileUrl()

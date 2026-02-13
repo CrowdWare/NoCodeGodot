@@ -23,7 +23,7 @@ Window {
         width: 300
 
         CodeEdit {
-
+            id: codeEdit
             text: "Window { titel: \"Test\"}"     
             syntax: "sml"       
         }

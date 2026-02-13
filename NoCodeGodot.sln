@@ -8,6 +8,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SMLCore.Tests", "SMLCore.Te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NoCodeRunner", "NoCodeRunner\NoCodeRunner.csproj", "{B5A4A809-2D41-7A00-3F8D-6E87C9F87F29}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SMSCore", "SMSCore\SMSCore.csproj", "{5D4EAB95-2A5F-4A88-9E9C-6F6D0838C765}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SMSCore.Tests", "SMSCore.Tests\SMSCore.Tests.csproj", "{3FA37F1C-8844-4D31-BF07-0E212F3047C7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,6 +30,14 @@ Global
 		{B5A4A809-2D41-7A00-3F8D-6E87C9F87F29}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B5A4A809-2D41-7A00-3F8D-6E87C9F87F29}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B5A4A809-2D41-7A00-3F8D-6E87C9F87F29}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5D4EAB95-2A5F-4A88-9E9C-6F6D0838C765}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5D4EAB95-2A5F-4A88-9E9C-6F6D0838C765}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5D4EAB95-2A5F-4A88-9E9C-6F6D0838C765}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5D4EAB95-2A5F-4A88-9E9C-6F6D0838C765}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3FA37F1C-8844-4D31-BF07-0E212F3047C7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3FA37F1C-8844-4D31-BF07-0E212F3047C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3FA37F1C-8844-4D31-BF07-0E212F3047C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3FA37F1C-8844-4D31-BF07-0E212F3047C7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

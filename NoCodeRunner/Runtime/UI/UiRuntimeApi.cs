@@ -162,6 +162,38 @@ public static class UiRuntimeApi
             ));
         };
 
+        tree.ItemCollapsed += item =>
+        {
+            if (item is null)
+            {
+                return;
+            }
+
+            var sourceId = tree.HasMeta(NodePropertyMapper.MetaId)
+                ? tree.GetMeta(NodePropertyMapper.MetaId).AsString()
+                : string.Empty;
+            var sourceIdValue = tree.HasMeta(NodePropertyMapper.MetaIdValue)
+                ? new Id(tree.GetMeta(NodePropertyMapper.MetaIdValue).AsInt32())
+                : new Id(0);
+
+            dispatcher.Dispatch(new UiActionContext(
+                Source: tree,
+                SourceId: sourceId,
+                SourceIdValue: sourceIdValue,
+                Action: "treeItemToggled",
+                Clicked: string.Empty,
+                ClickedIdValue: new Id(0),
+                BoolValue: !item.Collapsed,
+                ItemId: new Id(0),
+                TreeItem: new TreeViewItem
+                {
+                    Id = 0,
+                    Text = item.GetText(0),
+                    Expanded = !item.Collapsed
+                }
+            ));
+        };
+
         RunnerLogger.Info("UI", $"Bound dynamic TreeView events for '{sourceIdForLog(tree)}'.");
     }
 
