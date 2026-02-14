@@ -277,6 +277,12 @@ public sealed class SmlUiBuilder
     private void PopulateMenuButton(MenuButton button, SmlNode menuNode, string menuId, bool globalMacMenuMode)
     {
         var popup = button.GetPopup();
+        if (!string.IsNullOrWhiteSpace(menuId))
+        {
+            popup.SetMeta(NodePropertyMapper.MetaId, menuId);
+            var menuIdRuntime = IdRuntimeScope.GetOrCreate(menuId);
+            popup.SetMeta(NodePropertyMapper.MetaIdValue, menuIdRuntime.Value);
+        }
         PopulatePopupMenu(popup, button, menuNode, menuId, globalMacMenuMode);
     }
 
@@ -348,6 +354,8 @@ public sealed class SmlUiBuilder
             }
 
             popup.AddItem(text, (int)itemIdSeed);
+            var createdIndex = popup.ItemCount - 1;
+            popup.SetItemMetadata(createdIndex, Variant.From(itemId));
             actionMap[itemIdSeed] = (menuId, itemId);
             itemIdSeed++;
         }
@@ -358,6 +366,8 @@ public sealed class SmlUiBuilder
         {
             popup.AddSeparator();
             popup.AddItem("Settings", (int)itemIdSeed);
+            var createdIndex = popup.ItemCount - 1;
+            popup.SetItemMetadata(createdIndex, Variant.From("settings"));
             actionMap[itemIdSeed] = (menuId, "settings");
         }
 

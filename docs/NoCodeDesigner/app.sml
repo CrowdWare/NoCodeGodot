@@ -27,7 +27,12 @@ Window {
             MenuItem { text: "Save As"  id: saveFileAs }
         }
         Menu { title: "Edit"  }
-        Menu { title: "View" id: viewMenu }
+        Menu {
+            title: "View"
+            id: viewMenu
+            MenuItem { text: "Projekt" id: panelLeft }
+            MenuItem { text: "Markdown" id: panelRight }
+        }
     }
 
     DockSpace {

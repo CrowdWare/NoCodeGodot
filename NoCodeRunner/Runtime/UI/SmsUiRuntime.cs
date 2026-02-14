@@ -107,7 +107,7 @@ public sealed class SmsUiRuntime
         {
             var menuId = ctx.SourceId;
             var itemId = ctx.Clicked;
-            ExecuteCall($"menuItemSelected({Quote(menuId)}, {Quote(itemId)})");
+            ExecuteCall($"menuItemSelected({Quote(menuId)}, __sms_get_menu_item({Quote(itemId)}))");
         });
 
         // SMS should own save behavior so codeEdit.onSave(...) callbacks always fire,
@@ -141,6 +141,12 @@ public sealed class SmsUiRuntime
     {
         _engine.RegisterFunction("__sms_fs", _ => CreateFsObject());
         _engine.RegisterFunction("__sms_log", _ => CreateLogObject());
+        _engine.RegisterFunction("__sms_get_menu_item", args =>
+        {
+            var itemId = ArgString(args, 0);
+            var item = TryCreateMenuItemObject(itemId);
+            return item is null ? NullValue.Instance : (Value)item;
+        });
 
         _engine.RegisterFunction("UiExists", args =>
         {
@@ -181,6 +187,12 @@ public sealed class SmsUiRuntime
             {
                 var source = popupMenu.GetParent() as Control;
                 return CreateMenuObject(id, popupMenu, source);
+            }
+
+            var menuItem = TryCreateMenuItemObject(id);
+            if (menuItem is not null)
+            {
+                return menuItem;
             }
 
             return NullValue.Instance;
@@ -574,10 +586,163 @@ public sealed class SmsUiRuntime
                 var popupId = requestedPopupId > 0 ? requestedPopupId : ResolveNextPopupItemId(popup);
 
                 popup.AddItem(itemKey, popupId);
+                var createdIndex = popup.ItemCount - 1;
+                popup.SetItemMetadata(createdIndex, Variant.From(itemKey));
                 RegisterDynamicMenuItem(menuId, popup, popupId, itemKey, sourceControl);
                 return new NumberValue(popupId);
             })
         });
+    }
+
+    private ObjectValue? TryCreateMenuItemObject(string itemId)
+    {
+        if (string.IsNullOrWhiteSpace(itemId))
+        {
+            return null;
+        }
+
+        if (!TryResolveMenuItemById(itemId, out var popup, out var itemIndex, out var menuId))
+        {
+            return null;
+        }
+
+        var text = popup.GetItemText(itemIndex);
+        var isChecked = popup.IsItemChecked(itemIndex);
+
+        var values = new Dictionary<string, Value>(StringComparer.Ordinal)
+        {
+            ["id"] = new StringValue(itemId),
+            ["text"] = new StringValue(text),
+            ["isChecked"] = new BooleanValue(isChecked),
+            ["menuId"] = new StringValue(menuId)
+        };
+
+        var menuItem = new ObjectValue("MenuItem", values);
+        values["SetChecked"] = new NativeFunctionValue(methodArgs =>
+        {
+            var checkedState = ValueArgBool(methodArgs, 0);
+            if (TryResolveMenuItemById(itemId, out var p, out var idx, out _))
+            {
+                p.SetItemAsCheckable(idx, true);
+                p.SetItemChecked(idx, checkedState);
+                values["isChecked"] = new BooleanValue(checkedState);
+            }
+
+            return NullValue.Instance;
+        });
+        values["SetText"] = new NativeFunctionValue(methodArgs =>
+        {
+            var nextText = ValueArgString(methodArgs, 0);
+            if (TryResolveMenuItemById(itemId, out var p, out var idx, out _))
+            {
+                p.SetItemText(idx, nextText);
+                values["text"] = new StringValue(nextText);
+            }
+
+            return NullValue.Instance;
+        });
+        values["GetText"] = new NativeFunctionValue(__ =>
+        {
+            if (TryResolveMenuItemById(itemId, out var p, out var idx, out var _menuId))
+            {
+                var current = p.GetItemText(idx);
+                values["text"] = new StringValue(current);
+                return new StringValue(current);
+            }
+
+            return new StringValue(string.Empty);
+        });
+        values["IsChecked"] = new NativeFunctionValue(__ =>
+        {
+            if (TryResolveMenuItemById(itemId, out var p, out var idx, out var _menuId))
+            {
+                var current = p.IsItemChecked(idx);
+                values["isChecked"] = new BooleanValue(current);
+                return new BooleanValue(current);
+            }
+
+            return new BooleanValue(false);
+        });
+
+        return menuItem;
+    }
+
+    private bool TryResolveMenuItemById(string itemId, out PopupMenu popup, out int itemIndex, out string menuId)
+    {
+        foreach (var currentPopup in EnumeratePopupMenus())
+        {
+            var count = currentPopup.ItemCount;
+            for (var i = 0; i < count; i++)
+            {
+                var mappedId = currentPopup.GetItemMetadata(i).AsString();
+                if (string.IsNullOrWhiteSpace(mappedId))
+                {
+                    continue;
+                }
+
+                if (!string.Equals(mappedId, itemId, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                popup = currentPopup;
+                itemIndex = i;
+                menuId = ResolveMenuIdForPopup(currentPopup);
+                return true;
+            }
+        }
+
+        popup = null!;
+        itemIndex = -1;
+        menuId = string.Empty;
+        return false;
+    }
+
+    private IEnumerable<PopupMenu> EnumeratePopupMenus()
+    {
+        if (Engine.GetMainLoop() is not SceneTree sceneTree || sceneTree.Root is null)
+        {
+            yield break;
+        }
+
+        var stack = new Stack<Node>();
+        stack.Push(sceneTree.Root);
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (node is PopupMenu popup)
+            {
+                yield return popup;
+            }
+
+            for (var i = node.GetChildCount() - 1; i >= 0; i--)
+            {
+                stack.Push(node.GetChild(i));
+            }
+        }
+    }
+
+    private static string ResolveMenuIdForPopup(PopupMenu popup)
+    {
+        if (popup.HasMeta(NodePropertyMapper.MetaId))
+        {
+            var own = popup.GetMeta(NodePropertyMapper.MetaId).AsString();
+            if (!string.IsNullOrWhiteSpace(own))
+            {
+                return own;
+            }
+        }
+
+        if (popup.GetParent() is Control controlParent && controlParent.HasMeta(NodePropertyMapper.MetaId))
+        {
+            var parent = controlParent.GetMeta(NodePropertyMapper.MetaId).AsString();
+            if (!string.IsNullOrWhiteSpace(parent))
+            {
+                return parent;
+            }
+        }
+
+        return "menu";
     }
 
     private void EnsureDockSpaceSignalBinding(string dockSpaceId, DockSpace dockSpace)
@@ -655,7 +820,7 @@ public sealed class SmsUiRuntime
             return;
         }
 
-        ExecuteCall($"menuItemSelected({Quote(menuId)}, {Quote(clicked)})");
+        ExecuteCall($"menuItemSelected({Quote(menuId)}, __sms_get_menu_item({Quote(clicked)}))");
     }
 
     private static int ResolveNextPopupItemId(PopupMenu popup)
