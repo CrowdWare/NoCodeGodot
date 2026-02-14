@@ -26,6 +26,7 @@ public sealed class SmsUiRuntime
     private readonly Dictionary<ulong, Control> _dynamicMenuSourcesByPopup = new();
     private readonly HashSet<ulong> _dynamicMenuPopupHooked = [];
     private readonly HashSet<ulong> _dockSpaceCloseHooked = [];
+    private const string FloatingWindowClosedHandler = "onFloatingWindowClosed";
     private int _nextTreeHandle = 1;
     private string? _projectRoot;
 
@@ -141,6 +142,7 @@ public sealed class SmsUiRuntime
     {
         _engine.RegisterFunction("__sms_fs", _ => CreateFsObject());
         _engine.RegisterFunction("__sms_log", _ => CreateLogObject());
+        _engine.RegisterFunction("__sms_ui", _ => CreateUiObject());
         _engine.RegisterFunction("__sms_get_menu_item", args =>
         {
             var itemId = ArgString(args, 0);
@@ -222,12 +224,12 @@ public sealed class SmsUiRuntime
     {
         try
         {
-            _engine.Execute("var fs = __sms_fs()\nvar log = __sms_log()");
+            _engine.Execute("var fs = __sms_fs()\nvar log = __sms_log()\nvar ui = __sms_ui()");
             BootstrapUiIdSymbols();
         }
         catch (Exception ex)
         {
-            RunnerLogger.Error("SMS", "Failed to bootstrap global SMS objects (fs/log).", ex);
+            RunnerLogger.Error("SMS", "Failed to bootstrap global SMS objects (fs/log/ui).", ex);
         }
     }
 
@@ -354,6 +356,32 @@ public sealed class SmsUiRuntime
                 return NullValue.Instance;
             })
         });
+    }
+
+    private ObjectValue CreateUiObject()
+    {
+        return new ObjectValue("Ui", new Dictionary<string, Value>(StringComparer.Ordinal)
+        {
+            ["CreateWindow"] = new NativeFunctionValue(methodArgs =>
+            {
+                var sml = ValueArgString(methodArgs, 0);
+                var ok = UiRuntimeApi.CreateWindowFromSml(sml, () =>
+                {
+                    ExecuteSmsCallbackIfExists(FloatingWindowClosedHandler);
+                });
+                return new BooleanValue(ok);
+            })
+        });
+    }
+
+    private void ExecuteSmsCallbackIfExists(string callbackName)
+    {
+        if (string.IsNullOrWhiteSpace(callbackName))
+        {
+            return;
+        }
+
+        ExecuteCall($"{callbackName}()");
     }
 
     private static string TryGetSelectedTreePath(TreeView? tree)
@@ -850,7 +878,11 @@ public sealed class SmsUiRuntime
         var declared = 0;
         foreach (var id in ids)
         {
-            if (!IsValidSmsIdentifier(id) || IsSmsKeyword(id) || string.Equals(id, "fs", StringComparison.Ordinal) || string.Equals(id, "log", StringComparison.Ordinal))
+            if (!IsValidSmsIdentifier(id)
+                || IsSmsKeyword(id)
+                || string.Equals(id, "fs", StringComparison.Ordinal)
+                || string.Equals(id, "log", StringComparison.Ordinal)
+                || string.Equals(id, "ui", StringComparison.Ordinal))
             {
                 continue;
             }

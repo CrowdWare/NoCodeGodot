@@ -46,7 +46,7 @@ Window {
             id: leftTop
             title: "Projekt"
             area: "left"
-            //width: 300
+            width: 300
 
             TreeView {
                 id: treeview

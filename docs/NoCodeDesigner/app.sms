@@ -25,8 +25,29 @@ fun ready() {
     } else {
         log.error("Layout could not be loaded")
     }
+
+    openFloatingWindow()
     
     log.info("TreeView 'treeview' wurde mit Inhalten aus ProjectFS befüllt.")
+}
+
+fun openFloatingWindow() {
+    var windowSml = "Window {  
+    id: mainWindow title: \"NoCodeDesigner\"  
+    minSize: 800,400\
+    pos: 448,156
+    size: 1024,768
+    Page {
+        Label { text: \"Floating NoCodeDesigner Window\" }
+    }
+}"
+
+    var created = ui.CreateWindow(windowSml)
+    log.success("Floating window created: ${created}")
+}
+
+fun onFloatingWindowClosed() {
+    log.info("floating Window has been closed")
 }
 
 fun populateTree(treeObj, rootPath) {

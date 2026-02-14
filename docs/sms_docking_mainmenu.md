@@ -100,7 +100,46 @@ panelRight.SetText("Markdown (geschlossen)")
 
 ---
 
-## 5) Beispiel: statisches View-Menü mit Check-Status
+## 5) `ui.CreateWindow(sml)` – schwebendes Fenster aus SMS
+
+Über das globale Objekt `ui` kann aus SMS zur Laufzeit ein freistehendes Fenster erzeugt werden.
+
+### Signatur
+
+- `ui.CreateWindow(smlText)` → `bool`
+
+### Verhalten
+
+- erstellt ein **eigenes natives Fenster** (Godot `Window`)
+- setzt **AlwaysOnTop = true**
+- ist **freistehend** (`Transient = false`), kann also über der Anwendung schweben oder auf einen anderen Bildschirm verschoben werden
+- wird mit der Anwendung beendet (normaler App-Lifecycle)
+- beim manuellen Schließen des Fensters wird optional die SMS-Funktion `onFloatingWindowClosed()` aufgerufen (falls vorhanden)
+
+### Beispiel
+
+```sms
+var ok = ui.CreateWindow("Window {\n"
+    + "  id: mainWindow\n"
+    + "  title: \"NoCodeDesigner\"\n"
+    + "  minSize: 800,400\n"
+    + "  pos: 448,156\n"
+    + "  size: 1024,768\n"
+    + "  Page {\n"
+    + "    Label { text: \"Floating Window\" }\n"
+    + "  }\n"
+    + "}")
+
+log.info("CreateWindow: ${ok}")
+
+fun onFloatingWindowClosed() {
+    log.info("Floating window wurde geschlossen")
+}
+```
+
+---
+
+## 6) Beispiel: statisches View-Menü mit Check-Status
 
 ```sms
 var dock = null
