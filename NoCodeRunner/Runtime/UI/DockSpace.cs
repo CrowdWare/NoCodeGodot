@@ -53,6 +53,19 @@ public partial class DockSpace : VBoxContainer
     private bool _isRestoringLockedPanels;
     private bool _pendingInitialSplitterHintApply;
     private bool _isApplyingInitialSplitterHint;
+    private bool _isInitializing;
+    private bool _isInitialized;
+    private bool _isApplyingResizeCompensation;
+    private bool _hasResizeBaseline;
+    private int _lastKnownSplit0Width;
+    private int _lastKnownSplit1Width;
+    private int _lastKnownSplit2Width;
+    private int _lastKnownSplit3Width;
+    private int _lastFarLeftWidth;
+    private int _lastLeftWidth;
+    private int _lastRightWidth;
+    private int _lastFarRightWidth;
+    private int _lastRightTotalWidth;
 
     public override void _Ready()
     {
@@ -64,9 +77,20 @@ public partial class DockSpace : VBoxContainer
         if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: false })
         {
             EndDockDrag();
+            UpdateResizeBaselinesFromCurrentSplitters();
         }
 
         base._UnhandledInput(@event);
+    }
+
+    public override void _Notification(int what)
+    {
+        if (what == NotificationResized)
+        {
+            OnDockSpaceResized();
+        }
+
+        base._Notification(what);
     }
 
     public DockLayoutState CaptureLayoutState()
@@ -92,12 +116,18 @@ public partial class DockSpace : VBoxContainer
         {
             UpdatedAtUtc = DateTime.UtcNow,
             Panels = panels,
-            Splitters = CaptureSplitterStates()
+            Splitters = CaptureSplitterStates(),
+            Window = CaptureWindowState()
         };
     }
 
     public bool SaveLayout(string? absolutePath = null)
     {
+        if (!_isInitializing && !EnsureInitializedForApi())
+        {
+            return false;
+        }
+
         try
         {
             var path = ResolveLayoutPath(absolutePath);
@@ -128,6 +158,11 @@ public partial class DockSpace : VBoxContainer
 
     public bool LoadLayout(string? absolutePath = null)
     {
+        if (!_isInitializing && !EnsureInitializedForApi())
+        {
+            return false;
+        }
+
         try
         {
             var path = ResolveLayoutPath(absolutePath);
@@ -175,6 +210,11 @@ public partial class DockSpace : VBoxContainer
 
     public void ResetDefaultLayout()
     {
+        if (!_isInitializing && !EnsureInitializedForApi())
+        {
+            return;
+        }
+
         if (_defaultLayoutState is null)
         {
             RunnerLogger.Warn("UI", "ResetDefaultLayout requested but no default snapshot is available yet.");
@@ -353,8 +393,21 @@ public partial class DockSpace : VBoxContainer
             .ToArray();
     }
 
+    public bool EnsureInitialized()
+    {
+        return EnsureInitializedForApi();
+    }
+
     private void InitializeDocking()
     {
+        if (_isInitialized || _isInitializing)
+        {
+            return;
+        }
+
+        _isInitializing = true;
+        try
+        {
         EnsureSlotContainers();
 
         var dockPanels = GetChildren()
@@ -376,6 +429,30 @@ public partial class DockSpace : VBoxContainer
         _defaultLayoutState ??= CloneLayoutState(CaptureLayoutState());
         LoadLayout();
         UpdateAllSlotInteractionRules();
+            _hasResizeBaseline = false;
+            _isInitialized = true;
+        }
+        finally
+        {
+            _isInitializing = false;
+        }
+    }
+
+    private bool EnsureInitializedForApi()
+    {
+        if (_isInitialized)
+        {
+            return true;
+        }
+
+        if (!IsInsideTree())
+        {
+            RunnerLogger.Warn("UI", "DockSpace API called before node entered tree.");
+            return false;
+        }
+
+        InitializeDocking();
+        return _isInitialized;
     }
 
     private void ApplyLayout(DockLayoutState layout)
@@ -456,8 +533,10 @@ public partial class DockSpace : VBoxContainer
         }
 
         ApplySplitterStates(layout.Splitters);
+        ApplyWindowState(layout.Window);
 
         ReconcilePanelStatesFromUi();
+        _hasResizeBaseline = false;
     }
 
     private bool ValidateLayout(DockLayoutState layout, out string reason)
@@ -529,8 +608,162 @@ public partial class DockSpace : VBoxContainer
             {
                 Name = s.Name,
                 Offset = s.Offset
-            }).ToArray()
+            }).ToArray(),
+            Window = source.Window is null
+                ? null
+                : new DockWindowState
+                {
+                    PositionX = source.Window.PositionX,
+                    PositionY = source.Window.PositionY,
+                    Width = source.Window.Width,
+                    Height = source.Window.Height,
+                    IsMaximized = source.Window.IsMaximized
+                }
         };
+    }
+
+    private DockWindowState? CaptureWindowState()
+    {
+        var window = GetWindow();
+        if (window is null)
+        {
+            return null;
+        }
+
+        return new DockWindowState
+        {
+            PositionX = window.Position.X,
+            PositionY = window.Position.Y,
+            Width = window.Size.X,
+            Height = window.Size.Y,
+            IsMaximized = window.Mode == Window.ModeEnum.Maximized
+        };
+    }
+
+    private void ApplyWindowState(DockWindowState? state)
+    {
+        if (state is null)
+        {
+            return;
+        }
+
+        var window = GetWindow();
+        if (window is null)
+        {
+            return;
+        }
+
+        if (state.IsMaximized)
+        {
+            window.Mode = Window.ModeEnum.Maximized;
+            return;
+        }
+
+        window.Mode = Window.ModeEnum.Windowed;
+        window.Position = new Vector2I(state.PositionX, state.PositionY);
+        window.Size = new Vector2I(Math.Max(1, state.Width), Math.Max(1, state.Height));
+    }
+
+    private void OnDockSpaceResized()
+    {
+        if (_isApplyingResizeCompensation || !IsSplittingEnabled() || _pendingInitialSplitterHintApply || _isApplyingInitialSplitterHint)
+        {
+            return;
+        }
+
+        var split0 = FindChild("DockColumnsSplit0", recursive: true, owned: false) as HSplitContainer;
+        var split1 = FindChild("DockColumnsSplit1", recursive: true, owned: false) as HSplitContainer;
+        var split2 = FindChild("DockColumnsSplit2", recursive: true, owned: false) as HSplitContainer;
+        var split3 = FindChild("DockColumnsSplit3", recursive: true, owned: false) as HSplitContainer;
+        if (split0 is null || split1 is null || split2 is null || split3 is null
+            || !IsAlive(split0) || !IsAlive(split1) || !IsAlive(split2) || !IsAlive(split3)
+            || split0.Size.X <= 0 || split1.Size.X <= 0 || split2.Size.X <= 0 || split3.Size.X <= 0)
+        {
+            return;
+        }
+
+        var currentSplit0Width = (int)split0.Size.X;
+        var currentSplit1Width = (int)split1.Size.X;
+        var currentWidth = (int)split2.Size.X;
+        var currentSplit3Width = (int)split3.Size.X;
+        if (!_hasResizeBaseline || _lastKnownSplit0Width <= 0 || _lastKnownSplit1Width <= 0 || _lastKnownSplit2Width <= 0 || _lastKnownSplit3Width <= 0)
+        {
+            UpdateResizeBaselinesFromCurrentSplitters();
+            return;
+        }
+
+        if (currentSplit0Width == _lastKnownSplit0Width
+            && currentSplit1Width == _lastKnownSplit1Width
+            && currentWidth == _lastKnownSplit2Width
+            && currentSplit3Width == _lastKnownSplit3Width)
+        {
+            return;
+        }
+
+        var rightVisible = IsSideColumnVisible(DockSlotId.Right) || IsSideColumnVisible(DockSlotId.FarRight);
+        if (!rightVisible)
+        {
+            split2.SplitOffset = currentWidth;
+            UpdateResizeBaselinesFromCurrentSplitters();
+            return;
+        }
+
+        // Keep side widths stable; center absorbs window resize delta.
+        var desiredLeft = Math.Clamp(_lastLeftWidth, 0, Math.Max(0, currentSplit1Width - MinCenterColumnWidth));
+        var maxRightTotal = Math.Max(0, currentWidth - MinCenterColumnWidth);
+        var desiredRightTotal = Math.Clamp(_lastRightTotalWidth, 0, maxRightTotal);
+        var desiredCenter = currentWidth - desiredRightTotal;
+        var desiredRight = Math.Clamp(_lastRightWidth, 0, Math.Max(0, desiredRightTotal));
+
+        _isApplyingResizeCompensation = true;
+        try
+        {
+            split1.SplitOffset = desiredLeft;
+            split2.SplitOffset = Math.Clamp(desiredCenter, MinCenterColumnWidth, currentWidth);
+
+            var split3WidthAfter = (int)split3.Size.X;
+            if (split3WidthAfter > 0)
+            {
+                split3.SplitOffset = Math.Clamp(desiredRight, 0, split3WidthAfter);
+            }
+        }
+        finally
+        {
+            _isApplyingResizeCompensation = false;
+        }
+
+        UpdateResizeBaselinesFromCurrentSplitters();
+    }
+
+    private void UpdateSplit2ResizeBaseline()
+    {
+        UpdateResizeBaselinesFromCurrentSplitters();
+    }
+
+    private void UpdateResizeBaselinesFromCurrentSplitters()
+    {
+        var split0 = FindChild("DockColumnsSplit0", recursive: true, owned: false) as HSplitContainer;
+        var split1 = FindChild("DockColumnsSplit1", recursive: true, owned: false) as HSplitContainer;
+        var split2 = FindChild("DockColumnsSplit2", recursive: true, owned: false) as HSplitContainer;
+        var split3 = FindChild("DockColumnsSplit3", recursive: true, owned: false) as HSplitContainer;
+        if (split0 is null || split1 is null || split2 is null || split3 is null
+            || !IsAlive(split0) || !IsAlive(split1) || !IsAlive(split2) || !IsAlive(split3)
+            || split0.Size.X <= 0 || split1.Size.X <= 0 || split2.Size.X <= 0 || split3.Size.X <= 0)
+        {
+            return;
+        }
+
+        _lastKnownSplit0Width = (int)split0.Size.X;
+        _lastKnownSplit1Width = (int)split1.Size.X;
+        _lastKnownSplit2Width = (int)split2.Size.X;
+        _lastKnownSplit3Width = (int)split3.Size.X;
+
+        _lastFarLeftWidth = Math.Max(0, split0.SplitOffset);
+        _lastLeftWidth = Math.Max(0, split1.SplitOffset);
+        _lastRightWidth = Math.Max(0, split3.SplitOffset);
+        _lastFarRightWidth = Math.Max(0, _lastKnownSplit3Width - split3.SplitOffset);
+        _lastRightTotalWidth = Math.Max(0, _lastKnownSplit2Width - split2.SplitOffset);
+        _hasResizeBaseline = true;
     }
 
     private DockSplitterState[] CaptureSplitterStates()

@@ -18,6 +18,14 @@ fun ready() {
     codeEdit.onSave("codeEditOnSave")
     tree.BindEvents()
     populateTree(tree, ".")
+
+    var ok = dock.LoadLayout("user:/first_layout.json")
+    if (ok) {
+        log.success("Layout loaded")
+    } else {
+        log.error("Layout could not be loaded")
+    }
+    
     log.info("TreeView 'treeview' wurde mit Inhalten aus ProjectFS befüllt.")
 }
 

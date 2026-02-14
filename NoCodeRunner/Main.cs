@@ -282,6 +282,7 @@ public partial class Main : Node
 				uriResolver: _uriResolver);
 			var rootControl = await loader.LoadFromUriAsync(uiUrl);
 			AttachUi(rootControl);
+			await EnsureRuntimeUiReadyStateAsync();
 			Runtime.Logging.RunnerLogger.Info("UI", $"UI loaded from '{uiUrl}'.");
 			await InvokeUiReadyHandlersAsync();
 			_smsUiRuntime?.InvokeReady();
@@ -358,6 +359,47 @@ public partial class Main : Node
 			catch (Exception ex)
 			{
 				RunnerLogger.Warn("UI", $"Action module '{moduleType.FullName}' failed during OnReady invocation.", ex);
+			}
+		}
+	}
+
+	private async Task EnsureRuntimeUiReadyStateAsync()
+	{
+		if (_runtimeUiRoot is null)
+		{
+			return;
+		}
+
+		foreach (var dockSpace in EnumerateDescendants<DockSpace>(_runtimeUiRoot))
+		{
+			dockSpace.EnsureInitialized();
+		}
+
+		// Let deferred UI work (splitter/layout adjustments) settle before SMS ready().
+		if (GetTree() is { } tree)
+		{
+			await ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+		}
+
+		LayoutRuntime.Apply(_runtimeUiRoot);
+	}
+
+	private static IEnumerable<T> EnumerateDescendants<T>(Node root) where T : Node
+	{
+		var stack = new Stack<Node>();
+		stack.Push(root);
+
+		while (stack.Count > 0)
+		{
+			var current = stack.Pop();
+			if (current is T typed)
+			{
+				yield return typed;
+			}
+
+			for (var i = current.GetChildCount() - 1; i >= 0; i--)
+			{
+				stack.Push(current.GetChild(i));
 			}
 		}
 	}

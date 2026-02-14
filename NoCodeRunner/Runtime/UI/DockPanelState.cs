@@ -19,10 +19,20 @@ public sealed class DockLayoutState
     public DateTime UpdatedAtUtc { get; init; } = DateTime.UtcNow;
     public DockPanelState[] Panels { get; init; } = Array.Empty<DockPanelState>();
     public DockSplitterState[] Splitters { get; init; } = Array.Empty<DockSplitterState>();
+    public DockWindowState? Window { get; init; }
 }
 
 public sealed class DockSplitterState
 {
     public string Name { get; init; } = string.Empty;
     public int Offset { get; init; }
+}
+
+public sealed class DockWindowState
+{
+    public int PositionX { get; init; }
+    public int PositionY { get; init; }
+    public int Width { get; init; }
+    public int Height { get; init; }
+    public bool IsMaximized { get; init; }
 }
