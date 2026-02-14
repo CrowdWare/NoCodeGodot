@@ -1,10 +1,15 @@
 ﻿var tree = null
 var codeEdit = null
+var dock = null
+var view = null
 var selectedPath = null
+var nextDynamicMenuId = 100
 
 fun ready() {
     tree = getObject("treeview")
     codeEdit = getObject("codeEdit")
+    dock = getObject("editorDock")
+    view = getObject("viewMenu")
 
     if (tree == null || codeEdit == null) {
         log.warn("TreeView oder CodeEdit nicht gefunden – nichts zu befüllen.")
@@ -37,8 +42,36 @@ fun populateTreeChildren(treeObj, parentHandle, dirPath) {
     }
 }
 
+fun dockPanelClosed(dockSpace, panelName) {
+    if (view != null) {
+        view.AddMenuItem(panelName, nextDynamicMenuId)
+        nextDynamicMenuId = nextDynamicMenuId + 1
+    }
+}
+
 fun menuItemSelected(menu, item) {
     log.info("menuItemSelected -> menu=${menu}, item='${item}'")
+
+    if (item == "saveFile") {
+        if (dock == null) {
+            return
+        }
+
+        var ok = dock.SaveLayout("user:/first_layout.json")
+        log.info("SaveLayout: $ok}")
+    } else if (item == "openFile") {
+        var ok = dock.LoadLayout("user:/first_layout.json")
+        log.info("LoadLayout: ${ok}")
+    } else if (item == "settings") {
+        dock.ResetLayout()
+        log.info("Layout zurückgesetzt")
+    } else {
+        // Versuch, ein geschlossenes Panel über seinen Menüeintrag wieder zu öffnen
+        var reopened = dock.ReopenPanel(item)
+        if (reopened) {
+            log.info("Panel wieder geöffnet: ${item}")
+        }
+    }
 }
 
 fun treeItemSelected(treeView, itemText, itemPath) {

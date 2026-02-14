@@ -263,6 +263,13 @@ public sealed class SmlUiBuilder
             Name = string.IsNullOrWhiteSpace(title) ? (string.IsNullOrWhiteSpace(menuId) ? "Menu" : menuId) : title
         };
 
+        if (!string.IsNullOrWhiteSpace(menuId))
+        {
+            popup.SetMeta(NodePropertyMapper.MetaId, menuId);
+            var menuIdRuntime = IdRuntimeScope.GetOrCreate(menuId);
+            popup.SetMeta(NodePropertyMapper.MetaIdValue, menuIdRuntime.Value);
+        }
+
         PopulatePopupMenu(popup, menuBar, menuNode, menuId, globalMacMenuMode);
         menuBar.AddChild(popup);
     }

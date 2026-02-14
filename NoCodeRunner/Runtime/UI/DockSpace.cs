@@ -10,6 +10,9 @@ namespace Runtime.UI;
 
 public partial class DockSpace : VBoxContainer
 {
+    [Signal]
+    public delegate void DockPanelClosedEventHandler(string dockSpaceId, string panelId);
+
     private sealed class DockLayoutDocument
     {
         public int LayoutVersion { get; set; }
@@ -260,6 +263,7 @@ public partial class DockSpace : VBoxContainer
         state.IsFloating = false;
         state.LastDockedSlot = state.CurrentSlot;
         RefreshSideColumnLayout(state.CurrentSlot);
+        EmitSignal(SignalName.DockPanelClosed, ResolveDockSpaceId(), panelId);
         return true;
     }
 
@@ -596,6 +600,20 @@ public partial class DockSpace : VBoxContainer
         }
 
         return ProjectSettings.GlobalizePath($"user://{DefaultLayoutFileName}");
+    }
+
+    private string ResolveDockSpaceId()
+    {
+        if (HasMeta(NodePropertyMapper.MetaId))
+        {
+            var id = GetMeta(NodePropertyMapper.MetaId).AsString();
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                return id;
+            }
+        }
+
+        return Name;
     }
 
     private void EnsureSlotContainers()

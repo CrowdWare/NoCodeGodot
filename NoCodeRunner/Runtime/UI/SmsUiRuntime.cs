@@ -22,6 +22,10 @@ public sealed class SmsUiRuntime
     private UiActionDispatcher? _dispatcher;
     private readonly Dictionary<int, TreeItem> _treeHandles = [];
     private readonly Dictionary<string, string> _codeEditSaveCallbacks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<ulong, Dictionary<long, string>> _dynamicMenuItemsByPopup = new();
+    private readonly Dictionary<ulong, Control> _dynamicMenuSourcesByPopup = new();
+    private readonly HashSet<ulong> _dynamicMenuPopupHooked = [];
+    private readonly HashSet<ulong> _dockSpaceCloseHooked = [];
     private int _nextTreeHandle = 1;
     private string? _projectRoot;
 
@@ -146,7 +150,7 @@ public sealed class SmsUiRuntime
 
         _engine.RegisterFunction("getObject", args =>
         {
-            var id = ValueArgString(args, 0);
+            var id = ResolveUiIdArg(args, 0);
             if (string.IsNullOrWhiteSpace(id))
             {
                 return NullValue.Instance;
@@ -161,6 +165,22 @@ public sealed class SmsUiRuntime
             if (node is CodeEdit editor)
             {
                 return CreateCodeEditObject(id, editor);
+            }
+
+            if (node is DockSpace dockSpace)
+            {
+                return CreateDockSpaceObject(id, dockSpace);
+            }
+
+            if (node is MenuButton menuButton)
+            {
+                return CreateMenuObject(id, menuButton.GetPopup(), menuButton);
+            }
+
+            if (node is PopupMenu popupMenu)
+            {
+                var source = popupMenu.GetParent() as Control;
+                return CreateMenuObject(id, popupMenu, source);
             }
 
             return NullValue.Instance;
@@ -191,6 +211,7 @@ public sealed class SmsUiRuntime
         try
         {
             _engine.Execute("var fs = __sms_fs()\nvar log = __sms_log()");
+            BootstrapUiIdSymbols();
         }
         catch (Exception ex)
         {
@@ -492,6 +513,231 @@ public sealed class SmsUiRuntime
         });
     }
 
+    private ObjectValue CreateDockSpaceObject(string id, DockSpace dockSpace)
+    {
+        EnsureDockSpaceSignalBinding(id, dockSpace);
+
+        return new ObjectValue("DockSpace", new Dictionary<string, Value>(StringComparer.Ordinal)
+        {
+            ["SaveLayout"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ResolveDockLayoutPathArg(methodArgs, 0);
+                return new BooleanValue(dockSpace.SaveLayout(path));
+            }),
+            ["LoadLayout"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ResolveDockLayoutPathArg(methodArgs, 0);
+                return new BooleanValue(dockSpace.LoadLayout(path));
+            }),
+            ["ResetLayout"] = new NativeFunctionValue(_ =>
+            {
+                dockSpace.ResetDefaultLayout();
+                return NullValue.Instance;
+            }),
+            ["GetClosePanelList"] = new NativeFunctionValue(_ =>
+            {
+                var items = dockSpace.GetClosedPanels()
+                    .Select(p => (Value)new StringValue(p.Id ?? string.Empty))
+                    .ToList();
+                return new ArrayValue(items);
+            }),
+            ["GetClosedPanelList"] = new NativeFunctionValue(_ =>
+            {
+                var items = dockSpace.GetClosedPanels()
+                    .Select(p => (Value)new StringValue(p.Id ?? string.Empty))
+                    .ToList();
+                return new ArrayValue(items);
+            }),
+            ["ReopenPanel"] = new NativeFunctionValue(methodArgs =>
+            {
+                var panelId = ValueArgString(methodArgs, 0);
+                return new BooleanValue(dockSpace.ReopenPanel(panelId));
+            })
+        });
+    }
+
+    private ObjectValue CreateMenuObject(string menuId, PopupMenu popup, Control? sourceControl)
+    {
+        EnsureDynamicMenuBinding(menuId, popup, sourceControl);
+
+        return new ObjectValue("Menu", new Dictionary<string, Value>(StringComparer.Ordinal)
+        {
+            ["AddMenuItem"] = new NativeFunctionValue(methodArgs =>
+            {
+                var itemKey = ValueArgString(methodArgs, 0);
+                if (string.IsNullOrWhiteSpace(itemKey))
+                {
+                    return NullValue.Instance;
+                }
+
+                var requestedPopupId = ValueArgInt(methodArgs, 1);
+                var popupId = requestedPopupId > 0 ? requestedPopupId : ResolveNextPopupItemId(popup);
+
+                popup.AddItem(itemKey, popupId);
+                RegisterDynamicMenuItem(menuId, popup, popupId, itemKey, sourceControl);
+                return new NumberValue(popupId);
+            })
+        });
+    }
+
+    private void EnsureDockSpaceSignalBinding(string dockSpaceId, DockSpace dockSpace)
+    {
+        var instanceId = dockSpace.GetInstanceId();
+        if (!_dockSpaceCloseHooked.Add(instanceId))
+        {
+            return;
+        }
+
+        dockSpace.DockPanelClosed += (_dockId, panelId) =>
+        {
+            ExecuteCall($"dockPanelClosed({Quote(dockSpaceId)}, {Quote(panelId)})");
+        };
+    }
+
+    private void EnsureDynamicMenuBinding(string menuId, PopupMenu popup, Control? sourceControl)
+    {
+        var popupInstanceId = popup.GetInstanceId();
+        if (!_dynamicMenuItemsByPopup.ContainsKey(popupInstanceId))
+        {
+            _dynamicMenuItemsByPopup[popupInstanceId] = new Dictionary<long, string>();
+        }
+        if (sourceControl is not null)
+        {
+            _dynamicMenuSourcesByPopup[popupInstanceId] = sourceControl;
+        }
+
+        if (!_dynamicMenuPopupHooked.Add(popupInstanceId))
+        {
+            return;
+        }
+
+        popup.IdPressed += id =>
+        {
+            if (_dynamicMenuItemsByPopup.TryGetValue(popupInstanceId, out var mapped)
+                && mapped.TryGetValue(id, out var clicked))
+            {
+                DispatchMenuSelection(popupInstanceId, menuId, clicked);
+            }
+        };
+    }
+
+    private void RegisterDynamicMenuItem(string menuId, PopupMenu popup, long popupId, string clicked, Control? sourceControl)
+    {
+        var popupInstanceId = popup.GetInstanceId();
+        if (!_dynamicMenuItemsByPopup.TryGetValue(popupInstanceId, out var mapped))
+        {
+            mapped = new Dictionary<long, string>();
+            _dynamicMenuItemsByPopup[popupInstanceId] = mapped;
+        }
+        if (sourceControl is not null)
+        {
+            _dynamicMenuSourcesByPopup[popupInstanceId] = sourceControl;
+        }
+
+        mapped[popupId] = clicked;
+        EnsureDynamicMenuBinding(menuId, popup, sourceControl);
+    }
+
+    private void DispatchMenuSelection(ulong popupInstanceId, string menuId, string clicked)
+    {
+        if (_dispatcher is not null
+            && _dynamicMenuSourcesByPopup.TryGetValue(popupInstanceId, out var sourceControl)
+            && GodotObject.IsInstanceValid(sourceControl))
+        {
+            _dispatcher.Dispatch(new UiActionContext(
+                Source: sourceControl,
+                SourceId: menuId,
+                SourceIdValue: IdRuntimeScope.GetOrCreate(menuId),
+                Action: "menuItemSelected",
+                Clicked: clicked,
+                ClickedIdValue: IdRuntimeScope.GetOrCreate(clicked)
+            ));
+            return;
+        }
+
+        ExecuteCall($"menuItemSelected({Quote(menuId)}, {Quote(clicked)})");
+    }
+
+    private static int ResolveNextPopupItemId(PopupMenu popup)
+    {
+        var candidate = 1;
+        var count = popup.ItemCount;
+        for (var i = 0; i < count; i++)
+        {
+            var existing = popup.GetItemId(i);
+            if (existing >= candidate)
+            {
+                candidate = existing + 1;
+            }
+        }
+
+        return candidate;
+    }
+
+    private void BootstrapUiIdSymbols()
+    {
+        var ids = EnumerateUiIds().Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (ids.Length == 0)
+        {
+            return;
+        }
+
+        var declared = 0;
+        foreach (var id in ids)
+        {
+            if (!IsValidSmsIdentifier(id) || IsSmsKeyword(id) || string.Equals(id, "fs", StringComparison.Ordinal) || string.Equals(id, "log", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            try
+            {
+                _engine.Execute($"var {id} = {Quote(id)}");
+                declared++;
+            }
+            catch (Exception ex)
+            {
+                RunnerLogger.Warn("SMS", $"Could not expose UI id symbol '{id}' to SMS globals.", ex);
+            }
+        }
+
+        if (declared > 0)
+        {
+            RunnerLogger.Info("SMS", $"Exposed {declared} UI id symbols as SMS globals.");
+        }
+    }
+
+    private static IEnumerable<string> EnumerateUiIds()
+    {
+        if (Engine.GetMainLoop() is not SceneTree sceneTree || sceneTree.Root is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        var ids = new List<string>();
+        var stack = new Stack<Node>();
+        stack.Push(sceneTree.Root);
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (node.HasMeta(NodePropertyMapper.MetaId))
+            {
+                var id = node.GetMeta(NodePropertyMapper.MetaId).AsString();
+                if (!string.IsNullOrWhiteSpace(id))
+                {
+                    ids.Add(id);
+                }
+            }
+
+            for (var i = node.GetChildCount() - 1; i >= 0; i--)
+            {
+                stack.Push(node.GetChild(i));
+            }
+        }
+
+        return ids;
+    }
+
     private void EnsureCodeEditSaveShortcut(string id, CodeEdit editor)
     {
         if (editor.HasMeta(MetaSmsSaveShortcutHooked) && editor.GetMeta(MetaSmsSaveShortcutHooked).AsBool())
@@ -630,6 +876,79 @@ public sealed class SmsUiRuntime
 
     private static string Quote(string value)
         => "\"" + (value ?? string.Empty).Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+
+    private static string ResolveUiIdArg(IReadOnlyList<Value> args, int index)
+    {
+        return ValueArgString(args, index).Trim();
+    }
+
+    private static string? ResolveDockLayoutPathArg(IReadOnlyList<Value> args, int index)
+    {
+        if (index >= args.Count)
+        {
+            return null;
+        }
+
+        var raw = ValueArgString(args, index).Trim();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        if (raw.StartsWith("user:/", StringComparison.OrdinalIgnoreCase)
+            && !raw.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
+        {
+            raw = "user://" + raw[6..].TrimStart('/');
+        }
+
+        if (raw.StartsWith("res:/", StringComparison.OrdinalIgnoreCase)
+            && !raw.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+        {
+            raw = "res://" + raw[5..].TrimStart('/');
+        }
+
+        if (raw.StartsWith("user://", StringComparison.OrdinalIgnoreCase)
+            || raw.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+        {
+            return ProjectSettings.GlobalizePath(raw);
+        }
+
+        if (Path.IsPathRooted(raw))
+        {
+            return raw;
+        }
+
+        return ProjectSettings.GlobalizePath($"user://{raw}");
+    }
+
+    private static bool IsValidSmsIdentifier(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        if (!(char.IsLetter(value[0]) || value[0] == '_'))
+        {
+            return false;
+        }
+
+        for (var i = 1; i < value.Length; i++)
+        {
+            var c = value[i];
+            if (!(char.IsLetterOrDigit(c) || c == '_'))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsSmsKeyword(string value)
+    {
+        return value is "var" or "fun" or "if" or "else" or "for" or "while" or "return" or "true" or "false" or "null" or "data" or "break" or "continue";
+    }
 
     private static string ValueAsString(Value value)
     {

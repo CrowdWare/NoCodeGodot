@@ -27,7 +27,7 @@ Window {
             MenuItem { text: "Save As"  id: saveFileAs }
         }
         Menu { title: "Edit"  }
-        Menu { title: "View"  }
+        Menu { title: "View" id: viewMenu }
     }
 
     DockSpace {
