@@ -1372,6 +1372,50 @@ public partial class DockSpace : VBoxContainer
         {
             CallDeferred(nameof(ApplyInitialSplitterOffsetsFromWidthHintsDeferred));
         }
+
+        AdjustSplitterOffsetsForCollapsedSideColumns();
+    }
+
+    private void AdjustSplitterOffsetsForCollapsedSideColumns()
+    {
+        if (!IsSplittingEnabled())
+        {
+            return;
+        }
+
+        var split2 = FindChild("DockColumnsSplit2", recursive: true, owned: false) as HSplitContainer;
+        if (split2 is null || !IsAlive(split2) || split2.Size.X <= 0)
+        {
+            return;
+        }
+
+        var rightVisible = IsSideColumnVisible(DockSlotId.Right) || IsSideColumnVisible(DockSlotId.FarRight);
+        var split2Width = (int)split2.Size.X;
+
+        if (!rightVisible)
+        {
+            // No right-side docks visible -> let center take all available space.
+            split2.SplitOffset = split2Width;
+            return;
+        }
+
+        var maxOffset = split2Width;
+        if (split2.SplitOffset < maxOffset)
+        {
+            return;
+        }
+
+        // Right side became visible again after being fully collapsed.
+        const int fallbackRightWidth = 320;
+        var desiredCenter = Math.Max(MinCenterColumnWidth, split2Width - fallbackRightWidth);
+        split2.SplitOffset = Math.Clamp(desiredCenter, MinCenterColumnWidth, split2Width);
+    }
+
+    private bool IsSideColumnVisible(DockSlotId slot)
+    {
+        return _sideColumnsBySlot.TryGetValue(slot, out var sideColumn)
+               && IsAlive(sideColumn.Column)
+               && sideColumn.Column.Visible;
     }
 
     private void ApplyInitialSplitterOffsetsFromWidthHintsDeferred()
