@@ -315,6 +315,8 @@ public sealed class SmlUiBuilder
             var itemId = child.TryGetProperty("id", out var itemIdValue)
                 ? itemIdValue.AsStringOrThrow("id")
                 : $"item_{itemIdSeed}";
+            var isChecked = child.TryGetProperty("isChecked", out var isCheckedValue)
+                && isCheckedValue.AsBoolOrThrow("isChecked");
 
             if (string.IsNullOrWhiteSpace(text) && string.Equals(itemId, "about", StringComparison.OrdinalIgnoreCase))
             {
@@ -356,6 +358,11 @@ public sealed class SmlUiBuilder
             popup.AddItem(text, (int)itemIdSeed);
             var createdIndex = popup.ItemCount - 1;
             popup.SetItemMetadata(createdIndex, Variant.From(itemId));
+            if (isChecked)
+            {
+                popup.SetItemAsCheckable(createdIndex, true);
+                popup.SetItemChecked(createdIndex, true);
+            }
             actionMap[itemIdSeed] = (menuId, itemId);
             itemIdSeed++;
         }

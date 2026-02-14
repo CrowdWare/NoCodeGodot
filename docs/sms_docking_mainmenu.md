@@ -84,6 +84,12 @@ Pfadregeln für Save/Load:
 - `SetText(string)`
 - Properties: `id`, `text`, `isChecked`, `menuId`
 
+Zusätzlich kann der Initialzustand deklarativ in SML gesetzt werden:
+
+```sml
+MenuItem { text: "Markdown" id: panelRight isChecked: true }
+```
+
 Beispiel:
 
 ```sms
@@ -98,14 +104,9 @@ panelRight.SetText("Markdown (geschlossen)")
 
 ```sms
 var dock = null
-var panelLeftMenuItem = null
-var panelRightMenuItem = null
 
 fun ready() {
     dock = getObject("editorDock")
-    panelLeftMenuItem = getObject("panelLeft")
-    panelRightMenuItem = getObject("panelRight")
-    syncPanelChecksFromDockState()
 }
 
 fun dockPanelClosed(dockSpace, panelName) {
@@ -130,11 +131,9 @@ fun menuItemSelected(menu, item) {
     }
     else if (itemId == "openFile") {
         dock.LoadLayout("designer_layout.json")
-        syncPanelChecksFromDockState()
     }
     else if (itemId == "settings") {
         dock.ResetLayout()
-        syncPanelChecksFromDockState()
     }
     else {
         var panelId = mapMenuItemIdToPanelId(itemId)
@@ -157,25 +156,5 @@ fun mapMenuItemIdToPanelId(menuItemId) {
     if (menuItemId == "panelLeft") { return "leftTop" }
     if (menuItemId == "panelRight") { return "rightTop" }
     return ""
-}
-
-fun syncPanelChecksFromDockState() {
-    if (dock == null) {
-        return
-    }
-
-    if (panelLeftMenuItem != null) { panelLeftMenuItem.SetChecked(true) }
-    if (panelRightMenuItem != null) { panelRightMenuItem.SetChecked(true) }
-
-    var closed = dock.GetClosedPanelList()
-    for (panelId in closed) {
-        var menuItemId = mapPanelIdToMenuItemId(panelId)
-        if (menuItemId != "") {
-            var item = getObject(menuItemId)
-            if (item != null) {
-                item.SetChecked(false)
-            }
-        }
-    }
 }
 ```

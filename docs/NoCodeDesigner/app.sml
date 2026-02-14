@@ -30,8 +30,8 @@ Window {
         Menu {
             title: "View"
             id: viewMenu
-            MenuItem { text: "Projekt" id: panelLeft }
-            MenuItem { text: "Markdown" id: panelRight }
+            MenuItem { text: "Projekt" id: panelLeft isChecked: true }
+            MenuItem { text: "Markdown" id: panelRight isChecked: true }
         }
     }
 

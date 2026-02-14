@@ -3,16 +3,12 @@ var codeEdit = null
 var dock = null
 var view = null
 var selectedPath = null
-var panelLeftMenuItem = null
-var panelRightMenuItem = null
 
 fun ready() {
     tree = getObject("treeview")
     codeEdit = getObject("codeEdit")
     dock = getObject("editorDock")
     view = getObject("viewMenu")
-    panelLeftMenuItem = getObject("panelLeft")
-    panelRightMenuItem = getObject("panelRight")
 
     if (tree == null || codeEdit == null) {
         log.warn("TreeView oder CodeEdit nicht gefunden – nichts zu befüllen.")
@@ -22,7 +18,6 @@ fun ready() {
     codeEdit.onSave("codeEditOnSave")
     tree.BindEvents()
     populateTree(tree, ".")
-    syncPanelChecksFromDockState()
     log.info("TreeView 'treeview' wurde mit Inhalten aus ProjectFS befüllt.")
 }
 
@@ -69,15 +64,13 @@ fun menuItemSelected(menu, item) {
             return
         }
         var ok = dock.SaveLayout("user:/first_layout.json")
-        log.info("SaveLayout: $ok}")
+        log.info("SaveLayout: ${ok}")
     } else if (item.id == "openFile") {
         var ok = dock.LoadLayout("user:/first_layout.json")
         log.info("LoadLayout: ${ok}")
-        syncPanelChecksFromDockState()
     } else if (item.id == "settings") {
         dock.ResetLayout()
         log.info("Layout zurückgesetzt")
-        syncPanelChecksFromDockState()
     } else {
         var panelId = mapMenuItemIdToPanelId(item.id)
         if (panelId != "") {
@@ -112,30 +105,6 @@ fun mapMenuItemIdToPanelId(menuItemId) {
         return "rightTop"
     }
     return ""
-}
-
-fun syncPanelChecksFromDockState() {
-    if (dock == null) {
-        return
-    }
-
-    if (panelLeftMenuItem != null) {
-        panelLeftMenuItem.SetChecked(true)
-    }
-    if (panelRightMenuItem != null) {
-        panelRightMenuItem.SetChecked(true)
-    }
-
-    var closed = dock.GetClosedPanelList()
-    for (panelId in closed) {
-        var menuItemId = mapPanelIdToMenuItemId(panelId)
-        if (menuItemId != "") {
-            var item = getObject(menuItemId)
-            if (item != null) {
-                item.SetChecked(false)
-            }
-        }
-    }
 }
 
 fun treeItemSelected(treeView, itemText, itemPath) {
