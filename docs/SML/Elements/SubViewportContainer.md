@@ -1,18 +1,24 @@
 # SubViewportContainer
 
-## Godot Mapping
-Godot Node: SubViewportContainer
+## Inheritance
+
+[SubViewportContainer](SubViewportContainer.md) → [Container](Container.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
 
 ## Properties
-(To be generated)
+
+This page lists **only properties declared by `SubViewportContainer`**.
+Inherited properties are documented in: [Container](Container.md)
+
+| Godot Property | SML Property | Type | Default |
+|-|-|-|-|
+| mouse_target | mouseTarget | bool | — |
+| stretch | stretch | bool | — |
+| stretch_shrink | stretchShrink | int | — |
 
 ## Events
-(To be generated)
 
-## Example
+This page lists **only signals declared by `SubViewportContainer`**.
+Inherited signals are documented in: [Container](Container.md)
 
-```sml
-SubViewportContainer {
-    id: example
-}
-```
+| Godot Signal | SMS Event | Params |
+|-|-|-|

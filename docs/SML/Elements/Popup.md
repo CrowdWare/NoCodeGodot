@@ -1,18 +1,29 @@
 # Popup
 
-## Godot Mapping
-Godot Node: Popup
+## Inheritance
+
+[Popup](Popup.md) → [Window](Window.md) → [Viewport](Viewport.md) → [Node](Node.md) → [Object](Object.md)
+
+## Derived Classes
+
+### Direct subclasses
+
+- [PopupMenu](PopupMenu.md)
+- [PopupPanel](PopupPanel.md)
 
 ## Properties
-(To be generated)
+
+This page lists **only properties declared by `Popup`**.
+Inherited properties are documented in: [Window](Window.md)
+
+| Godot Property | SML Property | Type | Default |
+|-|-|-|-|
 
 ## Events
-(To be generated)
 
-## Example
+This page lists **only signals declared by `Popup`**.
+Inherited signals are documented in: [Window](Window.md)
 
-```sml
-Popup {
-    id: example
-}
-```
+| Godot Signal | SMS Event | Params |
+|-|-|-|
+| popup_hide | `on <id>.popupHide() { ... }` | — |

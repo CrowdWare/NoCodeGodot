@@ -1,18 +1,28 @@
 # VBoxContainer
 
-## Godot Mapping
-Godot Node: VBoxContainer
+## Inheritance
+
+[VBoxContainer](VBoxContainer.md) → [BoxContainer](BoxContainer.md) → [Container](Container.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
+
+## Derived Classes
+
+### Direct subclasses
+
+- [ColorPicker](ColorPicker.md)
+- [ScriptEditorBase](ScriptEditorBase.md)
 
 ## Properties
-(To be generated)
+
+This page lists **only properties declared by `VBoxContainer`**.
+Inherited properties are documented in: [BoxContainer](BoxContainer.md)
+
+| Godot Property | SML Property | Type | Default |
+|-|-|-|-|
 
 ## Events
-(To be generated)
 
-## Example
+This page lists **only signals declared by `VBoxContainer`**.
+Inherited signals are documented in: [BoxContainer](BoxContainer.md)
 
-```sml
-VBoxContainer {
-    id: example
-}
-```
+| Godot Signal | SMS Event | Params |
+|-|-|-|

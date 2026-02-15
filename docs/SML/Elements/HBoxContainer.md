@@ -1,18 +1,29 @@
 # HBoxContainer
 
-## Godot Mapping
-Godot Node: HBoxContainer
+## Inheritance
+
+[HBoxContainer](HBoxContainer.md) → [BoxContainer](BoxContainer.md) → [Container](Container.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
+
+## Derived Classes
+
+### Direct subclasses
+
+- [EditorResourcePicker](EditorResourcePicker.md)
+- [EditorToaster](EditorToaster.md)
+- [OpenXRInteractionProfileEditorBase](OpenXRInteractionProfileEditorBase.md)
 
 ## Properties
-(To be generated)
+
+This page lists **only properties declared by `HBoxContainer`**.
+Inherited properties are documented in: [BoxContainer](BoxContainer.md)
+
+| Godot Property | SML Property | Type | Default |
+|-|-|-|-|
 
 ## Events
-(To be generated)
 
-## Example
+This page lists **only signals declared by `HBoxContainer`**.
+Inherited signals are documented in: [BoxContainer](BoxContainer.md)
 
-```sml
-HBoxContainer {
-    id: example
-}
-```
+| Godot Signal | SMS Event | Params |
+|-|-|-|

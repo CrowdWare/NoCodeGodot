@@ -1,18 +1,21 @@
 # HSplitContainer
 
-## Godot Mapping
-Godot Node: HSplitContainer
+## Inheritance
+
+[HSplitContainer](HSplitContainer.md) → [SplitContainer](SplitContainer.md) → [Container](Container.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
 
 ## Properties
-(To be generated)
+
+This page lists **only properties declared by `HSplitContainer`**.
+Inherited properties are documented in: [SplitContainer](SplitContainer.md)
+
+| Godot Property | SML Property | Type | Default |
+|-|-|-|-|
 
 ## Events
-(To be generated)
 
-## Example
+This page lists **only signals declared by `HSplitContainer`**.
+Inherited signals are documented in: [SplitContainer](SplitContainer.md)
 
-```sml
-HSplitContainer {
-    id: example
-}
-```
+| Godot Signal | SMS Event | Params |
+|-|-|-|

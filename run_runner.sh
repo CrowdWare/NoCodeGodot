@@ -17,13 +17,15 @@ if [[ -z "$MODE" ]]; then
   echo "  2) Designer -> docs/NoCodeDesigner/app.sml"
   echo "  3) docking  -> samples/docking_demo.sml"
   echo "  4) none     -> ohne URL-Override"
-  read -r -p "Auswahl [1-4]: " CHOICE
+  echo "  5) docs     -> generate SML/SMS docs (headless)"
+  read -r -p "Auswahl [1-5]: " CHOICE
 
   case "$CHOICE" in
     1) MODE="default" ;;
     2) MODE="sample" ;;
     3) MODE="docking" ;;
     4) MODE="none" ;;
+    5) MODE="docs" ;;
     *)
       echo "Ungültige Auswahl. Abbruch."
       exit 1
@@ -48,8 +50,13 @@ case "$MODE" in
     echo "Starting NoCodeRunner without startup URL override (reset persisted startUrl)"
     exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --reset-start-url
     ;;
+  docs)
+    echo "Generating SML/SMS docs headlessly (writes into repo docs/ )"
+    # Run the generator without opening the Godot editor UI.
+    exec "$GODOT_BIN" --headless --path "$RUNNER_PATH" --script "$REPO_ROOT/tools/generate_sml_element_docs.gd" -- --out "$REPO_ROOT/docs"  # CHANGED
+    ;;
   *)
-    echo "Usage: $0 [default|sample|docking|none]"
+    echo "Usage: $0 [default|sample|docking|none|docs]"
     exit 1
     ;;
 esac

@@ -1,18 +1,21 @@
 # CheckBox
 
-## Godot Mapping
-Godot Node: CheckBox
+## Inheritance
+
+[CheckBox](CheckBox.md) → [Button](Button.md) → [BaseButton](BaseButton.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
 
 ## Properties
-(To be generated)
+
+This page lists **only properties declared by `CheckBox`**.
+Inherited properties are documented in: [Button](Button.md)
+
+| Godot Property | SML Property | Type | Default |
+|-|-|-|-|
 
 ## Events
-(To be generated)
 
-## Example
+This page lists **only signals declared by `CheckBox`**.
+Inherited signals are documented in: [Button](Button.md)
 
-```sml
-CheckBox {
-    id: example
-}
-```
+| Godot Signal | SMS Event | Params |
+|-|-|-|

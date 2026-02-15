@@ -1,18 +1,21 @@
 # HSlider
 
-## Godot Mapping
-Godot Node: HSlider
+## Inheritance
+
+[HSlider](HSlider.md) → [Slider](Slider.md) → [Range](Range.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
 
 ## Properties
-(To be generated)
+
+This page lists **only properties declared by `HSlider`**.
+Inherited properties are documented in: [Slider](Slider.md)
+
+| Godot Property | SML Property | Type | Default |
+|-|-|-|-|
 
 ## Events
-(To be generated)
 
-## Example
+This page lists **only signals declared by `HSlider`**.
+Inherited signals are documented in: [Slider](Slider.md)
 
-```sml
-HSlider {
-    id: example
-}
-```
+| Godot Signal | SMS Event | Params |
+|-|-|-|

@@ -1,18 +1,22 @@
 # ColorRect
 
-## Godot Mapping
-Godot Node: ColorRect
+## Inheritance
+
+[ColorRect](ColorRect.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
 
 ## Properties
-(To be generated)
+
+This page lists **only properties declared by `ColorRect`**.
+Inherited properties are documented in: [Control](Control.md)
+
+| Godot Property | SML Property | Type | Default |
+|-|-|-|-|
+| color | color | Color | — |
 
 ## Events
-(To be generated)
 
-## Example
+This page lists **only signals declared by `ColorRect`**.
+Inherited signals are documented in: [Control](Control.md)
 
-```sml
-ColorRect {
-    id: example
-}
-```
+| Godot Signal | SMS Event | Params |
+|-|-|-|

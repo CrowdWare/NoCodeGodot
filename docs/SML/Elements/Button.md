@@ -1,46 +1,43 @@
 # Button
 
-## Godot Mapping
-Godot Node: Button
+## Inheritance
+
+[Button](Button.md) → [BaseButton](BaseButton.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
+
+## Derived Classes
+
+### Direct subclasses
+
+- [CheckBox](CheckBox.md)
+- [CheckButton](CheckButton.md)
+- [ColorPickerButton](ColorPickerButton.md)
+- [MenuButton](MenuButton.md)
+- [OptionButton](OptionButton.md)
 
 ## Properties
-| Name | Type | Default | Description |
+
+This page lists **only properties declared by `Button`**.
+Inherited properties are documented in: [BaseButton](BaseButton.md)
+
+| Godot Property | SML Property | Type | Default |
 |-|-|-|-|
-| id | identifier | — | Unique element id used for SMS event binding |
-| text | string | "" | Button caption |
-| disabled | bool | false | Disables user interaction |
-| toggleMode | bool | false | Button acts as a toggle button |
-| pressed | bool | false | Current pressed/toggled state |
-| icon | resource | — | Optional button icon texture |
-| flat | bool | false | Removes background styling |
+| alignment | alignment | int | — |
+| autowrap_mode | autowrapMode | int | — |
+| autowrap_trim_flags | autowrapTrimFlags | int | — |
+| clip_text | clipText | bool | — |
+| expand_icon | expandIcon | bool | — |
+| flat | flat | bool | — |
+| icon_alignment | iconAlignment | int | — |
+| language | language | string | — |
+| text | text | string | — |
+| text_direction | textDirection | int | — |
+| text_overrun_behavior | textOverrunBehavior | int | — |
+| vertical_icon_alignment | verticalIconAlignment | int | — |
 
 ## Events
-| Event | Params | Description |
+
+This page lists **only signals declared by `Button`**.
+Inherited signals are documented in: [BaseButton](BaseButton.md)
+
+| Godot Signal | SMS Event | Params |
 |-|-|-|
-| pressed | — | Button was pressed |
-| toggled | bool pressed | Emitted when toggleMode changes state |
-
-## Example
-
-```sml
-Button {
-    id: saveButton
-    text: "Save"
-    disabled: false      // default
-    toggleMode: false    // default
-    pressed: false       // default
-    flat: false          // default
-}
-```
-
-## SMS Event Examples
-
-```sms
-on saveButton.pressed() {
-    log.info("Button clicked")
-}
-
-on saveButton.toggled(pressed) {
-    log.info("Toggle state: ", pressed)
-}
-```

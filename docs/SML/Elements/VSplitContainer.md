@@ -1,18 +1,21 @@
 # VSplitContainer
 
-## Godot Mapping
-Godot Node: VSplitContainer
+## Inheritance
+
+[VSplitContainer](VSplitContainer.md) → [SplitContainer](SplitContainer.md) → [Container](Container.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
 
 ## Properties
-(To be generated)
+
+This page lists **only properties declared by `VSplitContainer`**.
+Inherited properties are documented in: [SplitContainer](SplitContainer.md)
+
+| Godot Property | SML Property | Type | Default |
+|-|-|-|-|
 
 ## Events
-(To be generated)
 
-## Example
+This page lists **only signals declared by `VSplitContainer`**.
+Inherited signals are documented in: [SplitContainer](SplitContainer.md)
 
-```sml
-VSplitContainer {
-    id: example
-}
-```
+| Godot Signal | SMS Event | Params |
+|-|-|-|

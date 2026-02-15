@@ -1,36 +1,48 @@
 # CanvasItem
 
-## Godot Mapping
-Godot Node: CanvasItem
+## Inheritance
+
+[CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
+
+## Derived Classes
+
+Classes listed below inherit from `CanvasItem`.
+
+### Direct subclasses
+
+- [Control](Control.md)
+- [Node2D](Node2D.md)
 
 ## Properties
-| Name | Type | Default | Description |
+
+This page lists **only properties declared by `CanvasItem`**.
+Inherited properties are documented in: [Node](Node.md)
+
+| Godot Property | SML Property | Type | Default |
 |-|-|-|-|
-| id | identifier | — | Unique element id used for SMS event binding |
-| visible | bool | true | Visibility of the item |
-| modulate | color | 1,1,1,1 | Modulation color applied to the item |
-| zIndex | int | 0 | Draw order within the same parent |
-| position | Vector2 | 0,0 | Local position |
-| rotation | float | 0 | Local rotation in radians |
-| scale | Vector2 | 1,1 | Local scale |
+| clip_children | clipChildren | int | — |
+| light_mask | lightMask | int | — |
+| modulate | modulate | Color | — |
+| self_modulate | selfModulate | Color | — |
+| show_behind_parent | showBehindParent | bool | — |
+| texture_filter | textureFilter | int | — |
+| texture_repeat | textureRepeat | int | — |
+| top_level | topLevel | bool | — |
+| use_parent_material | useParentMaterial | bool | — |
+| visibility_layer | visibilityLayer | int | — |
+| visible | visible | bool | — |
+| y_sort_enabled | ySortEnabled | bool | — |
+| z_as_relative | zAsRelative | bool | — |
+| z_index | zIndex | int | — |
 
 ## Events
-| Event | Params | Description |
+
+This page lists **only signals declared by `CanvasItem`**.
+Inherited signals are documented in: [Node](Node.md)
+
+| Godot Signal | SMS Event | Params |
 |-|-|-|
-| visibilityChanged | — | Emitted when visibility changes |
-
-## Example
-
-```sml
-CanvasItem {
-    id: example
-}
-```
-
-## SMS Event Examples
-
-```sms
-on example.visibilityChanged() {
-    log.info("Visibility changed")
-}
-```
+| draw | `on <id>.draw() { ... }` | — |
+| hidden | `on <id>.hidden() { ... }` | — |
+| item_rect_changed | `on <id>.itemRectChanged() { ... }` | — |
+| visibility_changed | `on <id>.visibilityChanged() { ... }` | — |

@@ -1,18 +1,22 @@
 # GridContainer
 
-## Godot Mapping
-Godot Node: GridContainer
+## Inheritance
+
+[GridContainer](GridContainer.md) → [Container](Container.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
 
 ## Properties
-(To be generated)
+
+This page lists **only properties declared by `GridContainer`**.
+Inherited properties are documented in: [Container](Container.md)
+
+| Godot Property | SML Property | Type | Default |
+|-|-|-|-|
+| columns | columns | int | — |
 
 ## Events
-(To be generated)
 
-## Example
+This page lists **only signals declared by `GridContainer`**.
+Inherited signals are documented in: [Container](Container.md)
 
-```sml
-GridContainer {
-    id: example
-}
-```
+| Godot Signal | SMS Event | Params |
+|-|-|-|

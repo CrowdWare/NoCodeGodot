@@ -1,18 +1,21 @@
 # VSlider
 
-## Godot Mapping
-Godot Node: VSlider
+## Inheritance
+
+[VSlider](VSlider.md) → [Slider](Slider.md) → [Range](Range.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
 
 ## Properties
-(To be generated)
+
+This page lists **only properties declared by `VSlider`**.
+Inherited properties are documented in: [Slider](Slider.md)
+
+| Godot Property | SML Property | Type | Default |
+|-|-|-|-|
 
 ## Events
-(To be generated)
 
-## Example
+This page lists **only signals declared by `VSlider`**.
+Inherited signals are documented in: [Slider](Slider.md)
 
-```sml
-VSlider {
-    id: example
-}
-```
+| Godot Signal | SMS Event | Params |
+|-|-|-|

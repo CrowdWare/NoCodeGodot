@@ -1,0 +1,21 @@
+# OpenXRInteractionProfileEditor
+
+## Inheritance
+
+[OpenXRInteractionProfileEditor](OpenXRInteractionProfileEditor.md) → [OpenXRInteractionProfileEditorBase](OpenXRInteractionProfileEditorBase.md) → [HBoxContainer](HBoxContainer.md) → [BoxContainer](BoxContainer.md) → [Container](Container.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
+
+## Properties
+
+This page lists **only properties declared by `OpenXRInteractionProfileEditor`**.
+Inherited properties are documented in: [OpenXRInteractionProfileEditorBase](OpenXRInteractionProfileEditorBase.md)
+
+| Godot Property | SML Property | Type | Default |
+|-|-|-|-|
+
+## Events
+
+This page lists **only signals declared by `OpenXRInteractionProfileEditor`**.
+Inherited signals are documented in: [OpenXRInteractionProfileEditorBase](OpenXRInteractionProfileEditorBase.md)
+
+| Godot Signal | SMS Event | Params |
+|-|-|-|
