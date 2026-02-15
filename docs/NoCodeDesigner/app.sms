@@ -31,7 +31,7 @@ fun ready() {
 
 fun openFloatingWindow() {
     var windowSml = "Window {  
-    id: mainWindow title: \"Floating Panel\"  
+    id: floatingWindow title: \"Floating Panel\"  
     minSize: 800,400\
     pos: 448,156
     size: 1024,768
