@@ -27,3 +27,8 @@ Inherited signals are documented in: [MarginContainer](MarginContainer.md)
 |-|-|-|
 | tab_changed | `on <id>.tabChanged(tabIndex) { ... }` | int tabIndex |
 | tab_closed | `on <id>.tabClosed(tabIndex) { ... }` | int tabIndex |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

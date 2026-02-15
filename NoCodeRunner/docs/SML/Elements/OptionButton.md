@@ -37,3 +37,42 @@ Inherited signals are documented in: [Button](Button.md)
 |-|-|-|
 | item_focused | `on <id>.itemFocused(index) { ... }` | int index |
 | item_selected | `on <id>.itemSelected(index) { ... }` | int index |
+
+## SML Items
+
+`OptionButton` options are defined as **SML child nodes** (pseudo elements).
+The runtime converts them to Godot OptionButton items internally.
+
+### Supported item elements
+
+- `Item`
+
+### Item properties (SML)
+
+| Property | Type | Default | Notes |
+|-|-|-|-|
+| id | identifier | — | Optional. Enables id-based event sugar (`on <id>.selected() { ... }`). |
+| text | string | "" | Display text. |
+| icon | string | "" | Optional icon resource/path. |
+| disabled | bool | false | Disables the option. |
+| selected | bool | false | If true, selects this option initially (first wins). |
+
+### Example
+
+```sml
+OptionButton { id: quality
+    Item { id: low; text: "Low" }
+    Item { id: med; text: "Medium"; selected: true }
+    Item { id: high; text: "High" }
+}
+```
+
+### SMS Event Examples
+
+```sms
+// With explicit item ids:
+on med.selected() { ... }
+
+// Container fallback (index based):
+on quality.itemSelected(index) { ... }
+```

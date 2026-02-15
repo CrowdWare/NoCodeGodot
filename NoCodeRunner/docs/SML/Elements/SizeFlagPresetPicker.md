@@ -27,3 +27,8 @@ Inherited signals are documented in: [ControlEditorPresetPicker](ControlEditorPr
 |-|-|-|
 | expand_flag_toggled | `on <id>.expandFlagToggled(expandFlag) { ... }` | bool expandFlag |
 | size_flags_selected | `on <id>.sizeFlagsSelected(sizeFlags) { ... }` | int sizeFlags |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

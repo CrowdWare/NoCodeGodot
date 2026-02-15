@@ -369,3 +369,8 @@ Inherited signals are documented in: [CanvasItem](CanvasItem.md)
 | resized | `on <id>.resized() { ... }` | — |
 | size_flags_changed | `on <id>.sizeFlagsChanged() { ... }` | — |
 | theme_changed | `on <id>.themeChanged() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

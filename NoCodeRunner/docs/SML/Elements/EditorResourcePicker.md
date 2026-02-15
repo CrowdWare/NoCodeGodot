@@ -36,3 +36,8 @@ Inherited signals are documented in: [HBoxContainer](HBoxContainer.md)
 |-|-|-|
 | resource_changed | `on <id>.resourceChanged(resource) { ... }` | Object resource |
 | resource_selected | `on <id>.resourceSelected(resource, inspect) { ... }` | Object resource, bool inspect |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

@@ -37,3 +37,8 @@ Inherited signals are documented in: [Range](Range.md)
 | updown_pressed | `on <id>.updownPressed() { ... }` | — |
 | value_focus_entered | `on <id>.valueFocusEntered() { ... }` | — |
 | value_focus_exited | `on <id>.valueFocusExited() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

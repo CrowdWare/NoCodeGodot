@@ -62,3 +62,8 @@ Inherited signals are documented in: [Control](Control.md)
 | item_selected | `on <id>.itemSelected() { ... }` | — |
 | multi_selected | `on <id>.multiSelected(item, column, selected) { ... }` | Object item, int column, bool selected |
 | nothing_selected | `on <id>.nothingSelected() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

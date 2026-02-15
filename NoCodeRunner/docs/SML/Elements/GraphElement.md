@@ -46,3 +46,8 @@ Inherited signals are documented in: [Container](Container.md)
 | raise_request | `on <id>.raiseRequest() { ... }` | — |
 | resize_end | `on <id>.resizeEnd(newSize) { ... }` | Vector2 newSize |
 | resize_request | `on <id>.resizeRequest(newSize) { ... }` | Vector2 newSize |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

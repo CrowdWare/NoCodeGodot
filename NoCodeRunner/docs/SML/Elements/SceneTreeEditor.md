@@ -36,3 +36,8 @@ Inherited signals are documented in: [Control](Control.md)
 | open_script | `on <id>.openScript() { ... }` | — |
 | rmb_pressed | `on <id>.rmbPressed(position) { ... }` | Vector2 position |
 | script_dropped | `on <id>.scriptDropped(file, toPath) { ... }` | string file, Variant toPath |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

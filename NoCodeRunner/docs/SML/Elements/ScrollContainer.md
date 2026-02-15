@@ -44,3 +44,8 @@ Inherited signals are documented in: [Container](Container.md)
 |-|-|-|
 | scroll_ended | `on <id>.scrollEnded() { ... }` | — |
 | scroll_started | `on <id>.scrollStarted() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

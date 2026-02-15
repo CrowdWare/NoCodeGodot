@@ -39,3 +39,8 @@ Inherited signals are documented in: [Range](Range.md)
 |-|-|-|
 | drag_ended | `on <id>.dragEnded(valueChanged) { ... }` | bool valueChanged |
 | drag_started | `on <id>.dragStarted() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

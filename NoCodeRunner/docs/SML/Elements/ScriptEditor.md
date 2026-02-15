@@ -27,3 +27,8 @@ Inherited signals are documented in: [PanelContainer](PanelContainer.md)
 |-|-|-|
 | editor_script_changed | `on <id>.editorScriptChanged(script) { ... }` | Object script |
 | script_close | `on <id>.scriptClose(script) { ... }` | Object script |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

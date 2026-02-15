@@ -26,3 +26,8 @@ Inherited signals are documented in: [PanelContainer](PanelContainer.md)
 | Godot Signal | SMS Event | Params |
 |-|-|-|
 | install_asset | `on <id>.installAsset(zipPath, name) { ... }` | string zipPath, string name |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

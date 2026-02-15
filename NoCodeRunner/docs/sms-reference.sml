@@ -13,6 +13,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -30,6 +32,8 @@ Reference {
             Event { godot: "action_renamed"; sms: "actionRenamed"; params: "string oldName, string newName" }
             Event { godot: "action_reordered"; sms: "actionReordered"; params: "string actionName, string relativeTo, bool before" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -43,6 +47,8 @@ Reference {
         Events {
             Event { godot: "anchors_preset_selected"; sms: "anchorsPresetSelected"; params: "int preset" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -59,6 +65,8 @@ Reference {
             Event { godot: "select_key"; sms: "selectKey"; params: "int index, bool single, int track" }
             Event { godot: "timeline_changed"; sms: "timelineChanged"; params: "float position, bool timelineOnly" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -71,6 +79,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -83,6 +93,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -95,6 +107,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -107,6 +121,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -119,6 +135,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -132,6 +150,8 @@ Reference {
         Events {
             Event { godot: "animation_selected"; sms: "animationSelected"; params: "string name" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -150,6 +170,8 @@ Reference {
             Event { godot: "track_added"; sms: "trackAdded"; params: "int track" }
             Event { godot: "zoom_changed"; sms: "zoomChanged"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -166,6 +188,8 @@ Reference {
             Event { godot: "keying_changed"; sms: "keyingChanged"; params: "—" }
             Event { godot: "timeline_changed"; sms: "timelineChanged"; params: "float position, bool timelineOnly, bool updatePositionOnly" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -178,6 +202,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -190,6 +216,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -202,6 +230,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -218,6 +248,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -230,6 +262,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -254,6 +288,8 @@ Reference {
             Event { godot: "pressed"; sms: "pressed"; params: "—" }
             Event { godot: "toggled"; sms: "toggled"; params: "bool toggledOn" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -268,6 +304,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -292,6 +330,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -304,6 +344,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -316,6 +358,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -346,6 +390,8 @@ Reference {
             Event { godot: "item_rect_changed"; sms: "itemRectChanged"; params: "—" }
             Event { godot: "visibility_changed"; sms: "visibilityChanged"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -360,6 +406,8 @@ Reference {
             Event { godot: "item_group_status_changed"; sms: "itemGroupStatusChanged"; params: "—" }
             Event { godot: "item_lock_status_changed"; sms: "itemLockStatusChanged"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -372,6 +420,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -384,6 +434,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -397,6 +449,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -409,6 +463,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -421,6 +477,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -454,6 +512,8 @@ Reference {
             Event { godot: "symbol_lookup"; sms: "symbolLookup"; params: "string symbol, int line, int column" }
             Event { godot: "symbol_validate"; sms: "symbolValidate"; params: "string symbol" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -472,6 +532,8 @@ Reference {
             Event { godot: "validate_script"; sms: "validateScript"; params: "—" }
             Event { godot: "zoomed"; sms: "zoomed"; params: "float pZoomFactor" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -484,6 +546,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -496,6 +560,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -523,6 +589,8 @@ Reference {
             Event { godot: "preset_added"; sms: "presetAdded"; params: "Color color" }
             Event { godot: "preset_removed"; sms: "presetRemoved"; params: "Color color" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -541,6 +609,8 @@ Reference {
             Event { godot: "picker_created"; sms: "pickerCreated"; params: "—" }
             Event { godot: "popup_closed"; sms: "popupClosed"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -554,6 +624,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -566,6 +638,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -580,6 +654,8 @@ Reference {
             Event { godot: "pre_sort_children"; sms: "preSortChildren"; params: "—" }
             Event { godot: "sort_children"; sms: "sortChildren"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -636,6 +712,8 @@ Reference {
             Event { godot: "size_flags_changed"; sms: "sizeFlagsChanged"; params: "—" }
             Event { godot: "theme_changed"; sms: "themeChanged"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -648,6 +726,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -660,6 +740,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -672,6 +754,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -684,6 +768,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -696,6 +782,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -708,6 +796,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -721,6 +811,8 @@ Reference {
         Events {
             Event { godot: "install_asset"; sms: "installAsset"; params: "string zipPath, string name" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -738,6 +830,8 @@ Reference {
             Event { godot: "duplicate_request"; sms: "duplicateRequest"; params: "—" }
             Event { godot: "vol_reset_request"; sms: "volResetRequest"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -750,6 +844,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -762,6 +858,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -775,6 +873,8 @@ Reference {
         Events {
             Event { godot: "autoload_changed"; sms: "autoloadChanged"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -787,6 +887,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -802,6 +904,8 @@ Reference {
             Event { godot: "object_selected"; sms: "objectSelected"; params: "int id" }
             Event { godot: "objects_edited"; sms: "objectsEdited"; params: "Variant ids, string property, Object , string field" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -821,6 +925,8 @@ Reference {
             Event { godot: "goto_script_line"; sms: "gotoScriptLine"; params: "—" }
             Event { godot: "set_execution"; sms: "setExecution"; params: "Object , int line" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -837,6 +943,8 @@ Reference {
             Event { godot: "save_node"; sms: "saveNode"; params: "int objectId, string filename, int debugger" }
             Event { godot: "selection_cleared"; sms: "selectionCleared"; params: "int debugger" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -860,6 +968,8 @@ Reference {
             Event { godot: "_tab_style_changed"; sms: "TabStyleChanged"; params: "—" }
             Event { godot: "closed"; sms: "closed"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -872,6 +982,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -885,6 +997,8 @@ Reference {
         Events {
             Event { godot: "value_changed"; sms: "valueChanged"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -897,6 +1011,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -911,6 +1027,8 @@ Reference {
             Event { godot: "go_to_help"; sms: "goToHelp"; params: "—" }
             Event { godot: "request_save_history"; sms: "requestSaveHistory"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -924,6 +1042,8 @@ Reference {
         Events {
             Event { godot: "request_hide"; sms: "requestHide"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -945,6 +1065,8 @@ Reference {
             Event { godot: "resource_selected"; sms: "resourceSelected"; params: "Object resource, string path" }
             Event { godot: "restart_requested"; sms: "restartRequested"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -957,6 +1079,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -970,6 +1094,8 @@ Reference {
         Events {
             Event { godot: "page_change_request"; sms: "pageChangeRequest"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -983,6 +1109,8 @@ Reference {
         Events {
             Event { godot: "unfavorite_all"; sms: "unfavoriteAll"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -997,6 +1125,8 @@ Reference {
             Event { godot: "property_keyed"; sms: "propertyKeyed"; params: "Variant property" }
             Event { godot: "section_toggled_by_user"; sms: "sectionToggledByUser"; params: "Variant property, bool value" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1009,6 +1139,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1021,6 +1153,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1035,6 +1169,8 @@ Reference {
             Event { godot: "enable_profiling"; sms: "enableProfiling"; params: "bool enable" }
             Event { godot: "open_request"; sms: "openRequest"; params: "string path" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1047,6 +1183,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1060,6 +1198,8 @@ Reference {
         Events {
             Event { godot: "page_changed"; sms: "pageChanged"; params: "int page" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1072,6 +1212,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1084,6 +1226,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1098,6 +1242,8 @@ Reference {
             Event { godot: "break_request"; sms: "breakRequest"; params: "—" }
             Event { godot: "enable_profiling"; sms: "enableProfiling"; params: "bool enable" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1135,6 +1281,8 @@ Reference {
             Event { godot: "resource_selected"; sms: "resourceSelected"; params: "string path, Object resource" }
             Event { godot: "selected"; sms: "selected"; params: "string path, int focusableIdx" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1147,6 +1295,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1159,6 +1309,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1171,6 +1323,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1183,6 +1337,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1195,6 +1351,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1207,6 +1365,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1219,6 +1379,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1231,6 +1393,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1243,6 +1407,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1257,6 +1423,8 @@ Reference {
             Event { godot: "flag_changed"; sms: "flagChanged"; params: "int flag" }
             Event { godot: "rename_confirmed"; sms: "renameConfirmed"; params: "int layerId, string newName" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1269,6 +1437,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1281,6 +1451,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1293,6 +1465,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1305,6 +1479,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1317,6 +1493,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1329,6 +1507,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1341,6 +1521,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1353,6 +1535,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1365,6 +1549,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1377,6 +1563,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1389,6 +1577,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1406,6 +1596,8 @@ Reference {
             Event { godot: "resource_changed"; sms: "resourceChanged"; params: "Object resource" }
             Event { godot: "resource_selected"; sms: "resourceSelected"; params: "Object resource, bool inspect" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1420,6 +1612,8 @@ Reference {
             Event { godot: "play_pressed"; sms: "playPressed"; params: "—" }
             Event { godot: "stop_pressed"; sms: "stopPressed"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1433,6 +1627,8 @@ Reference {
         Events {
             Event { godot: "native_run"; sms: "nativeRun"; params: "Object preset" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1447,6 +1643,8 @@ Reference {
             Event { godot: "tab_changed"; sms: "tabChanged"; params: "int tabIndex" }
             Event { godot: "tab_closed"; sms: "tabClosed"; params: "int tabIndex" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1459,6 +1657,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1483,6 +1683,8 @@ Reference {
             Event { godot: "value_focus_entered"; sms: "valueFocusEntered"; params: "—" }
             Event { godot: "value_focus_exited"; sms: "valueFocusExited"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1495,6 +1697,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1507,6 +1711,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1519,6 +1725,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1531,6 +1739,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1543,6 +1753,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1555,6 +1767,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1568,6 +1782,8 @@ Reference {
         Events {
             Event { godot: "enable_profiling"; sms: "enableProfiling"; params: "bool enable" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1582,6 +1798,8 @@ Reference {
         Events {
             Event { godot: "zoom_changed"; sms: "zoomChanged"; params: "float zoom" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1598,6 +1816,8 @@ Reference {
             Event { godot: "embedding_completed"; sms: "embeddingCompleted"; params: "—" }
             Event { godot: "embedding_failed"; sms: "embeddingFailed"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1610,6 +1830,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1623,6 +1845,8 @@ Reference {
         Events {
             Event { godot: "event_changed"; sms: "eventChanged"; params: "Object event" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1645,6 +1869,8 @@ Reference {
             Event { godot: "resource_removed"; sms: "resourceRemoved"; params: "Object resource" }
             Event { godot: "selection_changed"; sms: "selectionChanged"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1658,6 +1884,8 @@ Reference {
         Events {
             Event { godot: "item_edited"; sms: "itemEdited"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1670,6 +1898,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1684,6 +1914,8 @@ Reference {
             Event { godot: "files_modified"; sms: "filesModified"; params: "string paths" }
             Event { godot: "result_selected"; sms: "resultSelected"; params: "string path, int lineNumber, int begin, int end" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1696,6 +1928,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1712,6 +1946,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1732,6 +1968,8 @@ Reference {
         Events {
             Event { godot: "folding_changed"; sms: "foldingChanged"; params: "bool isFolded" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1744,6 +1982,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1798,6 +2038,8 @@ Reference {
             Event { godot: "popup_request"; sms: "popupRequest"; params: "Vector2 atPosition" }
             Event { godot: "scroll_offset_changed"; sms: "scrollOffsetChanged"; params: "Vector2 offset" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1810,6 +2052,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1822,6 +2066,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1848,6 +2094,8 @@ Reference {
             Event { godot: "resize_end"; sms: "resizeEnd"; params: "Vector2 newSize" }
             Event { godot: "resize_request"; sms: "resizeRequest"; params: "Vector2 newSize" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1867,6 +2115,8 @@ Reference {
         Events {
             Event { godot: "autoshrink_changed"; sms: "autoshrinkChanged"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1884,6 +2134,8 @@ Reference {
             Event { godot: "slot_sizes_changed"; sms: "slotSizesChanged"; params: "—" }
             Event { godot: "slot_updated"; sms: "slotUpdated"; params: "int slotIndex" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1897,6 +2149,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1909,6 +2163,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1922,6 +2178,8 @@ Reference {
         Events {
             Event { godot: "group_changed"; sms: "groupChanged"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1934,6 +2192,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1946,6 +2206,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1958,6 +2220,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1970,6 +2234,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1982,6 +2248,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -1994,6 +2262,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2006,6 +2276,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2018,6 +2290,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2030,6 +2304,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2042,6 +2318,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2054,6 +2332,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2067,6 +2347,8 @@ Reference {
         Events {
             Event { godot: "request_help"; sms: "requestHelp"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2101,6 +2383,10 @@ Reference {
             Event { godot: "item_selected"; sms: "itemSelected"; params: "int index" }
             Event { godot: "multi_selected"; sms: "multiSelected"; params: "int index, bool selected" }
         }
+
+        PseudoChildren {
+            Item { props: "id,text,icon,selected,disabled,tooltip" }
+        }
     }
 
     Type {
@@ -2132,6 +2418,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2144,6 +2432,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2156,6 +2446,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2168,6 +2460,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2218,6 +2512,8 @@ Reference {
             Event { godot: "text_changed"; sms: "textChanged"; params: "string newText" }
             Event { godot: "text_submitted"; sms: "textSubmitted"; params: "string newText" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2238,6 +2534,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2251,6 +2549,8 @@ Reference {
         Events {
             Event { godot: "localization_changed"; sms: "localizationChanged"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2263,6 +2563,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2281,6 +2583,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2296,6 +2600,8 @@ Reference {
         Events {
             Event { godot: "about_to_popup"; sms: "aboutToPopup"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2308,6 +2614,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2320,6 +2628,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2332,6 +2642,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2344,6 +2656,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2356,6 +2670,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2368,6 +2684,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2380,6 +2698,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2400,6 +2720,8 @@ Reference {
         Events {
             Event { godot: "texture_changed"; sms: "textureChanged"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2446,6 +2768,8 @@ Reference {
             Event { godot: "item_lock_status_changed"; sms: "itemLockStatusChanged"; params: "—" }
             Event { godot: "transform_key_request"; sms: "transformKeyRequest"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2460,6 +2784,8 @@ Reference {
             Event { godot: "clicked"; sms: "clicked"; params: "—" }
             Event { godot: "toggle_maximize_view"; sms: "toggleMaximizeView"; params: "Object viewport" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2472,6 +2798,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2496,6 +2824,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2509,6 +2839,8 @@ Reference {
         Events {
             Event { godot: "binding_modifier_removed"; sms: "bindingModifierRemoved"; params: "Object bindingModifierEditor" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2521,6 +2853,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2533,6 +2867,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2551,6 +2887,10 @@ Reference {
             Event { godot: "item_focused"; sms: "itemFocused"; params: "int index" }
             Event { godot: "item_selected"; sms: "itemSelected"; params: "int index" }
         }
+
+        PseudoChildren {
+            Item { props: "id,text,icon,disabled,selected" }
+        }
     }
 
     Type {
@@ -2563,6 +2903,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2575,6 +2917,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2587,6 +2931,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2599,6 +2945,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2611,6 +2959,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2671,6 +3021,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2683,6 +3035,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2695,6 +3049,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2709,6 +3065,8 @@ Reference {
             Event { godot: "result_clicked"; sms: "resultClicked"; params: "bool doubleClick" }
             Event { godot: "selection_changed"; sms: "selectionChanged"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2732,6 +3090,8 @@ Reference {
             Event { godot: "changed"; sms: "changed"; params: "—" }
             Event { godot: "value_changed"; sms: "valueChanged"; params: "float value" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2747,6 +3107,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2759,6 +3121,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2771,6 +3135,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2814,6 +3180,8 @@ Reference {
             Event { godot: "meta_hover_ended"; sms: "metaHoverEnded"; params: "Variant meta" }
             Event { godot: "meta_hover_started"; sms: "metaHoverStarted"; params: "Variant meta" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2829,6 +3197,8 @@ Reference {
             Event { godot: "node_created"; sms: "nodeCreated"; params: "Object node" }
             Event { godot: "remote_tree_selected"; sms: "remoteTreeSelected"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2852,6 +3222,8 @@ Reference {
             Event { godot: "rmb_pressed"; sms: "rmbPressed"; params: "Vector2 position" }
             Event { godot: "script_dropped"; sms: "scriptDropped"; params: "string file, Variant toPath" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2865,6 +3237,8 @@ Reference {
         Events {
             Event { godot: "request_open_in_screen"; sms: "requestOpenInScreen"; params: "int screen" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2879,6 +3253,8 @@ Reference {
             Event { godot: "editor_script_changed"; sms: "editorScriptChanged"; params: "Object script" }
             Event { godot: "script_close"; sms: "scriptClose"; params: "Object script" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2901,6 +3277,8 @@ Reference {
             Event { godot: "request_save_previous_state"; sms: "requestSavePreviousState"; params: "Variant state" }
             Event { godot: "search_in_files_requested"; sms: "searchInFilesRequested"; params: "string text" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2938,6 +3316,8 @@ Reference {
             Event { godot: "stop_requested"; sms: "stopRequested"; params: "—" }
             Event { godot: "stopped"; sms: "stopped"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2950,6 +3330,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2964,6 +3346,8 @@ Reference {
         Events {
             Event { godot: "scrolling"; sms: "scrolling"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -2989,6 +3373,8 @@ Reference {
             Event { godot: "scroll_ended"; sms: "scrollEnded"; params: "—" }
             Event { godot: "scroll_started"; sms: "scrollStarted"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3002,6 +3388,8 @@ Reference {
         Events {
             Event { godot: "category_changed"; sms: "categoryChanged"; params: "string newCategory" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3014,6 +3402,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3026,6 +3416,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3039,6 +3431,8 @@ Reference {
         Events {
             Event { godot: "globals_changed"; sms: "globalsChanged"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3051,6 +3445,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3065,6 +3461,8 @@ Reference {
             Event { godot: "expand_flag_toggled"; sms: "expandFlagToggled"; params: "bool expandFlag" }
             Event { godot: "size_flags_selected"; sms: "sizeFlagsSelected"; params: "int sizeFlags" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3077,6 +3475,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3096,6 +3496,8 @@ Reference {
             Event { godot: "drag_ended"; sms: "dragEnded"; params: "bool valueChanged" }
             Event { godot: "drag_started"; sms: "dragStarted"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3108,6 +3510,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3120,6 +3524,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3132,6 +3538,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3144,6 +3552,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3156,6 +3566,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3168,6 +3580,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3188,6 +3602,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3200,6 +3616,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3224,6 +3642,8 @@ Reference {
             Event { godot: "drag_started"; sms: "dragStarted"; params: "—" }
             Event { godot: "dragged"; sms: "dragged"; params: "int offset" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3236,6 +3656,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3248,6 +3670,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3260,6 +3684,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3275,6 +3701,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3287,6 +3715,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3320,6 +3750,10 @@ Reference {
             Event { godot: "tab_hovered"; sms: "tabHovered"; params: "int tab" }
             Event { godot: "tab_rmb_clicked"; sms: "tabRmbClicked"; params: "int tab" }
             Event { godot: "tab_selected"; sms: "tabSelected"; params: "int tab" }
+        }
+
+        PseudoChildren {
+            Tab { props: "id,title,icon,disabled,hidden,selected" }
         }
     }
 
@@ -3424,6 +3858,8 @@ Reference {
             Event { godot: "text_changed"; sms: "textChanged"; params: "—" }
             Event { godot: "text_set"; sms: "textSet"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3436,6 +3872,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3452,6 +3890,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3477,6 +3917,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3493,6 +3935,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3505,6 +3949,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3518,6 +3964,8 @@ Reference {
         Events {
             Event { godot: "control_picked"; sms: "controlPicked"; params: "string className" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3531,6 +3979,8 @@ Reference {
         Events {
             Event { godot: "items_imported"; sms: "itemsImported"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3543,6 +3993,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3556,6 +4008,8 @@ Reference {
         Events {
             Event { godot: "transform_changed"; sms: "transformChanged"; params: "float zoom, Vector2 scroll" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3568,6 +4022,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3581,6 +4037,8 @@ Reference {
         Events {
             Event { godot: "source_id_changed"; sms: "sourceIdChanged"; params: "int sourceId" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3593,6 +4051,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3606,6 +4066,8 @@ Reference {
         Events {
             Event { godot: "source_id_changed"; sms: "sourceIdChanged"; params: "int sourceId" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3618,6 +4080,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3661,6 +4125,8 @@ Reference {
             Event { godot: "multi_selected"; sms: "multiSelected"; params: "Object item, int column, bool selected" }
             Event { godot: "nothing_selected"; sms: "nothingSelected"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3673,6 +4139,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3685,6 +4153,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3697,6 +4167,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3709,6 +4181,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3721,6 +4195,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3733,6 +4209,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3754,6 +4232,8 @@ Reference {
         Events {
             Event { godot: "finished"; sms: "finished"; params: "—" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3824,6 +4304,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3836,6 +4318,8 @@ Reference {
 
         Events {
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
     Type {
@@ -3908,6 +4392,8 @@ Reference {
             Event { godot: "window_size_changed"; sms: "windowSizeChanged"; params: "—" }
             Event { godot: "window_visibility_changed"; sms: "windowVisibilityChanged"; params: "bool visible" }
         }
+
+        # TODO: Define PseudoChildren schema for this collection control
     }
 
 }

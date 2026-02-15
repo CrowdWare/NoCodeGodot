@@ -30,3 +30,8 @@ Inherited signals are documented in: [GraphElement](GraphElement.md)
 |-|-|-|
 | slot_sizes_changed | `on <id>.slotSizesChanged() { ... }` | — |
 | slot_updated | `on <id>.slotUpdated(slotIndex) { ... }` | int slotIndex |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

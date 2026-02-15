@@ -35,3 +35,8 @@ Inherited signals are documented in: [EditorDock](EditorDock.md)
 | instantiate | `on <id>.instantiate(files) { ... }` | Variant files |
 | resource_removed | `on <id>.resourceRemoved(resource) { ... }` | Object resource |
 | selection_changed | `on <id>.selectionChanged() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

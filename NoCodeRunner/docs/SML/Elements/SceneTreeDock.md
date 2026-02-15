@@ -28,3 +28,8 @@ Inherited signals are documented in: [EditorDock](EditorDock.md)
 | add_node_used | `on <id>.addNodeUsed() { ... }` | — |
 | node_created | `on <id>.nodeCreated(node) { ... }` | Object node |
 | remote_tree_selected | `on <id>.remoteTreeSelected() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

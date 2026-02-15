@@ -70,3 +70,8 @@ Inherited signals are documented in: [Control](Control.md)
 | text_change_rejected | `on <id>.textChangeRejected(rejectedSubstring) { ... }` | string rejectedSubstring |
 | text_changed | `on <id>.textChanged(newText) { ... }` | string newText |
 | text_submitted | `on <id>.textSubmitted(newText) { ... }` | string newText |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

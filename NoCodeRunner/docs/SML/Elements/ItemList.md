@@ -54,3 +54,43 @@ Inherited signals are documented in: [Control](Control.md)
 | item_clicked | `on <id>.itemClicked(index, atPosition, mouseButtonIndex) { ... }` | int index, Vector2 atPosition, int mouseButtonIndex |
 | item_selected | `on <id>.itemSelected(index) { ... }` | int index |
 | multi_selected | `on <id>.multiSelected(index, selected) { ... }` | int index, bool selected |
+
+## SML Items
+
+`ItemList` entries are defined as **SML child nodes** (pseudo elements).
+The runtime converts them to Godot ItemList items internally.
+
+### Supported item elements
+
+- `Item`
+
+### Item properties (SML)
+
+| Property | Type | Default | Notes |
+|-|-|-|-|
+| id | identifier | — | Optional. Enables id-based event sugar (`on <id>.selected() { ... }`). |
+| text | string | "" | Display text. |
+| icon | string | "" | Optional icon resource/path. |
+| selected | bool | false | Initial selection state (single-select). |
+| disabled | bool | false | Disables the item. |
+| tooltip | string | "" | Optional tooltip text. |
+
+### Example
+
+```sml
+ItemList { id: files
+    Item { id: a; text: "Readme.md"; icon: "res:/icons/doc.svg" }
+    Item { id: b; text: "Todo.md" }
+    Item { text: "Disabled item"; disabled: true }
+}
+```
+
+### SMS Event Examples
+
+```sms
+// With explicit item ids:
+on a.selected() { ... }
+
+// Without item ids (container fallback):
+on files.itemSelected(index) { ... }
+```

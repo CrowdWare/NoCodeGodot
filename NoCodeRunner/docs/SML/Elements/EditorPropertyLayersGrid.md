@@ -27,3 +27,8 @@ Inherited signals are documented in: [Control](Control.md)
 |-|-|-|
 | flag_changed | `on <id>.flagChanged(flag) { ... }` | int flag |
 | rename_confirmed | `on <id>.renameConfirmed(layerId, newName) { ... }` | int layerId, string newName |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

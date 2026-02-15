@@ -35,3 +35,8 @@ Inherited signals are documented in: [Control](Control.md)
 | embedded_process_updated | `on <id>.embeddedProcessUpdated() { ... }` | — |
 | embedding_completed | `on <id>.embeddingCompleted() { ... }` | — |
 | embedding_failed | `on <id>.embeddingFailed() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

@@ -67,3 +67,8 @@ Inherited signals are documented in: [Control](Control.md)
 | paste_nodes_request | `on <id>.pasteNodesRequest() { ... }` | — |
 | popup_request | `on <id>.popupRequest(atPosition) { ... }` | Vector2 atPosition |
 | scroll_offset_changed | `on <id>.scrollOffsetChanged(offset) { ... }` | Vector2 offset |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

@@ -31,3 +31,8 @@ Inherited signals are documented in: [Button](Button.md)
 | color_changed | `on <id>.colorChanged(color) { ... }` | Color color |
 | picker_created | `on <id>.pickerCreated() { ... }` | — |
 | popup_closed | `on <id>.popupClosed() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

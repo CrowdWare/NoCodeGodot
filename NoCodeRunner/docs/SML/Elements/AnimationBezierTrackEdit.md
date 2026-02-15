@@ -29,3 +29,8 @@ Inherited signals are documented in: [Control](Control.md)
 | deselect_key | `on <id>.deselectKey(index, track) { ... }` | int index, int track |
 | select_key | `on <id>.selectKey(index, single, track) { ... }` | int index, bool single, int track |
 | timeline_changed | `on <id>.timelineChanged(position, timelineOnly) { ... }` | float position, bool timelineOnly |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

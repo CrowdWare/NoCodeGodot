@@ -30,3 +30,8 @@ Inherited signals are documented in: [Control](Control.md)
 | action_removed | `on <id>.actionRemoved(name) { ... }` | string name |
 | action_renamed | `on <id>.actionRenamed(oldName, newName) { ... }` | string oldName, string newName |
 | action_reordered | `on <id>.actionReordered(actionName, relativeTo, before) { ... }` | string actionName, string relativeTo, bool before |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

@@ -29,3 +29,8 @@ Inherited signals are documented in: [Tree](Tree.md)
 | open | `on <id>.open() { ... }` | — |
 | save_node | `on <id>.saveNode(objectId, filename, debugger) { ... }` | int objectId, string filename, int debugger |
 | selection_cleared | `on <id>.selectionCleared(debugger) { ... }` | int debugger |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

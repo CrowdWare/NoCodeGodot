@@ -26,3 +26,8 @@ Inherited signals are documented in: [ItemList](ItemList.md)
 | Godot Signal | SMS Event | Params |
 |-|-|-|
 | item_edited | `on <id>.itemEdited() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

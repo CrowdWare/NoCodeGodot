@@ -40,3 +40,8 @@ Inherited signals are documented in: [ScrollContainer](ScrollContainer.md)
 | property_toggled | `on <id>.propertyToggled(property, checked) { ... }` | string property, bool checked |
 | resource_selected | `on <id>.resourceSelected(resource, path) { ... }` | Object resource, string path |
 | restart_requested | `on <id>.restartRequested() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

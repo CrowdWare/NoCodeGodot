@@ -32,3 +32,8 @@ Inherited signals are documented in: [EditorDock](EditorDock.md)
 | clear_execution | `on <id>.clearExecution() { ... }` | Object  |
 | goto_script_line | `on <id>.gotoScriptLine() { ... }` | — |
 | set_execution | `on <id>.setExecution(, line) { ... }` | Object , int line |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

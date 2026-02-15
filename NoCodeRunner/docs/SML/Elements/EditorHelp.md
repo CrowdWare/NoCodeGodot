@@ -27,3 +27,8 @@ Inherited signals are documented in: [VBoxContainer](VBoxContainer.md)
 |-|-|-|
 | go_to_help | `on <id>.goToHelp() { ... }` | — |
 | request_save_history | `on <id>.requestSaveHistory() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

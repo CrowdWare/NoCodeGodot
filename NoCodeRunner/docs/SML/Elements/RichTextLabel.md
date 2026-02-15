@@ -56,3 +56,8 @@ Inherited signals are documented in: [Control](Control.md)
 | meta_clicked | `on <id>.metaClicked(meta) { ... }` | Variant meta |
 | meta_hover_ended | `on <id>.metaHoverEnded(meta) { ... }` | Variant meta |
 | meta_hover_started | `on <id>.metaHoverStarted(meta) { ... }` | Variant meta |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

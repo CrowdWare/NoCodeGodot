@@ -154,6 +154,109 @@ func _generate_doc(c_name: String) -> void:
         md += "on fileMenu.idPressed(id) { ... }\n"
         md += "```\n"
 
+    # SML-only child structure for ItemList items (ItemList manages items internally in Godot).
+    if c_name == "ItemList":
+        md += "\n## SML Items\n\n"
+        md += "`ItemList` entries are defined as **SML child nodes** (pseudo elements).\n"
+        md += "The runtime converts them to Godot ItemList items internally.\n\n"
+
+        md += "### Supported item elements\n\n"
+        md += "- `Item`\n\n"
+
+        md += "### Item properties (SML)\n\n"
+        md += "| Property | Type | Default | Notes |\n|-|-|-|-|\n"
+        md += "| id | identifier | — | Optional. Enables id-based event sugar (`on <id>.selected() { ... }`). |\n"
+        md += "| text | string | \"\" | Display text. |\n"
+        md += "| icon | string | \"\" | Optional icon resource/path. |\n"
+        md += "| selected | bool | false | Initial selection state (single-select). |\n"
+        md += "| disabled | bool | false | Disables the item. |\n"
+        md += "| tooltip | string | \"\" | Optional tooltip text. |\n"
+
+        md += "\n### Example\n\n"
+        md += "```sml\n"
+        md += "ItemList { id: files\n"
+        md += "    Item { id: a; text: \"Readme.md\"; icon: \"res:/icons/doc.svg\" }\n"
+        md += "    Item { id: b; text: \"Todo.md\" }\n"
+        md += "    Item { text: \"Disabled item\"; disabled: true }\n"
+        md += "}\n"
+        md += "```\n\n"
+
+        md += "### SMS Event Examples\n\n"
+        md += "```sms\n"
+        md += "// With explicit item ids:\n"
+        md += "on a.selected() { ... }\n\n"
+        md += "// Without item ids (container fallback):\n"
+        md += "on files.itemSelected(index) { ... }\n"
+        md += "```\n"
+
+    # SML-only child structure for OptionButton items.
+    if c_name == "OptionButton":
+        md += "\n## SML Items\n\n"
+        md += "`OptionButton` options are defined as **SML child nodes** (pseudo elements).\n"
+        md += "The runtime converts them to Godot OptionButton items internally.\n\n"
+
+        md += "### Supported item elements\n\n"
+        md += "- `Item`\n\n"
+
+        md += "### Item properties (SML)\n\n"
+        md += "| Property | Type | Default | Notes |\n|-|-|-|-|\n"
+        md += "| id | identifier | — | Optional. Enables id-based event sugar (`on <id>.selected() { ... }`). |\n"
+        md += "| text | string | \"\" | Display text. |\n"
+        md += "| icon | string | \"\" | Optional icon resource/path. |\n"
+        md += "| disabled | bool | false | Disables the option. |\n"
+        md += "| selected | bool | false | If true, selects this option initially (first wins). |\n"
+
+        md += "\n### Example\n\n"
+        md += "```sml\n"
+        md += "OptionButton { id: quality\n"
+        md += "    Item { id: low; text: \"Low\" }\n"
+        md += "    Item { id: med; text: \"Medium\"; selected: true }\n"
+        md += "    Item { id: high; text: \"High\" }\n"
+        md += "}\n"
+        md += "```\n\n"
+
+        md += "### SMS Event Examples\n\n"
+        md += "```sms\n"
+        md += "// With explicit item ids:\n"
+        md += "on med.selected() { ... }\n\n"
+        md += "// Container fallback (index based):\n"
+        md += "on quality.itemSelected(index) { ... }\n"
+        md += "```\n"
+
+    # SML-only child structure for TabBar tabs (tabs are internal items, not child Controls).
+    if c_name == "TabBar":
+        md += "\n## SML Tabs\n\n"
+        md += "`TabBar` tabs are defined as **SML child nodes** (pseudo elements).\n"
+        md += "The runtime converts them to Godot TabBar tabs internally.\n\n"
+
+        md += "### Supported tab elements\n\n"
+        md += "- `Tab`\n\n"
+
+        md += "### Tab properties (SML)\n\n"
+        md += "| Property | Type | Default | Notes |\n|-|-|-|-|\n"
+        md += "| id | identifier | — | Optional. Enables id-based event sugar (`on <id>.tabSelected() { ... }`). |\n"
+        md += "| title | string | \"\" | Tab title. |\n"
+        md += "| icon | string | \"\" | Optional icon resource/path. |\n"
+        md += "| disabled | bool | false | Disables selecting the tab. |\n"
+        md += "| hidden | bool | false | Hides the tab. |\n"
+        md += "| selected | bool | false | If true, selects this tab initially (first wins). |\n"
+
+        md += "\n### Example\n\n"
+        md += "```sml\n"
+        md += "TabBar { id: tabs\n"
+        md += "    Tab { id: home; title: \"Home\"; selected: true }\n"
+        md += "    Tab { id: settings; title: \"Settings\" }\n"
+        md += "}\n"
+        md += "```\n\n"
+
+        md += "### SMS Event Examples\n\n"
+        md += "```sms\n"
+        md += "// With explicit tab ids:\n"
+        md += "on home.tabSelected() { ... }\n\n"
+        md += "// Container fallback (index based):\n"
+        md += "on tabs.tabChanged(index) { ... }\n"
+        md += "```\n"
+
     # Context properties: valid on child Controls only when used under a specific parent.
     if c_name == "TabContainer":
         md += "\n## Child Properties (Context)\n\n"
@@ -173,6 +276,12 @@ func _generate_doc(c_name: String) -> void:
         md += "    Panel { tabTitle: \"Settings\"; tabDisabled: false }\n"
         md += "}\n"
         md += "```\n"
+
+    # Generic fallback: collection controls without a dedicated SML pseudo-child spec yet.
+    if _is_collection_control(c_name) and c_name not in ["PopupMenu", "ItemList", "OptionButton", "TabBar", "TabContainer"]:
+        md += "\n## SML Items (TODO)\n\n"
+        md += "This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.\n"
+        md += "Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.\n"
 
     var path := "%s/%s.md" % [OUT_DIR, c_name]
     var f := FileAccess.open(path, FileAccess.WRITE)
@@ -468,6 +577,18 @@ func _generate_reference_sml(names: Array) -> void:
             sml += "            CheckItem { props: \"id,text,checked,disabled\" }\n"
             sml += "            Separator { props: \"\" }\n"
             sml += "        }\n"
+        if c_name == "ItemList":
+            sml += "\n        PseudoChildren {\n"
+            sml += "            Item { props: \"id,text,icon,selected,disabled,tooltip\" }\n"
+            sml += "        }\n"
+        if c_name == "OptionButton":
+            sml += "\n        PseudoChildren {\n"
+            sml += "            Item { props: \"id,text,icon,disabled,selected\" }\n"
+            sml += "        }\n"
+        if c_name == "TabBar":
+            sml += "\n        PseudoChildren {\n"
+            sml += "            Tab { props: \"id,title,icon,disabled,hidden,selected\" }\n"
+            sml += "        }\n"
         # Context properties for children of TabContainer
         if c_name == "TabContainer":
             sml += "\n        ChildContext {\n"
@@ -477,6 +598,9 @@ func _generate_reference_sml(names: Array) -> void:
             sml += "            Prop { sml: \"tabDisabled\"; type: \"bool\"; default: \"false\" }\n"
             sml += "            Prop { sml: \"tabHidden\"; type: \"bool\"; default: \"false\" }\n"
             sml += "        }\n"
+
+        if _is_collection_control(c_name) and c_name not in ["PopupMenu", "ItemList", "OptionButton", "TabBar", "TabContainer"]:
+            sml += "\n        # TODO: Define PseudoChildren schema for this collection control\n"
 
         sml += "    }\n\n"
 

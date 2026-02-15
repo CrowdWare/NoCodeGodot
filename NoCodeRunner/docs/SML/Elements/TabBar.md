@@ -47,3 +47,42 @@ Inherited signals are documented in: [Control](Control.md)
 | tab_hovered | `on <id>.tabHovered(tab) { ... }` | int tab |
 | tab_rmb_clicked | `on <id>.tabRmbClicked(tab) { ... }` | int tab |
 | tab_selected | `on <id>.tabSelected(tab) { ... }` | int tab |
+
+## SML Tabs
+
+`TabBar` tabs are defined as **SML child nodes** (pseudo elements).
+The runtime converts them to Godot TabBar tabs internally.
+
+### Supported tab elements
+
+- `Tab`
+
+### Tab properties (SML)
+
+| Property | Type | Default | Notes |
+|-|-|-|-|
+| id | identifier | — | Optional. Enables id-based event sugar (`on <id>.tabSelected() { ... }`). |
+| title | string | "" | Tab title. |
+| icon | string | "" | Optional icon resource/path. |
+| disabled | bool | false | Disables selecting the tab. |
+| hidden | bool | false | Hides the tab. |
+| selected | bool | false | If true, selects this tab initially (first wins). |
+
+### Example
+
+```sml
+TabBar { id: tabs
+    Tab { id: home; title: "Home"; selected: true }
+    Tab { id: settings; title: "Settings" }
+}
+```
+
+### SMS Event Examples
+
+```sms
+// With explicit tab ids:
+on home.tabSelected() { ... }
+
+// Container fallback (index based):
+on tabs.tabChanged(index) { ... }
+```

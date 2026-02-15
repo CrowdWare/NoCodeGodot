@@ -30,3 +30,8 @@ Inherited signals are documented in: [PanelContainer](PanelContainer.md)
 | dropped | `on <id>.dropped() { ... }` | — |
 | duplicate_request | `on <id>.duplicateRequest() { ... }` | — |
 | vol_reset_request | `on <id>.volResetRequest() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

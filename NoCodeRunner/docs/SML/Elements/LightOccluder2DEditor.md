@@ -25,3 +25,8 @@ Inherited signals are documented in: [AbstractPolygon2DEditor](AbstractPolygon2D
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

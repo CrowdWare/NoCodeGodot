@@ -83,3 +83,8 @@ Inherited signals are documented in: [Control](Control.md)
 | lines_edited_from | `on <id>.linesEditedFrom(fromLine, toLine) { ... }` | int fromLine, int toLine |
 | text_changed | `on <id>.textChanged() { ... }` | — |
 | text_set | `on <id>.textSet() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

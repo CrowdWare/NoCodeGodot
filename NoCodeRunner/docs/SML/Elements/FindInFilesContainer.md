@@ -27,3 +27,8 @@ Inherited signals are documented in: [EditorDock](EditorDock.md)
 |-|-|-|
 | files_modified | `on <id>.filesModified(paths) { ... }` | string paths |
 | result_selected | `on <id>.resultSelected(path, lineNumber, begin, end) { ... }` | string path, int lineNumber, int begin, int end |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

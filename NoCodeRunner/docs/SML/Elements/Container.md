@@ -48,3 +48,8 @@ Inherited signals are documented in: [Control](Control.md)
 |-|-|-|
 | pre_sort_children | `on <id>.preSortChildren() { ... }` | — |
 | sort_children | `on <id>.sortChildren() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

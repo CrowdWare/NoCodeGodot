@@ -40,3 +40,8 @@ Inherited signals are documented in: [VBoxContainer](VBoxContainer.md)
 | color_changed | `on <id>.colorChanged(color) { ... }` | Color color |
 | preset_added | `on <id>.presetAdded(color) { ... }` | Color color |
 | preset_removed | `on <id>.presetRemoved(color) { ... }` | Color color |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

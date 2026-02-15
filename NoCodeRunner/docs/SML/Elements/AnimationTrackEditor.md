@@ -29,3 +29,8 @@ Inherited signals are documented in: [VBoxContainer](VBoxContainer.md)
 | animation_step_changed | `on <id>.animationStepChanged(step) { ... }` | float step |
 | keying_changed | `on <id>.keyingChanged() { ... }` | — |
 | timeline_changed | `on <id>.timelineChanged(position, timelineOnly, updatePositionOnly) { ... }` | float position, bool timelineOnly, bool updatePositionOnly |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

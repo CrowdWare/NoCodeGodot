@@ -52,3 +52,8 @@ Inherited signals are documented in: [Node](Node.md)
 | hidden | `on <id>.hidden() { ... }` | — |
 | item_rect_changed | `on <id>.itemRectChanged() { ... }` | — |
 | visibility_changed | `on <id>.visibilityChanged() { ... }` | — |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.

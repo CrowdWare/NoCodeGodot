@@ -73,3 +73,8 @@ Inherited signals are documented in: [Container](Container.md)
 | property_pinned | `on <id>.propertyPinned(property, pinned) { ... }` | Variant property, bool pinned |
 | resource_selected | `on <id>.resourceSelected(path, resource) { ... }` | string path, Object resource |
 | selected | `on <id>.selected(path, focusableIdx) { ... }` | string path, int focusableIdx |
+
+## SML Items (TODO)
+
+This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
+Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.
