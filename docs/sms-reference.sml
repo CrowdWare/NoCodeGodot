@@ -827,6 +827,21 @@ Reference {
     }
 
     Type {
+        name: "Markdown"
+        parent: "Control"
+
+        Properties {
+            Prop { sml: "id"; type: "identifier" }
+            Prop { sml: "padding"; type: "padding"; default: "0" }
+            Prop { sml: "text"; type: "string"; default: "\"\"" }
+            Prop { sml: "src"; type: "string"; default: "\"\"" }
+        }
+
+        Events {
+        }
+    }
+
+    Type {
         name: "MenuBar"
         parent: "Control"
 

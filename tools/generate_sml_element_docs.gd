@@ -11,6 +11,7 @@ func _initialize() -> void:
     quit()
 
 const EXTRA_CLASSES := ["Window", "PopupMenu"]  # CHANGED
+const MANUAL_TYPES: Array[String] = ["Markdown"]  # CHANGED
 
 func _run() -> void:
     _ensure_out_dir()
@@ -39,6 +40,9 @@ func _run() -> void:
 
     # Generate docs
     var names: Array = targets.keys()
+    for mt in MANUAL_TYPES:  # CHANGED
+        if not names.has(mt):
+            names.append(mt)
     names.sort()
 
     for name in names:
@@ -84,6 +88,11 @@ func _generate_doc(c_name: String) -> void:
 
         md += "\n### All descendants (alphabetical)\n\n"
         md += _md_link_list(_collect_subclasses("Control", false))
+
+        md += "\n### Manual SML elements\n\n"  # CHANGED
+        md += "These are SML-only elements mapped to `Control` (not Godot ClassDB classes).\n\n"  # CHANGED
+        md += _md_link_list(MANUAL_TYPES)  # CHANGED
+
         md += "\n"
 
     elif c_name in ["CanvasItem", "Node", "Object"]:
@@ -103,15 +112,47 @@ func _generate_doc(c_name: String) -> void:
 
     md += "## Properties\n\n"
     md += "This page lists **only properties declared by `" + c_name + "`**.\n"
-    var parent := String(ClassDB.get_parent_class(c_name))
+    var parent := ""  # CHANGED
+    if ClassDB.class_exists(c_name):  # CHANGED
+        parent = String(ClassDB.get_parent_class(c_name))  # CHANGED
+    elif inheritance.size() > 1:  # CHANGED
+        parent = inheritance[1]  # CHANGED
     if parent != "":
         md += "Inherited properties are documented in: [" + parent + "](" + parent + ".md)\n\n"
     else:
         md += "\n"
 
     md += "| Godot Property | SML Property | Type | Default |\n|-|-|-|-|\n"  # CHANGED
-    for p in props:
-        md += "| %s | %s | %s | — |\n" % [String(p["name"]), _normalize_property(String(p["name"])), String(p["type"])]  # CHANGED
+    # CHANGED: Manual SML-only element (not a Godot class)
+    if c_name == "Markdown":
+        md += "| id | id | identifier | — |
+"
+        md += "| padding | padding | int / int,int / int,int,int,int | 0 |
+"
+        md += "| text | text | string | \"\" |
+"
+        md += "| src | src | string | \"\" |
+"
+        md += "
+> Note: `text` and `src` are alternative sources. Use one of them.
+
+"
+
+        md += "### Examples
+
+"
+        md += "```sml
+"
+        md += "Markdown { padding: 8,8,8,20; text: \"# Header\" }
+"
+        md += "Markdown { padding: 8; src: \"res:/sample.md\" }
+"
+        md += "```
+"
+    else:
+        for p in props:
+            md += "| %s | %s | %s | — |
+" % [String(p["name"]), _normalize_property(String(p["name"])), String(p["type"])]  # CHANGED
 
     md += "\n## Events\n\n"
     md += "This page lists **only signals declared by `" + c_name + "`**.\n"
@@ -297,6 +338,8 @@ func _generate_doc(c_name: String) -> void:
         f.close()
 
 func _inheritance_chain(c_name: String) -> Array[String]:
+    if c_name == "Markdown":  # CHANGED
+        return ["Markdown", "Control", "CanvasItem", "Node", "Object"]
     var chain: Array[String] = []
     var c := c_name
     while c != "":
@@ -305,6 +348,9 @@ func _inheritance_chain(c_name: String) -> Array[String]:
     return chain
 
 func _collect_properties(c_name: String) -> Array:
+    if not ClassDB.class_exists(c_name):  # CHANGED
+        return []  # CHANGED
+
     var parent := String(ClassDB.get_parent_class(c_name))
 
     var parent_names := {}
@@ -360,6 +406,9 @@ func _collect_properties(c_name: String) -> Array:
     return out
 
 func _collect_signals(c_name: String) -> Array:
+    if not ClassDB.class_exists(c_name):  # CHANGED
+        return []  # CHANGED
+
     var parent := String(ClassDB.get_parent_class(c_name))
 
     var parent_names := {}
@@ -558,6 +607,21 @@ func _generate_reference_sml(names: Array) -> void:
 
     for n in names:
         var c_name := String(n)
+        if c_name == "Markdown":  # CHANGED
+            sml += "    Type {\n"
+            sml += "        name: \"Markdown\"\n"
+            sml += "        parent: \"Control\"\n"
+            sml += "\n        Properties {\n"
+            sml += "            Prop { sml: \"id\"; type: \"identifier\" }\n"
+            sml += "            Prop { sml: \"padding\"; type: \"padding\"; default: \"0\" }\n"
+            sml += "            Prop { sml: \"text\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
+            sml += "            Prop { sml: \"src\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
+            sml += "        }\n"
+            sml += "\n        Events {\n"
+            sml += "        }\n"
+            sml += "    }\n\n"
+            continue
+
         var parent := String(ClassDB.get_parent_class(c_name))
         var props := _collect_properties(c_name)
         var signals := _collect_signals(c_name)

@@ -108,6 +108,12 @@ All classes listed below inherit from `Control`.
 - [VSplitContainer](VSplitContainer.md)
 - [VideoStreamPlayer](VideoStreamPlayer.md)
 
+### Manual SML elements
+
+These are SML-only elements mapped to `Control` (not Godot ClassDB classes).
+
+- [Markdown](Markdown.md)
+
 ## Properties
 
 This page lists **only properties declared by `Control`**.
