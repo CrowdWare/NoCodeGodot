@@ -29,13 +29,7 @@
 ⸻
 
 ## 3. Controls Mapping
-	•	Control names in SML must match Godot class names.
-	•	Properties must match Godot property names and types.
-	•	Remove all name-mapping code.
-
-## Definition of Done:
-	•	No property translation layer exists.
-	•	SML acts purely as serialization.
+For this purpose we now have an own task: code_generator.md
 
 ⸻
 
