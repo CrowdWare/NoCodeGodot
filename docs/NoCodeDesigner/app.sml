@@ -2,7 +2,7 @@ Window {
     id: mainWindow
     title: "NoCodeDesigner"
     minSize: 800,400
-    pos: 448, 156 // centered
+    pos: 0, 0 // centered
     size: 1024, 768
 
     MenuBar {
