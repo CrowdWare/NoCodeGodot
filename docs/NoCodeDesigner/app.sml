@@ -32,6 +32,7 @@ Window {
             id: viewMenu
             MenuItem { text: "Projekt" id: panelLeft isChecked: true }
             MenuItem { text: "Markdown" id: panelRight isChecked: true }
+            MenuItem { text: "Floating Window" id: floating}
         }
     }
 

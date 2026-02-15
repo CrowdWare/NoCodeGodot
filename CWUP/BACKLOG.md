@@ -100,8 +100,12 @@
 - [x] tasks/docking_dragdrop_ux.md
 - [x] tasks/docking_layout_persistence.md
 - [x] tasks/mainmenu.md
-- [ ] tasks/issues.md
-- [ ] tasks/missing_features.md
+- [ ] tasks/sms_events.md
+- [ ] tasks/floats_in_sml.md
+- [ ] tasks/refactoring.md
+- [ ] tasks/documentation.md
+- [ ] tasks/issues_menu.md
+- [/] tasks/missing_features.md check again after refactoring
 
 ## Tasks for NoCodeDesigner
 - [ ] Lifecycle-Template für neue Scripts einführen (OnInit / OnReadyAsync sichtbar als optionaler Einstieg)

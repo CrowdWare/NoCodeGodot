@@ -10,40 +10,21 @@ Window {
         anchors: top | left | bottom
         width: 300
 
-        TreeView {
-            id: treeview
-            showGuides: false
+        Tabs {
+            Tab {
+                title: "Project"
 
-            Item { 
-                text: "Root" 
-                expanded: true
-
-                Item {
-                    id: 1
-                    text: "Branch 1"
- 
-                    Item {
-                        id: 11
-                        text: "Branch 1.1"
-                        icon: "res:/assets/images/document.png"
-
-                        Toggle {
-                            id: showObject
-                            imageOn: "res:/assets/images/eye_open.png"
-                            imageOff: "res:/assets/images/eye_closed.png"
-                        }
-                    }
-                }
-                Item {
-                    id: 2
-                    text: "Branch 2"
-                }
-                Item {
-                    id: 3
-                    text: "Branch 3"
+                TreeView {
+                    id: treeview
+                    showGuides: false
                 }
             }
+
+            Tab {
+                title: "Hierarchy"
+            }
         }
+
     }
 
     Panel {
@@ -52,10 +33,16 @@ Window {
         x: 300
         width: 300
 
-        CodeEdit {
-
-            text: "Window { titel: \"Test\"}"     
-            syntax: "sml"       
+        Tabs {
+            Tab {
+                title: "<New>"
+        
+                CodeEdit {
+                    id: codeEdit
+                    text: "Window { titel: \"Test\"}"     
+                    syntax: "sml"   
+                }    
+            }
         }
     }
 
@@ -65,10 +52,21 @@ Window {
         x: 600
         width: 600
         
-        Markdown {
-            layoutMode: document
-            padding: 8,8,8,20
-            src: "res:/sample.md"
+        Tabs {
+            Tab {
+                title: "Desktop"
+                Markdown {
+                    layoutMode: document
+                    padding: 8,8,8,20
+                    src: "res:/sample.md"
+                }
+            }
+            Tab {
+                title: "Mobile Landscape"
+            }
+            Tab {
+                title: "Mobile Portrait"
+            }
         }
     }
 }

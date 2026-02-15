@@ -2,28 +2,117 @@
 
 [ext_resource type="Script" uid="uid://bpx1utn5enafd" path="res://test_resize.gd" id="1_4sl0u"]
 
-[node name="TestResize" type="Control" unique_id=155426487]
-layout_mode = 0
+[node name="HSplitContainer" type="HSplitContainer" unique_id=844198652]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-offset_right = 0.0
-offset_bottom = 0.0
+split_offsets = PackedInt32Array(300, 1800)
+drag_area_highlight_in_editor = true
+split_offset = 300
 script = ExtResource("1_4sl0u")
 
-[node name="PanelContainer" type="PanelContainer" parent="." unique_id=736232969]
+[node name="Control" type="Control" parent="." unique_id=960535651]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+
+[node name="Left" type="TabContainer" parent="Control" unique_id=852913433]
 layout_mode = 1
-anchors_preset = 15
+anchors_preset = 10
 anchor_right = 1.0
-anchor_bottom = 1.0
+offset_bottom = 1080.0
 grow_horizontal = 2
-grow_vertical = 2
+current_tab = 1
+drag_to_rearrange_enabled = true
+tabs_rearrange_group = 1
+tab_0/title = "Tab 1"
+tab_1/title = "Tab 2"
 
-[node name="MarginContainer" type="MarginContainer" parent="PanelContainer" unique_id=1956839695]
+[node name="Tab1" type="TabBar" parent="Control/Left" unique_id=2030194323]
+visible = false
 layout_mode = 2
+tab_close_display_policy = 2
+drag_to_rearrange_enabled = true
+metadata/_tab_index = 0
+metadata/_tab_name = "Tab 1"
 
-[node name="Label" type="Label" parent="PanelContainer/MarginContainer" unique_id=249590213]
+[node name="Tab2" type="TabBar" parent="Control/Left" unique_id=19217900]
 layout_mode = 2
-text = "This text should centered on the screen"
+tab_close_display_policy = 2
+drag_to_rearrange_enabled = true
+metadata/_tab_index = 1
+metadata/_tab_name = "Tab 2"
+
+[node name="MenuButton" type="MenuButton" parent="Control" unique_id=2013039043]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -19.0
+offset_bottom = 31.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 22
+text = "⋮"
+item_count = 6
+popup/item_0/text = "Left"
+popup/item_0/id = 0
+popup/item_1/text = "Right"
+popup/item_1/id = 1
+popup/item_2/text = "FarLeft"
+popup/item_2/id = 2
+popup/item_3/text = "FarRight"
+popup/item_3/id = 3
+popup/item_4/text = "Floated"
+popup/item_4/id = 4
+popup/item_5/text = "Closed"
+popup/item_5/id = 6
+
+[node name="Center" type="TabContainer" parent="." unique_id=463334219]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+current_tab = 1
+drag_to_rearrange_enabled = true
+tab_0/title = "Tab 5"
+tab_1/title = "Tab 6"
+
+[node name="TabBar" type="TabBar" parent="Center" unique_id=1119442401]
+visible = false
+layout_mode = 2
+tab_close_display_policy = 2
+drag_to_rearrange_enabled = true
+metadata/_tab_index = 0
+metadata/_tab_name = "Tab 5"
+
+[node name="TabBar2" type="TabBar" parent="Center" unique_id=767576621]
+layout_mode = 2
+tab_close_display_policy = 2
+drag_to_rearrange_enabled = true
+metadata/_tab_index = 1
+metadata/_tab_name = "Tab 6"
+
+[node name="Right" type="TabContainer" parent="." unique_id=1657721309]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+current_tab = 1
+drag_to_rearrange_enabled = true
+tabs_rearrange_group = 1
+tab_0/title = "Tab 3"
+tab_1/title = "Tab 4"
+
+[node name="TabBar" type="TabBar" parent="Right" unique_id=148915521]
+visible = false
+layout_mode = 2
+tab_close_display_policy = 2
+drag_to_rearrange_enabled = true
+metadata/_tab_index = 0
+metadata/_tab_name = "Tab 3"
+
+[node name="TabBar2" type="TabBar" parent="Right" unique_id=63460262]
+layout_mode = 2
+tab_close_display_policy = 2
+drag_to_rearrange_enabled = true
+metadata/_tab_index = 1
+metadata/_tab_name = "Tab 4"
+
+[connection signal="pressed" from="Control/MenuButton" to="." method="_on_menu_button_pressed"]
