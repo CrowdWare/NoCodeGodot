@@ -71,6 +71,7 @@ All classes listed below inherit from `Control`.
 - [LineEdit](LineEdit.md)
 - [LinkButton](LinkButton.md)
 - [MarginContainer](MarginContainer.md)
+- [Markdown](Markdown.md)
 - [MenuBar](MenuBar.md)
 - [MenuButton](MenuButton.md)
 - [NinePatchRect](NinePatchRect.md)
@@ -107,12 +108,6 @@ All classes listed below inherit from `Control`.
 - [VSlider](VSlider.md)
 - [VSplitContainer](VSplitContainer.md)
 - [VideoStreamPlayer](VideoStreamPlayer.md)
-
-### Manual SML elements
-
-These are SML-only elements mapped to `Control` (not Godot ClassDB classes).
-
-- [Markdown](Markdown.md)
 - [Viewport3D](Viewport3D.md)
 
 ## Properties

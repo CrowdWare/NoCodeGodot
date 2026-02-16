@@ -1,21 +1,34 @@
 extends SceneTree
 
 var REPO_ROOT := ""
+var SPECS: Dictionary = {}
 var OUT_DIR := ""
 var REF_PATH := ""
+var SPEC_DIR := ""
 func _initialize() -> void:
     REPO_ROOT = ProjectSettings.globalize_path("res://") + "/.."
     OUT_DIR = REPO_ROOT + "/docs/SML/Elements"
     REF_PATH = REPO_ROOT + "/docs/sms-reference.sml"
+    SPEC_DIR = REPO_ROOT + "/tools/specs"
     _run()
     quit()
 
 const EXTRA_CLASSES := ["Window", "PopupMenu"] 
-const MANUAL_TYPES: Array[String] = ["Markdown", "Viewport3D"] 
 
 func _run() -> void:
-    _ensure_out_dir()
+    SPECS = _load_specs()
+    var specs := SPECS
 
+    var manual_types: Array[String] = []  # CHANGED
+    for k in specs.keys():  # CHANGED
+        manual_types.append(String(k))  # CHANGED
+    manual_types.sort()  # CHANGED
+
+    var manual_backing := {}
+    for mt in manual_types:
+        manual_backing[mt] = String(specs[mt].get("backing", "Control"))
+
+    _ensure_out_dir()
     # Collect all Control classes AND all their base classes (CanvasItem, Node, Object, ...)
     var targets := {}
 
@@ -40,7 +53,7 @@ func _run() -> void:
 
     # Generate docs
     var names: Array = targets.keys()
-    for mt in MANUAL_TYPES:  # CHANGED
+    for mt in manual_types: 
         if not names.has(mt):
             names.append(mt)
     names.sort()
@@ -84,14 +97,12 @@ func _generate_doc(c_name: String) -> void:
         md += "All classes listed below inherit from `Control`.\n\n"
 
         md += "### Direct subclasses\n\n"
-        md += _md_link_list(_collect_subclasses("Control", true))
+        #md += _md_link_list(_collect_subclasses("Control", true))
+        md += _md_link_list(_collect_subclasses_with_manual("Control", true))
 
         md += "\n### All descendants (alphabetical)\n\n"
-        md += _md_link_list(_collect_subclasses("Control", false))
-
-        md += "\n### Manual SML elements\n\n"  # CHANGED
-        md += "These are SML-only elements mapped to `Control` (not Godot ClassDB classes).\n\n"  # CHANGED
-        md += _md_link_list(MANUAL_TYPES)  # CHANGED
+        #md += _md_link_list(_collect_subclasses("Control", false))
+        md += _md_link_list(_collect_subclasses_with_manual("Control", false)) 
 
         md += "\n"
 
@@ -99,11 +110,13 @@ func _generate_doc(c_name: String) -> void:
         md += "## Derived Classes\n\n"
         md += "Classes listed below inherit from `" + c_name + "`.\n\n"
         md += "### Direct subclasses\n\n"
-        md += _md_link_list(_collect_subclasses(c_name, true))
+        #md += _md_link_list(_collect_subclasses(c_name, true))
+        md += _md_link_list(_collect_subclasses_with_manual(c_name, true))
         md += "\n"
 
     else:
-        var direct := _collect_subclasses(c_name, true)
+        #var direct := _collect_subclasses(c_name, true)
+        var direct := _collect_subclasses_with_manual(c_name, true)
         if direct.size() > 0:
             md += "## Derived Classes\n\n"
             md += "### Direct subclasses\n\n"
@@ -124,48 +137,35 @@ func _generate_doc(c_name: String) -> void:
 
     md += "| Godot Property | SML Property | Type | Default |\n|-|-|-|-|\n"  # CHANGED
     # CHANGED: Manual SML-only element (not a Godot class)
-    if c_name == "Markdown":
-        md += "| id | id | identifier | — |\n"
-        md += "| padding | padding | int / int,int / int,int,int,int | 0 |\n"
-        md += "| text | text | string | \"\" |\n"
-        md += "| src | src | string | \"\" |\n"
-        md += "\n> Note: `text` and `src` are alternative sources. Use one of them.\n\n"
-
-        md += "### Examples\n\n"
-        md += "```sml\n"
-        md += "Markdown { padding: 8,8,8,20; text: \"# Header\" }\n"
-        md += "Markdown { padding: 8; src: \"res:/sample.md\" }\n"
-        md += "```\n"
-
-    elif c_name == "Viewport3D":  # CHANGED
-        md += "| id | id | identifier | — |\n"
-        md += "| model | model | string (url) | \"\" |\n"
-        md += "| modelSource | modelSource | string (url) | \"\" |\n"
-        md += "| animation | animation | string (url) | \"\" |\n"
-        md += "| animationSource | animationSource | string (url) | \"\" |\n"
-        md += "| playAnimation | playAnimation | int | 0 |\n"
-        md += "| playFirstAnimation | playFirstAnimation | bool | false |\n"
-        md += "| autoplayAnimation | autoplayAnimation | bool | false |\n"
-        md += "| defaultAnimation | defaultAnimation | string | \"\" |\n"
-        md += "| playLoop | playLoop | bool | false |\n"
-        md += "| cameraDistance | cameraDistance | int | 0 |\n"
-        md += "| lightEnergy | lightEnergy | int | 0 |\n"
-
-        md += "\n> Note: `model` and `modelSource` are aliases. Same for `animation` and `animationSource`.\n"
-        md += "> `id` is used to target camera/animation actions from SMS.\n\n"
-
-        md += "### Examples\n\n"
-        md += "```sml\n"
-        md += "Viewport3D {\n"
-        md += "    id: heroView\n"
-        md += "    model: \"res:/assets/models/Idle.glb\"\n"
-        md += "    playFirstAnimation: true\n"
-        md += "}\n"
-        md += "```\n"
-
+    var spec_props := _get_spec_props(c_name)  # CHANGED
+    if spec_props.size() > 0:  # CHANGED
+        # Spec-defined properties (SML-level, not necessarily Godot properties)
+        for sp in spec_props:
+            var godot_p := String(sp.get("godot", "—"))  # CHANGED (optional)
+            var sml_p := String(sp.get("sml", ""))  # CHANGED
+            var typ := String(sp.get("type", "Variant"))  # CHANGED
+            var defv := String(sp.get("default", "—"))  # CHANGED
+            md += "| %s | %s | %s | %s |\n" % [godot_p, sml_p, typ, defv]  # CHANGED
     else:
         for p in props:
             md += "| %s | %s | %s | — |\n" % [String(p["name"]), _normalize_property(String(p["name"])), String(p["type"])]  # CHANGED
+
+
+    if SPECS.has(c_name):  # CHANGED
+        var notes := Array(SPECS[c_name].get("notes", []))
+        if notes.size() > 0:
+            md += "\n"
+            for n in notes:
+                md += "> " + String(n) + "\n"
+            md += "\n"
+
+        var ex_sml := Array(SPECS[c_name].get("examples_sml", []))
+        if ex_sml.size() > 0:
+            md += "### Examples\n\n```sml\n"
+            for l in ex_sml:
+                md += String(l) + "\n"
+            md += "```\n"
+
 
     md += "\n## Events\n\n"
     md += "This page lists **only signals declared by `" + c_name + "`**.\n"
@@ -178,6 +178,39 @@ func _generate_doc(c_name: String) -> void:
     for s in signals:
         md += "| %s | %s | %s |\n" % [String(s["name"]), _format_sms_handler(String(s["name"]), String(s["params_names"])), String(s["params"]) ]  # CHANGED
 
+    # Actions (from specs)  # CHANGED
+    var actions := _get_spec_actions(c_name)  # CHANGED
+    if actions.size() > 0:  # CHANGED
+        md += "\n## Actions\n\n"  # CHANGED
+        md += "This page lists **only actions supported by the runtime** for `" + c_name + "`.\n"  # CHANGED
+        if parent != "":  # CHANGED
+            md += "Inherited actions are documented in: [" + parent + "](" + parent + ".md)\n\n"  # CHANGED
+        else:  # CHANGED
+            md += "\n"  # CHANGED
+
+        md += "| Action | SMS Call | Params | Returns |\n|-|-|-|-|\n"  # CHANGED
+
+        for a in actions:  # CHANGED
+            var an := String(a.get("sms", ""))  # CHANGED
+            var params := Array(a.get("params", []))  # CHANGED
+            var ret := String(a.get("returns", "void"))  # CHANGED
+
+            var param_sig := "—"  # CHANGED
+            var arg_names: Array[String] = []  # CHANGED
+            if params.size() > 0:  # CHANGED
+                var parts: Array[String] = []  # CHANGED
+                for p in params:  # CHANGED
+                    var pn := String(p.get("name", "arg"))  # CHANGED
+                    var pt := String(p.get("type", "Variant"))  # CHANGED
+                    parts.append(pt + " " + pn)  # CHANGED
+                    arg_names.append(pn)  # CHANGED
+                param_sig = ", ".join(parts)  # CHANGED
+
+            var call := "`<id>." + an + "()`"  # CHANGED
+            if arg_names.size() > 0:  # CHANGED
+                call = "`<id>." + an + "(" + ", ".join(arg_names) + ")`"  # CHANGED
+
+            md += "| %s | %s | %s | %s |\n" % [an, call, param_sig, ret]  # CHANGED
 
     # SML-only child structure for menu items (PopupMenu items are not properties in Godot).
     if c_name == "PopupMenu":
@@ -352,17 +385,27 @@ func _generate_doc(c_name: String) -> void:
         f.close()
 
 func _inheritance_chain(c_name: String) -> Array[String]:
-    if c_name == "Markdown":
-        return ["Markdown", "VBoxContainer", "BoxContainer", "Container", "Control", "CanvasItem", "Node", "Object"]
-    if c_name == "Viewport3D":
-        return ["Viewport3D", "SubViewportContainer", "Container", "Control", "CanvasItem", "Node", "Object"]
+    # Manual/custom SML elements defined via specs
+    if SPECS.has(c_name):
+        var spec := Dictionary(SPECS[c_name])
+        var backing := String(spec.get("backing", "Control"))
+        var chain: Array[String] = [c_name]
+        chain.append(backing)
+        var cur: String = backing
+        while cur != "":
+            cur = String(ClassDB.get_parent_class(cur))
+            if cur != "":
+                chain.append(cur)
+        return chain
 
-    var chain: Array[String] = []
-    var c := c_name
+    # Normal ClassDB chain
+    var chain2: Array[String] = []
+    var c: String = c_name
     while c != "":
-        chain.append(c)
-        c = ClassDB.get_parent_class(c)
-    return chain
+        chain2.append(c)
+        c = String(ClassDB.get_parent_class(c))
+    return chain2
+
 
 func _collect_properties(c_name: String) -> Array:
     if not ClassDB.class_exists(c_name):  # CHANGED
@@ -544,6 +587,34 @@ func _collect_subclasses(base: String, direct_only: bool) -> Array[String]:
     out.sort()
     return out
 
+func _collect_manual_subclasses(base: String, direct_only: bool) -> Array[String]:
+    var out: Array[String] = []
+    # Manual types are defined by spec scripts in /tools/specs
+    for mt in SPECS.keys():
+        var spec := Dictionary(SPECS[mt])
+        var backing := String(spec.get("backing", ""))
+        if backing == "":
+            continue
+
+        if direct_only:
+            if backing == base:
+                out.append(String(mt))
+        else:
+            var chain := _inheritance_chain(String(mt))
+            for i in range(1, chain.size()):
+                if chain[i] == base:
+                    out.append(String(mt))
+                    break
+
+    out.sort()
+    return out
+
+func _collect_subclasses_with_manual(base: String, direct_only: bool) -> Array[String]:
+    var out := _collect_subclasses(base, direct_only)
+    out.append_array(_collect_manual_subclasses(base, direct_only))
+    out.sort()
+    return out
+
 func _md_link_list(names: Array[String]) -> String:
     if names.size() == 0:
         return "(none)\n"
@@ -613,6 +684,60 @@ func _has_item_signals(c_name: String) -> bool:
             if an == "index" or an == "id":
                 return true
     return false
+
+
+func _load_specs() -> Dictionary:
+    var out := {}  # name -> spec dict
+
+    var dir := DirAccess.open(SPEC_DIR)
+    if dir == null:
+        push_error("Spec dir not found: " + SPEC_DIR)
+        return out
+
+    dir.list_dir_begin()
+    while true:
+        var fn := dir.get_next()
+        if fn == "":
+            break
+        if dir.current_is_dir():
+            continue
+        if not fn.ends_with(".gd"):
+            continue
+
+        var path := SPEC_DIR + "/" + fn
+        var scr := load(path)
+        if scr == null:
+            push_error("Failed to load spec script: " + path)
+            continue
+
+        var inst = scr.new()
+        if inst == null or not inst.has_method("get_spec"):
+            push_error("Spec script missing get_spec(): " + path)
+            continue
+
+        var spec: Dictionary = inst.get_spec()
+        var name := String(spec.get("name", ""))
+        if name == "":
+            push_error("Spec missing name: " + path)
+            continue
+
+        out[name] = spec
+
+    dir.list_dir_end()
+    return out
+
+
+func _get_spec_props(c_name: String) -> Array:  # CHANGED
+    if not SPECS.has(c_name):
+        return []
+    return Array(SPECS[c_name].get("properties", []))
+
+
+func _get_spec_actions(c_name: String) -> Array:  # CHANGED
+    if not SPECS.has(c_name):
+        return []
+    return Array(SPECS[c_name].get("actions", []))
+
 
 # CHANGED: Codex-friendly reference schema (no Markdown tables).
 func _generate_reference_sml(names: Array) -> void:

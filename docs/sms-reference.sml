@@ -828,7 +828,7 @@ Reference {
 
     Type {
         name: "Markdown"
-        parent: "Control"
+        parent: "VBoxContainer"
 
         Properties {
             Prop { sml: "id"; type: "identifier" }

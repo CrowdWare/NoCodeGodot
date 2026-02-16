@@ -11,31 +11,18 @@ Inherited properties are documented in: [SubViewportContainer](SubViewportContai
 
 | Godot Property | SML Property | Type | Default |
 |-|-|-|-|
-| id | id | identifier | — |
-| model | model | string (url) | "" |
-| modelSource | modelSource | string (url) | "" |
-| animation | animation | string (url) | "" |
-| animationSource | animationSource | string (url) | "" |
-| playAnimation | playAnimation | int | 0 |
-| playFirstAnimation | playFirstAnimation | bool | false |
-| autoplayAnimation | autoplayAnimation | bool | false |
-| defaultAnimation | defaultAnimation | string | "" |
-| playLoop | playLoop | bool | false |
-| cameraDistance | cameraDistance | int | 0 |
-| lightEnergy | lightEnergy | int | 0 |
-
-> Note: `model` and `modelSource` are aliases. Same for `animation` and `animationSource`.
-> `id` is used to target camera/animation actions from SMS.
-
-### Examples
-
-```sml
-Viewport3D {
-    id: heroView
-    model: "res:/assets/models/Idle.glb"
-    playFirstAnimation: true
-}
-```
+| — | id | identifier | — |
+| — | model | string(url) | "" |
+| — | modelSource | string(url) | "" |
+| — | animation | string(url) | "" |
+| — | animationSource | string(url) | "" |
+| — | playAnimation | int | 0 |
+| — | playFirstAnimation | bool | false |
+| — | autoplayAnimation | bool | false |
+| — | defaultAnimation | string | "" |
+| — | playLoop | bool | false |
+| — | cameraDistance | int | 0 |
+| — | lightEnergy | int | 0 |
 
 ## Events
 
@@ -44,3 +31,17 @@ Inherited signals are documented in: [SubViewportContainer](SubViewportContainer
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|
+
+## Actions
+
+This page lists **only actions supported by the runtime** for `Viewport3D`.
+Inherited actions are documented in: [SubViewportContainer](SubViewportContainer.md)
+
+| Action | SMS Call | Params | Returns |
+|-|-|-|-|
+| playAnimation | `<id>.playAnimation(index)` | int index | void |
+| stopAnimation | `<id>.stopAnimation()` | — | void |
+| rewind | `<id>.rewind()` | — | void |
+| setFrame | `<id>.setFrame(frame)` | int frame | void |
+| zoomIn | `<id>.zoomIn()` | — | void |
+| zoomOut | `<id>.zoomOut()` | — | void |

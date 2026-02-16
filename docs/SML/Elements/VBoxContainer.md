@@ -9,6 +9,7 @@
 ### Direct subclasses
 
 - [ColorPicker](ColorPicker.md)
+- [Markdown](Markdown.md)
 - [ScriptEditorBase](ScriptEditorBase.md)
 
 ## Properties

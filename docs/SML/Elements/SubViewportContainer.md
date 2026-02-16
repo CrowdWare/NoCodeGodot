@@ -4,6 +4,12 @@
 
 [SubViewportContainer](SubViewportContainer.md) → [Container](Container.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
 
+## Derived Classes
+
+### Direct subclasses
+
+- [Viewport3D](Viewport3D.md)
+
 ## Properties
 
 This page lists **only properties declared by `SubViewportContainer`**.
