@@ -125,10 +125,207 @@ Example:
 
 ⸻
 
-## Definition of Done
-	•	Event resolution supports:
-	•	on <id>.<event>() { } when id is present
-	•	container events when no id is present
-	•	No leftover Godot signal names leaked into SMS (use normalized event names)
-	•	Demo covers both scenarios
-	•	Event binding works with generated internal IDs and user-provided IDs
+## 6. Actions & Type Conversion (Call Semantics)
+
+### Goal
+
+SMS method calls must feel scripting-like while directly calling Godot methods without per-method adapters.
+
+The runtime therefore performs automatic argument packing and type casting based on the target method signature.
+
+This avoids generating wrapper code for every Godot method.
+
+⸻
+
+## Invocation Rules
+
+When calling:
+```
+<id>.methodName(args...)
+```
+
+the runtime resolves the Godot method and then applies:
+
+⸻
+
+## 6.0 Method Resolution Pipeline
+
+Runtime lookup order:
+	1.	Convert methodName → snake_case
+	2.	Collect all Godot methods with that name
+	3.	Filter by argument count
+	4.	Attempt type casting
+	5.	Select first matching overload
+	6.	Invoke via reflection
+
+No hardcoded per-method mapping is allowed.
+
+This guarantees forward compatibility with new Godot versions.
+
+⸻
+
+## 6.1 Argument Packing
+If the target method expects a structured type:
+| Expected Type | Accepted SMS Call |
+| - | - |
+| Vector2 | ```setPosition(10,20)``` OR ```setPosition(Vector2(10,20))``` |
+| Vector3 | ```lookAt(0,1,0)``` OR ```lookAt(Vector3(0,1,0))``` |
+| Color | ```setColor("#FF00FF")``` OR ```setColor(Color("#FF00FF"))``` |
+| Rect2 | ```setRect(0,0,100,20)``` |
+
+
+## Rule:
+
+Multiple primitive parameters are automatically packed into the expected engine type.
+
+⸻
+
+## 6.2 String Casting
+If a string is passed and a known engine type is expected:
+```
+addPreset("#FF00FF")
+```
+equals
+```
+addPreset(Color("#FF00FF"))
+```
+
+⸻
+
+## 6.3 No Magic Setters
+SMS never creates artificial setters/getters.
+
+Allowed:
+```
+window.title = "New"
+window.setTitle("New")
+```
+Not allowed:
+```
+window.title("New")   // invalid
+label.text()          // invalid
+```
+Only real Godot methods are callable.
+
+⸻
+
+## 6.4 Return Values
+Returned engine objects are exposed to SMS:
+```
+var c = picker.getPreset()
+setPreset(c)
+```
+
+## 6.5 Name Mapping (Godot → SMS)
+
+### Goal: No per-class mapping tables. 
+Mapping must be purely rule-based.
+
+### Canonical Names
+	•	Godot canonical names are snake_case (set_position, button_down, size_flags_horizontal, …)
+	•	SMS exposes names as lowerCamelCase (setPosition, buttonDown, sizeFlagsHorizontal, …)
+
+### Mapping Rule
+	•	snake_case → lowerCamelCase
+	•	set_position → setPosition
+	•	get_button_icon → getButtonIcon
+	•	button_down → buttonDown
+	•	If a name has no underscores, keep it and only lower the first character:
+	•	Shortcut → shortcut
+	•	RID → rID (edge case; acceptable)
+
+No special casing per control.
+
+⸻
+
+## 6.6 Properties in SMS
+
+Properties are never callable.
+
+✅ Allowed:
+```
+var t = label.text
+label.text = "Hello"
+```
+❌ Not allowed:
+```
+label.text()
+label.text("Hello")
+```
+Property Resolution
+When SMS sees obj.someProp or obj.someProp = value:
+	1.	Convert someProp → some_prop using the inverse rule (lowerCamel → snake_case).
+	2.	Check if the Godot property exists on the instance.
+	3.	Use get() / set().
+
+No magic setters, no implicit method bridging.
+
+⸻
+
+## 6.7 Methods vs Properties (No Ambiguity)
+	•	obj.name always means property access.
+	•	obj.name(...) always means method call.
+	•	If name exists only as property → calling name(...) throws a runtime error.
+	•	If name exists only as method → obj.name should throw “unknown property” (unless you intentionally allow method references, which we currently do not).
+
+⸻
+
+## 6.8 Overload Selection
+
+When multiple Godot overloads exist:
+
+Priority:
+	1.	Exact type match
+	2.	Castable match
+	3.	Packed structure match (Vector/Color)
+	4.	Fail with runtime error
+
+Example:
+```
+setPosition(10,20)     → Vector2 overload
+setPosition(vec)       → Vector2 overload
+setPosition("10,20")   → invalid
+```
+
+⸻
+
+## 6.9 Argument Packing & Casting (recap)
+	•	If method expects Vector2 and SMS passes x,y → pack into Vector2(x,y)
+	•	If method expects Color and SMS passes "#RRGGBBAA" → cast to Color
+
+⸻
+
+## 6.10 Codex / Tooling Hint
+
+Code generators must not create wrappers for methods.
+
+Instead they should rely on:
+
+• reflection lookup
+• name normalization
+• runtime casting
+
+The method system is intentionally data-driven and future-proof.
+
+⸻
+
+Definition of Done (extended)
+
+• Rule-based mapping only
+• Properties accessible only via property syntax
+• Methods accessible only via call syntax
+• Overloads resolved dynamically
+• Vector/Color packing works
+• Returned objects usable immediately
+• No wrappers generated
+• Compatible with new Godot methods automatically
+
+---
+
+## Final Definition of Done
+
+• Any Godot method callable via reflection works automatically
+• No per-method wrappers exist
+• Vector/Color conversion works
+• Property assignment independent of methods
+• Runtime survives future Godot API additions without changes
