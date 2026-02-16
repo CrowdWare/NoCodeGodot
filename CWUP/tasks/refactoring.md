@@ -309,7 +309,7 @@ The method system is intentionally data-driven and future-proof.
 
 ⸻
 
-Definition of Done (extended)
+## Definition of Done (extended)
 
 • Rule-based mapping only
 • Properties accessible only via property syntax
@@ -320,10 +320,16 @@ Definition of Done (extended)
 • No wrappers generated
 • Compatible with new Godot methods automatically
 
+
 ---
 
 ## Final Definition of Done
-
+• Event resolution supports:
+• on <id>.<event>() { } when id is present
+• container events when no id is present
+• No leftover Godot signal names leaked into SMS (use normalized event names)
+• Demo covers both scenarios
+• Event binding works with generated internal IDs and user-provided IDs
 • Any Godot method callable via reflection works automatically
 • No per-method wrappers exist
 • Vector/Color conversion works
