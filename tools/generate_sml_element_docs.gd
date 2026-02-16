@@ -10,8 +10,8 @@ func _initialize() -> void:
     _run()
     quit()
 
-const EXTRA_CLASSES := ["Window", "PopupMenu"]  # CHANGED
-const MANUAL_TYPES: Array[String] = ["Markdown"]  # CHANGED
+const EXTRA_CLASSES := ["Window", "PopupMenu"] 
+const MANUAL_TYPES: Array[String] = ["Markdown", "Viewport3D"] 
 
 func _run() -> void:
     _ensure_out_dir()
@@ -125,34 +125,47 @@ func _generate_doc(c_name: String) -> void:
     md += "| Godot Property | SML Property | Type | Default |\n|-|-|-|-|\n"  # CHANGED
     # CHANGED: Manual SML-only element (not a Godot class)
     if c_name == "Markdown":
-        md += "| id | id | identifier | — |
-"
-        md += "| padding | padding | int / int,int / int,int,int,int | 0 |
-"
-        md += "| text | text | string | \"\" |
-"
-        md += "| src | src | string | \"\" |
-"
-        md += "
-> Note: `text` and `src` are alternative sources. Use one of them.
+        md += "| id | id | identifier | — |\n"
+        md += "| padding | padding | int / int,int / int,int,int,int | 0 |\n"
+        md += "| text | text | string | \"\" |\n"
+        md += "| src | src | string | \"\" |\n"
+        md += "\n> Note: `text` and `src` are alternative sources. Use one of them.\n\n"
 
-"
+        md += "### Examples\n\n"
+        md += "```sml\n"
+        md += "Markdown { padding: 8,8,8,20; text: \"# Header\" }\n"
+        md += "Markdown { padding: 8; src: \"res:/sample.md\" }\n"
+        md += "```\n"
 
-        md += "### Examples
+    elif c_name == "Viewport3D":  # CHANGED
+        md += "| id | id | identifier | — |\n"
+        md += "| model | model | string (url) | \"\" |\n"
+        md += "| modelSource | modelSource | string (url) | \"\" |\n"
+        md += "| animation | animation | string (url) | \"\" |\n"
+        md += "| animationSource | animationSource | string (url) | \"\" |\n"
+        md += "| playAnimation | playAnimation | int (1-based) | 0 |\n"
+        md += "| playFirstAnimation | playFirstAnimation | bool | false |\n"
+        md += "| autoplayAnimation | autoplayAnimation | bool | false |\n"
+        md += "| defaultAnimation | defaultAnimation | string | \"\" |\n"
+        md += "| playLoop | playLoop | bool | false |\n"
+        md += "| cameraDistance | cameraDistance | int | 0 |\n"
+        md += "| lightEnergy | lightEnergy | int | 0 |\n"
 
-"
-        md += "```sml
-"
-        md += "Markdown { padding: 8,8,8,20; text: \"# Header\" }
-"
-        md += "Markdown { padding: 8; src: \"res:/sample.md\" }
-"
-        md += "```
-"
+        md += "\n> Note: `model` and `modelSource` are aliases. Same for `animation` and `animationSource`.\n"
+        md += "> `id` is used to target camera/animation actions from SMS.\n\n"
+
+        md += "### Examples\n\n"
+        md += "```sml\n"
+        md += "Viewport3D {\n"
+        md += "    id: heroView\n"
+        md += "    model: \"res:/assets/models/Idle.glb\"\n"
+        md += "    playFirstAnimation: true\n"
+        md += "}\n"
+        md += "```\n"
+
     else:
         for p in props:
-            md += "| %s | %s | %s | — |
-" % [String(p["name"]), _normalize_property(String(p["name"])), String(p["type"])]  # CHANGED
+            md += "| %s | %s | %s | — |\n" % [String(p["name"]), _normalize_property(String(p["name"])), String(p["type"])]  # CHANGED
 
     md += "\n## Events\n\n"
     md += "This page lists **only signals declared by `" + c_name + "`**.\n"
@@ -164,6 +177,7 @@ func _generate_doc(c_name: String) -> void:
     md += "| Godot Signal | SMS Event | Params |\n|-|-|-|\n"  # unchanged header (kept)
     for s in signals:
         md += "| %s | %s | %s |\n" % [String(s["name"]), _format_sms_handler(String(s["name"]), String(s["params_names"])), String(s["params"]) ]  # CHANGED
+
 
     # SML-only child structure for menu items (PopupMenu items are not properties in Godot).
     if c_name == "PopupMenu":
@@ -338,8 +352,11 @@ func _generate_doc(c_name: String) -> void:
         f.close()
 
 func _inheritance_chain(c_name: String) -> Array[String]:
-    if c_name == "Markdown":  # CHANGED
+    if c_name == "Markdown":
         return ["Markdown", "Control", "CanvasItem", "Node", "Object"]
+    if c_name == "Viewport3D":
+        return ["Viewport3D", "Control", "CanvasItem", "Node", "Object"]
+
     var chain: Array[String] = []
     var c := c_name
     while c != "":
@@ -616,6 +633,29 @@ func _generate_reference_sml(names: Array) -> void:
             sml += "            Prop { sml: \"padding\"; type: \"padding\"; default: \"0\" }\n"
             sml += "            Prop { sml: \"text\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
             sml += "            Prop { sml: \"src\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
+            sml += "        }\n"
+            sml += "\n        Events {\n"
+            sml += "        }\n"
+            sml += "    }\n\n"
+            continue
+
+        if c_name == "Viewport3D":  # CHANGED
+            sml += "    Type {\n"
+            sml += "        name: \"Viewport3D\"\n"
+            sml += "        parent: \"Control\"\n"
+            sml += "\n        Properties {\n"
+            sml += "            Prop { sml: \"id\"; type: \"identifier\" }\n"
+            sml += "            Prop { sml: \"model\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
+            sml += "            Prop { sml: \"modelSource\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
+            sml += "            Prop { sml: \"animation\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
+            sml += "            Prop { sml: \"animationSource\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
+            sml += "            Prop { sml: \"playAnimation\"; type: \"int\"; default: \"0\" }\n"
+            sml += "            Prop { sml: \"playFirstAnimation\"; type: \"bool\"; default: \"false\" }\n"
+            sml += "            Prop { sml: \"autoplayAnimation\"; type: \"bool\"; default: \"false\" }\n"
+            sml += "            Prop { sml: \"defaultAnimation\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
+            sml += "            Prop { sml: \"playLoop\"; type: \"bool\"; default: \"false\" }\n"
+            sml += "            Prop { sml: \"cameraDistance\"; type: \"int\"; default: \"0\" }\n"
+            sml += "            Prop { sml: \"lightEnergy\"; type: \"int\"; default: \"0\" }\n"
             sml += "        }\n"
             sml += "\n        Events {\n"
             sml += "        }\n"

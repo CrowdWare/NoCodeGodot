@@ -113,6 +113,7 @@ All classes listed below inherit from `Control`.
 These are SML-only elements mapped to `Control` (not Godot ClassDB classes).
 
 - [Markdown](Markdown.md)
+- [Viewport3D](Viewport3D.md)
 
 ## Properties
 

@@ -1692,6 +1692,29 @@ Reference {
     }
 
     Type {
+        name: "Viewport3D"
+        parent: "Control"
+
+        Properties {
+            Prop { sml: "id"; type: "identifier" }
+            Prop { sml: "model"; type: "string"; default: "\"\"" }
+            Prop { sml: "modelSource"; type: "string"; default: "\"\"" }
+            Prop { sml: "animation"; type: "string"; default: "\"\"" }
+            Prop { sml: "animationSource"; type: "string"; default: "\"\"" }
+            Prop { sml: "playAnimation"; type: "int"; default: "0" }
+            Prop { sml: "playFirstAnimation"; type: "bool"; default: "false" }
+            Prop { sml: "autoplayAnimation"; type: "bool"; default: "false" }
+            Prop { sml: "defaultAnimation"; type: "string"; default: "\"\"" }
+            Prop { sml: "playLoop"; type: "bool"; default: "false" }
+            Prop { sml: "cameraDistance"; type: "int"; default: "0" }
+            Prop { sml: "lightEnergy"; type: "int"; default: "0" }
+        }
+
+        Events {
+        }
+    }
+
+    Type {
         name: "Window"
         parent: "Viewport"
 
