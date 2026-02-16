@@ -749,41 +749,54 @@ func _generate_reference_sml(names: Array) -> void:
 
     for n in names:
         var c_name := String(n)
-        if c_name == "Markdown":  # CHANGED
-            sml += "    Type {\n"
-            sml += "        name: \"Markdown\"\n"
-            sml += "        parent: \"VBoxContainer\"\n"
-            sml += "\n        Properties {\n"
-            sml += "            Prop { sml: \"id\"; type: \"identifier\" }\n"
-            sml += "            Prop { sml: \"padding\"; type: \"padding\"; default: \"0\" }\n"
-            sml += "            Prop { sml: \"text\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
-            sml += "            Prop { sml: \"src\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
-            sml += "        }\n"
-            sml += "\n        Events {\n"
-            sml += "        }\n"
-            sml += "    }\n\n"
-            continue
+        # CHANGED: Spec/manual types (not Godot ClassDB classes) are generated from SPECS
+        if SPECS.has(c_name):
+            var spec := Dictionary(SPECS[c_name])
+            var backing := String(spec.get("backing", "Control"))
+            var props_spec := Array(spec.get("properties", []))
+            var actions_spec := Array(spec.get("actions", []))
 
-        if c_name == "Viewport3D":  # CHANGED
             sml += "    Type {\n"
-            sml += "        name: \"Viewport3D\"\n"
-            sml += "        parent: \"SubViewportContainer\"\n"
+            sml += "        name: \"%s\"\n" % c_name
+            sml += "        parent: \"%s\"\n" % backing
+
+            # Properties (spec-defined)
             sml += "\n        Properties {\n"
-            sml += "            Prop { sml: \"id\"; type: \"identifier\" }\n"
-            sml += "            Prop { sml: \"model\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
-            sml += "            Prop { sml: \"modelSource\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
-            sml += "            Prop { sml: \"animation\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
-            sml += "            Prop { sml: \"animationSource\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
-            sml += "            Prop { sml: \"playAnimation\"; type: \"int\"; default: \"0\" }\n"
-            sml += "            Prop { sml: \"playFirstAnimation\"; type: \"bool\"; default: \"false\" }\n"
-            sml += "            Prop { sml: \"autoplayAnimation\"; type: \"bool\"; default: \"false\" }\n"
-            sml += "            Prop { sml: \"defaultAnimation\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
-            sml += "            Prop { sml: \"playLoop\"; type: \"bool\"; default: \"false\" }\n"
-            sml += "            Prop { sml: \"cameraDistance\"; type: \"int\"; default: \"0\" }\n"
-            sml += "            Prop { sml: \"lightEnergy\"; type: \"int\"; default: \"0\" }\n"
+            for sp in props_spec:
+                var sml_name := String(sp.get("sml", ""))
+                if sml_name == "":
+                    continue
+                var t := String(sp.get("type", "Variant"))
+                var defv := String(sp.get("default", ""))
+                if defv != "":
+                    sml += "            Prop { sml: \"%s\"; type: \"%s\"; default: \"%s\" }\n" % [sml_name, t, defv]
+                else:
+                    sml += "            Prop { sml: \"%s\"; type: \"%s\" }\n" % [sml_name, t]
             sml += "        }\n"
+
+            # Events (manual types currently have no ClassDB signals)
             sml += "\n        Events {\n"
             sml += "        }\n"
+
+            # Actions (spec-defined)
+            sml += "\n        Actions {\n"
+            for a in actions_spec:
+                var an := String(a.get("sms", ""))
+                if an == "":
+                    continue
+                var ret := String(a.get("returns", "void"))
+                var params := Array(a.get("params", []))
+                var parts: Array[String] = []
+                for p in params:
+                    var pn := String(p.get("name", "arg"))
+                    var pt := String(p.get("type", "Variant"))
+                    parts.append(pt + " " + pn)
+                var pstr := "—"
+                if parts.size() > 0:
+                    pstr = ", ".join(parts)
+                sml += "            Action { sms: \"%s\"; params: \"%s\"; returns: \"%s\" }\n" % [an, pstr, ret]
+            sml += "        }\n"
+
             sml += "    }\n\n"
             continue
 
@@ -809,6 +822,10 @@ func _generate_reference_sml(names: Array) -> void:
         sml += "\n        Events {\n"
         for s in signals:
             sml += "            Event { godot: \"%s\"; sms: \"%s\"; params: \"%s\" }\n" % [String(s["name"]), _normalize_event(String(s["name"])), String(s["params"]) ]
+        sml += "        }\n"
+
+        # Actions (local only) - currently empty for ClassDB types (bridges are generated elsewhere)
+        sml += "\n        Actions {\n"
         sml += "        }\n"
 
         # Pseudo-children for menu items

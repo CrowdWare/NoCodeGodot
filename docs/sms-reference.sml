@@ -16,6 +16,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -39,6 +42,9 @@ Reference {
             Event { godot: "pressed"; sms: "pressed"; params: "—" }
             Event { godot: "toggled"; sms: "toggled"; params: "bool toggledOn" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -51,6 +57,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -74,6 +83,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -104,6 +116,9 @@ Reference {
             Event { godot: "item_rect_changed"; sms: "itemRectChanged"; params: "—" }
             Event { godot: "visibility_changed"; sms: "visibilityChanged"; params: "—" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -116,6 +131,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -127,6 +145,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -137,6 +158,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -170,6 +194,9 @@ Reference {
             Event { godot: "symbol_lookup"; sms: "symbolLookup"; params: "string symbol, int line, int column" }
             Event { godot: "symbol_validate"; sms: "symbolValidate"; params: "string symbol" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -196,6 +223,9 @@ Reference {
             Event { godot: "preset_added"; sms: "presetAdded"; params: "Color color" }
             Event { godot: "preset_removed"; sms: "presetRemoved"; params: "Color color" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -213,6 +243,9 @@ Reference {
             Event { godot: "picker_created"; sms: "pickerCreated"; params: "—" }
             Event { godot: "popup_closed"; sms: "popupClosed"; params: "—" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -224,6 +257,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -237,6 +273,9 @@ Reference {
         Events {
             Event { godot: "pre_sort_children"; sms: "preSortChildren"; params: "—" }
             Event { godot: "sort_children"; sms: "sortChildren"; params: "—" }
+        }
+
+        Actions {
         }
     }
 
@@ -293,6 +332,9 @@ Reference {
             Event { godot: "size_flags_changed"; sms: "sizeFlagsChanged"; params: "—" }
             Event { godot: "theme_changed"; sms: "themeChanged"; params: "—" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -315,6 +357,9 @@ Reference {
             Event { godot: "_tab_style_changed"; sms: "TabStyleChanged"; params: "—" }
             Event { godot: "closed"; sms: "closed"; params: "—" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -334,6 +379,9 @@ Reference {
             Event { godot: "property_toggled"; sms: "propertyToggled"; params: "string property, bool checked" }
             Event { godot: "resource_selected"; sms: "resourceSelected"; params: "Object resource, string path" }
             Event { godot: "restart_requested"; sms: "restartRequested"; params: "—" }
+        }
+
+        Actions {
         }
     }
 
@@ -371,6 +419,9 @@ Reference {
             Event { godot: "resource_selected"; sms: "resourceSelected"; params: "string path, Object resource" }
             Event { godot: "selected"; sms: "selected"; params: "string path, int focusableIdx" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -387,6 +438,9 @@ Reference {
             Event { godot: "resource_changed"; sms: "resourceChanged"; params: "Object resource" }
             Event { godot: "resource_selected"; sms: "resourceSelected"; params: "Object resource, bool inspect" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -397,6 +451,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -421,6 +478,9 @@ Reference {
             Event { godot: "value_focus_entered"; sms: "valueFocusEntered"; params: "—" }
             Event { godot: "value_focus_exited"; sms: "valueFocusExited"; params: "—" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -431,6 +491,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -453,6 +516,9 @@ Reference {
             Event { godot: "resource_removed"; sms: "resourceRemoved"; params: "Object resource" }
             Event { godot: "selection_changed"; sms: "selectionChanged"; params: "—" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -467,6 +533,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -486,6 +555,9 @@ Reference {
 
         Events {
             Event { godot: "folding_changed"; sms: "foldingChanged"; params: "bool isFolded" }
+        }
+
+        Actions {
         }
     }
 
@@ -540,6 +612,9 @@ Reference {
             Event { godot: "popup_request"; sms: "popupRequest"; params: "Vector2 atPosition" }
             Event { godot: "scroll_offset_changed"; sms: "scrollOffsetChanged"; params: "Vector2 offset" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -565,6 +640,9 @@ Reference {
             Event { godot: "resize_end"; sms: "resizeEnd"; params: "Vector2 newSize" }
             Event { godot: "resize_request"; sms: "resizeRequest"; params: "Vector2 newSize" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -583,6 +661,9 @@ Reference {
         Events {
             Event { godot: "autoshrink_changed"; sms: "autoshrinkChanged"; params: "—" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -599,6 +680,9 @@ Reference {
             Event { godot: "slot_sizes_changed"; sms: "slotSizesChanged"; params: "—" }
             Event { godot: "slot_updated"; sms: "slotUpdated"; params: "int slotIndex" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -611,6 +695,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -621,6 +708,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -633,6 +723,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -643,6 +736,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -655,6 +751,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -666,6 +765,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -676,6 +778,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -712,6 +817,9 @@ Reference {
             Event { godot: "multi_selected"; sms: "multiSelected"; params: "int index, bool selected" }
         }
 
+        Actions {
+        }
+
         PseudoChildren {
             Item { props: "id,text,icon,selected,disabled,tooltip" }
         }
@@ -744,6 +852,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -794,6 +905,9 @@ Reference {
             Event { godot: "text_changed"; sms: "textChanged"; params: "string newText" }
             Event { godot: "text_submitted"; sms: "textSubmitted"; params: "string newText" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -813,6 +927,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -824,6 +941,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -831,13 +951,16 @@ Reference {
         parent: "VBoxContainer"
 
         Properties {
-            Prop { sml: "id"; type: "identifier" }
+            Prop { sml: "id"; type: "identifier"; default: "—" }
             Prop { sml: "padding"; type: "padding"; default: "0" }
-            Prop { sml: "text"; type: "string"; default: "\"\"" }
-            Prop { sml: "src"; type: "string"; default: "\"\"" }
+            Prop { sml: "text"; type: "string"; default: """" }
+            Prop { sml: "src"; type: "string"; default: """" }
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -856,6 +979,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -870,6 +996,9 @@ Reference {
 
         Events {
             Event { godot: "about_to_popup"; sms: "aboutToPopup"; params: "—" }
+        }
+
+        Actions {
         }
 
         # TODO: Define PseudoChildren schema for this collection control
@@ -891,6 +1020,9 @@ Reference {
 
         Events {
             Event { godot: "texture_changed"; sms: "textureChanged"; params: "—" }
+        }
+
+        Actions {
         }
     }
 
@@ -923,6 +1055,9 @@ Reference {
             Event { godot: "tree_exited"; sms: "treeExited"; params: "—" }
             Event { godot: "tree_exiting"; sms: "treeExiting"; params: "—" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -934,6 +1069,9 @@ Reference {
         Events {
             Event { godot: "property_list_changed"; sms: "propertyListChanged"; params: "—" }
             Event { godot: "script_changed"; sms: "scriptChanged"; params: "—" }
+        }
+
+        Actions {
         }
     }
 
@@ -947,6 +1085,9 @@ Reference {
         Events {
             Event { godot: "binding_modifier_removed"; sms: "bindingModifierRemoved"; params: "Object bindingModifierEditor" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -958,6 +1099,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -968,6 +1112,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -988,6 +1135,9 @@ Reference {
             Event { godot: "item_selected"; sms: "itemSelected"; params: "int index" }
         }
 
+        Actions {
+        }
+
         PseudoChildren {
             Item { props: "id,text,icon,disabled,selected" }
         }
@@ -1002,6 +1152,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -1012,6 +1165,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -1024,6 +1180,9 @@ Reference {
 
         Events {
             Event { godot: "popup_hide"; sms: "popupHide"; params: "—" }
+        }
+
+        Actions {
         }
     }
 
@@ -1052,6 +1211,9 @@ Reference {
             Event { godot: "menu_changed"; sms: "menuChanged"; params: "—" }
         }
 
+        Actions {
+        }
+
         PseudoChildren {
             Item { props: "id,text,disabled" }
             CheckItem { props: "id,text,checked,disabled" }
@@ -1071,6 +1233,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -1094,6 +1259,9 @@ Reference {
             Event { godot: "changed"; sms: "changed"; params: "—" }
             Event { godot: "value_changed"; sms: "valueChanged"; params: "float value" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -1107,6 +1275,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -1150,6 +1321,9 @@ Reference {
             Event { godot: "meta_hover_ended"; sms: "metaHoverEnded"; params: "Variant meta" }
             Event { godot: "meta_hover_started"; sms: "metaHoverStarted"; params: "Variant meta" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -1162,6 +1336,9 @@ Reference {
         Events {
             Event { godot: "editor_script_changed"; sms: "editorScriptChanged"; params: "Object script" }
             Event { godot: "script_close"; sms: "scriptClose"; params: "Object script" }
+        }
+
+        Actions {
         }
     }
 
@@ -1184,6 +1361,9 @@ Reference {
             Event { godot: "request_save_previous_state"; sms: "requestSavePreviousState"; params: "Variant state" }
             Event { godot: "search_in_files_requested"; sms: "searchInFilesRequested"; params: "string text" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -1196,6 +1376,9 @@ Reference {
 
         Events {
             Event { godot: "scrolling"; sms: "scrolling"; params: "—" }
+        }
+
+        Actions {
         }
     }
 
@@ -1221,6 +1404,9 @@ Reference {
             Event { godot: "scroll_ended"; sms: "scrollEnded"; params: "—" }
             Event { godot: "scroll_started"; sms: "scrollStarted"; params: "—" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -1231,6 +1417,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -1250,6 +1439,9 @@ Reference {
             Event { godot: "drag_ended"; sms: "dragEnded"; params: "bool valueChanged" }
             Event { godot: "drag_started"; sms: "dragStarted"; params: "—" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -1268,6 +1460,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -1292,6 +1487,9 @@ Reference {
             Event { godot: "drag_started"; sms: "dragStarted"; params: "—" }
             Event { godot: "dragged"; sms: "dragged"; params: "int offset" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -1305,6 +1503,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -1341,6 +1542,9 @@ Reference {
             Event { godot: "tab_selected"; sms: "tabSelected"; params: "int tab" }
         }
 
+        Actions {
+        }
+
         PseudoChildren {
             Tab { props: "id,title,icon,disabled,hidden,selected" }
         }
@@ -1374,6 +1578,9 @@ Reference {
             Event { godot: "tab_clicked"; sms: "tabClicked"; params: "int tab" }
             Event { godot: "tab_hovered"; sms: "tabHovered"; params: "int tab" }
             Event { godot: "tab_selected"; sms: "tabSelected"; params: "int tab" }
+        }
+
+        Actions {
         }
 
         ChildContext {
@@ -1446,6 +1653,9 @@ Reference {
             Event { godot: "text_changed"; sms: "textChanged"; params: "—" }
             Event { godot: "text_set"; sms: "textSet"; params: "—" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -1460,6 +1670,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -1485,6 +1698,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -1499,6 +1715,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -1544,6 +1763,9 @@ Reference {
             Event { godot: "nothing_selected"; sms: "nothingSelected"; params: "—" }
         }
 
+        Actions {
+        }
+
         # TODO: Define PseudoChildren schema for this collection control
     }
 
@@ -1556,6 +1778,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -1566,6 +1791,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -1578,6 +1806,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -1588,6 +1819,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -1600,6 +1834,9 @@ Reference {
 
         Events {
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -1610,6 +1847,9 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
         }
     }
 
@@ -1630,6 +1870,9 @@ Reference {
 
         Events {
             Event { godot: "finished"; sms: "finished"; params: "—" }
+        }
+
+        Actions {
         }
     }
 
@@ -1689,6 +1932,9 @@ Reference {
             Event { godot: "gui_focus_changed"; sms: "guiFocusChanged"; params: "Object node" }
             Event { godot: "size_changed"; sms: "sizeChanged"; params: "—" }
         }
+
+        Actions {
+        }
     }
 
     Type {
@@ -1696,21 +1942,30 @@ Reference {
         parent: "SubViewportContainer"
 
         Properties {
-            Prop { sml: "id"; type: "identifier" }
-            Prop { sml: "model"; type: "string"; default: "\"\"" }
-            Prop { sml: "modelSource"; type: "string"; default: "\"\"" }
-            Prop { sml: "animation"; type: "string"; default: "\"\"" }
-            Prop { sml: "animationSource"; type: "string"; default: "\"\"" }
+            Prop { sml: "id"; type: "identifier"; default: "—" }
+            Prop { sml: "model"; type: "string(url)"; default: """" }
+            Prop { sml: "modelSource"; type: "string(url)"; default: """" }
+            Prop { sml: "animation"; type: "string(url)"; default: """" }
+            Prop { sml: "animationSource"; type: "string(url)"; default: """" }
             Prop { sml: "playAnimation"; type: "int"; default: "0" }
             Prop { sml: "playFirstAnimation"; type: "bool"; default: "false" }
             Prop { sml: "autoplayAnimation"; type: "bool"; default: "false" }
-            Prop { sml: "defaultAnimation"; type: "string"; default: "\"\"" }
+            Prop { sml: "defaultAnimation"; type: "string"; default: """" }
             Prop { sml: "playLoop"; type: "bool"; default: "false" }
             Prop { sml: "cameraDistance"; type: "int"; default: "0" }
             Prop { sml: "lightEnergy"; type: "int"; default: "0" }
         }
 
         Events {
+        }
+
+        Actions {
+            Action { sms: "playAnimation"; params: "int index"; returns: "void" }
+            Action { sms: "stopAnimation"; params: "—"; returns: "void" }
+            Action { sms: "rewind"; params: "—"; returns: "void" }
+            Action { sms: "setFrame"; params: "int frame"; returns: "void" }
+            Action { sms: "zoomIn"; params: "—"; returns: "void" }
+            Action { sms: "zoomOut"; params: "—"; returns: "void" }
         }
     }
 
@@ -1768,6 +2023,9 @@ Reference {
             Event { godot: "titlebar_changed"; sms: "titlebarChanged"; params: "—" }
             Event { godot: "visibility_changed"; sms: "visibilityChanged"; params: "—" }
             Event { godot: "window_input"; sms: "windowInput"; params: "Object event" }
+        }
+
+        Actions {
         }
     }
 
