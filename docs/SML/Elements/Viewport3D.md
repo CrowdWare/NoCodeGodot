@@ -2,12 +2,12 @@
 
 ## Inheritance
 
-[Viewport3D](Viewport3D.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
+[Viewport3D](Viewport3D.md) → [SubViewportContainer](SubViewportContainer.md) → [Container](Container.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
 
 ## Properties
 
 This page lists **only properties declared by `Viewport3D`**.
-Inherited properties are documented in: [Control](Control.md)
+Inherited properties are documented in: [SubViewportContainer](SubViewportContainer.md)
 
 | Godot Property | SML Property | Type | Default |
 |-|-|-|-|
@@ -40,7 +40,7 @@ Viewport3D {
 ## Events
 
 This page lists **only signals declared by `Viewport3D`**.
-Inherited signals are documented in: [Control](Control.md)
+Inherited signals are documented in: [SubViewportContainer](SubViewportContainer.md)
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|

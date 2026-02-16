@@ -2,12 +2,12 @@
 
 ## Inheritance
 
-[Markdown](Markdown.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
+[Markdown](Markdown.md) → [VBoxContainer](VBoxContainer.md) → [BoxContainer](BoxContainer.md) → [Container](Container.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
 
 ## Properties
 
 This page lists **only properties declared by `Markdown`**.
-Inherited properties are documented in: [Control](Control.md)
+Inherited properties are documented in: [VBoxContainer](VBoxContainer.md)
 
 | Godot Property | SML Property | Type | Default |
 |-|-|-|-|
@@ -28,7 +28,7 @@ Markdown { padding: 8; src: "res:/sample.md" }
 ## Events
 
 This page lists **only signals declared by `Markdown`**.
-Inherited signals are documented in: [Control](Control.md)
+Inherited signals are documented in: [VBoxContainer](VBoxContainer.md)
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|

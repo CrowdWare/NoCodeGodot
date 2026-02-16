@@ -1693,7 +1693,7 @@ Reference {
 
     Type {
         name: "Viewport3D"
-        parent: "Control"
+        parent: "SubViewportContainer"
 
         Properties {
             Prop { sml: "id"; type: "identifier" }

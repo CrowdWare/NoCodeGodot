@@ -353,9 +353,9 @@ func _generate_doc(c_name: String) -> void:
 
 func _inheritance_chain(c_name: String) -> Array[String]:
     if c_name == "Markdown":
-        return ["Markdown", "Control", "CanvasItem", "Node", "Object"]
+        return ["Markdown", "VBoxContainer", "BoxContainer", "Container", "Control", "CanvasItem", "Node", "Object"]
     if c_name == "Viewport3D":
-        return ["Viewport3D", "Control", "CanvasItem", "Node", "Object"]
+        return ["Viewport3D", "SubViewportContainer", "Container", "Control", "CanvasItem", "Node", "Object"]
 
     var chain: Array[String] = []
     var c := c_name
@@ -627,7 +627,7 @@ func _generate_reference_sml(names: Array) -> void:
         if c_name == "Markdown":  # CHANGED
             sml += "    Type {\n"
             sml += "        name: \"Markdown\"\n"
-            sml += "        parent: \"Control\"\n"
+            sml += "        parent: \"VBoxContainer\"\n"
             sml += "\n        Properties {\n"
             sml += "            Prop { sml: \"id\"; type: \"identifier\" }\n"
             sml += "            Prop { sml: \"padding\"; type: \"padding\"; default: \"0\" }\n"
@@ -642,7 +642,7 @@ func _generate_reference_sml(names: Array) -> void:
         if c_name == "Viewport3D":  # CHANGED
             sml += "    Type {\n"
             sml += "        name: \"Viewport3D\"\n"
-            sml += "        parent: \"Control\"\n"
+            sml += "        parent: \"SubViewportContainer\"\n"
             sml += "\n        Properties {\n"
             sml += "            Prop { sml: \"id\"; type: \"identifier\" }\n"
             sml += "            Prop { sml: \"model\"; type: \"string\"; default: \"\\\"\\\"\" }\n"
