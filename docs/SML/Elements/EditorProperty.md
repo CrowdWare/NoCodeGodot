@@ -44,3 +44,18 @@ Inherited signals are documented in: [Container](Container.md)
 | property_pinned | `on <id>.propertyPinned(property, pinned) { ... }` | Variant property, bool pinned |
 | resource_selected | `on <id>.resourceSelected(path, resource) { ... }` | string path, Object resource |
 | selected | `on <id>.selected(path, focusableIdx) { ... }` | string path, int focusableIdx |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `EditorProperty`**.
+Inherited actions are documented in: [Container](Container.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| deselect | `<id>.deselect()` | — | void |
+| get_edited_object | `<id>.getEditedObject()` | — | Object |
+| get_edited_property | `<id>.getEditedProperty()` | — | Variant |
+| is_selected | `<id>.isSelected()` | — | bool |
+| is_using_folding | `<id>.isUsingFolding()` | — | bool |
+| select | `<id>.select(focusable)` | int focusable | void |
+| update_property | `<id>.updateProperty()` | — | void |

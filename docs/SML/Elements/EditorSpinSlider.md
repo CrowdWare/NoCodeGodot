@@ -31,3 +31,12 @@ Inherited signals are documented in: [Range](Range.md)
 | updown_pressed | `on <id>.updownPressed() { ... }` | — |
 | value_focus_entered | `on <id>.valueFocusEntered() { ... }` | — |
 | value_focus_exited | `on <id>.valueFocusExited() { ... }` | — |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `EditorSpinSlider`**.
+Inherited actions are documented in: [Range](Range.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| is_hiding_slider | `<id>.isHidingSlider()` | — | bool |

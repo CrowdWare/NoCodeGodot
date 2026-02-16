@@ -26,3 +26,12 @@ Inherited signals are documented in: [GraphElement](GraphElement.md)
 | Godot Signal | SMS Event | Params |
 |-|-|-|
 | autoshrink_changed | `on <id>.autoshrinkChanged() { ... }` | — |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `GraphFrame`**.
+Inherited actions are documented in: [GraphElement](GraphElement.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_titlebar_hbox | `<id>.getTitlebarHbox()` | — | Object |

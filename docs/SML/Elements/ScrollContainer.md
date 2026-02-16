@@ -38,3 +38,25 @@ Inherited signals are documented in: [Container](Container.md)
 |-|-|-|
 | scroll_ended | `on <id>.scrollEnded() { ... }` | — |
 | scroll_started | `on <id>.scrollStarted() { ... }` | — |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `ScrollContainer`**.
+Inherited actions are documented in: [Container](Container.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_deadzone | `<id>.getDeadzone()` | — | int |
+| get_h_scroll | `<id>.getHScroll()` | — | int |
+| get_h_scroll_bar | `<id>.getHScrollBar()` | — | Object |
+| get_horizontal_custom_step | `<id>.getHorizontalCustomStep()` | — | float |
+| get_v_scroll | `<id>.getVScroll()` | — | int |
+| get_v_scroll_bar | `<id>.getVScrollBar()` | — | Object |
+| get_vertical_custom_step | `<id>.getVerticalCustomStep()` | — | float |
+| is_following_focus | `<id>.isFollowingFocus()` | — | bool |
+| is_scroll_hint_tiled | `<id>.isScrollHintTiled()` | — | bool |
+| set_deadzone | `<id>.setDeadzone(deadzone)` | int deadzone | void |
+| set_h_scroll | `<id>.setHScroll(value)` | int value | void |
+| set_horizontal_custom_step | `<id>.setHorizontalCustomStep(value)` | float value | void |
+| set_v_scroll | `<id>.setVScroll(value)` | int value | void |
+| set_vertical_custom_step | `<id>.setVerticalCustomStep(value)` | float value | void |

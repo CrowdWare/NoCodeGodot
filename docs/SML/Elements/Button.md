@@ -41,3 +41,14 @@ Inherited signals are documented in: [BaseButton](BaseButton.md)
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|
+
+## Runtime Actions
+
+This page lists **callable methods declared by `Button`**.
+Inherited actions are documented in: [BaseButton](BaseButton.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_button_icon | `<id>.getButtonIcon()` | — | Object |
+| get_text_alignment | `<id>.getTextAlignment()` | — | int |
+| set_text_alignment | `<id>.setTextAlignment(alignment)` | int alignment | void |

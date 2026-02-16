@@ -29,3 +29,12 @@ Inherited signals are documented in: [EditorDock](EditorDock.md)
 | instantiate | `on <id>.instantiate(files) { ... }` | Variant files |
 | resource_removed | `on <id>.resourceRemoved(resource) { ... }` | Object resource |
 | selection_changed | `on <id>.selectionChanged() { ... }` | — |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `FileSystemDock`**.
+Inherited actions are documented in: [EditorDock](EditorDock.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| navigate_to_path | `<id>.navigateToPath(path)` | string path | void |

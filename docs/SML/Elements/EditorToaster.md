@@ -19,3 +19,12 @@ Inherited signals are documented in: [HBoxContainer](HBoxContainer.md)
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|
+
+## Runtime Actions
+
+This page lists **callable methods declared by `EditorToaster`**.
+Inherited actions are documented in: [HBoxContainer](HBoxContainer.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| push_toast | `<id>.pushToast(message, severity, tooltip)` | string message, int severity, string tooltip | void |

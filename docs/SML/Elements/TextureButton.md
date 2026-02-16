@@ -23,3 +23,14 @@ Inherited signals are documented in: [BaseButton](BaseButton.md)
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|
+
+## Runtime Actions
+
+This page lists **callable methods declared by `TextureButton`**.
+Inherited actions are documented in: [BaseButton](BaseButton.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_click_mask | `<id>.getClickMask()` | — | Object |
+| is_flipped_h | `<id>.isFlippedH()` | — | bool |
+| is_flipped_v | `<id>.isFlippedV()` | — | bool |

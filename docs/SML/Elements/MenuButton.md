@@ -29,6 +29,17 @@ Inherited signals are documented in: [Button](Button.md)
 |-|-|-|
 | about_to_popup | `on <id>.aboutToPopup() { ... }` | — |
 
+## Runtime Actions
+
+This page lists **callable methods declared by `MenuButton`**.
+Inherited actions are documented in: [Button](Button.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_popup | `<id>.getPopup()` | — | Object |
+| set_disable_shortcuts | `<id>.setDisableShortcuts(disabled)` | bool disabled | void |
+| show_popup | `<id>.showPopup()` | — | void |
+
 ## SML Items (TODO)
 
 This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.

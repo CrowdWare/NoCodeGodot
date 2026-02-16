@@ -38,3 +38,15 @@ Inherited signals are documented in: [Container](Container.md)
 | drag_ended | `on <id>.dragEnded() { ... }` | — |
 | drag_started | `on <id>.dragStarted() { ... }` | — |
 | dragged | `on <id>.dragged(offset) { ... }` | int offset |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `SplitContainer`**.
+Inherited actions are documented in: [Container](Container.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| clamp_split_offset | `<id>.clampSplitOffset(priorityIndex)` | int priorityIndex | void |
+| get_drag_area_control | `<id>.getDragAreaControl()` | — | Object |
+| get_drag_area_controls | `<id>.getDragAreaControls()` | — | Variant |
+| is_drag_area_highlight_in_editor_enabled | `<id>.isDragAreaHighlightInEditorEnabled()` | — | bool |

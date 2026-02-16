@@ -23,3 +23,13 @@ Inherited signals are documented in: [Control](Control.md)
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|
+
+## Runtime Actions
+
+This page lists **callable methods declared by `TextureRect`**.
+Inherited actions are documented in: [Control](Control.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| is_flipped_h | `<id>.isFlippedH()` | — | bool |
+| is_flipped_v | `<id>.isFlippedV()` | — | bool |

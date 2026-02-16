@@ -41,3 +41,25 @@ Inherited signals are documented in: [Control](Control.md)
 |-|-|-|
 | changed | `on <id>.changed() { ... }` | — |
 | value_changed | `on <id>.valueChanged(value) { ... }` | float value |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `Range`**.
+Inherited actions are documented in: [Control](Control.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_as_ratio | `<id>.getAsRatio()` | — | float |
+| get_max | `<id>.getMax()` | — | float |
+| get_min | `<id>.getMin()` | — | float |
+| is_greater_allowed | `<id>.isGreaterAllowed()` | — | bool |
+| is_lesser_allowed | `<id>.isLesserAllowed()` | — | bool |
+| is_ratio_exp | `<id>.isRatioExp()` | — | bool |
+| is_using_rounded_values | `<id>.isUsingRoundedValues()` | — | bool |
+| set_as_ratio | `<id>.setAsRatio(value)` | float value | void |
+| set_exp_ratio | `<id>.setExpRatio(enabled)` | bool enabled | void |
+| set_max | `<id>.setMax(maximum)` | float maximum | void |
+| set_min | `<id>.setMin(minimum)` | float minimum | void |
+| set_use_rounded_values | `<id>.setUseRoundedValues(enabled)` | bool enabled | void |
+| set_value_no_signal | `<id>.setValueNoSignal(value)` | float value | void |
+| unshare | `<id>.unshare()` | — | void |

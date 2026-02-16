@@ -28,3 +28,13 @@ Inherited signals are documented in: [Container](Container.md)
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|
+
+## Runtime Actions
+
+This page lists **callable methods declared by `SubViewportContainer`**.
+Inherited actions are documented in: [Container](Container.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| is_mouse_target_enabled | `<id>.isMouseTargetEnabled()` | — | bool |
+| is_stretch_enabled | `<id>.isStretchEnabled()` | — | bool |

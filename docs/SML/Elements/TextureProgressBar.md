@@ -32,3 +32,18 @@ Inherited signals are documented in: [Range](Range.md)
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|
+
+## Runtime Actions
+
+This page lists **callable methods declared by `TextureProgressBar`**.
+Inherited actions are documented in: [Range](Range.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_fill_degrees | `<id>.getFillDegrees()` | — | float |
+| get_over_texture | `<id>.getOverTexture()` | — | Object |
+| get_progress_texture | `<id>.getProgressTexture()` | — | Object |
+| get_stretch_margin | `<id>.getStretchMargin(margin)` | int margin | int |
+| get_under_texture | `<id>.getUnderTexture()` | — | Object |
+| set_fill_degrees | `<id>.setFillDegrees(mode)` | float mode | void |
+| set_stretch_margin | `<id>.setStretchMargin(margin, value)` | int margin, int value | void |

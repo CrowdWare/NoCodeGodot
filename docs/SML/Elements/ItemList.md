@@ -48,6 +48,61 @@ Inherited signals are documented in: [Control](Control.md)
 | item_selected | `on <id>.itemSelected(index) { ... }` | int index |
 | multi_selected | `on <id>.multiSelected(index, selected) { ... }` | int index, bool selected |
 
+## Runtime Actions
+
+This page lists **callable methods declared by `ItemList`**.
+Inherited actions are documented in: [Control](Control.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| clear | `<id>.clear()` | — | void |
+| deselect | `<id>.deselect(idx)` | int idx | void |
+| deselect_all | `<id>.deselectAll()` | — | void |
+| ensure_current_is_visible | `<id>.ensureCurrentIsVisible()` | — | void |
+| force_update_list_size | `<id>.forceUpdateListSize()` | — | void |
+| get_h_scroll_bar | `<id>.getHScrollBar()` | — | Object |
+| get_item_at_position | `<id>.getItemAtPosition(position, exact)` | Vector2 position, bool exact | int |
+| get_item_auto_translate_mode | `<id>.getItemAutoTranslateMode(idx)` | int idx | int |
+| get_item_custom_bg_color | `<id>.getItemCustomBgColor(idx)` | int idx | Color |
+| get_item_custom_fg_color | `<id>.getItemCustomFgColor(idx)` | int idx | Color |
+| get_item_icon | `<id>.getItemIcon(idx)` | int idx | Object |
+| get_item_icon_modulate | `<id>.getItemIconModulate(idx)` | int idx | Color |
+| get_item_icon_region | `<id>.getItemIconRegion(idx)` | int idx | Variant |
+| get_item_language | `<id>.getItemLanguage(idx)` | int idx | string |
+| get_item_metadata | `<id>.getItemMetadata(idx)` | int idx | void |
+| get_item_rect | `<id>.getItemRect(idx, expand)` | int idx, bool expand | Variant |
+| get_item_text | `<id>.getItemText(idx)` | int idx | string |
+| get_item_text_direction | `<id>.getItemTextDirection(idx)` | int idx | int |
+| get_item_tooltip | `<id>.getItemTooltip(idx)` | int idx | string |
+| get_selected_items | `<id>.getSelectedItems()` | — | Variant |
+| get_v_scroll_bar | `<id>.getVScrollBar()` | — | Object |
+| has_auto_height | `<id>.hasAutoHeight()` | — | bool |
+| has_auto_width | `<id>.hasAutoWidth()` | — | bool |
+| has_wraparound_items | `<id>.hasWraparoundItems()` | — | bool |
+| is_anything_selected | `<id>.isAnythingSelected()` | — | bool |
+| is_item_disabled | `<id>.isItemDisabled(idx)` | int idx | bool |
+| is_item_icon_transposed | `<id>.isItemIconTransposed(idx)` | int idx | bool |
+| is_item_selectable | `<id>.isItemSelectable(idx)` | int idx | bool |
+| is_item_tooltip_enabled | `<id>.isItemTooltipEnabled(idx)` | int idx | bool |
+| is_scroll_hint_tiled | `<id>.isScrollHintTiled()` | — | bool |
+| is_selected | `<id>.isSelected(idx)` | int idx | bool |
+| move_item | `<id>.moveItem(fromIdx, toIdx)` | int fromIdx, int toIdx | void |
+| remove_item | `<id>.removeItem(idx)` | int idx | void |
+| select | `<id>.select(idx, single)` | int idx, bool single | void |
+| set_item_auto_translate_mode | `<id>.setItemAutoTranslateMode(idx, mode)` | int idx, int mode | void |
+| set_item_custom_bg_color | `<id>.setItemCustomBgColor(idx, customBgColor)` | int idx, Color customBgColor | void |
+| set_item_custom_fg_color | `<id>.setItemCustomFgColor(idx, customFgColor)` | int idx, Color customFgColor | void |
+| set_item_disabled | `<id>.setItemDisabled(idx, disabled)` | int idx, bool disabled | void |
+| set_item_icon_modulate | `<id>.setItemIconModulate(idx, modulate)` | int idx, Color modulate | void |
+| set_item_icon_transposed | `<id>.setItemIconTransposed(idx, transposed)` | int idx, bool transposed | void |
+| set_item_language | `<id>.setItemLanguage(idx, language)` | int idx, string language | void |
+| set_item_selectable | `<id>.setItemSelectable(idx, selectable)` | int idx, bool selectable | void |
+| set_item_text | `<id>.setItemText(idx, text)` | int idx, string text | void |
+| set_item_text_direction | `<id>.setItemTextDirection(idx, direction)` | int idx, int direction | void |
+| set_item_tooltip | `<id>.setItemTooltip(idx, tooltip)` | int idx, string tooltip | void |
+| set_item_tooltip_enabled | `<id>.setItemTooltipEnabled(idx, enable)` | int idx, bool enable | void |
+| sort_items_by_text | `<id>.sortItemsByText()` | — | void |
+
 ## SML Items
 
 `ItemList` entries are defined as **SML child nodes** (pseudo elements).

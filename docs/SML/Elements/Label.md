@@ -38,3 +38,17 @@ Inherited signals are documented in: [Control](Control.md)
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|
+
+## Runtime Actions
+
+This page lists **callable methods declared by `Label`**.
+Inherited actions are documented in: [Control](Control.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_character_bounds | `<id>.getCharacterBounds(pos)` | int pos | Variant |
+| get_line_count | `<id>.getLineCount()` | — | int |
+| get_line_height | `<id>.getLineHeight(line)` | int line | int |
+| get_total_character_count | `<id>.getTotalCharacterCount()` | — | int |
+| get_visible_line_count | `<id>.getVisibleLineCount()` | — | int |
+| is_clipping_text | `<id>.isClippingText()` | — | bool |

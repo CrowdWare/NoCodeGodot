@@ -27,3 +27,13 @@ Inherited signals are documented in: [Container](Container.md)
 | Godot Signal | SMS Event | Params |
 |-|-|-|
 | folding_changed | `on <id>.foldingChanged(isFolded) { ... }` | bool isFolded |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `FoldableContainer`**.
+Inherited actions are documented in: [Container](Container.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| expand | `<id>.expand()` | — | void |
+| fold | `<id>.fold()` | — | void |

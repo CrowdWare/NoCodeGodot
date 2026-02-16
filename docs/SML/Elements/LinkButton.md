@@ -27,3 +27,13 @@ Inherited signals are documented in: [BaseButton](BaseButton.md)
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|
+
+## Runtime Actions
+
+This page lists **callable methods declared by `LinkButton`**.
+Inherited actions are documented in: [BaseButton](BaseButton.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_underline_mode | `<id>.getUnderlineMode()` | — | int |
+| set_underline_mode | `<id>.setUnderlineMode(underlineMode)` | int underlineMode | void |

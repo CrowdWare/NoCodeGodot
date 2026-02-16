@@ -28,3 +28,12 @@ Inherited signals are documented in: [Container](Container.md)
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|
+
+## Runtime Actions
+
+This page lists **callable methods declared by `BoxContainer`**.
+Inherited actions are documented in: [Container](Container.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| add_spacer | `<id>.addSpacer(begin)` | bool begin | Object |

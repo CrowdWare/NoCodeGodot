@@ -39,3 +39,17 @@ Inherited signals are documented in: [Control](Control.md)
 | button_up | `on <id>.buttonUp() { ... }` | — |
 | pressed | `on <id>.pressed() { ... }` | — |
 | toggled | `on <id>.toggled(toggledOn) { ... }` | bool toggledOn |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `BaseButton`**.
+Inherited actions are documented in: [Control](Control.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_draw_mode | `<id>.getDrawMode()` | — | int |
+| is_hovered | `<id>.isHovered()` | — | bool |
+| is_pressed | `<id>.isPressed()` | — | bool |
+| is_shortcut_in_tooltip_enabled | `<id>.isShortcutInTooltipEnabled()` | — | bool |
+| set_pressed | `<id>.setPressed(pressed)` | bool pressed | void |
+| set_pressed_no_signal | `<id>.setPressedNoSignal(pressed)` | bool pressed | void |

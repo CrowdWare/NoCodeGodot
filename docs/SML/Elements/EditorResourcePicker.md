@@ -30,3 +30,13 @@ Inherited signals are documented in: [HBoxContainer](HBoxContainer.md)
 |-|-|-|
 | resource_changed | `on <id>.resourceChanged(resource) { ... }` | Object resource |
 | resource_selected | `on <id>.resourceSelected(resource, inspect) { ... }` | Object resource, bool inspect |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `EditorResourcePicker`**.
+Inherited actions are documented in: [HBoxContainer](HBoxContainer.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_allowed_types | `<id>.getAllowedTypes()` | — | Variant |
+| set_toggle_pressed | `<id>.setTogglePressed(pressed)` | bool pressed | void |

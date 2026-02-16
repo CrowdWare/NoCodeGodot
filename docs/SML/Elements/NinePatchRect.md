@@ -27,3 +27,18 @@ Inherited signals are documented in: [Control](Control.md)
 | Godot Signal | SMS Event | Params |
 |-|-|-|
 | texture_changed | `on <id>.textureChanged() { ... }` | — |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `NinePatchRect`**.
+Inherited actions are documented in: [Control](Control.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_h_axis_stretch_mode | `<id>.getHAxisStretchMode()` | — | int |
+| get_patch_margin | `<id>.getPatchMargin(margin)` | int margin | int |
+| get_v_axis_stretch_mode | `<id>.getVAxisStretchMode()` | — | int |
+| is_draw_center_enabled | `<id>.isDrawCenterEnabled()` | — | bool |
+| set_h_axis_stretch_mode | `<id>.setHAxisStretchMode(mode)` | int mode | void |
+| set_patch_margin | `<id>.setPatchMargin(margin, value)` | int margin, int value | void |
+| set_v_axis_stretch_mode | `<id>.setVAxisStretchMode(mode)` | int mode | void |

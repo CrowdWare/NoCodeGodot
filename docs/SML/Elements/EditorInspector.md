@@ -28,3 +28,13 @@ Inherited signals are documented in: [ScrollContainer](ScrollContainer.md)
 | property_toggled | `on <id>.propertyToggled(property, checked) { ... }` | string property, bool checked |
 | resource_selected | `on <id>.resourceSelected(resource, path) { ... }` | Object resource, string path |
 | restart_requested | `on <id>.restartRequested() { ... }` | — |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `EditorInspector`**.
+Inherited actions are documented in: [ScrollContainer](ScrollContainer.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_edited_object | `<id>.getEditedObject()` | — | Object |
+| get_selected_path | `<id>.getSelectedPath()` | — | string |

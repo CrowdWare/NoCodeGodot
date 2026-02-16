@@ -33,3 +33,13 @@ Inherited signals are documented in: [Range](Range.md)
 |-|-|-|
 | drag_ended | `on <id>.dragEnded(valueChanged) { ... }` | bool valueChanged |
 | drag_started | `on <id>.dragStarted() { ... }` | — |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `Slider`**.
+Inherited actions are documented in: [Range](Range.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_ticks | `<id>.getTicks()` | — | int |
+| set_ticks | `<id>.setTicks(count)` | int count | void |

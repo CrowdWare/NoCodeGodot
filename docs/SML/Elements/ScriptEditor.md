@@ -21,3 +21,19 @@ Inherited signals are documented in: [PanelContainer](PanelContainer.md)
 |-|-|-|
 | editor_script_changed | `on <id>.editorScriptChanged(script) { ... }` | Object script |
 | script_close | `on <id>.scriptClose(script) { ... }` | Object script |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `ScriptEditor`**.
+Inherited actions are documented in: [PanelContainer](PanelContainer.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_breakpoints | `<id>.getBreakpoints()` | — | Variant |
+| get_current_editor | `<id>.getCurrentEditor()` | — | Object |
+| get_current_script | `<id>.getCurrentScript()` | — | Object |
+| get_open_script_editors | `<id>.getOpenScriptEditors()` | — | Variant |
+| get_open_scripts | `<id>.getOpenScripts()` | — | Variant |
+| goto_help | `<id>.gotoHelp(topic)` | string topic | void |
+| goto_line | `<id>.gotoLine(lineNumber)` | int lineNumber | void |
+| open_script_create_dialog | `<id>.openScriptCreateDialog(baseName, basePath)` | string baseName, string basePath | void |

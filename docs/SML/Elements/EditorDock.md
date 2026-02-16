@@ -36,3 +36,14 @@ Inherited signals are documented in: [MarginContainer](MarginContainer.md)
 |-|-|-|
 | _tab_style_changed | `on <id>.TabStyleChanged() { ... }` | — |
 | closed | `on <id>.closed() { ... }` | — |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `EditorDock`**.
+Inherited actions are documented in: [MarginContainer](MarginContainer.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| close | `<id>.close()` | — | void |
+| make_visible | `<id>.makeVisible()` | — | void |
+| open | `<id>.open()` | — | void |

@@ -178,6 +178,27 @@ func _generate_doc(c_name: String) -> void:
     for s in signals:
         md += "| %s | %s | %s |\n" % [String(s["name"]), _format_sms_handler(String(s["name"]), String(s["params_names"])), String(s["params"]) ]  # CHANGED
 
+
+    var godotActions := _collect_actions(c_name)
+    if godotActions.size() > 0:
+        md += "\n## Runtime Actions\n\n"
+        md += "This page lists **callable methods declared by `" + c_name + "`**.\n"
+        if parent != "":
+            md += "Inherited actions are documented in: [" + parent + "](" + parent + ".md)\n\n"
+        else:
+            md += "\n"
+
+        md += "| Godot Method | SMS Call | Params | Returns |\n|-|-|-|-|\n"
+
+        for a in godotActions:
+            var sms: String = String(a["sms"])  # CHANGED
+            var pn: String = String(a["params_names"])  # CHANGED
+            var call: String = "`<id>." + sms + "(" + pn + ")`"  # CHANGED
+            if pn == "":  # CHANGED
+                call = "`<id>." + sms + "()`"  # CHANGED
+
+            md += "| %s | %s | %s | %s |\n" % [String(a["name"]), call, String(a["params"]), String(a["returns"])]
+
     # Actions (from specs)  # CHANGED
     var actions := _get_spec_actions(c_name)  # CHANGED
     if actions.size() > 0:  # CHANGED
@@ -505,6 +526,82 @@ func _collect_signals(c_name: String) -> Array:
         out.append(collected[k])
     out.sort_custom(func (a, b): return String(a["name"]) < String(b["name"]))
     return out
+
+#neu
+func _collect_actions(c_name: String) -> Array:  # CHANGED
+    if not ClassDB.class_exists(c_name):
+        return []
+
+    var parent := String(ClassDB.get_parent_class(c_name))
+
+    var parent_names := {}
+    if parent != "":
+        for md in ClassDB.class_get_method_list(parent):
+            var pn := String(md.get("name", ""))
+            if pn != "":
+                parent_names[pn] = true
+
+    var all_prop_names := {}
+    for pd in ClassDB.class_get_property_list(c_name):
+        var prop_name := String(pd.get("name", ""))
+        if prop_name != "":
+            all_prop_names[prop_name] = true
+
+    var collected := {}
+
+    for m in ClassDB.class_get_method_list(c_name):
+        var name := String(m.get("name", ""))
+        if name == "" or name.begins_with("_"):
+            continue
+        if parent_names.has(name):
+            continue
+
+        if name.begins_with("set_") and all_prop_names.has(name.substr(4)):
+            continue
+        if name.begins_with("get_") and all_prop_names.has(name.substr(4)):
+            continue
+        if name.begins_with("is_") and all_prop_names.has(name.substr(3)):
+            continue
+
+        var returns := "void"
+        var ret: Variant = m.get("return", null)  # CHANGED
+        if typeof(ret) == TYPE_DICTIONARY:
+            var rt: int = int(ret.get("type", TYPE_NIL))  # CHANGED
+            if rt != TYPE_NIL:
+                returns = _type_name(rt)
+
+        var args: Array = Array(m.get("args", []))  # CHANGED
+        var parts: Array[String] = []
+        var names_only: Array[String] = []
+        var supported := true
+
+        for a in args:
+            var t := int(a.get("type", TYPE_NIL))
+            if not _is_sml_supported_type(t):
+                supported = false
+                break
+            var p_name := _normalize_param(String(a.get("name", "arg")), name)
+            parts.append("%s %s" % [_type_name(t), p_name])
+            names_only.append(p_name)
+
+        if not supported:
+            continue
+
+        collected[name] = {
+            "name": name,
+            "sms": _normalize_event(name),
+            "params": (", ".join(parts) if parts.size() > 0 else "—"),
+            "params_names": (", ".join(names_only) if names_only.size() > 0 else ""),
+            "returns": returns
+        }
+
+    var out: Array = []
+    for k in collected.keys():
+        out.append(collected[k])
+
+    out.sort_custom(func(a, b): return String(a["name"]) < String(b["name"]))
+    return out
+
 
 func _type_name(t: int) -> String:  # CHANGED
     match t:

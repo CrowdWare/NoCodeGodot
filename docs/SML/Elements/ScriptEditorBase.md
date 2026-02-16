@@ -29,3 +29,12 @@ Inherited signals are documented in: [VBoxContainer](VBoxContainer.md)
 | request_save_history | `on <id>.requestSaveHistory() { ... }` | — |
 | request_save_previous_state | `on <id>.requestSavePreviousState(state) { ... }` | Variant state |
 | search_in_files_requested | `on <id>.searchInFilesRequested(text) { ... }` | string text |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `ScriptEditorBase`**.
+Inherited actions are documented in: [VBoxContainer](VBoxContainer.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_base_editor | `<id>.getBaseEditor()` | — | Object |

@@ -40,3 +40,12 @@ Inherited signals are documented in: [Control](Control.md)
 |-|-|-|
 | pre_sort_children | `on <id>.preSortChildren() { ... }` | — |
 | sort_children | `on <id>.sortChildren() { ... }` | — |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `Container`**.
+Inherited actions are documented in: [Control](Control.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| queue_sort | `<id>.queueSort()` | — | void |

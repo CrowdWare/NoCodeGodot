@@ -34,3 +34,26 @@ Inherited signals are documented in: [VBoxContainer](VBoxContainer.md)
 | color_changed | `on <id>.colorChanged(color) { ... }` | Color color |
 | preset_added | `on <id>.presetAdded(color) { ... }` | Color color |
 | preset_removed | `on <id>.presetRemoved(color) { ... }` | Color color |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `ColorPicker`**.
+Inherited actions are documented in: [VBoxContainer](VBoxContainer.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| add_preset | `<id>.addPreset(color)` | Color color | void |
+| add_recent_preset | `<id>.addRecentPreset(color)` | Color color | void |
+| are_modes_visible | `<id>.areModesVisible()` | — | bool |
+| are_presets_visible | `<id>.arePresetsVisible()` | — | bool |
+| are_sliders_visible | `<id>.areSlidersVisible()` | — | bool |
+| are_swatches_enabled | `<id>.areSwatchesEnabled()` | — | bool |
+| erase_preset | `<id>.erasePreset(color)` | Color color | void |
+| erase_recent_preset | `<id>.eraseRecentPreset(color)` | Color color | void |
+| get_pick_color | `<id>.getPickColor()` | — | Color |
+| get_presets | `<id>.getPresets()` | — | Variant |
+| get_recent_presets | `<id>.getRecentPresets()` | — | Variant |
+| is_editing_alpha | `<id>.isEditingAlpha()` | — | bool |
+| is_editing_intensity | `<id>.isEditingIntensity()` | — | bool |
+| set_modes_visible | `<id>.setModesVisible(visible)` | bool visible | void |
+| set_pick_color | `<id>.setPickColor(color)` | Color color | void |

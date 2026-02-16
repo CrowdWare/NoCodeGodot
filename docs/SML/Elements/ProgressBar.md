@@ -23,3 +23,13 @@ Inherited signals are documented in: [Range](Range.md)
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|
+
+## Runtime Actions
+
+This page lists **callable methods declared by `ProgressBar`**.
+Inherited actions are documented in: [Range](Range.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| is_editor_preview_indeterminate_enabled | `<id>.isEditorPreviewIndeterminateEnabled()` | — | bool |
+| is_percentage_shown | `<id>.isPercentageShown()` | — | bool |

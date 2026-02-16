@@ -20,3 +20,12 @@ Inherited signals are documented in: [PanelContainer](PanelContainer.md)
 | Godot Signal | SMS Event | Params |
 |-|-|-|
 | binding_modifier_removed | `on <id>.bindingModifierRemoved(bindingModifierEditor) { ... }` | Object bindingModifierEditor |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `OpenXRBindingModifierEditor`**.
+Inherited actions are documented in: [PanelContainer](PanelContainer.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| get_binding_modifier | `<id>.getBindingModifier()` | — | Object |

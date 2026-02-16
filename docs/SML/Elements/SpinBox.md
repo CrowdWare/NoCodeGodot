@@ -27,3 +27,16 @@ Inherited signals are documented in: [Range](Range.md)
 
 | Godot Signal | SMS Event | Params |
 |-|-|-|
+
+## Runtime Actions
+
+This page lists **callable methods declared by `SpinBox`**.
+Inherited actions are documented in: [Range](Range.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| apply | `<id>.apply()` | — | void |
+| get_horizontal_alignment | `<id>.getHorizontalAlignment()` | — | int |
+| get_line_edit | `<id>.getLineEdit()` | — | Object |
+| is_custom_arrow_rounding | `<id>.isCustomArrowRounding()` | — | bool |
+| set_horizontal_alignment | `<id>.setHorizontalAlignment(alignment)` | int alignment | void |

@@ -72,3 +72,47 @@ Inherited signals are documented in: [Viewport](Viewport.md)
 | titlebar_changed | `on <id>.titlebarChanged() { ... }` | — |
 | visibility_changed | `on <id>.visibilityChanged() { ... }` | — |
 | window_input | `on <id>.windowInput(event) { ... }` | Object event |
+
+## Runtime Actions
+
+This page lists **callable methods declared by `Window`**.
+Inherited actions are documented in: [Viewport](Viewport.md)
+
+| Godot Method | SMS Call | Params | Returns |
+|-|-|-|-|
+| begin_bulk_theme_override | `<id>.beginBulkThemeOverride()` | — | void |
+| can_draw | `<id>.canDraw()` | — | bool |
+| child_controls_changed | `<id>.childControlsChanged()` | — | void |
+| end_bulk_theme_override | `<id>.endBulkThemeOverride()` | — | void |
+| get_contents_minimum_size | `<id>.getContentsMinimumSize()` | — | Vector2 |
+| get_flag | `<id>.getFlag(flag)` | int flag | bool |
+| get_focused_window | `<id>.getFocusedWindow()` | — | Object |
+| get_layout_direction | `<id>.getLayoutDirection()` | — | int |
+| get_position_with_decorations | `<id>.getPositionWithDecorations()` | — | Variant |
+| get_size_with_decorations | `<id>.getSizeWithDecorations()` | — | Variant |
+| get_theme_default_base_scale | `<id>.getThemeDefaultBaseScale()` | — | float |
+| get_theme_default_font | `<id>.getThemeDefaultFont()` | — | Object |
+| get_theme_default_font_size | `<id>.getThemeDefaultFontSize()` | — | int |
+| get_window_id | `<id>.getWindowId()` | — | int |
+| grab_focus | `<id>.grabFocus()` | — | void |
+| has_focus | `<id>.hasFocus()` | — | bool |
+| hide | `<id>.hide()` | — | void |
+| is_auto_translating | `<id>.isAutoTranslating()` | — | bool |
+| is_embedded | `<id>.isEmbedded()` | — | bool |
+| is_layout_rtl | `<id>.isLayoutRtl()` | — | bool |
+| is_maximize_allowed | `<id>.isMaximizeAllowed()` | — | bool |
+| is_using_font_oversampling | `<id>.isUsingFontOversampling()` | — | bool |
+| is_wrapping_controls | `<id>.isWrappingControls()` | — | bool |
+| move_to_center | `<id>.moveToCenter()` | — | void |
+| move_to_foreground | `<id>.moveToForeground()` | — | void |
+| popup_centered_ratio | `<id>.popupCenteredRatio(ratio)` | float ratio | void |
+| request_attention | `<id>.requestAttention()` | — | void |
+| reset_size | `<id>.resetSize()` | — | void |
+| set_flag | `<id>.setFlag(flag, enabled)` | int flag, bool enabled | void |
+| set_ime_active | `<id>.setImeActive(active)` | bool active | void |
+| set_layout_direction | `<id>.setLayoutDirection(direction)` | int direction | void |
+| set_unparent_when_invisible | `<id>.setUnparentWhenInvisible(unparent)` | bool unparent | void |
+| set_use_font_oversampling | `<id>.setUseFontOversampling(enable)` | bool enable | void |
+| show | `<id>.show()` | — | void |
+| start_drag | `<id>.startDrag()` | — | void |
+| start_resize | `<id>.startResize(edge)` | int edge | void |
