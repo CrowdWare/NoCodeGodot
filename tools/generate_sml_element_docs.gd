@@ -143,7 +143,7 @@ func _generate_doc(c_name: String) -> void:
         md += "| modelSource | modelSource | string (url) | \"\" |\n"
         md += "| animation | animation | string (url) | \"\" |\n"
         md += "| animationSource | animationSource | string (url) | \"\" |\n"
-        md += "| playAnimation | playAnimation | int (1-based) | 0 |\n"
+        md += "| playAnimation | playAnimation | int | 0 |\n"
         md += "| playFirstAnimation | playFirstAnimation | bool | false |\n"
         md += "| autoplayAnimation | autoplayAnimation | bool | false |\n"
         md += "| defaultAnimation | defaultAnimation | string | \"\" |\n"

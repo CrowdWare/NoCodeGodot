@@ -16,7 +16,7 @@ Inherited properties are documented in: [Control](Control.md)
 | modelSource | modelSource | string (url) | "" |
 | animation | animation | string (url) | "" |
 | animationSource | animationSource | string (url) | "" |
-| playAnimation | playAnimation | int (1-based) | 0 |
+| playAnimation | playAnimation | int | 0 |
 | playFirstAnimation | playFirstAnimation | bool | false |
 | autoplayAnimation | autoplayAnimation | bool | false |
 | defaultAnimation | defaultAnimation | string | "" |
