@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Text;
 
@@ -142,21 +143,37 @@ public sealed class SmlParser
             return SmlValue.FromBool(string.Equals(token.Text, "true", StringComparison.OrdinalIgnoreCase));
         }
 
-        if (_lookahead.Kind == SmlTokenKind.Int)
+        if (_lookahead.Kind is SmlTokenKind.Int or SmlTokenKind.Float)
         {
-            var firstIntToken = Consume();
+            var firstNumberToken = Consume();
             if (propertyKind == SmlPropertyKind.Id)
             {
+                if (firstNumberToken.Kind == SmlTokenKind.Float)
+                {
+                    throw new SmlParseException($"Property '{propertyName}' id must be an integer numeric identifier, not float (line {propertyLine}).");
+                }
+
                 if (_lookahead.Kind == SmlTokenKind.Comma)
                 {
                     throw new SmlParseException($"Property '{propertyName}' id must be a single value, not a tuple (line {propertyLine}).");
                 }
 
-                EnsureUniqueIdInDocument(firstIntToken.Text, node, firstIntToken.Line);
-                return SmlValue.FromIdentifier(firstIntToken.Text);
+                EnsureUniqueIdInDocument(firstNumberToken.Text, node, firstNumberToken.Line);
+                return SmlValue.FromIdentifier(firstNumberToken.Text);
             }
 
-            var values = new List<int> { int.Parse(firstIntToken.Text) };
+            if (firstNumberToken.Kind == SmlTokenKind.Float)
+            {
+                if (_lookahead.Kind == SmlTokenKind.Comma)
+                {
+                    throw new SmlParseException(
+                        $"Property '{propertyName}' does not support float tuple values. Use integer tuple values (line {_lookahead.Line}, col {_lookahead.Column}).");
+                }
+
+                return SmlValue.FromFloat(ParseFloatLiteral(firstNumberToken, propertyName));
+            }
+
+            var values = new List<int> { ParseIntLiteral(firstNumberToken, propertyName) };
             SkipIgnorables();
 
             while (_lookahead.Kind == SmlTokenKind.Comma)
@@ -164,7 +181,7 @@ public sealed class SmlParser
                 Consume();
                 SkipIgnorables();
                 var componentToken = Expect(SmlTokenKind.Int, "Expected integer component after ','.");
-                values.Add(int.Parse(componentToken.Text));
+                values.Add(ParseIntLiteral(componentToken, propertyName));
                 SkipIgnorables();
             }
 
@@ -251,6 +268,29 @@ public sealed class SmlParser
         _seenIdsInDocument[id] = line;
     }
 
+    private static int ParseIntLiteral(SmlToken token, string propertyName)
+    {
+        if (int.TryParse(token.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
+        {
+            return value;
+        }
+
+        throw new SmlParseException(
+            $"Invalid integer literal '{token.Text}' for property '{propertyName}' (line {token.Line}, col {token.Column}).");
+    }
+
+    private static double ParseFloatLiteral(SmlToken token, string propertyName)
+    {
+        if (double.TryParse(token.Text, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
+                CultureInfo.InvariantCulture, out var value))
+        {
+            return value;
+        }
+
+        throw new SmlParseException(
+            $"Invalid float literal '{token.Text}' for property '{propertyName}' (line {token.Line}, col {token.Column}).");
+    }
+
     private SmlValue ParseAnchorsValue()
     {
         var anchors = new List<string>();
@@ -325,6 +365,7 @@ internal enum SmlTokenKind
     Pipe,
     String,
     Int,
+    Float,
     Bool,
     Whitespace,
     LineComment,
@@ -441,7 +482,7 @@ internal sealed class SmlLexer
             return new SmlToken(SmlTokenKind.Identifier, ident, startLine, startColumn);
         }
 
-        if (char.IsDigit(c) || c == '-')
+        if (char.IsDigit(c) || c == '-' || (c == '.' && char.IsDigit(Peek(1))))
         {
             return ReadNumber(startLine, startColumn);
         }
@@ -510,30 +551,60 @@ internal sealed class SmlLexer
     private SmlToken ReadNumber(int startLine, int startColumn)
     {
         var sb = new StringBuilder();
+
         if (Peek() == '-')
         {
             sb.Append(Advance());
         }
 
-        while (!IsEof)
+        var hasDigitsBeforeDot = false;
+        while (!IsEof && char.IsDigit(Peek()))
         {
-            var c = Peek();
-            if (char.IsDigit(c))
+            hasDigitsBeforeDot = true;
+            sb.Append(Advance());
+        }
+
+        var hasDot = false;
+        var hasDigitsAfterDot = false;
+        if (!IsEof && Peek() == '.')
+        {
+            hasDot = true;
+            sb.Append(Advance());
+
+            while (!IsEof && char.IsDigit(Peek()))
             {
+                hasDigitsAfterDot = true;
                 sb.Append(Advance());
-                continue;
             }
 
-            if (c == '.')
+            if (!hasDigitsAfterDot)
             {
-                throw new SmlParseException($"Float values are not supported. Use scaled integers instead (line {startLine}, col {startColumn}).");
+                throw new SmlParseException($"Invalid float literal '{sb}' at line {startLine}, col {startColumn}. Missing digits after '.'.");
             }
+        }
 
-            break;
+        if (!hasDigitsBeforeDot && !hasDigitsAfterDot)
+        {
+            throw new SmlParseException($"Invalid numeric literal at line {startLine}, col {startColumn}.");
+        }
+
+        if (!IsEof && Peek() == '.')
+        {
+            throw new SmlParseException($"Invalid numeric literal '{sb}.' at line {startLine}, col {startColumn}. Multiple dots are not allowed.");
+        }
+
+        if (!IsEof && (Peek() == 'e' || Peek() == 'E'))
+        {
+            throw new SmlParseException($"Invalid numeric literal '{sb}': exponent notation is not supported (line {startLine}, col {startColumn}).");
+        }
+
+        if (!IsEof && char.IsLetter(Peek()))
+        {
+            throw new SmlParseException($"Invalid numeric literal '{sb}': numeric suffixes are not supported (line {startLine}, col {startColumn}).");
         }
 
         var text = sb.ToString();
-        return new SmlToken(SmlTokenKind.Int, text, startLine, startColumn);
+        return new SmlToken(hasDot ? SmlTokenKind.Float : SmlTokenKind.Int, text, startLine, startColumn);
     }
 
     private string ReadWhile(Func<char, bool> predicate)

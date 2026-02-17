@@ -6,6 +6,7 @@ namespace Runtime.Sml;
 public enum SmlValueKind
 {
     Int,
+    Float,
     Bool,
     String,
     Identifier,
@@ -32,6 +33,7 @@ public sealed class SmlValue
     public object Value { get; }
 
     public static SmlValue FromInt(int value) => new(SmlValueKind.Int, value);
+    public static SmlValue FromFloat(double value) => new(SmlValueKind.Float, value);
     public static SmlValue FromBool(bool value) => new(SmlValueKind.Bool, value);
     public static SmlValue FromString(string value) => new(SmlValueKind.String, value);
     public static SmlValue FromIdentifier(string value) => new(SmlValueKind.Identifier, value);
@@ -56,6 +58,16 @@ public sealed class SmlValue
         return Kind == SmlValueKind.Int
             ? (int)Value
             : throw new SmlParseException($"Property '{propertyName}' must be an integer.");
+    }
+
+    public double AsDoubleOrThrow(string propertyName)
+    {
+        return Kind switch
+        {
+            SmlValueKind.Int => (int)Value,
+            SmlValueKind.Float => (double)Value,
+            _ => throw new SmlParseException($"Property '{propertyName}' must be numeric.")
+        };
     }
 
     public bool AsBoolOrThrow(string propertyName)

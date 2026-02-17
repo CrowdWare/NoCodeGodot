@@ -100,7 +100,7 @@
 - [x] tasks/docking_dragdrop_ux.md
 - [x] tasks/docking_layout_persistence.md
 - [x] tasks/mainmenu.md
-- [ ] tasks/floats_in_sml.md
+- [x] tasks/floats_in_sml.md
 - [ ] tasks/sms_events.md
 - [ ] tasks/refactoring.md
 - [ ] tasks/documentation.md

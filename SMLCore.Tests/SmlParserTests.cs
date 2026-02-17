@@ -123,17 +123,49 @@ public class SmlParserTests
     }
 
     [Fact]
-    public void ParseDocument_WithFloatValue_Throws()
+    public void ParseDocument_WithFloatValues_ParsesSuccessfully()
     {
         const string text = """
-        Window {
-            percent: 0.9
+        Control {
+            anchorLeft: 0.0
+            anchorRight: 1.0
+            width: 300
+            opacity: 0.75
+            anchorCenter: .5
         }
         """;
 
         var parser = new SmlParser(text);
+        var doc = parser.ParseDocument();
+        var node = Assert.Single(doc.Roots);
+
+        Assert.Equal(SmlValueKind.Float, node.GetRequiredProperty("anchorLeft").Kind);
+        Assert.Equal(0.0, node.GetRequiredProperty("anchorLeft").AsDoubleOrThrow("anchorLeft"), 10);
+
+        Assert.Equal(SmlValueKind.Float, node.GetRequiredProperty("anchorRight").Kind);
+        Assert.Equal(1.0, node.GetRequiredProperty("anchorRight").AsDoubleOrThrow("anchorRight"), 10);
+
+        Assert.Equal(SmlValueKind.Int, node.GetRequiredProperty("width").Kind);
+        Assert.Equal(300, node.GetRequiredProperty("width").AsIntOrThrow("width"));
+
+        Assert.Equal(SmlValueKind.Float, node.GetRequiredProperty("opacity").Kind);
+        Assert.Equal(0.75, node.GetRequiredProperty("opacity").AsDoubleOrThrow("opacity"), 10);
+
+        Assert.Equal(SmlValueKind.Float, node.GetRequiredProperty("anchorCenter").Kind);
+        Assert.Equal(0.5, node.GetRequiredProperty("anchorCenter").AsDoubleOrThrow("anchorCenter"), 10);
+    }
+
+    [Theory]
+    [InlineData("1.")]
+    [InlineData("1e-3")]
+    [InlineData("12..3")]
+    public void ParseDocument_WithInvalidFloatFormats_Throws(string invalidValue)
+    {
+        var text = $"Control {{\n    anchorLeft: {invalidValue}\n}}";
+
+        var parser = new SmlParser(text);
         var ex = Assert.Throws<SmlParseException>(() => parser.ParseDocument());
-        Assert.Contains("Float values are not supported", ex.Message);
+        Assert.Contains("Invalid", ex.Message);
     }
 
     [Fact]
