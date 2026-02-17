@@ -102,13 +102,8 @@
 - [x] tasks/mainmenu.md
 - [x] tasks/floats_in_sml.md
 - [x] tasks/sms_events.md
-- [x
-
-
-
-
-] tasks/refactoring.md
-- [ ] tasks/documentation.md
+- [x] tasks/refactoring.md
+- [x] tasks/documentation.md
 - [ ] tasks/issues_menu.md
 - [/] tasks/issues.md                   check again after refactoring
 - [/] tasks/missing_features.md         check again after refactoring

@@ -65,6 +65,22 @@ Result:
 - width = 500
 - height = 400
 
+### 2.2 Runtime default rules (explicit policy)
+
+Some layout defaults are intentionally applied by runtime policy when no explicit SML value exists.
+These defaults are generated from specs (not hardcoded ad-hoc in runtime code):
+
+- `autoFillMaxSizeTypes` (for controls that should expand by default)
+- `menuBarDefaults` (position/anchors/min-height/z-order for app menu bars)
+
+Source of truth:
+- `tools/specs/layout_defaults.gd`
+- generated to `NoCodeRunner/Generated/SchemaLayoutDefaults.cs`
+
+Precedence:
+- explicit SML value always wins over runtime defaults
+- aliases resolve by source order (last write wins), then defaults apply only for missing values
+
 ---
 
 ## 3. IDs

@@ -168,36 +168,38 @@ public sealed class SmlUiBuilder
 
     private void BuildMenuBar(Control menuBarControl, SmlNode menuBarNode)
     {
-        // Ensure app-layout runtime places the menu bar at the top even without explicit x/y/size in SML.
+        var defaults = SchemaLayoutDefaults.MenuBar;
+
+        // Ensure app-layout runtime places the menu bar at the top when no explicit values are provided.
         if (!menuBarControl.HasMeta(NodePropertyMapper.MetaX))
         {
-            menuBarControl.SetMeta(NodePropertyMapper.MetaX, Variant.From(0));
+            menuBarControl.SetMeta(NodePropertyMapper.MetaX, Variant.From(defaults.X));
         }
         if (!menuBarControl.HasMeta(NodePropertyMapper.MetaY))
         {
-            menuBarControl.SetMeta(NodePropertyMapper.MetaY, Variant.From(0));
+            menuBarControl.SetMeta(NodePropertyMapper.MetaY, Variant.From(defaults.Y));
         }
         if (!menuBarControl.HasMeta(NodePropertyMapper.MetaHeight))
         {
-            menuBarControl.SetMeta(NodePropertyMapper.MetaHeight, Variant.From(28));
+            menuBarControl.SetMeta(NodePropertyMapper.MetaHeight, Variant.From(defaults.Height));
         }
         if (!menuBarControl.HasMeta(NodePropertyMapper.MetaAnchorLeft))
         {
-            menuBarControl.SetMeta(NodePropertyMapper.MetaAnchorLeft, Variant.From(true));
+            menuBarControl.SetMeta(NodePropertyMapper.MetaAnchorLeft, Variant.From(defaults.AnchorLeft));
         }
         if (!menuBarControl.HasMeta(NodePropertyMapper.MetaAnchorRight))
         {
-            menuBarControl.SetMeta(NodePropertyMapper.MetaAnchorRight, Variant.From(true));
+            menuBarControl.SetMeta(NodePropertyMapper.MetaAnchorRight, Variant.From(defaults.AnchorRight));
         }
         if (!menuBarControl.HasMeta(NodePropertyMapper.MetaAnchorTop))
         {
-            menuBarControl.SetMeta(NodePropertyMapper.MetaAnchorTop, Variant.From(true));
+            menuBarControl.SetMeta(NodePropertyMapper.MetaAnchorTop, Variant.From(defaults.AnchorTop));
         }
 
         menuBarControl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         menuBarControl.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
-        menuBarControl.CustomMinimumSize = new Vector2(menuBarControl.CustomMinimumSize.X, Math.Max(menuBarControl.CustomMinimumSize.Y, 28f));
-        menuBarControl.ZIndex = 1000;
+        menuBarControl.CustomMinimumSize = new Vector2(menuBarControl.CustomMinimumSize.X, Math.Max(menuBarControl.CustomMinimumSize.Y, defaults.MinHeight));
+        menuBarControl.ZIndex = defaults.ZIndex;
 
         var preferGlobalMenu = false;
         if (menuBarControl.HasMeta(NodePropertyMapper.MetaMenuPreferGlobal))

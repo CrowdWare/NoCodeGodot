@@ -5,6 +5,8 @@ using System.Collections.Generic;
 
 namespace Runtime.Generated;
 
+public sealed record MenuBarDefaultsDef(int X, int Y, int Height, bool AnchorLeft, bool AnchorRight, bool AnchorTop, int MinHeight, int ZIndex);
+
 public static class SchemaLayoutDefaults
 {
     public static readonly string[] AutoFillMaxSizeTypes =
@@ -29,4 +31,7 @@ public static class SchemaLayoutDefaults
 
     public static bool ShouldAutoFillMaxSize(string nodeName)
         => AutoFillMaxSizeTypeSet.Contains(nodeName);
+
+    public static readonly MenuBarDefaultsDef MenuBar =
+        new MenuBarDefaultsDef(0, 0, 28, true, true, true, 28, 1000);
 }

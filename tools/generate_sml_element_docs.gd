@@ -937,6 +937,7 @@ func _generate_schema_layout_defaults_cs() -> void:
     cs += "using System;\n"
     cs += "using System.Collections.Generic;\n\n"
     cs += "namespace Runtime.Generated;\n\n"
+    cs += "public sealed record MenuBarDefaultsDef(int X, int Y, int Height, bool AnchorLeft, bool AnchorRight, bool AnchorTop, int MinHeight, int ZIndex);\n\n"
     cs += "public static class SchemaLayoutDefaults\n"
     cs += "{\n"
     cs += "    public static readonly string[] AutoFillMaxSizeTypes =\n"
@@ -953,6 +954,29 @@ func _generate_schema_layout_defaults_cs() -> void:
     cs += "    }\n\n"
     cs += "    public static bool ShouldAutoFillMaxSize(string nodeName)\n"
     cs += "        => AutoFillMaxSizeTypeSet.Contains(nodeName);\n"
+    cs += "\n"
+
+    var menu_bar_defaults := _get_menu_bar_defaults()
+    var menu_x := int(menu_bar_defaults.get("x", 0))
+    var menu_y := int(menu_bar_defaults.get("y", 0))
+    var menu_height := int(menu_bar_defaults.get("height", 28))
+    var menu_anchor_left := bool(menu_bar_defaults.get("anchorLeft", true))
+    var menu_anchor_right := bool(menu_bar_defaults.get("anchorRight", true))
+    var menu_anchor_top := bool(menu_bar_defaults.get("anchorTop", true))
+    var menu_min_height := int(menu_bar_defaults.get("minHeight", 28))
+    var menu_z_index := int(menu_bar_defaults.get("zIndex", 1000))
+
+    cs += "    public static readonly MenuBarDefaultsDef MenuBar =\n"
+    cs += "        new MenuBarDefaultsDef(%d, %d, %d, %s, %s, %s, %d, %d);\n" % [
+        menu_x,
+        menu_y,
+        menu_height,
+        ("true" if menu_anchor_left else "false"),
+        ("true" if menu_anchor_right else "false"),
+        ("true" if menu_anchor_top else "false"),
+        menu_min_height,
+        menu_z_index
+    ]
     cs += "}\n"
 
     var path := GENERATED_DIR + "/SchemaLayoutDefaults.cs"
@@ -960,6 +984,12 @@ func _generate_schema_layout_defaults_cs() -> void:
     if f:
         f.store_string(cs)
         f.close()
+
+func _get_menu_bar_defaults() -> Dictionary:
+    if not SPECS.has("layout_defaults"):
+        return {}
+
+    return Dictionary(SPECS["layout_defaults"].get("menuBarDefaults", {}))
 
 func _get_layout_alias_rules() -> Array:
     if not SPECS.has("layout_aliases"):
