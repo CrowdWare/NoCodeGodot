@@ -39,11 +39,10 @@ fun openFloatingWindow() {
     }
 
     window.onClose("onSettingsWindowClosed")
-    log.success("Floating window created")
 }
 
 fun onSettingsWindowClosed() {
-    log.success("settings closed")
+    log.warning("TODO - Redock panel")
 }
 
 
@@ -83,6 +82,5 @@ on treeview.itemSelected() {
 }
 
 on settings.clicked() {
-    log.success("Settings clicked (event-first)")
     openFloatingWindow()
 }
