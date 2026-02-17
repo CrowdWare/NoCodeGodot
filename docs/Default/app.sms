@@ -16,7 +16,7 @@ fun ready() {
     tree.BindEvents()
     populateTree(tree, ".")
 
-    openFloatingWindow()
+    //openFloatingWindow()
     
     log.info("TreeView 'treeview' wurde mit Inhalten aus ProjectFS befüllt.")
 }

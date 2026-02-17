@@ -3,13 +3,11 @@ extends SceneTree
 var REPO_ROOT := ""
 var SPECS: Dictionary = {}
 var OUT_DIR := ""
-var REF_PATH := ""
 var SPEC_DIR := ""
 var GENERATED_DIR := ""
 func _initialize() -> void:
     REPO_ROOT = ProjectSettings.globalize_path("res://") + "/.."
     OUT_DIR = REPO_ROOT + "/docs/SML/Elements"
-    REF_PATH = REPO_ROOT + "/docs/sms-reference.sml"
     SPEC_DIR = REPO_ROOT + "/tools/specs"
     GENERATED_DIR = REPO_ROOT + "/NoCodeRunner/Generated"
     _run()
@@ -98,7 +96,6 @@ func _run() -> void:
     # Generate SML reference only for SML-instantiable types (exclude base-only classes like Node/CanvasItem/Object)
     var sml_names: Array = sml_targets.keys()
     sml_names.sort()
-    _generate_reference_sml(sml_names)
     _generate_csharp_schema_files(sml_names)
 
     print("SML element docs generated.")
@@ -446,7 +443,7 @@ func _generate_doc(c_name: String) -> void:
     if _is_collection_control(c_name) and c_name not in ["PopupMenu", "ItemList", "OptionButton", "TabBar", "TabContainer"]:
         md += "\n## SML Items (TODO)\n\n"
         md += "This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.\n"
-        md += "Use the generated signals and the `collection: true` marker in `sms-reference.sml` as implementation hints.\n"
+        md += "Use generated runtime schema files (`NoCodeRunner/Generated/Schema*.cs`) and this element reference as implementation hints.\n"
 
     var path := "%s/%s.md" % [OUT_DIR, c_name]
     var f := FileAccess.open(path, FileAccess.WRITE)
@@ -886,137 +883,6 @@ func _get_spec_actions(c_name: String) -> Array:  # CHANGED
     if not SPECS.has(c_name):
         return []
     return Array(SPECS[c_name].get("actions", []))
-
-
-# CHANGED: Codex-friendly reference schema (no Markdown tables).
-func _generate_reference_sml(names: Array) -> void:
-    var sml := "Reference {\n"
-    sml += "    generator: \"generate_sml_element_docs.gd\"\n"
-    sml += "    propertyFilter: \"inspector-editable + supported scalar types\"\n"
-    sml += "    naming: \"snake_case -> lowerCamelCase\"\n"
-    sml += "\n"
-
-    for n in names:
-        var c_name := String(n)
-        # CHANGED: Spec/manual types (not Godot ClassDB classes) are generated from SPECS
-        if SPECS.has(c_name):
-            var spec := Dictionary(SPECS[c_name])
-            var backing := String(spec.get("backing", "Control"))
-            var props_spec := Array(spec.get("properties", []))
-            var actions_spec := Array(spec.get("actions", []))
-
-            sml += "    Type {\n"
-            sml += "        name: \"%s\"\n" % c_name
-            sml += "        parent: \"%s\"\n" % backing
-
-            # Properties (spec-defined)
-            sml += "\n        Properties {\n"
-            for sp in props_spec:
-                var sml_name := String(sp.get("sml", ""))
-                if sml_name == "":
-                    continue
-                var t := String(sp.get("type", "Variant"))
-                var defv := String(sp.get("default", ""))
-                if defv != "":
-                    sml += "            Prop { sml: \"%s\"; type: \"%s\"; default: \"%s\" }\n" % [sml_name, t, defv]
-                else:
-                    sml += "            Prop { sml: \"%s\"; type: \"%s\" }\n" % [sml_name, t]
-            sml += "        }\n"
-
-            # Events (manual types currently have no ClassDB signals)
-            sml += "\n        Events {\n"
-            sml += "        }\n"
-
-            # Actions (spec-defined)
-            sml += "\n        Actions {\n"
-            for a in actions_spec:
-                var an := String(a.get("sms", ""))
-                if an == "":
-                    continue
-                var ret := String(a.get("returns", "void"))
-                var params := Array(a.get("params", []))
-                var parts: Array[String] = []
-                for p in params:
-                    var pn := String(p.get("name", "arg"))
-                    var pt := String(p.get("type", "Variant"))
-                    parts.append(pt + " " + pn)
-                var pstr := "—"
-                if parts.size() > 0:
-                    pstr = ", ".join(parts)
-                sml += "            Action { sms: \"%s\"; params: \"%s\"; returns: \"%s\" }\n" % [an, pstr, ret]
-            sml += "        }\n"
-
-            sml += "    }\n\n"
-            continue
-
-        var parent := String(ClassDB.get_parent_class(c_name))
-        var props := _collect_properties(c_name)
-        var signals := _collect_signals(c_name)
-
-        sml += "    Type {\n"
-        sml += "        name: \"%s\"\n" % c_name
-        if parent != "":
-            sml += "        parent: \"%s\"\n" % parent
-
-        if _is_collection_control(c_name):
-            sml += "        collection: true\n"  # CHANGED
-
-        # Properties (local only)
-        sml += "\n        Properties {\n"
-        for p in props:
-            sml += "            Prop { godot: \"%s\"; sml: \"%s\"; type: \"%s\" }\n" % [String(p["name"]), _normalize_property(String(p["name"])), String(p["type"]) ]
-        sml += "        }\n"
-
-        # Events (local only)
-        sml += "\n        Events {\n"
-        for s in signals:
-            sml += "            Event { godot: \"%s\"; sms: \"%s\"; params: \"%s\" }\n" % [String(s["name"]), _normalize_event(String(s["name"])), String(s["params"]) ]
-        sml += "        }\n"
-
-        # Actions (local only) - currently empty for ClassDB types (bridges are generated elsewhere)
-        sml += "\n        Actions {\n"
-        sml += "        }\n"
-
-        # Pseudo-children for menu items
-        if c_name == "PopupMenu":
-            sml += "\n        PseudoChildren {\n"
-            sml += "            Item { props: \"id,text,disabled\" }\n"
-            sml += "            CheckItem { props: \"id,text,checked,disabled\" }\n"
-            sml += "            Separator { props: \"\" }\n"
-            sml += "        }\n"
-        if c_name == "ItemList":
-            sml += "\n        PseudoChildren {\n"
-            sml += "            Item { props: \"id,text,icon,selected,disabled,tooltip\" }\n"
-            sml += "        }\n"
-        if c_name == "OptionButton":
-            sml += "\n        PseudoChildren {\n"
-            sml += "            Item { props: \"id,text,icon,disabled,selected\" }\n"
-            sml += "        }\n"
-        if c_name == "TabBar":
-            sml += "\n        PseudoChildren {\n"
-            sml += "            Tab { props: \"id,title,icon,disabled,hidden,selected\" }\n"
-            sml += "        }\n"
-        # Context properties for children of TabContainer
-        if c_name == "TabContainer":
-            sml += "\n        ChildContext {\n"
-            sml += "            # These properties are valid on TabContainer children (pages)\n"
-            sml += "            Prop { sml: \"tabTitle\"; type: \"string\"; default: \"\" }\n"
-            sml += "            Prop { sml: \"tabIcon\"; type: \"string\"; default: \"\" }\n"
-            sml += "            Prop { sml: \"tabDisabled\"; type: \"bool\"; default: \"false\" }\n"
-            sml += "            Prop { sml: \"tabHidden\"; type: \"bool\"; default: \"false\" }\n"
-            sml += "        }\n"
-
-        if _is_collection_control(c_name) and c_name not in ["PopupMenu", "ItemList", "OptionButton", "TabBar", "TabContainer"]:
-            sml += "\n        # TODO: Define PseudoChildren schema for this collection control\n"
-
-        sml += "    }\n\n"
-
-    sml += "}\n"
-
-    var f := FileAccess.open(REF_PATH, FileAccess.WRITE)
-    if f:
-        f.store_string(sml)
-        f.close()
 
 
 func _generate_csharp_schema_files(names: Array) -> void:

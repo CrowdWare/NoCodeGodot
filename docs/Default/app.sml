@@ -5,7 +5,7 @@ Window {
     pos: 448, 156 // centered
     size: 1024, 768
 
-    Panel {
+    PanelContainer {
         id: leftPanel
         anchors: top | left | bottom
         width: 300
@@ -27,7 +27,7 @@ Window {
 
     }
 
-    Panel {
+    PanelContainer {
         id: middlePanel
         anchors: top | bottom | right | left
         x: 300
@@ -46,7 +46,7 @@ Window {
         }
     }
 
-    Panel {
+    PanelContainer {
         id: rightPanel
         anchors: top | right | bottom
         x: 600

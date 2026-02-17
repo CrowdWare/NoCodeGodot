@@ -26,7 +26,8 @@ Because the supported set is **the full `Control` class family**, the detailed r
 
 - This file provides the **overview + grouping**.
 - The complete, per-control list of **properties + events (including inherited)** is provided in:
-  - `docs/sms-reference.sml` (authoritative reference used for IntelliSense)
+  - `docs/SML/Elements/*.md` (generated element reference)
+  - `NoCodeRunner/Generated/Schema*.cs` (authoritative runtime mapping tables)
 
 ## Groups
 
@@ -84,7 +85,7 @@ For completeness, SML also supports window-based UI.
 - MenuButton
 
 > **Item-like structures:** Some controls (notably `PopupMenu`) contain logical items that are not separate nodes.
-> Their “item events” are documented under the emitting control in `docs/sms-reference.sml`.
+> Their “item events” are documented under the emitting control in `docs/SML/Elements/*.md`.
 
 ### Lists / Trees
 
@@ -140,4 +141,4 @@ This rule applies globally to all SML controls wherever vector pairs are used.
 - If a node is a `Control` in Godot, it is supported as an SML node (plus `Window` and dialog windows).
 - The **authoritative** list of what is actually supported (after refactoring) is the reference file generated from the runtime.
 
-Next: generate `docs/sms-reference.sml` from the runtime-supported class set (Controls, inherited properties, inherited events, and event parameter lists).
+Next: regenerate `docs/SML/Elements/*.md` and `NoCodeRunner/Generated/Schema*.cs` from the runtime-supported class set.
