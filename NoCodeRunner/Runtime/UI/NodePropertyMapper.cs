@@ -5,6 +5,7 @@ using Runtime.Sml;
 using Runtime.ThreeD;
 using System;
 using System.Globalization;
+using System.Collections.Generic;
 
 namespace Runtime.UI;
 
@@ -61,9 +62,17 @@ public sealed class NodePropertyMapper
     public const string MetaMenuPreferGlobal = "sml_menuPreferGlobal";
     public const string MetaMenuShortcut = "sml_menuShortcut";
 
+    private static readonly IReadOnlyDictionary<string, Action<Control, SmlValue, string>> SimplePropertyHandlers
+        = BuildSimplePropertyHandlers();
+
     public void Apply(Control control, string propertyName, SmlValue value, Func<string, string>? resolveAssetPath = null)
     {
         if (TryApplyGeneratedLayoutAlias(control, propertyName, value))
+        {
+            return;
+        }
+
+        if (TryApplySimpleProperty(control, propertyName, value))
         {
             return;
         }
@@ -166,14 +175,6 @@ public sealed class NodePropertyMapper
                 }
                 break;
 
-            case "preferglobalmenu":
-                control.SetMeta(MetaMenuPreferGlobal, Variant.From(ToBoolOrThrow(value, propertyName)));
-                return;
-
-            case "shortcut":
-                control.SetMeta(MetaMenuShortcut, Variant.From(value.AsStringOrThrow(propertyName)));
-                return;
-
             case "wrap":
                 ApplyWrap(control, ToBoolOrThrow(value, propertyName));
                 return;
@@ -206,74 +207,6 @@ public sealed class NodePropertyMapper
 
             case "anchors":
                 ApplyAnchors(control, value.AsStringOrThrow(propertyName));
-                return;
-
-            case "anchorleft":
-                control.SetMeta(MetaAnchorLeft, Variant.From(ToBoolOrThrow(value, propertyName)));
-                return;
-
-            case "anchorright":
-                control.SetMeta(MetaAnchorRight, Variant.From(ToBoolOrThrow(value, propertyName)));
-                return;
-
-            case "anchortop":
-                control.SetMeta(MetaAnchorTop, Variant.From(ToBoolOrThrow(value, propertyName)));
-                return;
-
-            case "anchorbottom":
-                control.SetMeta(MetaAnchorBottom, Variant.From(ToBoolOrThrow(value, propertyName)));
-                return;
-
-            case "centerx":
-                control.SetMeta(MetaCenterX, Variant.From(ToBoolOrThrow(value, propertyName)));
-                return;
-
-            case "centery":
-                control.SetMeta(MetaCenterY, Variant.From(ToBoolOrThrow(value, propertyName)));
-                return;
-
-            case "scrollable":
-                control.SetMeta(MetaScrollable, Variant.From(ToBoolOrThrow(value, propertyName)));
-                return;
-
-            case "scrollbarwidth":
-                control.SetMeta(MetaScrollbarWidth, Variant.From(value.AsIntOrThrow(propertyName)));
-                return;
-
-            case "scrollbarheight":
-                control.SetMeta(MetaScrollbarHeight, Variant.From(value.AsIntOrThrow(propertyName)));
-                return;
-
-            case "scrollbarposition":
-                control.SetMeta(MetaScrollbarPosition, Variant.From(value.AsStringOrThrow(propertyName)));
-                return;
-
-            case "scrollbarvisible":
-                control.SetMeta(MetaScrollbarVisible, Variant.From(ToBoolOrThrow(value, propertyName)));
-                return;
-
-            case "scrollbarvisibleonscroll":
-                control.SetMeta(MetaScrollbarVisibleOnScroll, Variant.From(ToBoolOrThrow(value, propertyName)));
-                return;
-
-            case "scrollbarfadeouttime":
-                control.SetMeta(MetaScrollbarFadeOutTime, Variant.From(value.AsIntOrThrow(propertyName)));
-                return;
-
-            case "rowheight":
-                control.SetMeta(MetaTreeRowHeight, Variant.From(value.AsIntOrThrow(propertyName)));
-                return;
-
-            case "showguides":
-                control.SetMeta(MetaTreeShowGuides, Variant.From(ToBoolOrThrow(value, propertyName)));
-                return;
-
-            case "hideroot":
-                control.SetMeta(MetaTreeHideRoot, Variant.From(ToBoolOrThrow(value, propertyName)));
-                return;
-
-            case "indent":
-                control.SetMeta(MetaTreeIndent, Variant.From(value.AsIntOrThrow(propertyName)));
                 return;
 
             case "minsize":
@@ -311,10 +244,6 @@ public sealed class NodePropertyMapper
                 {
                     viewport.SetSmlId(idValue);
                 }
-                return;
-
-            case "action":
-                control.SetMeta(MetaAction, Variant.From(value.AsStringOrThrow(propertyName)));
                 return;
 
             case "clicked":
@@ -543,6 +472,53 @@ public sealed class NodePropertyMapper
         control.SetMeta(MetaAnchorTop, Variant.From(top));
         control.SetMeta(MetaAnchorBottom, Variant.From(bottom));
     }
+
+    private static IReadOnlyDictionary<string, Action<Control, SmlValue, string>> BuildSimplePropertyHandlers()
+    {
+        return new Dictionary<string, Action<Control, SmlValue, string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["preferglobalmenu"] = (control, value, propertyName) => SetMetaBool(control, MetaMenuPreferGlobal, value, propertyName),
+            ["shortcut"] = (control, value, propertyName) => SetMetaString(control, MetaMenuShortcut, value, propertyName),
+            ["anchorleft"] = (control, value, propertyName) => SetMetaBool(control, MetaAnchorLeft, value, propertyName),
+            ["anchorright"] = (control, value, propertyName) => SetMetaBool(control, MetaAnchorRight, value, propertyName),
+            ["anchortop"] = (control, value, propertyName) => SetMetaBool(control, MetaAnchorTop, value, propertyName),
+            ["anchorbottom"] = (control, value, propertyName) => SetMetaBool(control, MetaAnchorBottom, value, propertyName),
+            ["centerx"] = (control, value, propertyName) => SetMetaBool(control, MetaCenterX, value, propertyName),
+            ["centery"] = (control, value, propertyName) => SetMetaBool(control, MetaCenterY, value, propertyName),
+            ["scrollable"] = (control, value, propertyName) => SetMetaBool(control, MetaScrollable, value, propertyName),
+            ["scrollbarwidth"] = (control, value, propertyName) => SetMetaInt(control, MetaScrollbarWidth, value, propertyName),
+            ["scrollbarheight"] = (control, value, propertyName) => SetMetaInt(control, MetaScrollbarHeight, value, propertyName),
+            ["scrollbarposition"] = (control, value, propertyName) => SetMetaString(control, MetaScrollbarPosition, value, propertyName),
+            ["scrollbarvisible"] = (control, value, propertyName) => SetMetaBool(control, MetaScrollbarVisible, value, propertyName),
+            ["scrollbarvisibleonscroll"] = (control, value, propertyName) => SetMetaBool(control, MetaScrollbarVisibleOnScroll, value, propertyName),
+            ["scrollbarfadeouttime"] = (control, value, propertyName) => SetMetaInt(control, MetaScrollbarFadeOutTime, value, propertyName),
+            ["rowheight"] = (control, value, propertyName) => SetMetaInt(control, MetaTreeRowHeight, value, propertyName),
+            ["showguides"] = (control, value, propertyName) => SetMetaBool(control, MetaTreeShowGuides, value, propertyName),
+            ["hideroot"] = (control, value, propertyName) => SetMetaBool(control, MetaTreeHideRoot, value, propertyName),
+            ["indent"] = (control, value, propertyName) => SetMetaInt(control, MetaTreeIndent, value, propertyName),
+            ["action"] = (control, value, propertyName) => SetMetaString(control, MetaAction, value, propertyName)
+        };
+    }
+
+    private static bool TryApplySimpleProperty(Control control, string propertyName, SmlValue value)
+    {
+        if (!SimplePropertyHandlers.TryGetValue(propertyName, out var handler))
+        {
+            return false;
+        }
+
+        handler(control, value, propertyName);
+        return true;
+    }
+
+    private static void SetMetaBool(Control control, string metaName, SmlValue value, string propertyName)
+        => control.SetMeta(metaName, Variant.From(ToBoolOrThrow(value, propertyName)));
+
+    private static void SetMetaInt(Control control, string metaName, SmlValue value, string propertyName)
+        => control.SetMeta(metaName, Variant.From(value.AsIntOrThrow(propertyName)));
+
+    private static void SetMetaString(Control control, string metaName, SmlValue value, string propertyName)
+        => control.SetMeta(metaName, Variant.From(value.AsStringOrThrow(propertyName)));
 
     private static bool TryApplyGeneratedLayoutAlias(Control control, string propertyName, SmlValue value)
     {

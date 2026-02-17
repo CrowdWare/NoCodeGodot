@@ -5,10 +5,16 @@ Window {
     pos: 0, 0
     size: 1920, 1080
 
-    Button {
-        text: "Click Me"
-        width: 200
+    PanelContainer {
+        
+        size: 300, 400
+
+        TabContainer {
+            PanelContainer { title: "Project" }
+            PanelContainer { title: "Hierarchy" }
+        }
     }
+    
     /*
     PanelContainer {
         id: leftPanel
