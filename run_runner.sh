@@ -51,9 +51,14 @@ case "$MODE" in
     exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --reset-start-url
     ;;
   docs)
-    echo "Generating SML/SMS docs headlessly (writes into repo docs/ )"
-    # Run the generator without opening the Godot editor UI.
-    exec "$GODOT_BIN" --headless --path "$RUNNER_PATH" --script "$REPO_ROOT/tools/generate_sml_element_docs.gd" -- --out "$REPO_ROOT/docs"  # CHANGED
+    echo "Generating SML element docs..."
+    "$GODOT_BIN" --headless --path "$RUNNER_PATH" --script "$REPO_ROOT/tools/generate_sml_element_docs.gd" -- --out "$REPO_ROOT/docs"
+
+    echo "Generating SMS runtime function docs..."
+    "$GODOT_BIN" --headless --path "$RUNNER_PATH" --script "$REPO_ROOT/tools/generate_sms_functions_docs.gd"
+
+    echo "Documentation generation completed."
+    exit 0
     ;;
   *)
     echo "Usage: $0 [default|sample|docking|none|docs]"

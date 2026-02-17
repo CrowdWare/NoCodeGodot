@@ -13,7 +13,30 @@ func _initialize() -> void:
     _run()
     quit()
 
-const EXTRA_CLASSES := ["Window", "PopupMenu"] 
+const EXTRA_CLASSES := [
+    "Window",
+    "AcceptDialog",
+    "ConfirmationDialog",
+    "FileDialog",
+    "Popup",
+    "PopupMenu",
+    "PopupPanel",
+    "SubViewport"
+]
+
+# CHANGED: List of base-only classes for inheritance docs, not SML elements.
+const BASE_ONLY_CLASSES := [
+    "Object",
+    "Node",
+    "CanvasItem",
+    "Viewport",
+    "OpenXRInteractionProfileEditorBase",
+    "BaseButton",
+    "Range",
+    "ScrollBar",
+    "Slider",
+    "Separator"
+]  # CHANGED
 
 func _run() -> void:
     SPECS = _load_specs()
@@ -89,8 +112,8 @@ func _generate_doc(c_name: String) -> void:
     var signals := _collect_signals(c_name)
 
     var md := "# %s\n\n" % c_name
-    if c_name in ["Object", "Node", "CanvasItem"]:
-        md += "> Note: This is a base class included for inheritance documentation. It is **not** an SML element.\n\n"
+    if c_name in BASE_ONLY_CLASSES:  # CHANGED
+        md += "> Note: This is a base class included for inheritance documentation. It is **not** an SML element.\n\n"  # CHANGED
     md += "## Inheritance\n\n"
     # Create a linked inheritance chain: Class → Parent → ... → Object
     var linked: Array[String] = []

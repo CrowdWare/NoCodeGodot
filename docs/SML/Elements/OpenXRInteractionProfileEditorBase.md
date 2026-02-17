@@ -1,5 +1,7 @@
 # OpenXRInteractionProfileEditorBase
 
+> Note: This is a base class included for inheritance documentation. It is **not** an SML element.
+
 ## Inheritance
 
 [OpenXRInteractionProfileEditorBase](OpenXRInteractionProfileEditorBase.md) → [HBoxContainer](HBoxContainer.md) → [BoxContainer](BoxContainer.md) → [Container](Container.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)

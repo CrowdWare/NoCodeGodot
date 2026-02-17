@@ -1,5 +1,7 @@
 # Viewport
 
+> Note: This is a base class included for inheritance documentation. It is **not** an SML element.
+
 ## Inheritance
 
 [Viewport](Viewport.md) → [Node](Node.md) → [Object](Object.md)

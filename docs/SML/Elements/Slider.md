@@ -1,5 +1,7 @@
 # Slider
 
+> Note: This is a base class included for inheritance documentation. It is **not** an SML element.
+
 ## Inheritance
 
 [Slider](Slider.md) → [Range](Range.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)

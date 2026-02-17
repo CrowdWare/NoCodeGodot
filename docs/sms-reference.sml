@@ -4,6 +4,28 @@ Reference {
     naming: "snake_case -> lowerCamelCase"
 
     Type {
+        name: "AcceptDialog"
+        parent: "Window"
+
+        Properties {
+            Prop { godot: "dialog_autowrap"; sml: "dialogAutowrap"; type: "bool" }
+            Prop { godot: "dialog_close_on_escape"; sml: "dialogCloseOnEscape"; type: "bool" }
+            Prop { godot: "dialog_hide_on_ok"; sml: "dialogHideOnOk"; type: "bool" }
+            Prop { godot: "dialog_text"; sml: "dialogText"; type: "string" }
+            Prop { godot: "ok_button_text"; sml: "okButtonText"; type: "string" }
+        }
+
+        Events {
+            Event { godot: "canceled"; sms: "canceled"; params: "—" }
+            Event { godot: "confirmed"; sms: "confirmed"; params: "—" }
+            Event { godot: "custom_action"; sms: "customAction"; params: "Variant action" }
+        }
+
+        Actions {
+        }
+    }
+
+    Type {
         name: "AspectRatioContainer"
         parent: "Container"
 
@@ -222,6 +244,21 @@ Reference {
 
         Properties {
             Prop { godot: "color"; sml: "color"; type: "Color" }
+        }
+
+        Events {
+        }
+
+        Actions {
+        }
+    }
+
+    Type {
+        name: "ConfirmationDialog"
+        parent: "AcceptDialog"
+
+        Properties {
+            Prop { godot: "cancel_button_text"; sml: "cancelButtonText"; type: "string" }
         }
 
         Events {
@@ -459,6 +496,42 @@ Reference {
         }
 
         Events {
+        }
+
+        Actions {
+        }
+    }
+
+    Type {
+        name: "FileDialog"
+        parent: "ConfirmationDialog"
+
+        Properties {
+            Prop { godot: "access"; sml: "access"; type: "int" }
+            Prop { godot: "deleting_enabled"; sml: "deletingEnabled"; type: "bool" }
+            Prop { godot: "display_mode"; sml: "displayMode"; type: "int" }
+            Prop { godot: "favorites_enabled"; sml: "favoritesEnabled"; type: "bool" }
+            Prop { godot: "file_filter_toggle_enabled"; sml: "fileFilterToggleEnabled"; type: "bool" }
+            Prop { godot: "file_mode"; sml: "fileMode"; type: "int" }
+            Prop { godot: "file_sort_options_enabled"; sml: "fileSortOptionsEnabled"; type: "bool" }
+            Prop { godot: "filename_filter"; sml: "filenameFilter"; type: "string" }
+            Prop { godot: "folder_creation_enabled"; sml: "folderCreationEnabled"; type: "bool" }
+            Prop { godot: "hidden_files_toggle_enabled"; sml: "hiddenFilesToggleEnabled"; type: "bool" }
+            Prop { godot: "layout_toggle_enabled"; sml: "layoutToggleEnabled"; type: "bool" }
+            Prop { godot: "mode_overrides_title"; sml: "modeOverridesTitle"; type: "bool" }
+            Prop { godot: "option_count"; sml: "optionCount"; type: "int" }
+            Prop { godot: "overwrite_warning_enabled"; sml: "overwriteWarningEnabled"; type: "bool" }
+            Prop { godot: "recent_list_enabled"; sml: "recentListEnabled"; type: "bool" }
+            Prop { godot: "root_subfolder"; sml: "rootSubfolder"; type: "string" }
+            Prop { godot: "show_hidden_files"; sml: "showHiddenFiles"; type: "bool" }
+            Prop { godot: "use_native_dialog"; sml: "useNativeDialog"; type: "bool" }
+        }
+
+        Events {
+            Event { godot: "dir_selected"; sms: "dirSelected"; params: "string dir" }
+            Event { godot: "file_selected"; sms: "fileSelected"; params: "string path" }
+            Event { godot: "filename_filter_changed"; sms: "filenameFilterChanged"; params: "string filter" }
+            Event { godot: "files_selected"; sms: "filesSelected"; params: "Variant paths" }
         }
 
         Actions {
@@ -1091,6 +1164,21 @@ Reference {
     }
 
     Type {
+        name: "Popup"
+        parent: "Window"
+
+        Properties {
+        }
+
+        Events {
+            Event { godot: "popup_hide"; sms: "popupHide"; params: "—" }
+        }
+
+        Actions {
+        }
+    }
+
+    Type {
         name: "PopupMenu"
         parent: "Popup"
         collection: true
@@ -1122,6 +1210,20 @@ Reference {
             Item { props: "id,text,disabled" }
             CheckItem { props: "id,text,checked,disabled" }
             Separator { props: "" }
+        }
+    }
+
+    Type {
+        name: "PopupPanel"
+        parent: "Popup"
+
+        Properties {
+        }
+
+        Events {
+        }
+
+        Actions {
         }
     }
 
@@ -1390,6 +1492,23 @@ Reference {
             Event { godot: "drag_ended"; sms: "dragEnded"; params: "—" }
             Event { godot: "drag_started"; sms: "dragStarted"; params: "—" }
             Event { godot: "dragged"; sms: "dragged"; params: "int offset" }
+        }
+
+        Actions {
+        }
+    }
+
+    Type {
+        name: "SubViewport"
+        parent: "Viewport"
+
+        Properties {
+            Prop { godot: "render_target_clear_mode"; sml: "renderTargetClearMode"; type: "int" }
+            Prop { godot: "render_target_update_mode"; sml: "renderTargetUpdateMode"; type: "int" }
+            Prop { godot: "size_2d_override_stretch"; sml: "size2dOverrideStretch"; type: "bool" }
+        }
+
+        Events {
         }
 
         Actions {
@@ -1866,6 +1985,20 @@ Reference {
             Event { godot: "titlebar_changed"; sms: "titlebarChanged"; params: "—" }
             Event { godot: "visibility_changed"; sms: "visibilityChanged"; params: "—" }
             Event { godot: "window_input"; sms: "windowInput"; params: "Object event" }
+        }
+
+        Actions {
+        }
+    }
+
+    Type {
+        name: "sms_functions"
+        parent: "Control"
+
+        Properties {
+        }
+
+        Events {
         }
 
         Actions {
