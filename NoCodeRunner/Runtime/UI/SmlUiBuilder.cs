@@ -97,13 +97,6 @@ public sealed class SmlUiBuilder
             _propertyMapper.Apply(control, "font", SmlValue.FromString("appres:/Anonymous.ttf"), _resolveAssetPath);
         }
 
-        if (!node.TryGetProperty("fillMaxSize", out _)
-            && SchemaLayoutDefaults.ShouldAutoFillMaxSize(node.Name)
-            && !HasExplicitSizing(node))
-        {
-            NodePropertyMapper.ApplyFillMaxSize(control);
-        }
-
         if (control is Viewport3DControl viewport3D)
         {
             var viewportIdValue = GetMetaId(control, NodePropertyMapper.MetaIdValue);
@@ -667,8 +660,10 @@ public sealed class SmlUiBuilder
             content.GetParent()?.RemoveChild(content);
         }
 
-        NodePropertyMapper.ApplyFillMaxSize(margin);
-        NodePropertyMapper.ApplyFillMaxSize(content);
+        margin.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        margin.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+        content.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        content.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         content.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         content.SetOffsetsPreset(Control.LayoutPreset.FullRect);
 
@@ -691,8 +686,10 @@ public sealed class SmlUiBuilder
             content.GetParent()?.RemoveChild(content);
         }
 
-        NodePropertyMapper.ApplyFillMaxSize(scroll);
-        NodePropertyMapper.ApplyFillMaxSize(content);
+        scroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        scroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+        content.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        content.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         content.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         content.SetOffsetsPreset(Control.LayoutPreset.FullRect);
 
@@ -924,14 +921,6 @@ public sealed class SmlUiBuilder
         }
 
         return new Id(control.GetMeta(key).AsInt32());
-    }
-
-    private static bool HasExplicitSizing(SmlNode node)
-    {
-        return node.TryGetProperty("size", out _)
-               || node.TryGetProperty("width", out _)
-               || node.TryGetProperty("height", out _)
-               || node.TryGetProperty("minSize", out _);
     }
 
     private static bool TryApplyContextProperty(

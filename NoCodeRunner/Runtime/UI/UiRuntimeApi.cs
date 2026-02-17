@@ -254,7 +254,8 @@ public static class UiRuntimeApi
 
     private static void PrepareContentForFloatingWindow(Control content)
     {
-        NodePropertyMapper.ApplyFillMaxSize(content);
+        content.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        content.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         content.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         content.SetOffsetsPreset(Control.LayoutPreset.FullRect);
         content.Position = Vector2.Zero;

@@ -5,16 +5,41 @@ Window {
     pos: 0, 0
     size: 1920, 1080
 
-    PanelContainer {
+    HBoxContainer {
+        sizeFlagsHorizontal: 3
+        sizeFlagsVertical: 3
+        minSize: 300,0
         
-        size: 300, 400
+        PanelContainer {
+            width: 300
 
-        TabContainer {
-            PanelContainer { title: "Project" }
-            PanelContainer { title: "Hierarchy" }
+            TabContainer {
+                sizeFlagsHorizontal: 3
+                sizeFlagsVertical: 3
+                PanelContainer { title: "Project" }
+                PanelContainer { title: "Hierarchy" }
+            }
         }
+
+        PanelContainer {
+            sizeFlagsHorizontal: 3
+            sizeFlagsVertical: 3
+
+            TabContainer {
+                PanelContainer { title: "CodeEditor" }
+            }
+        }
+
+        PanelContainer {
+            sizeFlagsHorizontal: 0
+            sizeFlagsVertical: 3
+            minSize: 300, 0
+
+            TabContainer {
+                PanelContainer { title: "Inspektor" }
+            }
     }
-    
+}
     /*
     PanelContainer {
         id: leftPanel

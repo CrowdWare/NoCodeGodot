@@ -210,7 +210,8 @@ public sealed class SmlUiLoader
                     var text = NewNode("MarkdownLabel");
                     text.Properties["text"] = SmlValue.FromString(ToBbCode(block.Text));
                     text.Properties["wrap"] = SmlValue.FromBool(true);
-                    text.Properties["fillMaxSize"] = SmlValue.FromBool(true);
+                    text.Properties["sizeFlagsHorizontal"] = SmlValue.FromInt(3);
+                    text.Properties["sizeFlagsVertical"] = SmlValue.FromInt(3);
 
                     row.Children.Add(bullet);
                     row.Children.Add(text);
@@ -235,7 +236,8 @@ public sealed class SmlUiLoader
 
                     var container = NewNode("Column");
                     container.Properties["role"] = SmlValue.FromString("codeblock");
-                    container.Properties["fillMaxSize"] = SmlValue.FromBool(false);
+                    container.Properties["sizeFlagsHorizontal"] = SmlValue.FromInt(0);
+                    container.Properties["sizeFlagsVertical"] = SmlValue.FromInt(0);
                     container.Properties["spacing"] = SmlValue.FromInt(0);
 
                     var label = NewNode("CodeEdit");
@@ -247,7 +249,8 @@ public sealed class SmlUiLoader
                     label.Properties["font"] = SmlValue.FromString("appres://Anonymous.ttf");
                     label.Properties["fontSize"] = SmlValue.FromInt(codeFontSize);
                     label.Properties["height"] = SmlValue.FromInt(codeHeight);
-                    label.Properties["fillMaxSize"] = SmlValue.FromBool(false);
+                    label.Properties["sizeFlagsHorizontal"] = SmlValue.FromInt(0);
+                    label.Properties["sizeFlagsVertical"] = SmlValue.FromInt(0);
                     if (!string.IsNullOrWhiteSpace(fenceSyntax))
                     {
                         label.Properties["syntax"] = SmlValue.FromString(fenceSyntax);

@@ -141,8 +141,12 @@ public sealed class NodePropertyMapper
                 ApplyHorizontalAlignment(control, value.AsIntOrThrow(propertyName));
                 return;
 
-            case "fillmaxsize":
-                ApplyFillMaxSize(control, ToBoolOrThrow(value, propertyName));
+            case "sizeflagshorizontal":
+                control.SizeFlagsHorizontal = (Control.SizeFlags)value.AsIntOrThrow(propertyName);
+                return;
+
+            case "sizeflagsvertical":
+                control.SizeFlagsVertical = (Control.SizeFlags)value.AsIntOrThrow(propertyName);
                 return;
 
             case "id":
@@ -955,20 +959,4 @@ public sealed class NodePropertyMapper
             : throw new SmlParseException($"Property '{propertyName}' must be a boolean.");
     }
 
-    public static void ApplyFillMaxSize(Control control, bool enabled = true)
-    {
-        if (!enabled)
-        {
-            return;
-        }
-
-        control.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        control.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-
-        if (control.GetParent() is not Container)
-        {
-            control.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-            control.SetOffsetsPreset(Control.LayoutPreset.FullRect);
-        }
-    }
 }

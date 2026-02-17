@@ -38,7 +38,7 @@ Commonly supported (depending on node type):
 
 - Text/content: `text`, `label`, `title`
 - Typographic: `font`, `fontSize`, `wrap`, `align`, `halign`, `color`, `role`
-- Sizing/position: `width`, `height`, `x`, `y`, `position`, `size`, `fillMaxSize`, `minSize`
+- Sizing/position: `width`, `height`, `x`, `y`, `position`, `size`, `minSize`, `sizeFlagsHorizontal`, `sizeFlagsVertical`
 - Spacing: `spacing`, `padding`
 - Anchor/layout metadata: `anchors`, `anchorLeft`, `anchorRight`, `anchorTop`, `anchorBottom`, `centerX`, `centerY`, `layoutMode`
 - Interaction metadata: `id`, `action`, `clicked`

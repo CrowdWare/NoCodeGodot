@@ -9,29 +9,6 @@ public sealed record MenuBarDefaultsDef(int X, int Y, int Height, bool AnchorLef
 
 public static class SchemaLayoutDefaults
 {
-    public static readonly string[] AutoFillMaxSizeTypes =
-    [
-        "CodeEdit",
-        "HBoxContainer",
-        "Markdown",
-        "Panel",
-        "PanelContainer",
-        "TabContainer",
-        "Tree",
-        "VBoxContainer",
-        "Window",
-    ];
-
-    private static readonly ISet<string> AutoFillMaxSizeTypeSet = BuildAutoFillMaxSizeTypeSet();
-
-    private static ISet<string> BuildAutoFillMaxSizeTypeSet()
-    {
-        return new HashSet<string>(AutoFillMaxSizeTypes, StringComparer.OrdinalIgnoreCase);
-    }
-
-    public static bool ShouldAutoFillMaxSize(string nodeName)
-        => AutoFillMaxSizeTypeSet.Contains(nodeName);
-
     public static readonly MenuBarDefaultsDef MenuBar =
         new MenuBarDefaultsDef(0, 0, 28, true, true, true, 28, 1000);
 }
