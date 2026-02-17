@@ -6,40 +6,48 @@ Window {
     size: 1920, 1080
 
     HBoxContainer {
-        sizeFlagsHorizontal: 3
-        sizeFlagsVertical: 3
-        minSize: 300,0
+        anchors: left | right | top | bottom
+        sizeFlagsHorizontal: expandFill
+        sizeFlagsVertical: expandFill
         
         PanelContainer {
+            sizeFlagsVertical: expandFill
             width: 300
 
             TabContainer {
-                sizeFlagsHorizontal: 3
-                sizeFlagsVertical: 3
-                PanelContainer { title: "Project" }
+                sizeFlagsHorizontal: expandFill
+                sizeFlagsVertical: expandFill
+                VBoxContainer { 
+                    title: "Project" 
+                    Button { text: "Klick" }    
+                }
                 PanelContainer { title: "Hierarchy" }
             }
         }
-
+        
         PanelContainer {
-            sizeFlagsHorizontal: 3
-            sizeFlagsVertical: 3
-
+            sizeFlagsHorizontal: expandFill
+            sizeFlagsVertical: expandFill
+            width: 800
             TabContainer {
+                sizeFlagsHorizontal: expandFill
+                sizeFlagsVertical: expandFill
                 PanelContainer { title: "CodeEditor" }
             }
         }
 
         PanelContainer {
-            sizeFlagsHorizontal: 0
-            sizeFlagsVertical: 3
-            minSize: 300, 0
+            sizeFlagsVertical: expandFill
+            width: 300
 
             TabContainer {
+                sizeFlagsHorizontal: expandFill
+                sizeFlagsVertical: expandFill
                 PanelContainer { title: "Inspektor" }
             }
+        }
     }
-}
+
     /*
     PanelContainer {
         id: leftPanel

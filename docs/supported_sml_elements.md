@@ -25,8 +25,6 @@ This reference describes SML elements currently supported by `NoCodeRunner`.
 | `Markdown` | `VBoxContainer` (rendered markdown blocks) |
 | `Image` | `TextureRect` |
 | `Spacer` | `Control` |
-| `DockSpace` | `DockSpace` (custom, `VBoxContainer`-based) |
-| `DockPanel` | `DockPanel` (custom, `PanelContainer`-based) |
 | `MenuBar` | `MenuBar` |
 | `Menu` | `MenuButton` (built from SML `Menu` data) |
 | `MenuItem` | `PopupMenu` item (built from SML `MenuItem` data) |
@@ -42,6 +40,15 @@ Commonly supported (depending on node type):
 - Spacing: `spacing`, `padding`
 - Anchor/layout metadata: `anchors`, `anchorLeft`, `anchorRight`, `anchorTop`, `anchorBottom`, `centerX`, `centerY`, `layoutMode`
 - Interaction metadata: `id`, `action`, `clicked`
+
+`sizeFlagsHorizontal` / `sizeFlagsVertical` support enum identifiers and int values:
+
+- `shrinkBegin` = `0`
+- `fill` = `1`
+- `expand` = `2`
+- `expandFill` = `3`
+- `shrinkCenter` = `4`
+- `shrinkEnd` = `8`
 
 ### `id` semantics (important)
 

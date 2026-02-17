@@ -43,6 +43,20 @@ public static class SmlSchemaFactory
         schema.RegisterEnumValue("area", "bottom-far-right", 8);
         schema.RegisterEnumValue("area", "center", 9);
 
+        schema.RegisterEnumValue("sizeFlagsHorizontal", "shrinkBegin", 0);
+        schema.RegisterEnumValue("sizeFlagsHorizontal", "fill", 1);
+        schema.RegisterEnumValue("sizeFlagsHorizontal", "expand", 2);
+        schema.RegisterEnumValue("sizeFlagsHorizontal", "expandFill", 3);
+        schema.RegisterEnumValue("sizeFlagsHorizontal", "shrinkCenter", 4);
+        schema.RegisterEnumValue("sizeFlagsHorizontal", "shrinkEnd", 8);
+
+        schema.RegisterEnumValue("sizeFlagsVertical", "shrinkBegin", 0);
+        schema.RegisterEnumValue("sizeFlagsVertical", "fill", 1);
+        schema.RegisterEnumValue("sizeFlagsVertical", "expand", 2);
+        schema.RegisterEnumValue("sizeFlagsVertical", "expandFill", 3);
+        schema.RegisterEnumValue("sizeFlagsVertical", "shrinkCenter", 4);
+        schema.RegisterEnumValue("sizeFlagsVertical", "shrinkEnd", 8);
+
         return schema;
     }
 }

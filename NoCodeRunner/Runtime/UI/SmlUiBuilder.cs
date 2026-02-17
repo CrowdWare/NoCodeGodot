@@ -56,7 +56,53 @@ public sealed class SmlUiBuilder
 
         var rootNode = document.Roots[0];
         var ui = BuildNodeRecursive(rootNode, parentNodeName: null);
-        return ui ?? BuildFallback($"Could not build root node '{rootNode.Name}'.");
+        var built = ui ?? BuildFallback($"Could not build root node '{rootNode.Name}'.");
+        ApplyAnchorsFromMetaRecursively(built);
+        return built;
+    }
+
+    private static void ApplyAnchorsFromMetaRecursively(Control control)
+    {
+        var hasLeft = control.HasMeta(NodePropertyMapper.MetaAnchorLeft) && control.GetMeta(NodePropertyMapper.MetaAnchorLeft).AsBool();
+        var hasRight = control.HasMeta(NodePropertyMapper.MetaAnchorRight) && control.GetMeta(NodePropertyMapper.MetaAnchorRight).AsBool();
+        var hasTop = control.HasMeta(NodePropertyMapper.MetaAnchorTop) && control.GetMeta(NodePropertyMapper.MetaAnchorTop).AsBool();
+        var hasBottom = control.HasMeta(NodePropertyMapper.MetaAnchorBottom) && control.GetMeta(NodePropertyMapper.MetaAnchorBottom).AsBool();
+
+        if (hasLeft && hasRight && hasTop && hasBottom)
+        {
+            control.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            control.SetOffsetsPreset(Control.LayoutPreset.FullRect);
+        }
+        else
+        {
+            if (hasLeft)
+            {
+                control.AnchorLeft = 0f;
+            }
+
+            if (hasRight)
+            {
+                control.AnchorRight = 1f;
+            }
+
+            if (hasTop)
+            {
+                control.AnchorTop = 0f;
+            }
+
+            if (hasBottom)
+            {
+                control.AnchorBottom = 1f;
+            }
+        }
+
+        for (var i = 0; i < control.GetChildCount(); i++)
+        {
+            if (control.GetChild(i) is Control childControl)
+            {
+                ApplyAnchorsFromMetaRecursively(childControl);
+            }
+        }
     }
 
     private Control? BuildNodeRecursive(SmlNode node, string? parentNodeName)
@@ -127,6 +173,7 @@ public sealed class SmlUiBuilder
                 if (childControl is not null)
                 {
                     control.AddChild(childControl);
+                    NormalizeBoxChildSizing(control, childControl);
 
                     if (control is TabContainer tabs)
                     {
@@ -157,6 +204,29 @@ public sealed class SmlUiBuilder
         }
 
         return control;
+    }
+
+    private static void NormalizeBoxChildSizing(Control parent, Control child)
+    {
+        if (parent is HBoxContainer && child.HasMeta(NodePropertyMapper.MetaWidth))
+        {
+            var width = child.GetMeta(NodePropertyMapper.MetaWidth).AsInt32();
+            if ((child.SizeFlagsHorizontal & Control.SizeFlags.Expand) != 0)
+            {
+                child.SizeFlagsStretchRatio = Math.Max(1f, width);
+                child.CustomMinimumSize = new Vector2(0f, child.CustomMinimumSize.Y);
+            }
+        }
+
+        if (parent is VBoxContainer && child.HasMeta(NodePropertyMapper.MetaHeight))
+        {
+            var height = child.GetMeta(NodePropertyMapper.MetaHeight).AsInt32();
+            if ((child.SizeFlagsVertical & Control.SizeFlags.Expand) != 0)
+            {
+                child.SizeFlagsStretchRatio = Math.Max(1f, height);
+                child.CustomMinimumSize = new Vector2(child.CustomMinimumSize.X, 0f);
+            }
+        }
     }
 
     private void BuildMenuBar(Control menuBarControl, SmlNode menuBarNode)

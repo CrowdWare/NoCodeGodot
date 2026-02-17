@@ -142,11 +142,11 @@ public sealed class NodePropertyMapper
                 return;
 
             case "sizeflagshorizontal":
-                control.SizeFlagsHorizontal = (Control.SizeFlags)value.AsIntOrThrow(propertyName);
+                control.SizeFlagsHorizontal = ToSizeFlagsOrThrow(value, propertyName);
                 return;
 
             case "sizeflagsvertical":
-                control.SizeFlagsVertical = (Control.SizeFlags)value.AsIntOrThrow(propertyName);
+                control.SizeFlagsVertical = ToSizeFlagsOrThrow(value, propertyName);
                 return;
 
             case "id":
@@ -957,6 +957,16 @@ public sealed class NodePropertyMapper
         return value.Kind == SmlValueKind.Bool
             ? (bool)value.Value
             : throw new SmlParseException($"Property '{propertyName}' must be a boolean.");
+    }
+
+    private static Control.SizeFlags ToSizeFlagsOrThrow(SmlValue value, string propertyName)
+    {
+        return value.Kind switch
+        {
+            SmlValueKind.Int => (Control.SizeFlags)value.AsIntOrThrow(propertyName),
+            SmlValueKind.Enum => (Control.SizeFlags)value.AsEnumIntOrThrow(propertyName),
+            _ => throw new SmlParseException($"Property '{propertyName}' must be an integer or enum value.")
+        };
     }
 
 }
