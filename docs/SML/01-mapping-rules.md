@@ -39,6 +39,32 @@ There are no layout modes like `app` or `document` anymore.
 
 If a property exists in Godot, it can be used directly in SML using the same name and type.
 
+### 2.1 Canonical layout properties and aliases
+
+Canonical layout properties are:
+- `size`
+- `position`
+
+Supported aliases:
+- `width` / `height` (partial override of `size`)
+- `x` / `y` / `left` / `top` / `pos` (partial override of `position`)
+
+Conflict rule:
+- **last write wins (source order)**.
+
+Example:
+
+```sml
+PanelContainer {
+    size: 300, 400
+    width: 500
+}
+```
+
+Result:
+- width = 500
+- height = 400
+
 ---
 
 ## 3. IDs

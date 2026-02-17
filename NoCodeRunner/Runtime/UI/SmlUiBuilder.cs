@@ -1,4 +1,5 @@
 using Godot;
+using Runtime.Generated;
 using Runtime.Logging;
 using Runtime.Sml;
 using Runtime.ThreeD;
@@ -54,11 +55,11 @@ public sealed class SmlUiBuilder
         _viewportsById.Clear();
 
         var rootNode = document.Roots[0];
-        var ui = BuildNodeRecursive(rootNode);
+        var ui = BuildNodeRecursive(rootNode, parentNodeName: null);
         return ui ?? BuildFallback($"Could not build root node '{rootNode.Name}'.");
     }
 
-    private Control? BuildNodeRecursive(SmlNode node)
+    private Control? BuildNodeRecursive(SmlNode node, string? parentNodeName)
     {
         if (!_registry.TryCreate(node.Name, out var control))
         {
@@ -74,8 +75,15 @@ public sealed class SmlUiBuilder
 
         control.SetMeta(NodePropertyMapper.MetaNodeName, Variant.From(node.Name));
 
-        foreach (var (propertyName, value) in node.Properties)
+        foreach (var (propertyName, value) in node.Properties
+                     .OrderBy(kvp => node.PropertyLines.TryGetValue(kvp.Key, out var line) ? line : int.MaxValue)
+                     .ThenBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase))
         {
+            if (TryApplyContextProperty(control, parentNodeName, node.Name, propertyName, value))
+            {
+                continue;
+            }
+
             if (TryApplyWindowScalingMetadata(control, node.Name, propertyName, value))
             {
                 continue;
@@ -120,7 +128,7 @@ public sealed class SmlUiBuilder
         {
             foreach (var child in node.Children)
             {
-                var childControl = BuildNodeRecursive(child);
+                var childControl = BuildNodeRecursive(child, node.Name);
                 if (childControl is not null)
                 {
                     control.AddChild(childControl);
@@ -907,6 +915,43 @@ public sealed class SmlUiBuilder
                || nodeName.Equals("Markdown", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("TabContainer", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Tree", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryApplyContextProperty(
+        Control control,
+        string? parentNodeName,
+        string childNodeName,
+        string propertyName,
+        SmlValue value)
+    {
+        if (string.IsNullOrWhiteSpace(parentNodeName))
+        {
+            return false;
+        }
+
+        if (!SchemaContextProperties.TryGet(parentNodeName, childNodeName, propertyName, out var def))
+        {
+            return false;
+        }
+
+        var metaKey = BuildContextMetaKey(def.TargetMeta);
+        control.SetMeta(metaKey, ToVariant(value, propertyName, def.ValueType));
+        return true;
+    }
+
+    private static string BuildContextMetaKey(string targetMeta)
+        => "sml_ctx_" + targetMeta;
+
+    private static Variant ToVariant(SmlValue value, string propertyName, string valueType)
+    {
+        return valueType.ToLowerInvariant() switch
+        {
+            "string" => Variant.From(value.AsStringOrThrow(propertyName)),
+            "bool" => Variant.From(value.AsBoolOrThrow(propertyName)),
+            "int" => Variant.From(value.AsIntOrThrow(propertyName)),
+            "float" => Variant.From((float)value.AsDoubleOrThrow(propertyName)),
+            _ => Variant.From(value.AsStringOrThrow(propertyName))
+        };
     }
 
     private static bool IsLowercaseMetaNode(SmlNode node)

@@ -76,23 +76,13 @@ Inherited actions are documented in: [Container](Container.md)
 | set_tab_title | `<id>.setTabTitle(tabIdx, title)` | int tabIdx, string title | void |
 | set_tab_tooltip | `<id>.setTabTooltip(tabIdx, tooltip)` | int tabIdx, string tooltip | void |
 
-## Child Properties (Context)
+## Context Properties
 
-When a `Control` is used as a **direct child** of `TabContainer`, the following additional SML properties are supported.
-These properties do **not** belong to the child control itself; they are interpreted by the parent `TabContainer`.
+These properties are valid only when this element is used as a child in a specific parent context.
 
-| SML Property | Type | Default | Description |
-|-|-|-|-|
-| tabTitle | string | "" | Title of the tab for this child page. |
-| tabIcon | string | "" | Optional icon resource/path for the tab (if supported by runtime). |
-| tabDisabled | bool | false | Disables selecting this tab. |
-| tabHidden | bool | false | Hides this tab from the tab bar. |
+### When used inside `TabBar`
 
-### Example
+| SML Property | Type | Description |
+|-|-|-|
+| title | string | Tab title interpreted by the parent TabBar for this child page. |
 
-```sml
-TabContainer { id: tabs
-    Panel { tabTitle: "Home" }
-    Panel { tabTitle: "Settings"; tabDisabled: false }
-}
-```

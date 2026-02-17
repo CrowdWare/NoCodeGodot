@@ -2,14 +2,20 @@ Window {
     id: mainWindow
     title: "NoCodeRunner"
     minSize: 800,400
-    pos: 448, 156 // centered
-    size: 1024, 768
+    pos: 0, 0
+    size: 1920, 1080
 
+    Button {
+        text: "Click Me"
+        width: 200
+    }
+    /*
     PanelContainer {
         id: leftPanel
-        anchors: top | left | bottom
-        width: 300
-
+        //anchors: top | left | bottom
+        //width: 300
+        size: 300, 400
+        Button {text: "Click Me"}
         TabBar {
             TabContainer {
                 title: "Project"
@@ -24,8 +30,8 @@ Window {
                 title: "Hierarchy"
             }
         }
-
     }
+    */
 /*
     PanelContainer {
         id: middlePanel
