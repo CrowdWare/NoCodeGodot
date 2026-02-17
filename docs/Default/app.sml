@@ -5,6 +5,24 @@ Window {
     pos: 0, 0
     size: 1920, 1080
 
+
+    PanelContainer {
+         anchors: left | top | bottom
+         sizeFlagsVertical: expandFill
+         width: 300
+    }
+
+    PanelContainer {
+        anchors: right | top | bottom
+        offsetLeft: -300
+        offsetRight: 0
+        offsetTop: 0
+        offsetBottom: 0
+
+        Label { text: "Inspector" }
+    }
+
+/*
     HBoxContainer {
         anchors: left | right | top | bottom
         sizeFlagsHorizontal: expandFill
@@ -48,7 +66,7 @@ Window {
         }
     }
 
-    /*
+    
     PanelContainer {
         id: leftPanel
         //anchors: top | left | bottom

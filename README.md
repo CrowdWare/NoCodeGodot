@@ -50,6 +50,16 @@ It is designed to be:
 
 If you can read it, you can reason about it.
 
+Sample:
+```qml
+Window {
+	title: "My First App
+	pos: 0, 0
+    size: 1920, 1080
+
+	Label { text: "Hello World" }
+}
+```
 ---
 
 ## 🔒 Separation of Concerns (By Design)

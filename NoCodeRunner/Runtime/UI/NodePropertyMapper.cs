@@ -344,6 +344,11 @@ public sealed class NodePropertyMapper
                 break;
 
             default:
+                if (TryApplyGeneratedProperty(control, propertyName, value))
+                {
+                    return;
+                }
+
                 RunnerLogger.Warn("UI", $"Unsupported property '{propertyName}' on node '{control.GetType().Name}'.");
                 return;
         }
@@ -394,10 +399,6 @@ public sealed class NodePropertyMapper
         {
             ["preferglobalmenu"] = (control, value, propertyName) => SetMetaBool(control, MetaMenuPreferGlobal, value, propertyName),
             ["shortcut"] = (control, value, propertyName) => SetMetaString(control, MetaMenuShortcut, value, propertyName),
-            ["anchorleft"] = (control, value, propertyName) => SetMetaBool(control, MetaAnchorLeft, value, propertyName),
-            ["anchorright"] = (control, value, propertyName) => SetMetaBool(control, MetaAnchorRight, value, propertyName),
-            ["anchortop"] = (control, value, propertyName) => SetMetaBool(control, MetaAnchorTop, value, propertyName),
-            ["anchorbottom"] = (control, value, propertyName) => SetMetaBool(control, MetaAnchorBottom, value, propertyName),
             ["centerx"] = (control, value, propertyName) => SetMetaBool(control, MetaCenterX, value, propertyName),
             ["centery"] = (control, value, propertyName) => SetMetaBool(control, MetaCenterY, value, propertyName),
             ["scrollable"] = (control, value, propertyName) => SetMetaBool(control, MetaScrollable, value, propertyName),
@@ -551,21 +552,25 @@ public sealed class NodePropertyMapper
     private static void SetWidth(Control control, int width)
     {
         control.SetMeta(MetaWidth, Variant.From(width));
-        control.CustomMinimumSize = new Vector2(width, control.CustomMinimumSize.Y);
         if (IsWindowNode(control))
         {
             control.SetMeta(MetaWindowSizeX, Variant.From(width));
+            return;
         }
+
+        control.CustomMinimumSize = new Vector2(width, control.CustomMinimumSize.Y);
     }
 
     private static void SetHeight(Control control, int height)
     {
         control.SetMeta(MetaHeight, Variant.From(height));
-        control.CustomMinimumSize = new Vector2(control.CustomMinimumSize.X, height);
         if (IsWindowNode(control))
         {
             control.SetMeta(MetaWindowSizeY, Variant.From(height));
+            return;
         }
+
+        control.CustomMinimumSize = new Vector2(control.CustomMinimumSize.X, height);
     }
 
     private static void SetPosX(Control control, int x)
@@ -957,6 +962,86 @@ public sealed class NodePropertyMapper
         return value.Kind == SmlValueKind.Bool
             ? (bool)value.Value
             : throw new SmlParseException($"Property '{propertyName}' must be a boolean.");
+    }
+
+    private static bool TryApplyGeneratedProperty(Control control, string propertyName, SmlValue value)
+    {
+        if (!TryGetGeneratedPropertyDef(control, propertyName, out var def))
+        {
+            return false;
+        }
+
+        control.Set(def.GodotName, ToGeneratedVariant(value, propertyName, def.ValueType));
+        return true;
+    }
+
+    private static bool TryGetGeneratedPropertyDef(Control control, string propertyName, out PropDef def)
+    {
+        var typeName = control.HasMeta(MetaNodeName)
+            ? (control.GetMeta(MetaNodeName).AsString() ?? control.GetType().Name)
+            : control.GetType().Name;
+
+        while (!string.IsNullOrWhiteSpace(typeName))
+        {
+            if (SchemaProperties.PropsByType.TryGetValue(typeName, out var propsByName)
+                && propsByName.TryGetValue(propertyName, out def))
+            {
+                return true;
+            }
+
+            if (!SchemaTypes.TypesByName.TryGetValue(typeName, out var typeDef)
+                || string.IsNullOrWhiteSpace(typeDef.Parent))
+            {
+                break;
+            }
+
+            typeName = typeDef.Parent;
+        }
+
+        def = null!;
+        return false;
+    }
+
+    private static Variant ToGeneratedVariant(SmlValue value, string propertyName, string valueType)
+    {
+        var normalizedType = valueType.Trim().ToLowerInvariant();
+        return normalizedType switch
+        {
+            "bool" => Variant.From(ToBoolOrThrow(value, propertyName)),
+            "int" => Variant.From(ToGeneratedInt(value, propertyName)),
+            "float" => Variant.From((float)value.AsDoubleOrThrow(propertyName)),
+            "string" or "identifier" or "string(url)" => Variant.From(value.AsStringOrThrow(propertyName)),
+            "vector2" => ToGeneratedVector2Variant(value, propertyName),
+            "color" => ToGeneratedColorVariant(value, propertyName),
+            _ => Variant.From(value.AsStringOrThrow(propertyName))
+        };
+    }
+
+    private static int ToGeneratedInt(SmlValue value, string propertyName)
+    {
+        return value.Kind switch
+        {
+            SmlValueKind.Int => value.AsIntOrThrow(propertyName),
+            SmlValueKind.Enum => value.AsEnumIntOrThrow(propertyName),
+            _ => throw new SmlParseException($"Property '{propertyName}' must be an integer.")
+        };
+    }
+
+    private static Variant ToGeneratedVector2Variant(SmlValue value, string propertyName)
+    {
+        var vec = value.AsVec2iOrThrow(propertyName);
+        return Variant.From(new Vector2(vec.X, vec.Y));
+    }
+
+    private static Variant ToGeneratedColorVariant(SmlValue value, string propertyName)
+    {
+        var raw = value.AsStringOrThrow(propertyName);
+        if (!TryParseColor(raw, out var color))
+        {
+            throw new SmlParseException($"Property '{propertyName}' must be a color in #RRGGBB or #AARRGGBB format.");
+        }
+
+        return Variant.From(color);
     }
 
     private static Control.SizeFlags ToSizeFlagsOrThrow(SmlValue value, string propertyName)

@@ -1146,10 +1146,6 @@ public partial class Main : Node
 		_runtimeUiHost.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 		_runtimeUiHost.SetOffsetsPreset(Control.LayoutPreset.FullRect);
 		_runtimeUiHost.Position = Vector2.Zero;
-
-		_runtimeUiRoot.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-		_runtimeUiRoot.SetOffsetsPreset(Control.LayoutPreset.FullRect);
-		_runtimeUiRoot.Position = Vector2.Zero;
 	}
 
 	private void ResizeFixedPresentationToViewport()
@@ -1325,11 +1321,7 @@ public partial class Main : Node
 			return;
 		}
 
-		var effectiveFontSize = FindFirstEffectiveFontSize(_runtimeUiRoot);
-		RunnerLogger.Info(
-			"UI",
-			$"[layout] window={windowSize.X}x{windowSize.Y}, viewport={viewportSize.X:0}x{viewportSize.Y:0}, rootRect={rootSize.X:0}x{rootSize.Y:0}, effectiveFontSize={effectiveFontSize}"
-		);
+		// Layout mode runs continuously; avoid noisy per-resize diagnostics in normal operation.
 	}
 
 	private UiScalingConfig ResolveScalingConfig(Control rootControl)
