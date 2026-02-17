@@ -90,7 +90,7 @@ public sealed class SmsUiRuntime
         {
             var treeId = ctx.SourceId;
             var treeText = ctx.TreeItem?.Text ?? string.Empty;
-            var selectedPath = TryGetSelectedTreePath(ctx.Source as TreeView) ?? string.Empty;
+            var selectedPath = TryGetSelectedTreePath(ctx.Source as Tree) ?? string.Empty;
             ExecuteCall($"treeItemSelected({Quote(treeId)}, {Quote(treeText)}, {Quote(selectedPath)})");
         });
 
@@ -98,7 +98,7 @@ public sealed class SmsUiRuntime
         {
             var treeId = ctx.SourceId;
             var treeText = ctx.TreeItem?.Text ?? string.Empty;
-            var selectedPath = TryGetSelectedTreePath(ctx.Source as TreeView) ?? string.Empty;
+            var selectedPath = TryGetSelectedTreePath(ctx.Source as Tree) ?? string.Empty;
             var isOn = ctx.BoolValue == true ? "true" : "false";
             ExecuteCall($"treeItemToggled({Quote(treeId)}, {Quote(treeText)}, {Quote(selectedPath)}, {isOn})");
         });
@@ -164,7 +164,7 @@ public sealed class SmsUiRuntime
             }
 
             var node = UiRuntimeApi.GetObjectById(id);
-            if (node is TreeView tree)
+            if (node is Tree tree)
             {
                 return CreateTreeObject(id, tree);
             }
@@ -197,11 +197,11 @@ public sealed class SmsUiRuntime
         _engine.RegisterFunction("BindTreeEvents", args =>
         {
             var id = ArgString(args, 0);
-            var tree = UiRuntimeApi.GetObjectById(id) as TreeView;
+            var tree = UiRuntimeApi.GetObjectById(id) as Tree;
             var dispatcher = _dispatcher ?? ResolveDispatcherFromMain();
             if (tree is not null && dispatcher is not null)
             {
-                UiRuntimeApi.BindTreeViewEvents(tree, dispatcher);
+                UiRuntimeApi.BindTreeEvents(tree, dispatcher);
                 RunnerLogger.Info("SMS", $"BindTreeEvents wired for '{id}'.");
             }
             else
@@ -378,7 +378,7 @@ public sealed class SmsUiRuntime
         ExecuteCall($"{callbackName}()");
     }
 
-    private static string TryGetSelectedTreePath(TreeView? tree)
+    private static string TryGetSelectedTreePath(Tree? tree)
     {
         if (tree is null)
         {
@@ -436,9 +436,9 @@ public sealed class SmsUiRuntime
             : null;
     }
 
-    private ObjectValue CreateTreeObject(string id, TreeView tree)
+    private ObjectValue CreateTreeObject(string id, Tree tree)
     {
-        return new ObjectValue("TreeView", new Dictionary<string, Value>(StringComparer.Ordinal)
+        return new ObjectValue("Tree", new Dictionary<string, Value>(StringComparer.Ordinal)
         {
             ["Clear"] = new NativeFunctionValue(_ =>
             {
@@ -480,8 +480,8 @@ public sealed class SmsUiRuntime
                 var dispatcher = _dispatcher ?? ResolveDispatcherFromMain();
                 if (dispatcher is not null)
                 {
-                    UiRuntimeApi.BindTreeViewEvents(tree, dispatcher);
-                    RunnerLogger.Info("SMS", $"TreeView events bound for '{id}'.");
+                    UiRuntimeApi.BindTreeEvents(tree, dispatcher);
+                    RunnerLogger.Info("SMS", $"Tree events bound for '{id}'.");
                 }
                 else
                 {

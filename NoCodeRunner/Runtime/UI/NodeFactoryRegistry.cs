@@ -39,34 +39,29 @@ public sealed class NodeFactoryRegistry
     private void RegisterDefaults()
     {
         Register("Window", () => new Panel());
-        Register("Page", () => new VBoxContainer());
         Register("Panel", () => new Panel());
+        Register("PanelContainer", () => new PanelContainer());
         Register("Label", () => new Label());
         Register("Button", () => new Button());
         Register("TextEdit", () => new TextEdit());
         Register("CodeEdit", () => new CodeEdit());
-        Register("Row", () => new HBoxContainer());
-        Register("Column", () => new VBoxContainer());
+        Register("HBoxContainer", () => new HBoxContainer());
+        Register("VBoxContainer", () => new VBoxContainer());
         Register("Markdown", () => new VBoxContainer());
         Register("MarkdownLabel", () => new RichTextLabel
         {
             FitContent = true,
             ScrollActive = false
         });
-        Register("Box", () => new Panel());
         Register("Image", () => new TextureRect());
-        Register("Spacer", () => new Control());
-        Register("Tabs", () => new TabContainer());
-        Register("Tab", () => new VBoxContainer());
-        Register("DockSpace", () => new TabContainer());
-        Register("DockPanel", () => new PanelContainer());
+        Register("Control", () => new Control());
+        Register("TabBar", () => new TabBar());
+        Register("TabContainer", () => new TabContainer());
         Register("MenuBar", () => new MenuBar());
-        Register("Menu", () => new Control());
-        Register("MenuItem", () => new Control());
-        Register("Separator", () => new Control());
+        Register("HSlider", () => new HSlider());
+        Register("Tree", () => new Tree());
         Register("Slider", () => new HSlider());
         Register("Video", () => new VideoStreamPlayer());
         Register("Viewport3D", () => new Viewport3DControl());
-        Register("TreeView", () => new TreeView());
     }
 }

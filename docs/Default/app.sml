@@ -5,22 +5,22 @@ Window {
     pos: 448, 156 // centered
     size: 1024, 768
 
-    PanelContainer {
+    Panel {
         id: leftPanel
         anchors: top | left | bottom
         width: 300
 
-        Tabs {
-            Tab {
+        TabBar {
+            TabContainer {
                 title: "Project"
 
-                TreeView {
+                Tree {
                     id: treeview
                     showGuides: false
                 }
             }
 
-            Tab {
+            TabContainer {
                 title: "Hierarchy"
             }
         }
@@ -33,8 +33,8 @@ Window {
         x: 300
         width: 300
 
-        Tabs {
-            Tab {
+        TabBar {
+            TabContainer {
                 title: "<New>"
         
                 CodeEdit {
@@ -52,8 +52,8 @@ Window {
         x: 600
         width: 600
         
-        Tabs {
-            Tab {
+        TabBar {
+            TabContainer {
                 title: "Desktop"
                 Markdown {
                     
@@ -61,10 +61,10 @@ Window {
                     src: "res:/sample.md"
                 }
             }
-            Tab {
+            TabContainer {
                 title: "Mobile Landscape"
             }
-            Tab {
+            TabContainer {
                 title: "Mobile Portrait"
             }
         }

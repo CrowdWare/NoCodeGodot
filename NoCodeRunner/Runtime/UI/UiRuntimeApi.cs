@@ -165,10 +165,10 @@ public static class UiRuntimeApi
     }
 
     /// <summary>
-    /// Ensures dynamic TreeView selections/toggles are forwarded to the dispatcher
+    /// Ensures dynamic Tree selections/toggles are forwarded to the dispatcher
     /// using the same actions as SML-built items.
     /// </summary>
-    public static void BindTreeViewEvents(TreeView tree, UiActionDispatcher dispatcher)
+    public static void BindTreeEvents(Tree tree, UiActionDispatcher dispatcher)
     {
         var instanceId = tree.GetInstanceId();
         if (!HookedTreeInstances.Add(instanceId))
@@ -242,10 +242,10 @@ public static class UiRuntimeApi
             ));
         };
 
-        RunnerLogger.Info("UI", $"Bound dynamic TreeView events for '{sourceIdForLog(tree)}'.");
+        RunnerLogger.Info("UI", $"Bound dynamic Tree events for '{sourceIdForLog(tree)}'.");
     }
 
-    private static string sourceIdForLog(TreeView tree)
+    private static string sourceIdForLog(Tree tree)
     {
         return tree.HasMeta(NodePropertyMapper.MetaId)
             ? tree.GetMeta(NodePropertyMapper.MetaId).AsString()

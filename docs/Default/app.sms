@@ -8,7 +8,7 @@ fun ready() {
     
 
     if (tree == null || codeEdit == null) {
-        log.warn("TreeView oder CodeEdit nicht gefunden – nichts zu befüllen.")
+        log.warn("Tree oder CodeEdit nicht gefunden – nichts zu befüllen.")
         return
     }
 

@@ -108,7 +108,7 @@ public sealed class SmlUiBuilder
             BuildMenuBar(control, node);
         }
 
-        if (control is Tree treeControl && string.Equals(node.Name, "TreeView", StringComparison.OrdinalIgnoreCase))
+        if (control is Tree treeControl)
         {
             BuildTreeViewItems(treeControl, node);
         }
@@ -899,17 +899,14 @@ public sealed class SmlUiBuilder
     private static bool ShouldFillMaxSizeByDefault(string nodeName)
     {
         return nodeName.Equals("Window", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("Page", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Panel", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("Column", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("PanelContainer", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("HBoxContainer", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("VBoxContainer", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("CodeEdit", StringComparison.OrdinalIgnoreCase)
                || nodeName.Equals("Markdown", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("Box", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("Tabs", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("Tab", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("DockSpace", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("DockPanel", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("TreeView", StringComparison.OrdinalIgnoreCase);
+               || nodeName.Equals("TabContainer", StringComparison.OrdinalIgnoreCase)
+               || nodeName.Equals("Tree", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsLowercaseMetaNode(SmlNode node)
