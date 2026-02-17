@@ -59,6 +59,7 @@ public sealed class NodePropertyMapper
     public const string MetaDockSplitterSize = "sml_dockSplitterSize";
     public const string MetaMenuPreferGlobal = "sml_menuPreferGlobal";
     public const string MetaMenuShortcut = "sml_menuShortcut";
+    public const string MetaTabTitle = "sml_tabTitle";
 
     public void Apply(Control control, string propertyName, SmlValue value, Func<string, string>? resolveAssetPath = null)
     {
@@ -78,6 +79,12 @@ public sealed class NodePropertyMapper
                 else if (IsDockPanelNode(control))
                 {
                     control.SetMeta(MetaDockPanelTitle, Variant.From(title));
+                }
+                else if (control is TabContainer)
+                {
+                    // Used by tab-oriented layouts (e.g. declarative TabBar composition).
+                    // Keep as metadata so it is not treated as a generic text property.
+                    control.SetMeta(MetaTabTitle, Variant.From(title));
                 }
                 else
                 {
