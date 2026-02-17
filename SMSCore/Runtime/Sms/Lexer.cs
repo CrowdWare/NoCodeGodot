@@ -22,6 +22,7 @@ public sealed class Lexer(string input)
         ["break"] = TokenType.Break,
         ["continue"] = TokenType.Continue,
         ["return"] = TokenType.Return,
+        ["on"] = TokenType.On,
         ["true"] = TokenType.Boolean,
         ["false"] = TokenType.Boolean,
         ["null"] = TokenType.Null,

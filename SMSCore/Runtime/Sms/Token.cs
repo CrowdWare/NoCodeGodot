@@ -23,6 +23,7 @@ public enum TokenType
     Return,
     Data,
     Class,
+    On,
     Plus,
     Minus,
     Multiply,

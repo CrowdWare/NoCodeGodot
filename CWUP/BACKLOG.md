@@ -101,7 +101,7 @@
 - [x] tasks/docking_layout_persistence.md
 - [x] tasks/mainmenu.md
 - [x] tasks/floats_in_sml.md
-- [ ] tasks/sms_events.md
+- [x] tasks/sms_events.md
 - [ ] tasks/refactoring.md
 - [ ] tasks/documentation.md
 - [ ] tasks/issues_menu.md

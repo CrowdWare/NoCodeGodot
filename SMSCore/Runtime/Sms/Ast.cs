@@ -27,6 +27,12 @@ public sealed record ContinueStatement(Position? Position = null) : Statement(Po
 public sealed record ReturnStatement(Expression? Value, Position? Position = null) : Statement(Position);
 public sealed record FunctionDeclaration(string Name, IReadOnlyList<string> Parameters, IReadOnlyList<Statement> Body, Position? Position = null) : Statement(Position);
 public sealed record DataClassDeclaration(string Name, IReadOnlyList<string> Fields, Position? Position = null) : Statement(Position);
+public sealed record EventHandlerDeclaration(
+    string TargetId,
+    string EventName,
+    IReadOnlyList<string> Parameters,
+    IReadOnlyList<Statement> Body,
+    Position? Position = null) : Statement(Position);
 
 public sealed record NumberLiteral(double Value, Position? Position = null) : Expression(Position);
 public sealed record StringLiteral(string Value, Position? Position = null) : Expression(Position);

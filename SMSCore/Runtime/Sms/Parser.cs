@@ -4,10 +4,12 @@ public sealed class Parser(IReadOnlyList<Token> tokens)
 {
     private readonly IReadOnlyList<Token> _tokens = tokens;
     private int _current;
+    private readonly HashSet<string> _eventHandlerKeys = new(StringComparer.Ordinal);
 
     public ProgramNode Parse()
     {
         var statements = new List<Statement>();
+        _eventHandlerKeys.Clear();
         while (!IsAtEnd())
         {
             if (Check(TokenType.Newline) || Check(TokenType.Semicolon))
@@ -16,7 +18,17 @@ public sealed class Parser(IReadOnlyList<Token> tokens)
                 continue;
             }
 
-            statements.Add(ParseStatement());
+            var statement = ParseStatement();
+            if (statement is EventHandlerDeclaration handler)
+            {
+                var key = $"{handler.TargetId}.{handler.EventName}";
+                if (!_eventHandlerKeys.Add(key))
+                {
+                    throw new ParseError($"Duplicate event handler '{key}'", handler.Position);
+                }
+            }
+
+            statements.Add(statement);
         }
 
         return new ProgramNode(statements);
@@ -33,6 +45,7 @@ public sealed class Parser(IReadOnlyList<Token> tokens)
         if (Match(TokenType.Break)) return ParseBreakStatement();
         if (Match(TokenType.Continue)) return ParseContinueStatement();
         if (Match(TokenType.Return)) return ParseReturnStatement();
+        if (Match(TokenType.On)) return ParseEventHandlerDeclaration();
 
         var checkpoint = _current;
         try
@@ -123,6 +136,37 @@ public sealed class Parser(IReadOnlyList<Token> tokens)
         Consume(TokenType.LeftBrace, "Expected '{' before function body");
         var body = ParseBlock();
         return new FunctionDeclaration(name, parameters, body, pos);
+    }
+
+    private Statement ParseEventHandlerDeclaration()
+    {
+        var pos = Previous().Position;
+        var targetToken = Consume(TokenType.Identifier, "Expected target id after 'on'");
+        EnsureLowerCamelCase(targetToken, "target id");
+
+        Consume(TokenType.Dot, "Expected '.' after event target id");
+
+        var eventToken = Consume(TokenType.Identifier, "Expected event name after '.'");
+        EnsureLowerCamelCase(eventToken, "event name");
+
+        Consume(TokenType.LeftParen, "Expected '(' after event name");
+
+        var parameters = new List<string>();
+        if (!Check(TokenType.RightParen))
+        {
+            do
+            {
+                var parameterToken = Consume(TokenType.Identifier, "Expected parameter name");
+                EnsureLowerCamelCase(parameterToken, "parameter");
+                parameters.Add(parameterToken.Text);
+            } while (Match(TokenType.Comma));
+        }
+
+        Consume(TokenType.RightParen, "Expected ')' after event parameters");
+        Consume(TokenType.LeftBrace, "Expected '{' before event handler body");
+
+        var body = ParseBlock();
+        return new EventHandlerDeclaration(targetToken.Text, eventToken.Text, parameters, body, pos);
     }
 
     private Statement ParseDataClassDeclaration()
@@ -688,6 +732,23 @@ public sealed class Parser(IReadOnlyList<Token> tokens)
     {
         while (Match(TokenType.Newline))
         {
+        }
+    }
+
+    private static void EnsureLowerCamelCase(Token token, string role)
+    {
+        var text = token.Text;
+        if (string.IsNullOrEmpty(text) || !char.IsLower(text[0]))
+        {
+            throw new ParseError($"Invalid {role} '{text}'. Expected lowerCamelCase", token.Position);
+        }
+
+        for (var i = 1; i < text.Length; i++)
+        {
+            if (!char.IsLetterOrDigit(text[i]))
+            {
+                throw new ParseError($"Invalid {role} '{text}'. Expected lowerCamelCase", token.Position);
+            }
         }
     }
 }

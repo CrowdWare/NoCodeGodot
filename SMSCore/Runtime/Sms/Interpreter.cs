@@ -34,6 +34,9 @@ public sealed class Interpreter
 {
     private readonly NativeFunctionRegistry _nativeFunctions;
     private Scope _currentScope = new();
+    private readonly Dictionary<string, EventHandlerDeclaration> _eventHandlers = new(StringComparer.Ordinal);
+    private Action<string, string, IReadOnlyList<Value>>? _superDispatcher;
+    private (string TargetId, string EventName)? _currentEventContext;
 
     public Interpreter(NativeFunctionRegistry? nativeFunctions = null)
     {
@@ -43,9 +46,49 @@ public sealed class Interpreter
 
     public NativeFunctionRegistry NativeFunctions => _nativeFunctions;
 
+    public void SetSuperDispatcher(Action<string, string, IReadOnlyList<Value>>? dispatcher)
+    {
+        _superDispatcher = dispatcher;
+    }
+
+    public bool InvokeEvent(string targetId, string eventName, IReadOnlyList<Value> args)
+    {
+        var key = BuildEventKey(targetId, eventName);
+        if (!_eventHandlers.TryGetValue(key, out var handler))
+        {
+            return false;
+        }
+
+        if (args.Count != handler.Parameters.Count)
+        {
+            throw new RuntimeError($"Event {key} expects {handler.Parameters.Count} args, got {args.Count}");
+        }
+
+        var previousScope = _currentScope;
+        var previousContext = _currentEventContext;
+        _currentScope = new Scope(previousScope);
+        _currentEventContext = (handler.TargetId, handler.EventName);
+        try
+        {
+            for (var i = 0; i < handler.Parameters.Count; i++)
+            {
+                _currentScope.DefineVariable(handler.Parameters[i], args[i]);
+            }
+
+            _ = ExecuteBlock(handler.Body);
+            return true;
+        }
+        finally
+        {
+            _currentScope = previousScope;
+            _currentEventContext = previousContext;
+        }
+    }
+
     public Value Execute(ProgramNode program)
     {
         Value lastValue = NullValue.Instance;
+        _eventHandlers.Clear();
 
         foreach (var statement in program.Statements)
         {
@@ -57,12 +100,15 @@ public sealed class Interpreter
                 case DataClassDeclaration dataClass:
                     _currentScope.DefineDataClass(dataClass.Name, dataClass);
                     break;
+                case EventHandlerDeclaration eventHandler:
+                    _eventHandlers[BuildEventKey(eventHandler.TargetId, eventHandler.EventName)] = eventHandler;
+                    break;
             }
         }
 
         foreach (var statement in program.Statements)
         {
-            if (statement is FunctionDeclaration or DataClassDeclaration)
+            if (statement is FunctionDeclaration or DataClassDeclaration or EventHandlerDeclaration)
             {
                 continue;
             }
@@ -409,6 +455,11 @@ public sealed class Interpreter
 
     private Value EvaluateFunctionCall(FunctionCall call)
     {
+        if (string.Equals(call.Name, "super", StringComparison.Ordinal))
+        {
+            return EvaluateSuperCall(call);
+        }
+
         var args = call.Arguments.Select(EvaluateExpression).ToList();
         var native = _nativeFunctions.Get(call.Name);
         if (native is not null)
@@ -436,6 +487,30 @@ public sealed class Interpreter
         var function = _currentScope.GetFunction(call.Name)
                        ?? throw new RuntimeError($"Undefined function '{call.Name}'", call.Position);
         return CallFunction(function, args, call.Position);
+    }
+
+    private Value EvaluateSuperCall(FunctionCall call)
+    {
+        if (_currentEventContext is null)
+        {
+            throw new RuntimeError("super(...) can only be used inside an event handler", call.Position);
+        }
+
+        var args = call.Arguments.Select(EvaluateExpression).ToList();
+        var (targetId, eventName) = _currentEventContext.Value;
+
+        if (_superDispatcher is null)
+        {
+            throw new RuntimeError($"super dispatcher is not configured for event {targetId}.{eventName}", call.Position);
+        }
+
+        _superDispatcher(targetId, eventName, args);
+        return NullValue.Instance;
+    }
+
+    private static string BuildEventKey(string targetId, string eventName)
+    {
+        return $"{targetId}.{eventName}";
     }
 
     private Value EvaluateMethodCall(MethodCall call)

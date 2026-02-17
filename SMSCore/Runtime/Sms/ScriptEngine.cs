@@ -38,6 +38,27 @@ public sealed class ScriptEngine
 
     public bool HasFunction(string name) => _interpreter.NativeFunctions.Has(name);
 
+    public bool InvokeEvent(string targetId, string eventName, params object?[] args)
+    {
+        var values = args.Select(ValueUtils.FromDotNet).ToArray();
+        return _interpreter.InvokeEvent(targetId, eventName, values);
+    }
+
+    public void SetSuperDispatcher(Action<string, string, IReadOnlyList<object?>>? dispatcher)
+    {
+        if (dispatcher is null)
+        {
+            _interpreter.SetSuperDispatcher(null);
+            return;
+        }
+
+        _interpreter.SetSuperDispatcher((targetId, eventName, args) =>
+        {
+            var dotNetArgs = args.Select(ValueUtils.ToDotNet).ToList();
+            dispatcher(targetId, eventName, dotNetArgs);
+        });
+    }
+
     public IReadOnlyCollection<string> FunctionNames => _interpreter.NativeFunctions.Names;
 
     public void ClearFunctions()
