@@ -5,10 +5,10 @@ var view = null
 var selectedPath = null
 
 fun ready() {
-    tree = getObject("treeview")
-    codeEdit = getObject("codeEdit")
-    dock = getObject("editorDock")
-    view = getObject("viewMenu")
+    tree = ui.getObject("treeview")
+    codeEdit = ui.getObject("codeEdit")
+    dock = ui.getObject("editorDock")
+    view = ui.getObject("viewMenu")
 
     if (tree == null || codeEdit == null) {
         log.warn("TreeView oder CodeEdit nicht gefunden – nichts zu befüllen.")
@@ -40,8 +40,14 @@ fun openFloatingWindow() {
     }
 }"
 
-    var created = ui.CreateWindow(windowSml)
-    log.success("Floating window created: ${created}")
+    var window = ui.CreateWindow(windowSml)
+    if (window == null) {
+        log.error("Floating window could not be created")
+        return
+    }
+
+    window.onClose("onFloatingWindowClosed")
+    log.success("Floating window created")
 }
 
 fun onFloatingWindowClosed() {
@@ -71,7 +77,7 @@ fun populateTreeChildren(treeObj, parentHandle, dirPath) {
 fun dockPanelClosed(dockSpace, panelName) {
     var menuItemId = mapPanelIdToMenuItemId(panelName)
     if (menuItemId != "") {
-        var item = getObject(menuItemId)
+        var item = ui.getObject(menuItemId)
         if (item != null) {
             item.SetChecked(false)
         }
@@ -127,7 +133,7 @@ fun reopenPanelFromMenuItem(menuItemId) {
         return
     }
 
-    var item = getObject(menuItemId)
+    var item = ui.getObject(menuItemId)
     if (item == null) {
         return
     }

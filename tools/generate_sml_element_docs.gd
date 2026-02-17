@@ -255,7 +255,11 @@ func _generate_doc(c_name: String) -> void:
 
     # Actions (from specs)  # CHANGED
     var actions := _get_spec_actions(c_name)  # CHANGED
-    if actions.size() > 0:  # CHANGED
+    var runtime_override_actions := _get_runtime_override_actions(c_name)
+    var merged_actions := []
+    merged_actions.append_array(actions)
+    merged_actions.append_array(runtime_override_actions)
+    if merged_actions.size() > 0:  # CHANGED
         md += "\n## Actions\n\n"  # CHANGED
         md += "This page lists **only actions supported by the runtime** for `" + c_name + "`.\n"  # CHANGED
         if parent != "":  # CHANGED
@@ -265,7 +269,7 @@ func _generate_doc(c_name: String) -> void:
 
         md += "| Action | SMS Call | Params | Returns |\n|-|-|-|-|\n"  # CHANGED
 
-        for a in actions:  # CHANGED
+        for a in merged_actions:  # CHANGED
             var an := String(a.get("sms", ""))  # CHANGED
             var params := Array(a.get("params", []))  # CHANGED
             var ret := String(a.get("returns", "void"))  # CHANGED
@@ -911,6 +915,17 @@ func _get_runtime_override_props(c_name: String) -> Array:
         return []
 
     var by_type := Dictionary(SPECS["runtime_overrides"].get("propertiesByType", {}))
+    if not by_type.has(c_name):
+        return []
+
+    return Array(by_type.get(c_name, []))
+
+
+func _get_runtime_override_actions(c_name: String) -> Array:
+    if not SPECS.has("runtime_overrides"):
+        return []
+
+    var by_type := Dictionary(SPECS["runtime_overrides"].get("actionsByType", {}))
     if not by_type.has(c_name):
         return []
 

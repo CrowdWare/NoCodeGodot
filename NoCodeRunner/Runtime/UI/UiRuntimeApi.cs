@@ -14,19 +14,20 @@ public static class UiRuntimeApi
     /// <summary>
     /// Creates a floating native Godot window from inline SML text.
     /// The window is always-on-top, non-transient (freestanding), and attached to the app scene tree.
+    /// Returns the created window instance, or null if creation fails.
     /// </summary>
-    public static bool CreateWindowFromSml(string smlText, Action? onClosed = null)
+    public static Window? CreateWindowFromSml(string smlText)
     {
         if (string.IsNullOrWhiteSpace(smlText))
         {
             RunnerLogger.Warn("UI", "CreateWindowFromSml called with empty SML text.");
-            return false;
+            return null;
         }
 
         if (Engine.GetMainLoop() is not SceneTree sceneTree || sceneTree.Root is null)
         {
             RunnerLogger.Warn("UI", "CreateWindowFromSml failed: SceneTree root is not available.");
-            return false;
+            return null;
         }
 
         try
@@ -67,26 +68,19 @@ public static class UiRuntimeApi
             floatingWindow.AddChild(content);
             floatingWindow.CloseRequested += () =>
             {
-                try
-                {
-                    onClosed?.Invoke();
-                }
-                finally
-                {
-                    floatingWindow.QueueFree();
-                }
+                floatingWindow.QueueFree();
             };
 
             sceneTree.Root.AddChild(floatingWindow);
             floatingWindow.Show();
 
             RunnerLogger.Info("UI", "Created floating window from SMS via ui.CreateWindow(...). AlwaysOnTop=true.");
-            return true;
+            return floatingWindow;
         }
         catch (Exception ex)
         {
             RunnerLogger.Error("UI", "CreateWindowFromSml failed.", ex);
-            return false;
+            return null;
         }
     }
 

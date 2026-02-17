@@ -4,8 +4,8 @@ var selectedPath = null
 
 fun ready() {
     log.info("ready called")
-    tree = getObject("treeview")
-    codeEdit = getObject("codeEdit")
+    tree = ui.getObject("treeview")
+    codeEdit = ui.getObject("codeEdit")
     
 
     if (tree == null || codeEdit == null) {
@@ -17,7 +17,6 @@ fun ready() {
     tree.BindEvents()
     populateTree(tree, ".")
 
-    //openFloatingWindow()
     
     log.info("TreeView 'treeview' wurde mit Inhalten aus ProjectFS befüllt.")
 }
@@ -33,11 +32,19 @@ fun openFloatingWindow() {
     }
 }"*/
     var sml = fs.readText("Default/main.sml")
-    var created = ui.CreateWindow(sml)
-    log.success("Floating window created: ${created}")
+    var window = ui.CreateWindow(sml)
+    if (window == null) {
+        log.error("Floating window could not be created")
+        return
+    }
+
+    window.onClose("onSettingsWindowClosed")
+    log.success("Floating window created")
 }
 
-fun onFloatingWindowClosed() {}
+fun onSettingsWindowClosed() {
+    log.success("settings closed")
+}
 
 
 fun populateTree(treeObj, rootPath) {
@@ -77,4 +84,5 @@ on treeview.itemSelected() {
 
 on settings.clicked() {
     log.success("Settings clicked (event-first)")
+    openFloatingWindow()
 }

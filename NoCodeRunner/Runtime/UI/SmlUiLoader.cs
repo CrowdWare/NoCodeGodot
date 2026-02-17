@@ -122,6 +122,9 @@ public sealed class SmlUiLoader
         {
             node.Properties["markdownBaseUri"] = SmlValue.FromString(currentBaseUri);
             RenderMarkdownChildren(node, document);
+            node.Properties.Remove("src");
+            node.Properties.Remove("markdownBaseUri");
+            node.Properties.Remove("text");
             return;
         }
 
@@ -141,6 +144,9 @@ public sealed class SmlUiLoader
         }
 
         RenderMarkdownChildren(node, document);
+        node.Properties.Remove("src");
+        node.Properties.Remove("markdownBaseUri");
+        node.Properties.Remove("text");
     }
 
     private void RenderMarkdownChildren(SmlNode node, SmlDocument document)
@@ -201,7 +207,7 @@ public sealed class SmlUiLoader
 
             case MarkdownBlockKind.ListItem:
                 {
-                    var row = NewNode("Row");
+                    var row = NewNode("HBoxContainer");
 
                     var bullet = NewNode("Label");
                     bullet.Properties["text"] = SmlValue.FromString("•");
@@ -234,7 +240,7 @@ public sealed class SmlUiLoader
                     var codeHeight = CalculateCodeFenceHeight(block.Text, codeFontSize);
                     var fenceSyntax = NormalizeCodeFenceLanguageToSyntax(block.Language);
 
-                    var container = NewNode("Column");
+                    var container = NewNode("VBoxContainer");
                     container.Properties["role"] = SmlValue.FromString("codeblock");
                     container.Properties["sizeFlagsHorizontal"] = SmlValue.FromInt(0);
                     container.Properties["sizeFlagsVertical"] = SmlValue.FromInt(0);

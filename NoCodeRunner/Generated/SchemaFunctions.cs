@@ -19,8 +19,8 @@ public static class SchemaFunctions
         new FunctionDef("log.info", "Logging", "log.info(message: String)", "Logs an informational message."),
         new FunctionDef("log.success", "Logging", "log.success(message: String)", "Logs a success message."),
         new FunctionDef("log.warn", "Logging", "log.warn(message: String)", "Logs a warning message."),
+        new FunctionDef("ui.CreateWindow", "UI", "ui.CreateWindow(smlText: String)", "Creates a floating window from inline SML text and returns a Window instance (or null on failure). The returned Window supports runtime actions onClose(callbackName) and close()."),
         new FunctionDef("ui.createDialog", "UI", "ui.createDialog(path: String)", "Creates a dialog from either a resource path (res:/...) or an inline SML definition string and returns the dialog instance."),
-        new FunctionDef("ui.createWindow", "UI", "ui.createWindow(path: String)", "Creates a window from either a resource path (res:/...) or an inline SML definition string and returns the dialog instance."),
     ];
 
     public static readonly IReadOnlyDictionary<string, FunctionDef> ByName = BuildByName();

@@ -53,10 +53,9 @@ Window {
         offsetBottom: 0
 
         TabContainer {
-            title: "<New>"
-        
             CodeEdit {
                 id: codeEdit
+                title: "<New>"
                 text: "Window { titel: \"Test\"}"     
                 syntax: "sml"   
             }    

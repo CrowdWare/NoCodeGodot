@@ -32,9 +32,9 @@ Logs a warning message.
 ### ui.getObject(name: String)
 Returns a reference to an object by id or name.
 
+### ui.CreateWindow(smlText: String)
+Creates a floating window from inline SML text and returns a Window instance (or null on failure). The returned Window supports runtime actions onClose(callbackName) and close().
+
 ### ui.createDialog(path: String)
 Creates a dialog from either a resource path (res:/...) or an inline SML definition string and returns the dialog instance.
-
-### ui.createWindow(path: String)
-Creates a window from either a resource path (res:/...) or an inline SML definition string and returns the dialog instance.
 

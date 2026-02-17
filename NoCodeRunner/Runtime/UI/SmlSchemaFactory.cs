@@ -11,6 +11,15 @@ public static class SmlSchemaFactory
 
         SchemaTypes.RegisterKnownNodes(schema);
 
+        // Runtime pseudo nodes (not Godot classes) that are valid in SML trees.
+        schema.RegisterKnownNode("Menu");
+        schema.RegisterKnownNode("MenuItem");
+        schema.RegisterKnownNode("Item");
+        schema.RegisterKnownNode("CheckItem");
+        schema.RegisterKnownNode("Separator");
+        schema.RegisterKnownNode("Toggle");
+        schema.RegisterKnownNode("data");
+
         schema.RegisterIdProperty("id");
         schema.RegisterIdentifierProperty("clicked");
         schema.RegisterEnumValue("action", "closeQuery", 1);
@@ -33,16 +42,6 @@ public static class SmlSchemaFactory
         schema.RegisterEnumValue("scrollBarPosition", "left", 2);
         schema.RegisterEnumValue("scrollBarPosition", "bottom", 3);
         schema.RegisterEnumValue("scrollBarPosition", "top", 4);
-        schema.RegisterEnumValue("area", "left", 1);
-        schema.RegisterEnumValue("area", "far-left", 2);
-        schema.RegisterEnumValue("area", "right", 3);
-        schema.RegisterEnumValue("area", "far-right", 4);
-        schema.RegisterEnumValue("area", "bottom-left", 5);
-        schema.RegisterEnumValue("area", "bottom-far-left", 6);
-        schema.RegisterEnumValue("area", "bottom-right", 7);
-        schema.RegisterEnumValue("area", "bottom-far-right", 8);
-        schema.RegisterEnumValue("area", "center", 9);
-
         schema.RegisterEnumValue("sizeFlagsHorizontal", "shrinkBegin", 0);
         schema.RegisterEnumValue("sizeFlagsHorizontal", "fill", 1);
         schema.RegisterEnumValue("sizeFlagsHorizontal", "expand", 2);

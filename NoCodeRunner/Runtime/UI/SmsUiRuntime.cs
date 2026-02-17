@@ -25,7 +25,8 @@ public sealed class SmsUiRuntime
     private readonly Dictionary<ulong, Dictionary<long, string>> _dynamicMenuItemsByPopup = new();
     private readonly Dictionary<ulong, Control> _dynamicMenuSourcesByPopup = new();
     private readonly HashSet<ulong> _dynamicMenuPopupHooked = [];
-    private const string FloatingWindowClosedHandler = "onFloatingWindowClosed";
+    private readonly Dictionary<ulong, string> _windowCloseCallbacks = new();
+    private readonly HashSet<ulong> _windowCloseHooked = [];
     private int _nextTreeHandle = 1;
     private string? _projectRoot;
 
@@ -167,45 +168,6 @@ public sealed class SmsUiRuntime
         {
             var id = ArgString(args, 0);
             return UiRuntimeApi.GetObjectById(id) is not null;
-        });
-
-        _engine.RegisterFunction("getObject", args =>
-        {
-            var id = ResolveUiIdArg(args, 0);
-            if (string.IsNullOrWhiteSpace(id))
-            {
-                return NullValue.Instance;
-            }
-
-            var node = UiRuntimeApi.GetObjectById(id);
-            if (node is Tree tree)
-            {
-                return CreateTreeObject(id, tree);
-            }
-
-            if (node is CodeEdit editor)
-            {
-                return CreateCodeEditObject(id, editor);
-            }
-
-            if (node is MenuButton menuButton)
-            {
-                return CreateMenuObject(id, menuButton.GetPopup(), menuButton);
-            }
-
-            if (node is PopupMenu popupMenu)
-            {
-                var source = popupMenu.GetParent() as Control;
-                return CreateMenuObject(id, popupMenu, source);
-            }
-
-            var menuItem = TryCreateMenuItemObject(id);
-            if (menuItem is not null)
-            {
-                return menuItem;
-            }
-
-            return NullValue.Instance;
         });
 
         _engine.RegisterFunction("BindTreeEvents", args =>
@@ -370,21 +332,116 @@ public sealed class SmsUiRuntime
     {
         return new ObjectValue("Ui", new Dictionary<string, Value>(StringComparer.Ordinal)
         {
+            ["getObject"] = new NativeFunctionValue(methodArgs =>
+            {
+                var id = ValueArgString(methodArgs, 0).Trim();
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    return NullValue.Instance;
+                }
+
+                var node = UiRuntimeApi.GetObjectById(id);
+                if (node is Tree tree)
+                {
+                    return CreateTreeObject(id, tree);
+                }
+
+                if (node is CodeEdit editor)
+                {
+                    return CreateCodeEditObject(id, editor);
+                }
+
+                if (node is MenuButton menuButton)
+                {
+                    return CreateMenuObject(id, menuButton.GetPopup(), menuButton);
+                }
+
+                if (node is PopupMenu popupMenu)
+                {
+                    var source = popupMenu.GetParent() as Control;
+                    return CreateMenuObject(id, popupMenu, source);
+                }
+
+                var menuItem = TryCreateMenuItemObject(id);
+                if (menuItem is not null)
+                {
+                    return menuItem;
+                }
+
+                return NullValue.Instance;
+            }),
             ["CreateWindow"] = new NativeFunctionValue(methodArgs =>
             {
                 var sml = ValueArgString(methodArgs, 0);
-                var ok = UiRuntimeApi.CreateWindowFromSml(sml, () =>
+                var window = UiRuntimeApi.CreateWindowFromSml(sml);
+                if (window is null)
                 {
-                    ExecuteSmsCallbackIfExists(FloatingWindowClosedHandler);
-                });
-                return new BooleanValue(ok);
+                    return NullValue.Instance;
+                }
+
+                return CreateWindowObject(window);
             })
         });
     }
 
-    private void ExecuteSmsCallbackIfExists(string callbackName)
+    private ObjectValue CreateWindowObject(Window window)
     {
-        if (string.IsNullOrWhiteSpace(callbackName))
+        var windowInstanceId = window.GetInstanceId();
+        EnsureWindowCloseBinding(window);
+
+        return new ObjectValue("Window", new Dictionary<string, Value>(StringComparer.Ordinal)
+        {
+            ["onClose"] = new NativeFunctionValue(methodArgs =>
+            {
+                var callbackName = ValueArgString(methodArgs, 0);
+                if (string.IsNullOrWhiteSpace(callbackName))
+                {
+                    _windowCloseCallbacks.Remove(windowInstanceId);
+                    return NullValue.Instance;
+                }
+
+                _windowCloseCallbacks[windowInstanceId] = callbackName;
+                RunnerLogger.Info("SMS", $"Registered onClose callback '{callbackName}' for window #{windowInstanceId}.");
+                return NullValue.Instance;
+            }),
+            ["close"] = new NativeFunctionValue(_ =>
+            {
+                if (!GodotObject.IsInstanceValid(window))
+                {
+                    return NullValue.Instance;
+                }
+
+                InvokeWindowCloseCallback(windowInstanceId);
+                window.QueueFree();
+                return NullValue.Instance;
+            })
+        });
+    }
+
+    private void EnsureWindowCloseBinding(Window window)
+    {
+        var windowInstanceId = window.GetInstanceId();
+        if (!_windowCloseHooked.Add(windowInstanceId))
+        {
+            return;
+        }
+
+        window.CloseRequested += () =>
+        {
+            InvokeWindowCloseCallback(windowInstanceId);
+        };
+
+        window.TreeExited += () =>
+        {
+            _windowCloseCallbacks.Remove(windowInstanceId);
+            _windowCloseHooked.Remove(windowInstanceId);
+        };
+    }
+
+    private void InvokeWindowCloseCallback(ulong windowInstanceId)
+    {
+        if (!_windowCloseCallbacks.Remove(windowInstanceId, out var callbackName)
+            || string.IsNullOrWhiteSpace(callbackName))
         {
             return;
         }
@@ -1067,11 +1124,6 @@ public sealed class SmsUiRuntime
 
     private static string Quote(string value)
         => "\"" + (value ?? string.Empty).Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
-
-    private static string ResolveUiIdArg(IReadOnlyList<Value> args, int index)
-    {
-        return ValueArgString(args, index).Trim();
-    }
 
     private static bool IsValidSmsIdentifier(string value)
     {

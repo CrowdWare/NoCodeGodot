@@ -35,7 +35,7 @@ TreeView-Events wie bisher.
 
 ---
 
-## 2) `getObject(id)` – unterstützte Objekte
+## 2) `ui.getObject(id)` – unterstützte Objekte
 
 - `TreeView`
 - `CodeEdit`
@@ -47,7 +47,7 @@ TreeView-Events wie bisher.
 
 ## 3) DockSpace API
 
-Wenn `getObject(id)` ein DockSpace liefert:
+Wenn `ui.getObject(id)` ein DockSpace liefert:
 
 - `SaveLayout(path)` → `bool`
 - `LoadLayout(path)` → `bool`
@@ -69,10 +69,10 @@ Pfadregeln für Save/Load:
 
 ## 4) Menu / MenuItem API
 
-### Menu (`getObject("viewMenu")`)
+### Menu (`ui.getObject("viewMenu")`)
 - `AddMenuItem(itemId, popupId)`
 
-### MenuItem (`getObject("panelRight")`)
+### MenuItem (`ui.getObject("panelRight")`)
 - `SetChecked(bool)`
 - `SetText(string)`
 - Properties: `id`, `text`, `isChecked`, `menuId`
@@ -86,7 +86,7 @@ MenuItem { text: "Markdown" id: panelRight isChecked: true }
 Beispiel:
 
 ```sms
-var panelRight = getObject("panelRight")
+var panelRight = ui.getObject("panelRight")
 panelRight.SetChecked(false)
 panelRight.SetText("Markdown (geschlossen)")
 ```
@@ -99,7 +99,9 @@ panelRight.SetText("Markdown (geschlossen)")
 
 ### Signatur
 
-- `ui.CreateWindow(smlText)` → `bool`
+- `ui.CreateWindow(smlText)` → `Window | null`
+- `window.onClose(callbackName)` → registriert instanzgebundenen Close-Callback
+- `window.close()` → schließt die Fenster-Instanz
 
 ### Verhalten
 
@@ -107,12 +109,12 @@ panelRight.SetText("Markdown (geschlossen)")
 - setzt **AlwaysOnTop = true**
 - ist **freistehend** (`Transient = false`), kann also über der Anwendung schweben oder auf einen anderen Bildschirm verschoben werden
 - wird mit der Anwendung beendet (normaler App-Lifecycle)
-- beim manuellen Schließen des Fensters wird optional die SMS-Funktion `onFloatingWindowClosed()` aufgerufen (falls vorhanden)
+- beim manuellen Schließen wird der für diese Instanz gesetzte `onClose`-Callback aufgerufen (falls gesetzt)
 
 ### Beispiel
 
 ```sms
-var ok = ui.CreateWindow("Window {\n"
+var win = ui.CreateWindow("Window {\n"
     + "  id: mainWindow\n"
     + "  title: \"NoCodeDesigner\"\n"
     + "  minSize: 800,400\n"
@@ -123,7 +125,9 @@ var ok = ui.CreateWindow("Window {\n"
     + "  }\n"
     + "}")
 
-log.info("CreateWindow: ${ok}")
+if (win != null) {
+    win.onClose("onFloatingWindowClosed")
+}
 
 fun onFloatingWindowClosed() {
     log.info("Floating window wurde geschlossen")
@@ -138,13 +142,13 @@ fun onFloatingWindowClosed() {
 var dock = null
 
 fun ready() {
-    dock = getObject("editorDock")
+    dock = ui.getObject("editorDock")
 }
 
 fun dockPanelClosed(dockSpace, panelName) {
     var menuItemId = mapPanelIdToMenuItemId(panelName)
     if (menuItemId != "") {
-        var item = getObject(menuItemId)
+        var item = ui.getObject(menuItemId)
         if (item != null) {
             item.SetChecked(false)
         }
@@ -180,7 +184,7 @@ fun reopenPanelFromMenuItem(menuItemId) {
     var panelId = mapMenuItemIdToPanelId(menuItemId)
     if (panelId == "") { return }
 
-    var item = getObject(menuItemId)
+    var item = ui.getObject(menuItemId)
     if (item == null) { return }
 
     var reopened = dock.ReopenPanel(panelId)

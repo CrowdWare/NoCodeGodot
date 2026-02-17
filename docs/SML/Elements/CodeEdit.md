@@ -145,3 +145,12 @@ Inherited actions are documented in: [TextEdit](TextEdit.md)
 | unfold_line | `<id>.unfoldLine(line)` | int line | void |
 | unindent_lines | `<id>.unindentLines()` | — | void |
 | update_code_completion_options | `<id>.updateCodeCompletionOptions(force)` | bool force | void |
+
+## Actions
+
+This page lists **only actions supported by the runtime** for `CodeEdit`.
+Inherited actions are documented in: [TextEdit](TextEdit.md)
+
+| Action | SMS Call | Params | Returns |
+|-|-|-|-|
+| onSave | `<id>.onSave(callbackName)` | string callbackName | void |

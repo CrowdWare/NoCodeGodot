@@ -116,3 +116,12 @@ Inherited actions are documented in: [Viewport](Viewport.md)
 | show | `<id>.show()` | — | void |
 | start_drag | `<id>.startDrag()` | — | void |
 | start_resize | `<id>.startResize(edge)` | int edge | void |
+
+## Actions
+
+This page lists **only actions supported by the runtime** for `Window`.
+Inherited actions are documented in: [Viewport](Viewport.md)
+
+| Action | SMS Call | Params | Returns |
+|-|-|-|-|
+| onClose | `<id>.onClose(callbackName)` | string callbackName | void |

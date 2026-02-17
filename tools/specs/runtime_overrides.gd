@@ -27,5 +27,25 @@ func get_spec() -> Dictionary:
                     "description": "Runtime extension: sets item indentation via theme override."
                 }
             ]
+        },
+        "actionsByType": {
+            "Window": [
+                {
+                    "sms": "onClose",
+                    "params": [
+                        { "name": "callbackName", "type": "string" }
+                    ],
+                    "returns": "void"
+                }
+            ],
+            "CodeEdit": [
+                {
+                    "sms": "onSave",
+                    "params": [
+                        { "name": "callbackName", "type": "string" }
+                    ],
+                    "returns": "void"
+                }
+            ]
         }
     }
