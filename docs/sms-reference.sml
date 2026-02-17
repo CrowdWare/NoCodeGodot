@@ -90,38 +90,6 @@ Reference {
     }
 
     Type {
-        name: "CanvasItem"
-        parent: "Node"
-
-        Properties {
-            Prop { godot: "clip_children"; sml: "clipChildren"; type: "int" }
-            Prop { godot: "light_mask"; sml: "lightMask"; type: "int" }
-            Prop { godot: "modulate"; sml: "modulate"; type: "Color" }
-            Prop { godot: "self_modulate"; sml: "selfModulate"; type: "Color" }
-            Prop { godot: "show_behind_parent"; sml: "showBehindParent"; type: "bool" }
-            Prop { godot: "texture_filter"; sml: "textureFilter"; type: "int" }
-            Prop { godot: "texture_repeat"; sml: "textureRepeat"; type: "int" }
-            Prop { godot: "top_level"; sml: "topLevel"; type: "bool" }
-            Prop { godot: "use_parent_material"; sml: "useParentMaterial"; type: "bool" }
-            Prop { godot: "visibility_layer"; sml: "visibilityLayer"; type: "int" }
-            Prop { godot: "visible"; sml: "visible"; type: "bool" }
-            Prop { godot: "y_sort_enabled"; sml: "ySortEnabled"; type: "bool" }
-            Prop { godot: "z_as_relative"; sml: "zAsRelative"; type: "bool" }
-            Prop { godot: "z_index"; sml: "zIndex"; type: "int" }
-        }
-
-        Events {
-            Event { godot: "draw"; sms: "draw"; params: "—" }
-            Event { godot: "hidden"; sms: "hidden"; params: "—" }
-            Event { godot: "item_rect_changed"; sms: "itemRectChanged"; params: "—" }
-            Event { godot: "visibility_changed"; sms: "visibilityChanged"; params: "—" }
-        }
-
-        Actions {
-        }
-    }
-
-    Type {
         name: "CenterContainer"
         parent: "Container"
 
@@ -1027,55 +995,6 @@ Reference {
     }
 
     Type {
-        name: "Node"
-        parent: "Object"
-
-        Properties {
-            Prop { godot: "auto_translate_mode"; sml: "autoTranslateMode"; type: "int" }
-            Prop { godot: "editor_description"; sml: "editorDescription"; type: "string" }
-            Prop { godot: "physics_interpolation_mode"; sml: "physicsInterpolationMode"; type: "int" }
-            Prop { godot: "process_mode"; sml: "processMode"; type: "int" }
-            Prop { godot: "process_physics_priority"; sml: "processPhysicsPriority"; type: "int" }
-            Prop { godot: "process_priority"; sml: "processPriority"; type: "int" }
-            Prop { godot: "process_thread_group"; sml: "processThreadGroup"; type: "int" }
-            Prop { godot: "process_thread_group_order"; sml: "processThreadGroupOrder"; type: "int" }
-            Prop { godot: "process_thread_messages"; sml: "processThreadMessages"; type: "int" }
-        }
-
-        Events {
-            Event { godot: "child_entered_tree"; sms: "childEnteredTree"; params: "Object node" }
-            Event { godot: "child_exiting_tree"; sms: "childExitingTree"; params: "Object node" }
-            Event { godot: "child_order_changed"; sms: "childOrderChanged"; params: "—" }
-            Event { godot: "editor_description_changed"; sms: "editorDescriptionChanged"; params: "Object node" }
-            Event { godot: "editor_state_changed"; sms: "editorStateChanged"; params: "—" }
-            Event { godot: "ready"; sms: "ready"; params: "—" }
-            Event { godot: "renamed"; sms: "renamed"; params: "—" }
-            Event { godot: "replacing_by"; sms: "replacingBy"; params: "Object node" }
-            Event { godot: "tree_entered"; sms: "treeEntered"; params: "—" }
-            Event { godot: "tree_exited"; sms: "treeExited"; params: "—" }
-            Event { godot: "tree_exiting"; sms: "treeExiting"; params: "—" }
-        }
-
-        Actions {
-        }
-    }
-
-    Type {
-        name: "Object"
-
-        Properties {
-        }
-
-        Events {
-            Event { godot: "property_list_changed"; sms: "propertyListChanged"; params: "—" }
-            Event { godot: "script_changed"; sms: "scriptChanged"; params: "—" }
-        }
-
-        Actions {
-        }
-    }
-
-    Type {
         name: "OpenXRBindingModifierEditor"
         parent: "PanelContainer"
 
@@ -1165,21 +1084,6 @@ Reference {
         }
 
         Events {
-        }
-
-        Actions {
-        }
-    }
-
-    Type {
-        name: "Popup"
-        parent: "Window"
-
-        Properties {
-        }
-
-        Events {
-            Event { godot: "popup_hide"; sms: "popupHide"; params: "—" }
         }
 
         Actions {
@@ -1870,67 +1774,6 @@ Reference {
 
         Events {
             Event { godot: "finished"; sms: "finished"; params: "—" }
-        }
-
-        Actions {
-        }
-    }
-
-    Type {
-        name: "Viewport"
-        parent: "Node"
-
-        Properties {
-            Prop { godot: "anisotropic_filtering_level"; sml: "anisotropicFilteringLevel"; type: "int" }
-            Prop { godot: "audio_listener_enable_2d"; sml: "audioListenerEnable2d"; type: "bool" }
-            Prop { godot: "audio_listener_enable_3d"; sml: "audioListenerEnable3d"; type: "bool" }
-            Prop { godot: "canvas_cull_mask"; sml: "canvasCullMask"; type: "int" }
-            Prop { godot: "canvas_item_default_texture_filter"; sml: "canvasItemDefaultTextureFilter"; type: "int" }
-            Prop { godot: "canvas_item_default_texture_repeat"; sml: "canvasItemDefaultTextureRepeat"; type: "int" }
-            Prop { godot: "debug_draw"; sml: "debugDraw"; type: "int" }
-            Prop { godot: "disable_3d"; sml: "disable3d"; type: "bool" }
-            Prop { godot: "fsr_sharpness"; sml: "fsrSharpness"; type: "float" }
-            Prop { godot: "gui_disable_input"; sml: "guiDisableInput"; type: "bool" }
-            Prop { godot: "gui_drag_threshold"; sml: "guiDragThreshold"; type: "int" }
-            Prop { godot: "gui_embed_subwindows"; sml: "guiEmbedSubwindows"; type: "bool" }
-            Prop { godot: "gui_snap_controls_to_pixels"; sml: "guiSnapControlsToPixels"; type: "bool" }
-            Prop { godot: "handle_input_locally"; sml: "handleInputLocally"; type: "bool" }
-            Prop { godot: "mesh_lod_threshold"; sml: "meshLodThreshold"; type: "float" }
-            Prop { godot: "msaa_2d"; sml: "msaa2d"; type: "int" }
-            Prop { godot: "msaa_3d"; sml: "msaa3d"; type: "int" }
-            Prop { godot: "oversampling"; sml: "oversampling"; type: "bool" }
-            Prop { godot: "oversampling_override"; sml: "oversamplingOverride"; type: "float" }
-            Prop { godot: "own_world_3d"; sml: "ownWorld3d"; type: "bool" }
-            Prop { godot: "physics_object_picking"; sml: "physicsObjectPicking"; type: "bool" }
-            Prop { godot: "physics_object_picking_first_only"; sml: "physicsObjectPickingFirstOnly"; type: "bool" }
-            Prop { godot: "physics_object_picking_sort"; sml: "physicsObjectPickingSort"; type: "bool" }
-            Prop { godot: "positional_shadow_atlas_16_bits"; sml: "positionalShadowAtlas16Bits"; type: "bool" }
-            Prop { godot: "positional_shadow_atlas_quad_0"; sml: "positionalShadowAtlasQuad0"; type: "int" }
-            Prop { godot: "positional_shadow_atlas_quad_1"; sml: "positionalShadowAtlasQuad1"; type: "int" }
-            Prop { godot: "positional_shadow_atlas_quad_2"; sml: "positionalShadowAtlasQuad2"; type: "int" }
-            Prop { godot: "positional_shadow_atlas_quad_3"; sml: "positionalShadowAtlasQuad3"; type: "int" }
-            Prop { godot: "positional_shadow_atlas_size"; sml: "positionalShadowAtlasSize"; type: "int" }
-            Prop { godot: "scaling_3d_mode"; sml: "scaling3dMode"; type: "int" }
-            Prop { godot: "scaling_3d_scale"; sml: "scaling3dScale"; type: "float" }
-            Prop { godot: "screen_space_aa"; sml: "screenSpaceAa"; type: "int" }
-            Prop { godot: "sdf_oversize"; sml: "sdfOversize"; type: "int" }
-            Prop { godot: "sdf_scale"; sml: "sdfScale"; type: "int" }
-            Prop { godot: "snap_2d_transforms_to_pixel"; sml: "snap2dTransformsToPixel"; type: "bool" }
-            Prop { godot: "snap_2d_vertices_to_pixel"; sml: "snap2dVerticesToPixel"; type: "bool" }
-            Prop { godot: "texture_mipmap_bias"; sml: "textureMipmapBias"; type: "float" }
-            Prop { godot: "transparent_bg"; sml: "transparentBg"; type: "bool" }
-            Prop { godot: "use_debanding"; sml: "useDebanding"; type: "bool" }
-            Prop { godot: "use_hdr_2d"; sml: "useHdr2d"; type: "bool" }
-            Prop { godot: "use_occlusion_culling"; sml: "useOcclusionCulling"; type: "bool" }
-            Prop { godot: "use_taa"; sml: "useTaa"; type: "bool" }
-            Prop { godot: "use_xr"; sml: "useXr"; type: "bool" }
-            Prop { godot: "vrs_mode"; sml: "vrsMode"; type: "int" }
-            Prop { godot: "vrs_update_mode"; sml: "vrsUpdateMode"; type: "int" }
-        }
-
-        Events {
-            Event { godot: "gui_focus_changed"; sms: "guiFocusChanged"; params: "Object node" }
-            Event { godot: "size_changed"; sms: "sizeChanged"; params: "—" }
         }
 
         Actions {

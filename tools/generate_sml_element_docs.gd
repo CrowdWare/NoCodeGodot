@@ -19,49 +19,61 @@ func _run() -> void:
     SPECS = _load_specs()
     var specs := SPECS
 
-    var manual_types: Array[String] = []  # CHANGED
-    for k in specs.keys():  # CHANGED
-        manual_types.append(String(k))  # CHANGED
-    manual_types.sort()  # CHANGED
+    var manual_types: Array[String] = []
+    for k in specs.keys():
+        manual_types.append(String(k))
+    manual_types.sort()
 
     var manual_backing := {}
     for mt in manual_types:
         manual_backing[mt] = String(specs[mt].get("backing", "Control"))
 
     _ensure_out_dir()
-    # Collect all Control classes AND all their base classes (CanvasItem, Node, Object, ...)
-    var targets := {}
+    # Collect SML-instantiable UI classes (Controls + explicit extras)
+    # and separately collect all doc targets including required base classes.
+    var sml_targets := {}
+    var doc_targets := {}
 
     var classes := ClassDB.get_class_list()
     classes.sort()
 
+    # Controls are SML-instantiable
     for c in classes:
         var cn := String(c)
         if _is_control(cn):
-            var cur: String = cn  # CHANGED
+            sml_targets[cn] = true
+            var cur: String = cn
             while cur != "":
-                targets[cur] = true
-                cur = String(ClassDB.get_parent_class(cur))  # CHANGED
+                doc_targets[cur] = true
+                cur = String(ClassDB.get_parent_class(cur))
 
-    # Add extra non-Control UI classes (e.g. Window)
+    # Extra UI classes are also SML-instantiable (even if not Control)
     for cn in EXTRA_CLASSES:
         if ClassDB.class_exists(cn):
-            var cur: String = cn  # CHANGED
+            sml_targets[cn] = true
+            var cur: String = cn
             while cur != "":
-                targets[cur] = true
-                cur = String(ClassDB.get_parent_class(cur))  # CHANGED
+                doc_targets[cur] = true
+                cur = String(ClassDB.get_parent_class(cur))
 
-    # Generate docs
-    var names: Array = targets.keys()
-    for mt in manual_types: 
-        if not names.has(mt):
-            names.append(mt)
-    names.sort()
+    # Manual/spec SML elements are SML-instantiable; their inheritance chain is handled in _inheritance_chain
+    for mt in manual_types:
+        sml_targets[mt] = true
 
-    for name in names:
+    # Generate docs for all doc targets + all manual types
+    var doc_names: Array = doc_targets.keys()
+    for mt in manual_types:
+        if not doc_names.has(mt):
+            doc_names.append(mt)
+    doc_names.sort()
+
+    for name in doc_names:
         _generate_doc(String(name))
 
-    _generate_reference_sml(names)  # CHANGED
+    # Generate SML reference only for SML-instantiable types (exclude base-only classes like Node/CanvasItem/Object)
+    var sml_names: Array = sml_targets.keys()
+    sml_names.sort()
+    _generate_reference_sml(sml_names)
 
     print("SML element docs generated.")
 
@@ -77,6 +89,8 @@ func _generate_doc(c_name: String) -> void:
     var signals := _collect_signals(c_name)
 
     var md := "# %s\n\n" % c_name
+    if c_name in ["Object", "Node", "CanvasItem"]:
+        md += "> Note: This is a base class included for inheritance documentation. It is **not** an SML element.\n\n"
     md += "## Inheritance\n\n"
     # Create a linked inheritance chain: Class → Parent → ... → Object
     var linked: Array[String] = []
