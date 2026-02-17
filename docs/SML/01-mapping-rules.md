@@ -120,7 +120,7 @@ Button { id: save }
 You can write:
 
 ```sms
-on save.pressed() {
+on save.clicked() {
     log.info("Save clicked")
 }
 ```
@@ -156,7 +156,7 @@ on popup.idPressed(id) { }
 If the SML item has an explicit id, a sugar syntax is available:
 
 ```sms
-on open.pressed() { }
+on open.clicked() { }
 ```
 
 The engine internally resolves:

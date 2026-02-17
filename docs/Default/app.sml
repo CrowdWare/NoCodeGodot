@@ -5,6 +5,26 @@ Window {
     pos: 0, 0
     size: 1920, 1080
 
+    MenuBar {
+        preferGlobalMenu: true
+
+        PopupMenu {
+            id: appMenu
+            title: "NoCodeRunner"
+
+            Item { id: about text: "About NoCodeRunner" }
+            Item { id: settings text: "Settings" }
+            Item { id: quit text: "Quit NoCodeRunner" }
+        }
+
+        PopupMenu {
+            id: file
+            title: "File"
+
+            Item { id: saveAs text: "Save As..." }
+        }
+    }
+
     PanelContainer {
          anchors: left | top | bottom
          sizeFlagsVertical: expandFill

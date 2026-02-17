@@ -106,7 +106,7 @@ public partial class Main : Node
 			return;
 		}
 
-		RunnerLogger.Info("UI", "Received macOS About notification -> dispatch menuItemSelected(appMenu, about).");
+		RunnerLogger.Info("UI", "Received macOS About notification -> dispatch appMenu/about menu click event.");
 
 		_uiDispatcher.Dispatch(new UiActionContext(
 			Source: source,

@@ -112,9 +112,16 @@ public sealed class SmsUiRuntime
 
         dispatcher.RegisterActionHandler("menuItemSelected", ctx =>
         {
-            var menuId = ctx.SourceId;
             var itemId = ctx.Clicked;
-            ExecuteCall($"menuItemSelected({Quote(menuId)}, __sms_get_menu_item({Quote(itemId)}))");
+
+            if (string.IsNullOrWhiteSpace(itemId))
+            {
+                RunnerLogger.Warn("SMS", "menuItemSelected ignored: clicked item id is empty.");
+                return;
+            }
+
+            // Event-first only: on <menuItemId>.clicked()
+            TryInvokeEvent(itemId, "clicked");
         });
 
         // SMS should own save behavior so codeEdit.onSave(...) callbacks always fire,
@@ -828,7 +835,14 @@ public sealed class SmsUiRuntime
             return;
         }
 
-        ExecuteCall($"menuItemSelected({Quote(menuId)}, __sms_get_menu_item({Quote(clicked)}))");
+        if (string.IsNullOrWhiteSpace(clicked))
+        {
+            RunnerLogger.Warn("SMS", $"Dynamic menu selection ignored for '{menuId}': clicked item id is empty.");
+            return;
+        }
+
+        // Event-first only fallback when no dispatcher is available yet.
+        TryInvokeEvent(clicked, "clicked");
     }
 
     private static int ResolveNextPopupItemId(PopupMenu popup)

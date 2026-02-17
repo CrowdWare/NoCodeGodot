@@ -14,22 +14,15 @@ verwendet werden können.
 ### `fun ready()`
 Wird nach dem Laden des UI aufgerufen.
 
-### `fun menuItemSelected(menu, item)`
-Wird bei Klick auf ein Menü-Item ausgelöst.
+### `on <menuItemId>.clicked()`
+Wird bei Klick auf ein Menü-Item ausgelöst (event-first).
 
-- `menu`: Menü-ID (z. B. `viewMenu`)
-- `item`: **MenuItem-Objekt**
+Beispiele:
 
-`item` hat:
-
-- `item.id`
-- `item.text`
-- `item.isChecked`
-- `item.menuId`
-- `item.SetChecked(bool)`
-- `item.SetText(string)`
-- `item.GetText()`
-- `item.IsChecked()`
+```sms
+on saveFile.clicked() { ... }
+on panelRight.clicked() { ... }
+```
 
 ### `fun dockPanelClosed(dockSpace, panelName)`
 Wird ausgelöst, wenn ein DockPanel geschlossen wurde.
@@ -158,30 +151,41 @@ fun dockPanelClosed(dockSpace, panelName) {
     }
 }
 
-fun menuItemSelected(menu, item) {
-    if (item == null || dock == null) {
-        return
-    }
+on saveFile.clicked() {
+    if (dock == null) { return }
+    dock.SaveLayout("designer_layout.json")
+}
 
-    var itemId = item.id
+on openFile.clicked() {
+    if (dock == null) { return }
+    dock.LoadLayout("designer_layout.json")
+}
 
-    if (itemId == "saveFile") {
-        dock.SaveLayout("designer_layout.json")
-    }
-    else if (itemId == "openFile") {
-        dock.LoadLayout("designer_layout.json")
-    }
-    else if (itemId == "settings") {
-        dock.ResetLayout()
-    }
-    else {
-        var panelId = mapMenuItemIdToPanelId(itemId)
-        if (panelId != "") {
-            var reopened = dock.ReopenPanel(panelId)
-            if (reopened) {
-                item.SetChecked(true)
-            }
-        }
+on settings.clicked() {
+    if (dock == null) { return }
+    dock.ResetLayout()
+}
+
+on panelLeft.clicked() {
+    reopenPanelFromMenuItem("panelLeft")
+}
+
+on panelRight.clicked() {
+    reopenPanelFromMenuItem("panelRight")
+}
+
+fun reopenPanelFromMenuItem(menuItemId) {
+    if (dock == null) { return }
+
+    var panelId = mapMenuItemIdToPanelId(menuItemId)
+    if (panelId == "") { return }
+
+    var item = getObject(menuItemId)
+    if (item == null) { return }
+
+    var reopened = dock.ReopenPanel(panelId)
+    if (reopened) {
+        item.SetChecked(true)
     }
 }
 

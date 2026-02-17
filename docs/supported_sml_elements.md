@@ -288,11 +288,11 @@ Runtime behavior:
 - Menu clicks dispatch action `menuItemSelected` with:
   - `SourceId` = menu id
   - `Clicked` = menu item id
-- Companion SMS scripts can handle this via:
+- Companion SMS scripts should handle this **event-first** via item id:
 
 ```sms
-fun menuItemSelected(menu, id) {
-    log.info("menuItemSelected -> menu=${menu}, id=${id}")
+on settings.clicked() {
+    log.info("Settings clicked")
 }
 ```
 

@@ -117,7 +117,7 @@ The runtime converts them to Godot menu items internally.
 
 | Property | Type | Default | Notes |
 |-|-|-|-|
-| id | identifier | — | Optional. Enables id-based event sugar (`on <id>.pressed() { ... }`). |
+| id | identifier | — | Optional. Enables id-based event sugar (`on <id>.clicked() { ... }`). |
 | text | string | "" | Display text. |
 | checked | bool | false | Only for `CheckItem`. |
 | disabled | bool | false | Optional. |
@@ -137,8 +137,8 @@ PopupMenu { id: fileMenu
 
 ```sms
 // With explicit item ids:
-on open.pressed() { ... }
-on autosave.pressed() { ... }
+on open.clicked() { ... }
+on autosave.clicked() { ... }
 
 // Without item ids (container fallback):
 on fileMenu.idPressed(id) { ... }

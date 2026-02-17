@@ -74,3 +74,7 @@ on treeview.itemSelected() {
         codeEdit.SetText(fs.readText(itemPath))
     }
 }
+
+on settings.clicked() {
+    log.success("Settings clicked (event-first)")
+}

@@ -264,14 +264,14 @@ public sealed class SmlUiBuilder
         {
             nativeMenuBar.PreferGlobalMenu = isMacOs && preferGlobalMenu;
 
-            foreach (var menuNode in menuBarNode.Children.Where(c => string.Equals(c.Name, "Menu", StringComparison.OrdinalIgnoreCase)))
+            foreach (var menuNode in EnumerateMenuNodes(menuBarNode))
             {
                 AddNativeMenuPopup(nativeMenuBar, menuNode, isMacOs && preferGlobalMenu);
             }
         }
         else if (menuBarControl is BoxContainer menuBar)
         {
-            foreach (var menuNode in menuBarNode.Children.Where(c => string.Equals(c.Name, "Menu", StringComparison.OrdinalIgnoreCase)))
+            foreach (var menuNode in EnumerateMenuNodes(menuBarNode))
             {
                 var menuId = menuNode.TryGetProperty("id", out var menuIdValue)
                     ? menuIdValue.AsStringOrThrow("id")
@@ -582,31 +582,7 @@ public sealed class SmlUiBuilder
         }
 
         var appMenuRid = nativeMenu.GetSystemMenu(NativeMenu.SystemMenus.ApplicationMenuId);
-        var itemCount = nativeMenu.GetItemCount(appMenuRid);
-        var aboutIndex = -1;
-        var settingsIndex = -1;
-        var quitIndex = -1;
-
-        for (var i = 0; i < itemCount; i++)
-        {
-            var text = nativeMenu.GetItemText(appMenuRid, i);
-            if (aboutIndex < 0 && text.StartsWith("About", StringComparison.OrdinalIgnoreCase))
-            {
-                aboutIndex = i;
-            }
-
-            if (settingsIndex < 0
-                && (text.StartsWith("Settings", StringComparison.OrdinalIgnoreCase)
-                    || text.StartsWith("Preferences", StringComparison.OrdinalIgnoreCase)))
-            {
-                settingsIndex = i;
-            }
-
-            if (quitIndex < 0 && text.StartsWith("Quit", StringComparison.OrdinalIgnoreCase))
-            {
-                quitIndex = i;
-            }
-        }
+        FindMacSystemAppMenuIndices(nativeMenu, appMenuRid, out var aboutIndex, out var settingsIndex, out var quitIndex);
 
         if (aboutIndex >= 0)
         {
@@ -616,10 +592,27 @@ public sealed class SmlUiBuilder
             }
 
             nativeMenu.SetItemTag(appMenuRid, aboutIndex, Variant.From("about"));
-            nativeMenu.SetItemCallback(appMenuRid, aboutIndex, Callable.From(() =>
+            nativeMenu.SetItemCallback(appMenuRid, aboutIndex, Callable.From((Variant _unused) =>
             {
                 DispatchMenuSelection(dispatchSource, menuId, "about");
             }));
+        }
+
+        if (hasSettings && settingsIndex < 0)
+        {
+            var settingsLabel = string.IsNullOrWhiteSpace(settingsText) ? "Settings" : settingsText;
+            var desiredIndex = aboutIndex >= 0
+                ? aboutIndex + 1
+                : (quitIndex >= 0 ? quitIndex : nativeMenu.GetItemCount(appMenuRid));
+
+            var inserted = TryInsertNativeMenuItem(nativeMenu, appMenuRid, settingsLabel, desiredIndex);
+            if (!inserted)
+            {
+                RunnerLogger.Warn("UI", "Could not inject Settings item into macOS app menu (NativeMenu insert API unavailable).");
+            }
+
+            // Re-scan after potential insertion.
+            FindMacSystemAppMenuIndices(nativeMenu, appMenuRid, out aboutIndex, out settingsIndex, out quitIndex);
         }
 
         if (hasSettings && settingsIndex >= 0)
@@ -630,7 +623,7 @@ public sealed class SmlUiBuilder
             }
 
             nativeMenu.SetItemTag(appMenuRid, settingsIndex, Variant.From("settings"));
-            nativeMenu.SetItemCallback(appMenuRid, settingsIndex, Callable.From(() =>
+            nativeMenu.SetItemCallback(appMenuRid, settingsIndex, Callable.From((Variant _unused) =>
             {
                 DispatchMenuSelection(dispatchSource, menuId, "settings");
             }));
@@ -644,13 +637,121 @@ public sealed class SmlUiBuilder
             }
 
             nativeMenu.SetItemTag(appMenuRid, quitIndex, Variant.From("quit"));
-            nativeMenu.SetItemCallback(appMenuRid, quitIndex, Callable.From(() =>
+            nativeMenu.SetItemCallback(appMenuRid, quitIndex, Callable.From((Variant _unused) =>
             {
                 DispatchMenuSelection(dispatchSource, menuId, "quit");
             }));
         }
 
         return aboutIndex >= 0 || settingsIndex >= 0 || quitIndex >= 0;
+    }
+
+    private static IEnumerable<SmlNode> EnumerateMenuNodes(SmlNode menuBarNode)
+    {
+        foreach (var child in menuBarNode.Children)
+        {
+            if (string.Equals(child.Name, "PopupMenu", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return child;
+            }
+        }
+    }
+
+    private static void FindMacSystemAppMenuIndices(NativeMenuInstance nativeMenu, Rid appMenuRid, out int aboutIndex, out int settingsIndex, out int quitIndex)
+    {
+        var itemCount = nativeMenu.GetItemCount(appMenuRid);
+        aboutIndex = -1;
+        settingsIndex = -1;
+        quitIndex = -1;
+
+        for (var i = 0; i < itemCount; i++)
+        {
+            var text = nativeMenu.GetItemText(appMenuRid, i);
+            if (aboutIndex < 0 && text.StartsWith("About", StringComparison.OrdinalIgnoreCase))
+            {
+                aboutIndex = i;
+            }
+
+            if (settingsIndex < 0 && IsLikelySettingsText(text))
+            {
+                settingsIndex = i;
+            }
+
+            if (quitIndex < 0 && text.StartsWith("Quit", StringComparison.OrdinalIgnoreCase))
+            {
+                quitIndex = i;
+            }
+        }
+    }
+
+    private static bool IsLikelySettingsText(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        return text.StartsWith("Settings", StringComparison.OrdinalIgnoreCase)
+               || text.StartsWith("Preferences", StringComparison.OrdinalIgnoreCase)
+               || text.StartsWith("Einstellungen", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryInsertNativeMenuItem(NativeMenuInstance nativeMenu, Rid appMenuRid, string text, int atIndex)
+    {
+        var addItemMethods = nativeMenu
+            .GetType()
+            .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+            .Where(m => string.Equals(m.Name, "AddItem", StringComparison.Ordinal)
+                        || string.Equals(m.Name, "add_item", StringComparison.OrdinalIgnoreCase))
+            .Select(m => new { Method = m, Params = m.GetParameters() })
+            .Where(x => x.Params.Length >= 2
+                        && x.Params[0].ParameterType == typeof(Rid)
+                        && x.Params[1].ParameterType == typeof(string))
+            .OrderByDescending(x => x.Params.Count(p => p.Name is not null && p.Name.Contains("index", StringComparison.OrdinalIgnoreCase)))
+            .ThenByDescending(x => x.Params.Length)
+            .ToList();
+
+        foreach (var candidate in addItemMethods)
+        {
+            try
+            {
+                var args = new object?[candidate.Params.Length];
+                args[0] = appMenuRid;
+                args[1] = text;
+
+                for (var i = 2; i < candidate.Params.Length; i++)
+                {
+                    var parameter = candidate.Params[i];
+                    var parameterType = parameter.ParameterType;
+
+                    if (parameter.Name is not null && parameter.Name.Contains("index", StringComparison.OrdinalIgnoreCase))
+                    {
+                        args[i] = atIndex;
+                        continue;
+                    }
+
+                    args[i] = parameterType switch
+                    {
+                        var t when t == typeof(int) => -1,
+                        var t when t == typeof(long) => -1L,
+                        var t when t == typeof(bool) => false,
+                        var t when t == typeof(string) => string.Empty,
+                        var t when t == typeof(Callable) => new Callable(),
+                        _ when parameter.HasDefaultValue => parameter.DefaultValue,
+                        _ => parameterType.IsValueType ? Activator.CreateInstance(parameterType) : null
+                    };
+                }
+
+                candidate.Method.Invoke(nativeMenu, args);
+                return true;
+            }
+            catch
+            {
+                // Try next overload.
+            }
+        }
+
+        return false;
     }
 
     private static bool IsMenuEntryNode(string nodeName)

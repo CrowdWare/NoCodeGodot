@@ -78,41 +78,68 @@ fun dockPanelClosed(dockSpace, panelName) {
     }
 }
 
-fun menuItemSelected(menu, item) {
+on saveFile.clicked() {
+    if (dock == null) {
+        return
+    }
+
+    var ok = dock.SaveLayout("user:/first_layout.json")
+    log.info("SaveLayout: ${ok}")
+}
+
+on openFile.clicked() {
+    if (dock == null) {
+        return
+    }
+
+    var ok = dock.LoadLayout("user:/first_layout.json")
+    log.info("LoadLayout: ${ok}")
+}
+
+on settings.clicked() {
+    if (dock == null) {
+        return
+    }
+
+    dock.ResetLayout()
+    log.info("Layout zurückgesetzt")
+}
+
+on floating.clicked() {
+    openFloatingWindow()
+}
+
+on panelLeft.clicked() {
+    reopenPanelFromMenuItem("panelLeft")
+}
+
+on panelRight.clicked() {
+    reopenPanelFromMenuItem("panelRight")
+}
+
+fun reopenPanelFromMenuItem(menuItemId) {
+    if (dock == null) {
+        return
+    }
+
+    var panelId = mapMenuItemIdToPanelId(menuItemId)
+    if (panelId == "") {
+        return
+    }
+
+    var item = getObject(menuItemId)
     if (item == null) {
         return
     }
 
-    log.info("menuItemSelected -> menu=${menu}, item='${item.id}', checked=${item.isChecked}")
-
-
-    if (item.id == "saveFile") {
-        if (dock == null) {
-            return
-        }
-        var ok = dock.SaveLayout("user:/first_layout.json")
-        log.info("SaveLayout: ${ok}")
-    } else if (item.id == "openFile") {
-        var ok = dock.LoadLayout("user:/first_layout.json")
-        log.info("LoadLayout: ${ok}")
-    } else if (item.id == "settings") {
-        dock.ResetLayout()
-        log.info("Layout zurückgesetzt")
-    } else if (item.id == "floating") {
-        openFloatingWindow()
+    // View-Menü ist statisch: Panel kann hier wieder geöffnet werden.
+    var reopened = dock.ReopenPanel(panelId)
+    if (reopened) {
+        item.SetChecked(true)
+        log.info("Panel wieder geöffnet: ${panelId}")
     } else {
-        var panelId = mapMenuItemIdToPanelId(item.id)
-        if (panelId != "") {
-            // View-Menü ist statisch: Panel kann hier wieder geöffnet werden.
-            var reopened = dock.ReopenPanel(panelId)
-            if (reopened) {
-                item.SetChecked(true)
-                log.info("Panel wieder geöffnet: ${panelId}")
-            } else {
-                // Kein Toggle-Down ohne ClosePanel-API – daher visuell checked halten.
-                item.SetChecked(true)
-            }
-        }
+        // Kein Toggle-Down ohne ClosePanel-API – daher visuell checked halten.
+        item.SetChecked(true)
     }
 }
 
