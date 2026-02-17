@@ -88,7 +88,6 @@ public sealed class Interpreter
     public Value Execute(ProgramNode program)
     {
         Value lastValue = NullValue.Instance;
-        _eventHandlers.Clear();
 
         foreach (var statement in program.Statements)
         {

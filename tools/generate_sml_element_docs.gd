@@ -187,9 +187,14 @@ func _generate_doc(c_name: String) -> void:
     md += "| Godot Property | SML Property | Type | Default |\n|-|-|-|-|\n"  # CHANGED
     # CHANGED: Manual SML-only element (not a Godot class)
     var spec_props := _get_spec_props(c_name)  # CHANGED
-    if spec_props.size() > 0:  # CHANGED
+    var override_props := _get_runtime_override_props(c_name)
+    var merged_spec_props := []
+    merged_spec_props.append_array(spec_props)
+    merged_spec_props.append_array(override_props)
+
+    if merged_spec_props.size() > 0:  # CHANGED
         # Spec-defined properties (SML-level, not necessarily Godot properties)
-        for sp in spec_props:
+        for sp in merged_spec_props:
             var godot_p := String(sp.get("godot", "—"))  # CHANGED (optional)
             var sml_p := String(sp.get("sml", ""))  # CHANGED
             var typ := String(sp.get("type", "Variant"))  # CHANGED
@@ -879,7 +884,7 @@ func _load_specs() -> Dictionary:
     return out
 
 func _is_non_element_spec(spec_name: String) -> bool:
-    return spec_name in ["sms_functions", "context_properties", "layout_aliases", "layout_defaults"]
+    return spec_name in ["sms_functions", "context_properties", "layout_aliases", "layout_defaults", "runtime_overrides"]
 
 func _get_context_rules() -> Array:
     if not SPECS.has("context_properties"):
@@ -899,6 +904,17 @@ func _get_spec_props(c_name: String) -> Array:  # CHANGED
     if not SPECS.has(c_name):
         return []
     return Array(SPECS[c_name].get("properties", []))
+
+
+func _get_runtime_override_props(c_name: String) -> Array:
+    if not SPECS.has("runtime_overrides"):
+        return []
+
+    var by_type := Dictionary(SPECS["runtime_overrides"].get("propertiesByType", {}))
+    if not by_type.has(c_name):
+        return []
+
+    return Array(by_type.get(c_name, []))
 
 
 func _get_spec_actions(c_name: String) -> Array:  # CHANGED
@@ -1181,7 +1197,25 @@ func _generate_schema_properties_cs(names: Array) -> void:
                     _cs_string(godot_name),
                     _cs_string(t)
                 ]
-        elif ClassDB.class_exists(c_name):
+
+        var runtime_override_props := _get_runtime_override_props(c_name)
+        for p in runtime_override_props:
+            var sml_name_override := String(p.get("sml", ""))
+            if sml_name_override == "":
+                continue
+            var t_override := String(p.get("type", "Variant"))
+            var godot_name_override := String(p.get("godot", sml_name_override))
+            cs += "        new PropDef(\"%s\", \"%s\", \"%s\", \"%s\"),\n" % [
+                _cs_string(c_name),
+                _cs_string(sml_name_override),
+                _cs_string(godot_name_override),
+                _cs_string(t_override)
+            ]
+
+        if SPECS.has(c_name):
+            continue
+
+        if ClassDB.class_exists(c_name):
             for p in _collect_properties(c_name):
                 var godot_name2 := String(p["name"])
                 var sml_name2 := _normalize_property(godot_name2)

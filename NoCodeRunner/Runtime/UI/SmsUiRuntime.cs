@@ -88,19 +88,26 @@ public sealed class SmsUiRuntime
 
         dispatcher.RegisterActionHandler("treeItemSelected", ctx =>
         {
-            var treeId = ctx.SourceId;
-            var treeText = ctx.TreeItem?.Text ?? string.Empty;
-            var selectedPath = TryGetSelectedTreePath(ctx.Source as Tree) ?? string.Empty;
-            ExecuteCall($"treeItemSelected({Quote(treeId)}, {Quote(treeText)}, {Quote(selectedPath)})");
+            var treeId = ResolveSourceId(ctx);
+            if (string.IsNullOrWhiteSpace(treeId))
+            {
+                RunnerLogger.Warn("SMS", "treeItemSelected ignored: source tree has no id.");
+                return;
+            }
+
+            TryInvokeEvent(treeId, "itemSelected");
         });
 
         dispatcher.RegisterActionHandler("treeItemToggled", ctx =>
         {
-            var treeId = ctx.SourceId;
-            var treeText = ctx.TreeItem?.Text ?? string.Empty;
-            var selectedPath = TryGetSelectedTreePath(ctx.Source as Tree) ?? string.Empty;
-            var isOn = ctx.BoolValue == true ? "true" : "false";
-            ExecuteCall($"treeItemToggled({Quote(treeId)}, {Quote(treeText)}, {Quote(selectedPath)}, {isOn})");
+            var treeId = ResolveSourceId(ctx);
+            if (string.IsNullOrWhiteSpace(treeId))
+            {
+                RunnerLogger.Warn("SMS", "treeItemToggled ignored: source tree has no id.");
+                return;
+            }
+
+            TryInvokeEvent(treeId, "treeItemToggled", ctx.BoolValue == true);
         });
 
         dispatcher.RegisterActionHandler("menuItemSelected", ctx =>
@@ -489,8 +496,44 @@ public sealed class SmsUiRuntime
                 }
 
                 return NullValue.Instance;
+            }),
+            ["GetSelectedPath"] = new NativeFunctionValue(_ =>
+            {
+                var path = TryGetSelectedTreePath(tree) ?? string.Empty;
+                return new StringValue(path);
             })
         });
+    }
+
+    private void TryInvokeEvent(string targetId, string eventName, params object?[] args)
+    {
+        try
+        {
+            var handled = _engine.InvokeEvent(targetId, eventName, args);
+            if (!handled)
+            {
+                RunnerLogger.Warn("SMS", $"No SMS event handler found for '{targetId}.{eventName}'.");
+            }
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("SMS", $"SMS event dispatch failed for '{targetId}.{eventName}'.", ex);
+        }
+    }
+
+    private static string ResolveSourceId(UiActionContext ctx)
+    {
+        if (!string.IsNullOrWhiteSpace(ctx.SourceId))
+        {
+            return ctx.SourceId;
+        }
+
+        if (ctx.Source is not null && ctx.Source.HasMeta(NodePropertyMapper.MetaId))
+        {
+            return ctx.Source.GetMeta(NodePropertyMapper.MetaId).AsString();
+        }
+
+        return string.Empty;
     }
 
     private ObjectValue CreateCodeEditObject(string id, CodeEdit editor)

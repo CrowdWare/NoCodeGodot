@@ -17,22 +17,9 @@ Inherited properties are documented in: [Control](Control.md)
 
 | Godot Property | SML Property | Type | Default |
 |-|-|-|-|
-| allow_reselect | allowReselect | bool | — |
-| allow_rmb_select | allowRmbSelect | bool | — |
-| allow_search | allowSearch | bool | — |
-| auto_tooltip | autoTooltip | bool | — |
-| column_titles_visible | columnTitlesVisible | bool | — |
-| columns | columns | int | — |
-| drop_mode_flags | dropModeFlags | int | — |
-| enable_drag_unfolding | enableDragUnfolding | bool | — |
-| enable_recursive_folding | enableRecursiveFolding | bool | — |
-| hide_folding | hideFolding | bool | — |
-| hide_root | hideRoot | bool | — |
-| scroll_hint_mode | scrollHintMode | int | — |
-| scroll_horizontal_enabled | scrollHorizontalEnabled | bool | — |
-| scroll_vertical_enabled | scrollVerticalEnabled | bool | — |
-| select_mode | selectMode | int | — |
-| tile_scroll_hint | tileScrollHint | bool | — |
+| — | showGuides | bool | true |
+| — | rowHeight | int | — |
+| — | indent | int | — |
 
 ## Events
 
