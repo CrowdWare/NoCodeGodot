@@ -25,6 +25,7 @@ They are run via:
 - `NoCodeRunner/Generated/SchemaProperties.cs`
 - `NoCodeRunner/Generated/SchemaEvents.cs`
 - `NoCodeRunner/Generated/SchemaContextProperties.cs`
+- `NoCodeRunner/Generated/SchemaLayoutAliases.cs`
   - Runtime mapping tables used by NoCodeRunner.
 
 ### From `generate_sms_functions_docs.gd`
@@ -53,6 +54,7 @@ Current examples:
 - `tools/specs/viewport3d.gd`
 - `tools/specs/functions.gd` (SMS built-in functions)
 - `tools/specs/context_properties.gd` (attached/context properties by parent-child relation)
+- `tools/specs/layout_aliases.gd` (canonical layout properties + aliases)
 
 ## Naming Rules
 
@@ -68,6 +70,7 @@ Generated files under `NoCodeRunner/Generated` are the runtime source of truth.
 - `SchemaProperties`: SML property name -> Godot property name + type.
 - `SchemaEvents`: SMS event name -> Godot signal + parameter metadata.
 - `SchemaContextProperties`: SML attached/context properties (`parent + child + property`).
+- `SchemaLayoutAliases`: canonical layout alias mapping and apply mode (`whole`/`x`/`y`).
 - `SchemaFunctions`: built-in SMS helper functions.
 
 Do not add hardcoded per-control mapping tables in runtime code if it can be represented in generated schema data.

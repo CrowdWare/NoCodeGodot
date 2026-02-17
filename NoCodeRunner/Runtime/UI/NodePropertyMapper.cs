@@ -1,4 +1,5 @@
 using Godot;
+using Runtime.Generated;
 using Runtime.Logging;
 using Runtime.Sml;
 using Runtime.ThreeD;
@@ -62,6 +63,11 @@ public sealed class NodePropertyMapper
 
     public void Apply(Control control, string propertyName, SmlValue value, Func<string, string>? resolveAssetPath = null)
     {
+        if (TryApplyGeneratedLayoutAlias(control, propertyName, value))
+        {
+            return;
+        }
+
         switch (propertyName.ToLowerInvariant())
         {
             case "text":
@@ -196,73 +202,6 @@ public sealed class NodePropertyMapper
                 control.SetMeta(MetaPaddingRight, Variant.From(padding.Right));
                 control.SetMeta(MetaPaddingBottom, Variant.From(padding.Bottom));
                 control.SetMeta(MetaPaddingLeft, Variant.From(padding.Left));
-                return;
-
-            case "width":
-                var width = value.AsIntOrThrow(propertyName);
-                control.SetMeta(MetaWidth, Variant.From(width));
-                control.CustomMinimumSize = new Vector2(width, control.CustomMinimumSize.Y);
-                if (IsWindowNode(control))
-                {
-                    control.SetMeta(MetaWindowSizeX, Variant.From(width));
-                }
-                return;
-
-            case "height":
-                var height = value.AsIntOrThrow(propertyName);
-                control.SetMeta(MetaHeight, Variant.From(height));
-                control.CustomMinimumSize = new Vector2(control.CustomMinimumSize.X, height);
-                if (IsWindowNode(control))
-                {
-                    control.SetMeta(MetaWindowSizeY, Variant.From(height));
-                }
-                return;
-
-            case "size":
-                var size = value.AsVec2iOrThrow(propertyName);
-                control.SetMeta(MetaWidth, Variant.From(size.X));
-                control.SetMeta(MetaHeight, Variant.From(size.Y));
-                control.CustomMinimumSize = new Vector2(size.X, size.Y);
-                if (IsWindowNode(control))
-                {
-                    control.SetMeta(MetaWindowSizeX, Variant.From(size.X));
-                    control.SetMeta(MetaWindowSizeY, Variant.From(size.Y));
-                }
-                return;
-
-            case "x":
-            case "left":
-                var x = value.AsIntOrThrow(propertyName);
-                control.SetMeta(MetaX, Variant.From(x));
-                control.Position = new Vector2(x, control.Position.Y);
-                if (IsWindowNode(control))
-                {
-                    control.SetMeta(MetaWindowPosX, Variant.From(x));
-                }
-                return;
-
-            case "y":
-            case "top":
-                var y = value.AsIntOrThrow(propertyName);
-                control.SetMeta(MetaY, Variant.From(y));
-                control.Position = new Vector2(control.Position.X, y);
-                if (IsWindowNode(control))
-                {
-                    control.SetMeta(MetaWindowPosY, Variant.From(y));
-                }
-                return;
-
-            case "pos":
-            case "position":
-                var pos = value.AsVec2iOrThrow(propertyName);
-                control.SetMeta(MetaX, Variant.From(pos.X));
-                control.SetMeta(MetaY, Variant.From(pos.Y));
-                control.Position = new Vector2(pos.X, pos.Y);
-                if (IsWindowNode(control))
-                {
-                    control.SetMeta(MetaWindowPosX, Variant.From(pos.X));
-                    control.SetMeta(MetaWindowPosY, Variant.From(pos.Y));
-                }
                 return;
 
             case "anchors":
@@ -603,6 +542,159 @@ public sealed class NodePropertyMapper
         control.SetMeta(MetaAnchorRight, Variant.From(right));
         control.SetMeta(MetaAnchorTop, Variant.From(top));
         control.SetMeta(MetaAnchorBottom, Variant.From(bottom));
+    }
+
+    private static bool TryApplyGeneratedLayoutAlias(Control control, string propertyName, SmlValue value)
+    {
+        if (!SchemaLayoutAliases.TryGet(propertyName, out var aliasDef))
+        {
+            return false;
+        }
+
+        if (!AppliesTo(control, aliasDef.AppliesTo))
+        {
+            return false;
+        }
+
+        switch (aliasDef.Canonical.ToLowerInvariant())
+        {
+            case "size":
+                ApplySizeAlias(control, value, propertyName, aliasDef.Mode);
+                return true;
+
+            case "position":
+                ApplyPositionAlias(control, value, propertyName, aliasDef.Mode);
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    private static bool AppliesTo(Control control, string[] appliesTo)
+    {
+        if (appliesTo.Length == 0)
+        {
+            return true;
+        }
+
+        foreach (var targetType in appliesTo)
+        {
+            if (string.IsNullOrWhiteSpace(targetType))
+            {
+                continue;
+            }
+
+            if (string.Equals(targetType, "Control", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (string.Equals(targetType, "Window", StringComparison.OrdinalIgnoreCase) && IsWindowNode(control))
+            {
+                return true;
+            }
+
+            if (control.HasMeta(MetaNodeName)
+                && string.Equals(control.GetMeta(MetaNodeName).AsString(), targetType, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void ApplySizeAlias(Control control, SmlValue value, string propertyName, string mode)
+    {
+        var normalizedMode = mode.ToLowerInvariant();
+        if (normalizedMode == "whole")
+        {
+            var size = value.AsVec2iOrThrow(propertyName);
+            SetWidth(control, size.X);
+            SetHeight(control, size.Y);
+            return;
+        }
+
+        if (normalizedMode == "x")
+        {
+            SetWidth(control, value.AsIntOrThrow(propertyName));
+            return;
+        }
+
+        if (normalizedMode == "y")
+        {
+            SetHeight(control, value.AsIntOrThrow(propertyName));
+            return;
+        }
+
+        RunnerLogger.Warn("UI", $"Unknown layout alias mode '{mode}' for canonical 'size'.");
+    }
+
+    private static void ApplyPositionAlias(Control control, SmlValue value, string propertyName, string mode)
+    {
+        var normalizedMode = mode.ToLowerInvariant();
+        if (normalizedMode == "whole")
+        {
+            var pos = value.AsVec2iOrThrow(propertyName);
+            SetPosX(control, pos.X);
+            SetPosY(control, pos.Y);
+            return;
+        }
+
+        if (normalizedMode == "x")
+        {
+            SetPosX(control, value.AsIntOrThrow(propertyName));
+            return;
+        }
+
+        if (normalizedMode == "y")
+        {
+            SetPosY(control, value.AsIntOrThrow(propertyName));
+            return;
+        }
+
+        RunnerLogger.Warn("UI", $"Unknown layout alias mode '{mode}' for canonical 'position'.");
+    }
+
+    private static void SetWidth(Control control, int width)
+    {
+        control.SetMeta(MetaWidth, Variant.From(width));
+        control.CustomMinimumSize = new Vector2(width, control.CustomMinimumSize.Y);
+        if (IsWindowNode(control))
+        {
+            control.SetMeta(MetaWindowSizeX, Variant.From(width));
+        }
+    }
+
+    private static void SetHeight(Control control, int height)
+    {
+        control.SetMeta(MetaHeight, Variant.From(height));
+        control.CustomMinimumSize = new Vector2(control.CustomMinimumSize.X, height);
+        if (IsWindowNode(control))
+        {
+            control.SetMeta(MetaWindowSizeY, Variant.From(height));
+        }
+    }
+
+    private static void SetPosX(Control control, int x)
+    {
+        control.SetMeta(MetaX, Variant.From(x));
+        control.Position = new Vector2(x, control.Position.Y);
+        if (IsWindowNode(control))
+        {
+            control.SetMeta(MetaWindowPosX, Variant.From(x));
+        }
+    }
+
+    private static void SetPosY(Control control, int y)
+    {
+        control.SetMeta(MetaY, Variant.From(y));
+        control.Position = new Vector2(control.Position.X, y);
+        if (IsWindowNode(control))
+        {
+            control.SetMeta(MetaWindowPosY, Variant.From(y));
+        }
     }
 
     private static bool IsWindowNode(Control control)

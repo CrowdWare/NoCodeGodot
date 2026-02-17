@@ -13,14 +13,25 @@ func get_spec() -> Dictionary:
             {
                 "canonical": "size",
                 "appliesTo": ["Control", "Window"],
-                "aliases": ["width", "height"],
+                "aliases": [
+                    {"name": "size", "mode": "whole"},
+                    {"name": "width", "mode": "x"},
+                    {"name": "height", "mode": "y"}
+                ],
                 "merge": "partial",
                 "precedence": "last-write-wins"
             },
             {
                 "canonical": "position",
                 "appliesTo": ["Control", "Window"],
-                "aliases": ["x", "y", "left", "top", "pos"],
+                "aliases": [
+                    {"name": "position", "mode": "whole"},
+                    {"name": "pos", "mode": "whole"},
+                    {"name": "x", "mode": "x"},
+                    {"name": "left", "mode": "x"},
+                    {"name": "y", "mode": "y"},
+                    {"name": "top", "mode": "y"}
+                ],
                 "merge": "partial",
                 "precedence": "last-write-wins"
             }
