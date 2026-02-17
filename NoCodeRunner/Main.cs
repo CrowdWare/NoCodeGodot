@@ -370,11 +370,6 @@ public partial class Main : Node
 			return;
 		}
 
-		foreach (var dockSpace in EnumerateDescendants<DockSpace>(_runtimeUiRoot))
-		{
-			dockSpace.EnsureInitialized();
-		}
-
 		// Let deferred UI work (splitter/layout adjustments) settle before SMS ready().
 		if (GetTree() is { } tree)
 		{

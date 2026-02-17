@@ -56,7 +56,7 @@ Window {
             Tab {
                 title: "Desktop"
                 Markdown {
-                    layoutMode: document
+                    
                     padding: 8,8,8,20
                     src: "res:/sample.md"
                 }

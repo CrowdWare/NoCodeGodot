@@ -89,8 +89,6 @@ public sealed class SmlUiBuilder
             _propertyMapper.Apply(control, "font", SmlValue.FromString("appres:/Anonymous.ttf"), _resolveAssetPath);
         }
 
-        ApplyDefaultLayoutMode(control, node.Name);
-
         if (!node.TryGetProperty("fillMaxSize", out _) && ShouldFillMaxSizeByDefault(node.Name))
         {
             NodePropertyMapper.ApplyFillMaxSize(control);
@@ -593,25 +591,6 @@ public sealed class SmlUiBuilder
         ));
     }
 
-    private static void ApplyDefaultLayoutMode(Control control, string nodeName)
-    {
-        if (control.HasMeta(NodePropertyMapper.MetaLayoutMode))
-        {
-            return;
-        }
-
-        var mode = nodeName.Equals("Page", StringComparison.OrdinalIgnoreCase)
-                   || nodeName.Equals("Column", StringComparison.OrdinalIgnoreCase)
-                   || nodeName.Equals("Row", StringComparison.OrdinalIgnoreCase)
-                   || nodeName.Equals("Markdown", StringComparison.OrdinalIgnoreCase)
-                   || nodeName.Equals("CodeEdit", StringComparison.OrdinalIgnoreCase)
-                   || nodeName.Equals("Box", StringComparison.OrdinalIgnoreCase)
-            ? "document"
-            : "app";
-
-        control.SetMeta(NodePropertyMapper.MetaLayoutMode, Variant.From(mode));
-    }
-
     private static bool IsScrollable(Control control)
     {
         return control.HasMeta(NodePropertyMapper.MetaScrollable)
@@ -652,10 +631,6 @@ public sealed class SmlUiBuilder
         margin.AddThemeConstantOverride("margin_left", left);
 
         margin.SetMeta(NodePropertyMapper.MetaNodeName, Variant.From("PaddingContainer"));
-        if (content.HasMeta(NodePropertyMapper.MetaLayoutMode))
-        {
-            margin.SetMeta(NodePropertyMapper.MetaLayoutMode, content.GetMeta(NodePropertyMapper.MetaLayoutMode));
-        }
 
         if (content.GetParent() is not null)
         {
@@ -679,7 +654,6 @@ public sealed class SmlUiBuilder
         };
 
         scroll.SetMeta(NodePropertyMapper.MetaNodeName, Variant.From("ScrollContainer"));
-        scroll.SetMeta(NodePropertyMapper.MetaLayoutMode, Variant.From("document"));
         scroll.ConfigureFromSmlMeta(content);
 
         if (content.GetParent() is not null)

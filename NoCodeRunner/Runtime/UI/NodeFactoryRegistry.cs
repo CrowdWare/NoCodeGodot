@@ -58,8 +58,8 @@ public sealed class NodeFactoryRegistry
         Register("Spacer", () => new Control());
         Register("Tabs", () => new TabContainer());
         Register("Tab", () => new VBoxContainer());
-        Register("DockSpace", () => new DockSpace());
-        Register("DockPanel", () => new DockPanel());
+        Register("DockSpace", () => new TabContainer());
+        Register("DockPanel", () => new PanelContainer());
         Register("MenuBar", () => new MenuBar());
         Register("Menu", () => new Control());
         Register("MenuItem", () => new Control());

@@ -15,7 +15,6 @@ public sealed class NodePropertyMapper
     public const string MetaClicked = "sml_clicked";
     public const string MetaClickedIdValue = "sml_clicked_id_value";
     public const string MetaNodeName = "sml_nodeName";
-    public const string MetaLayoutMode = "sml_layoutMode";
     public const string MetaX = "sml_x";
     public const string MetaY = "sml_y";
     public const string MetaWidth = "sml_width";
@@ -292,10 +291,6 @@ public sealed class NodePropertyMapper
 
             case "centery":
                 control.SetMeta(MetaCenterY, Variant.From(ToBoolOrThrow(value, propertyName)));
-                return;
-
-            case "layoutmode":
-                control.SetMeta(MetaLayoutMode, Variant.From(value.AsStringOrThrow(propertyName)));
                 return;
 
             case "scrollable":

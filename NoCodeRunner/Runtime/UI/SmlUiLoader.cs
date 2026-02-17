@@ -45,7 +45,7 @@ public sealed class SmlUiLoader
         var normalizedUri = _uriResolver.ResolveReference(uri);
         var content = await _uriResolver.LoadTextAsync(normalizedUri, cancellationToken: cancellationToken);
 
-        var schema = CreateDefaultSchema();
+        var schema = SmlSchemaFactory.CreateDefault();
         var parser = new SmlParser(content, schema);
         var document = parser.ParseDocument();
         await PreprocessMarkdownNodesAsync(document, normalizedUri, cancellationToken);
@@ -77,76 +77,6 @@ public sealed class SmlUiLoader
                 return source;
             }
         };
-    }
-
-    private static SmlParserSchema CreateDefaultSchema()
-    {
-        var schema = new SmlParserSchema();
-
-        schema.RegisterKnownNode("Window");
-        schema.RegisterKnownNode("Page");
-        schema.RegisterKnownNode("Panel");
-        schema.RegisterKnownNode("Label");
-        schema.RegisterKnownNode("Button");
-        schema.RegisterKnownNode("TextEdit");
-        schema.RegisterKnownNode("CodeEdit");
-        schema.RegisterKnownNode("Row");
-        schema.RegisterKnownNode("Column");
-        schema.RegisterKnownNode("Box");
-        schema.RegisterKnownNode("Tabs");
-        schema.RegisterKnownNode("Tab");
-        schema.RegisterKnownNode("DockSpace");
-        schema.RegisterKnownNode("DockPanel");
-        schema.RegisterKnownNode("MenuBar");
-        schema.RegisterKnownNode("Menu");
-        schema.RegisterKnownNode("MenuItem");
-        schema.RegisterKnownNode("Separator");
-        schema.RegisterKnownNode("Slider");
-        schema.RegisterKnownNode("TreeView");
-        schema.RegisterKnownNode("Item");
-        schema.RegisterKnownNode("Toggle");
-        schema.RegisterKnownNode("Video");
-        schema.RegisterKnownNode("Viewport3D");
-        schema.RegisterKnownNode("Markdown");
-        schema.RegisterKnownNode("MarkdownLabel");
-        schema.RegisterKnownNode("Image");
-        schema.RegisterKnownNode("Spacer");
-
-        schema.RegisterIdProperty("id");
-        schema.RegisterIdentifierProperty("clicked");
-        schema.RegisterEnumValue("action", "closeQuery", 1);
-        schema.RegisterEnumValue("action", "open", 2);
-        schema.RegisterEnumValue("action", "save", 3);
-        schema.RegisterEnumValue("action", "saveAs", 4);
-        schema.RegisterEnumValue("action", "animPlay", 10);
-        schema.RegisterEnumValue("action", "animStop", 11);
-        schema.RegisterEnumValue("action", "animRewind", 12);
-        schema.RegisterEnumValue("action", "animScrub", 13);
-        schema.RegisterEnumValue("action", "perspectiveNear", 14);
-        schema.RegisterEnumValue("action", "perspectiveDefault", 15);
-        schema.RegisterEnumValue("action", "perspectiveFar", 16);
-        schema.RegisterEnumValue("action", "zoomIn", 17);
-        schema.RegisterEnumValue("action", "zoomOut", 18);
-        schema.RegisterEnumValue("action", "cameraReset", 19);
-        schema.RegisterEnumValue("scaling", "layout", 1);
-        schema.RegisterEnumValue("scaling", "fixed", 2);
-        schema.RegisterEnumValue("layoutMode", "app", 1);
-        schema.RegisterEnumValue("layoutMode", "document", 2);
-        schema.RegisterEnumValue("scrollBarPosition", "right", 1);
-        schema.RegisterEnumValue("scrollBarPosition", "left", 2);
-        schema.RegisterEnumValue("scrollBarPosition", "bottom", 3);
-        schema.RegisterEnumValue("scrollBarPosition", "top", 4);
-        schema.RegisterEnumValue("area", "left", 1);
-        schema.RegisterEnumValue("area", "far-left", 2);
-        schema.RegisterEnumValue("area", "right", 3);
-        schema.RegisterEnumValue("area", "far-right", 4);
-        schema.RegisterEnumValue("area", "bottom-left", 5);
-        schema.RegisterEnumValue("area", "bottom-far-left", 6);
-        schema.RegisterEnumValue("area", "bottom-right", 7);
-        schema.RegisterEnumValue("area", "bottom-far-right", 8);
-        schema.RegisterEnumValue("area", "center", 9);
-
-        return schema;
     }
 
     private async Task PreprocessMarkdownNodesAsync(SmlDocument document, string documentUri, CancellationToken cancellationToken)
@@ -223,7 +153,6 @@ public sealed class SmlUiLoader
             document.Warnings.Add($"Markdown: {warning}");
         }
 
-        node.Properties["layoutMode"] = SmlValue.FromString("document");
         node.Children.Clear();
         foreach (var block in parseResult.Blocks)
         {
@@ -273,7 +202,6 @@ public sealed class SmlUiLoader
             case MarkdownBlockKind.ListItem:
                 {
                     var row = NewNode("Row");
-                    row.Properties["layoutMode"] = SmlValue.FromString("document");
 
                     var bullet = NewNode("Label");
                     bullet.Properties["text"] = SmlValue.FromString("•");
@@ -307,7 +235,6 @@ public sealed class SmlUiLoader
 
                     var container = NewNode("Column");
                     container.Properties["role"] = SmlValue.FromString("codeblock");
-                    container.Properties["layoutMode"] = SmlValue.FromString("document");
                     container.Properties["fillMaxSize"] = SmlValue.FromBool(false);
                     container.Properties["spacing"] = SmlValue.FromInt(0);
 

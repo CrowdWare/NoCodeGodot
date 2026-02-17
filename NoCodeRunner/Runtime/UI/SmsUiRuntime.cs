@@ -25,7 +25,6 @@ public sealed class SmsUiRuntime
     private readonly Dictionary<ulong, Dictionary<long, string>> _dynamicMenuItemsByPopup = new();
     private readonly Dictionary<ulong, Control> _dynamicMenuSourcesByPopup = new();
     private readonly HashSet<ulong> _dynamicMenuPopupHooked = [];
-    private readonly HashSet<ulong> _dockSpaceCloseHooked = [];
     private const string FloatingWindowClosedHandler = "onFloatingWindowClosed";
     private int _nextTreeHandle = 1;
     private string? _projectRoot;
@@ -173,11 +172,6 @@ public sealed class SmsUiRuntime
             if (node is CodeEdit editor)
             {
                 return CreateCodeEditObject(id, editor);
-            }
-
-            if (node is DockSpace dockSpace)
-            {
-                return CreateDockSpaceObject(id, dockSpace);
             }
 
             if (node is MenuButton menuButton)
@@ -553,49 +547,6 @@ public sealed class SmsUiRuntime
         });
     }
 
-    private ObjectValue CreateDockSpaceObject(string id, DockSpace dockSpace)
-    {
-        EnsureDockSpaceSignalBinding(id, dockSpace);
-
-        return new ObjectValue("DockSpace", new Dictionary<string, Value>(StringComparer.Ordinal)
-        {
-            ["SaveLayout"] = new NativeFunctionValue(methodArgs =>
-            {
-                var path = ResolveDockLayoutPathArg(methodArgs, 0);
-                return new BooleanValue(dockSpace.SaveLayout(path));
-            }),
-            ["LoadLayout"] = new NativeFunctionValue(methodArgs =>
-            {
-                var path = ResolveDockLayoutPathArg(methodArgs, 0);
-                return new BooleanValue(dockSpace.LoadLayout(path));
-            }),
-            ["ResetLayout"] = new NativeFunctionValue(_ =>
-            {
-                dockSpace.ResetDefaultLayout();
-                return NullValue.Instance;
-            }),
-            ["GetClosePanelList"] = new NativeFunctionValue(_ =>
-            {
-                var items = dockSpace.GetClosedPanels()
-                    .Select(p => (Value)new StringValue(p.Id ?? string.Empty))
-                    .ToList();
-                return new ArrayValue(items);
-            }),
-            ["GetClosedPanelList"] = new NativeFunctionValue(_ =>
-            {
-                var items = dockSpace.GetClosedPanels()
-                    .Select(p => (Value)new StringValue(p.Id ?? string.Empty))
-                    .ToList();
-                return new ArrayValue(items);
-            }),
-            ["ReopenPanel"] = new NativeFunctionValue(methodArgs =>
-            {
-                var panelId = ValueArgString(methodArgs, 0);
-                return new BooleanValue(dockSpace.ReopenPanel(panelId));
-            })
-        });
-    }
-
     private ObjectValue CreateMenuObject(string menuId, PopupMenu popup, Control? sourceControl)
     {
         EnsureDynamicMenuBinding(menuId, popup, sourceControl);
@@ -771,20 +722,6 @@ public sealed class SmsUiRuntime
         }
 
         return "menu";
-    }
-
-    private void EnsureDockSpaceSignalBinding(string dockSpaceId, DockSpace dockSpace)
-    {
-        var instanceId = dockSpace.GetInstanceId();
-        if (!_dockSpaceCloseHooked.Add(instanceId))
-        {
-            return;
-        }
-
-        dockSpace.DockPanelClosed += (_dockId, panelId) =>
-        {
-            ExecuteCall($"dockPanelClosed({Quote(dockSpaceId)}, {Quote(panelId)})");
-        };
     }
 
     private void EnsureDynamicMenuBinding(string menuId, PopupMenu popup, Control? sourceControl)
@@ -1077,45 +1014,6 @@ public sealed class SmsUiRuntime
     private static string ResolveUiIdArg(IReadOnlyList<Value> args, int index)
     {
         return ValueArgString(args, index).Trim();
-    }
-
-    private static string? ResolveDockLayoutPathArg(IReadOnlyList<Value> args, int index)
-    {
-        if (index >= args.Count)
-        {
-            return null;
-        }
-
-        var raw = ValueArgString(args, index).Trim();
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return null;
-        }
-
-        if (raw.StartsWith("user:/", StringComparison.OrdinalIgnoreCase)
-            && !raw.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
-        {
-            raw = "user://" + raw[6..].TrimStart('/');
-        }
-
-        if (raw.StartsWith("res:/", StringComparison.OrdinalIgnoreCase)
-            && !raw.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
-        {
-            raw = "res://" + raw[5..].TrimStart('/');
-        }
-
-        if (raw.StartsWith("user://", StringComparison.OrdinalIgnoreCase)
-            || raw.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
-        {
-            return ProjectSettings.GlobalizePath(raw);
-        }
-
-        if (Path.IsPathRooted(raw))
-        {
-            return raw;
-        }
-
-        return ProjectSettings.GlobalizePath($"user://{raw}");
     }
 
     private static bool IsValidSmsIdentifier(string value)
