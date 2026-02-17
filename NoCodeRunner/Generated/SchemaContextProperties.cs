@@ -11,7 +11,7 @@ public static class SchemaContextProperties
 {
     public static readonly ContextPropDef[] All =
     [
-        new ContextPropDef("TabBar", "TabContainer", "title", "string", "tabTitle"),
+        new ContextPropDef("TabContainer", "*", "title", "string", "tabTitle"),
     ];
 
     private static readonly IReadOnlyDictionary<string, ContextPropDef> ByKey = BuildByKey();
@@ -28,7 +28,12 @@ public static class SchemaContextProperties
 
     public static bool TryGet(string parentType, string childType, string propertyName, out ContextPropDef def)
     {
-        return ByKey.TryGetValue(BuildKey(parentType, childType, propertyName), out def!);
+        if (ByKey.TryGetValue(BuildKey(parentType, childType, propertyName), out def!))
+        {
+            return true;
+        }
+
+        return ByKey.TryGetValue(BuildKey(parentType, "*", propertyName), out def!);
     }
 
     private static string BuildKey(string parentType, string childType, string propertyName)

@@ -75,14 +75,3 @@ Inherited actions are documented in: [Container](Container.md)
 | set_tab_icon_max_width | `<id>.setTabIconMaxWidth(tabIdx, width)` | int tabIdx, int width | void |
 | set_tab_title | `<id>.setTabTitle(tabIdx, title)` | int tabIdx, string title | void |
 | set_tab_tooltip | `<id>.setTabTooltip(tabIdx, tooltip)` | int tabIdx, string tooltip | void |
-
-## Context Properties
-
-These properties are valid only when this element is used as a child in a specific parent context.
-
-### When used inside `TabBar`
-
-| SML Property | Type | Description |
-|-|-|-|
-| title | string | Tab title interpreted by the parent TabBar for this child page. |
-

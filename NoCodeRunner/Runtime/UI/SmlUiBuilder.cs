@@ -97,7 +97,9 @@ public sealed class SmlUiBuilder
             _propertyMapper.Apply(control, "font", SmlValue.FromString("appres:/Anonymous.ttf"), _resolveAssetPath);
         }
 
-        if (!node.TryGetProperty("fillMaxSize", out _) && ShouldFillMaxSizeByDefault(node.Name))
+        if (!node.TryGetProperty("fillMaxSize", out _)
+            && SchemaLayoutDefaults.ShouldAutoFillMaxSize(node.Name)
+            && !HasExplicitSizing(node))
         {
             NodePropertyMapper.ApplyFillMaxSize(control);
         }
@@ -133,14 +135,16 @@ public sealed class SmlUiBuilder
                 {
                     control.AddChild(childControl);
 
-                    if (control is TabContainer tabs && string.Equals(child.Name, "Tab", StringComparison.OrdinalIgnoreCase))
+                    if (control is TabContainer tabs)
                     {
                         var tabIndex = tabs.GetTabIdxFromControl(childControl);
-                        var tabTitle = child.TryGetProperty("title", out var titleValue)
-                            ? titleValue.AsStringOrThrow("title")
-                            : child.TryGetProperty("label", out var labelValue)
-                                ? labelValue.AsStringOrThrow("label")
-                                : child.Name;
+                        var tabTitle = childControl.HasMeta(BuildContextMetaKey("tabTitle"))
+                            ? childControl.GetMeta(BuildContextMetaKey("tabTitle")).AsString()
+                            : child.TryGetProperty("title", out var titleValue)
+                                ? titleValue.AsStringOrThrow("title")
+                                : child.TryGetProperty("label", out var labelValue)
+                                    ? labelValue.AsStringOrThrow("label")
+                                    : child.Name;
                         tabs.SetTabTitle(tabIndex, tabTitle);
                     }
                 }
@@ -310,7 +314,7 @@ public sealed class SmlUiBuilder
                 continue;
             }
 
-            if (!string.Equals(child.Name, "MenuItem", StringComparison.OrdinalIgnoreCase))
+            if (!IsMenuEntryNode(child.Name))
             {
                 continue;
             }
@@ -321,8 +325,17 @@ public sealed class SmlUiBuilder
             var itemId = child.TryGetProperty("id", out var itemIdValue)
                 ? itemIdValue.AsStringOrThrow("id")
                 : $"item_{itemIdSeed}";
-            var isChecked = child.TryGetProperty("isChecked", out var isCheckedValue)
-                && isCheckedValue.AsBoolOrThrow("isChecked");
+            var isCheckItemNode = string.Equals(child.Name, "CheckItem", StringComparison.OrdinalIgnoreCase);
+            var isChecked = isCheckItemNode;
+            if (child.TryGetProperty("checked", out var checkedValue))
+            {
+                isChecked = checkedValue.AsBoolOrThrow("checked");
+            }
+            else if (child.TryGetProperty("isChecked", out var isCheckedValue))
+            {
+                // Legacy alias
+                isChecked = isCheckedValue.AsBoolOrThrow("isChecked");
+            }
 
             if (string.IsNullOrWhiteSpace(text) && string.Equals(itemId, "about", StringComparison.OrdinalIgnoreCase))
             {
@@ -364,10 +377,10 @@ public sealed class SmlUiBuilder
             popup.AddItem(text, (int)itemIdSeed);
             var createdIndex = popup.ItemCount - 1;
             popup.SetItemMetadata(createdIndex, Variant.From(itemId));
-            if (isChecked)
+            if (isCheckItemNode || isChecked)
             {
                 popup.SetItemAsCheckable(createdIndex, true);
-                popup.SetItemChecked(createdIndex, true);
+                popup.SetItemChecked(createdIndex, isChecked);
             }
             actionMap[itemIdSeed] = (menuId, itemId);
             itemIdSeed++;
@@ -424,7 +437,7 @@ public sealed class SmlUiBuilder
 
         foreach (var child in menuNode.Children)
         {
-            if (!string.Equals(child.Name, "MenuItem", StringComparison.OrdinalIgnoreCase))
+            if (!IsMenuEntryNode(child.Name))
             {
                 continue;
             }
@@ -585,6 +598,13 @@ public sealed class SmlUiBuilder
         }
 
         return aboutIndex >= 0 || settingsIndex >= 0 || quitIndex >= 0;
+    }
+
+    private static bool IsMenuEntryNode(string nodeName)
+    {
+        return string.Equals(nodeName, "Item", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(nodeName, "CheckItem", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(nodeName, "MenuItem", StringComparison.OrdinalIgnoreCase);
     }
 
     private void DispatchMenuSelection(Control source, string menuId, string itemId)
@@ -904,17 +924,12 @@ public sealed class SmlUiBuilder
         return new Id(control.GetMeta(key).AsInt32());
     }
 
-    private static bool ShouldFillMaxSizeByDefault(string nodeName)
+    private static bool HasExplicitSizing(SmlNode node)
     {
-        return nodeName.Equals("Window", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("Panel", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("PanelContainer", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("HBoxContainer", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("VBoxContainer", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("CodeEdit", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("Markdown", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("TabContainer", StringComparison.OrdinalIgnoreCase)
-               || nodeName.Equals("Tree", StringComparison.OrdinalIgnoreCase);
+        return node.TryGetProperty("size", out _)
+               || node.TryGetProperty("width", out _)
+               || node.TryGetProperty("height", out _)
+               || node.TryGetProperty("minSize", out _);
     }
 
     private static bool TryApplyContextProperty(

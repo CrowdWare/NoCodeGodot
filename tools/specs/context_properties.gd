@@ -5,14 +5,14 @@ func get_spec() -> Dictionary:
         "name": "context_properties",
         "rules": [
             {
-                "parent": "TabBar",
-                "child": "TabContainer",
+                "parent": "TabContainer",
+                "child": "*",
                 "properties": [
                     {
                         "sml": "title",
                         "type": "string",
                         "targetMeta": "tabTitle",
-                        "description": "Tab title interpreted by the parent TabBar for this child page."
+                        "description": "Tab title interpreted by the parent TabContainer for any child page."
                     }
                 ]
             }
