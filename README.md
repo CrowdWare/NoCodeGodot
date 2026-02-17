@@ -22,6 +22,48 @@ Instead of writing imperative glue code, creators describe UI, behavior, and str
 The NoCodeRunner interprets this description and executes it on the target platform.
 
 ---
+
+## ⚡ Event-First Scripting (No Dispatcher Boilerplate)
+
+SMS uses a direct event style:
+
+`on <id>.<event>(...) { ... }`
+
+That means no long dispatcher chains, no `if / else if` routing blocks, and no event-to-handler glue code you need to maintain manually.
+
+Instead of this:
+- receive generic event
+- parse ids and event names
+- route with if/else
+- call business logic
+
+you write this:
+
+```sml
+MenuBar {
+    Menu {
+        id: file
+        title: "File"
+
+        Item { id: saveAs text: "Save As..." }
+    }
+}
+```
+
+```sms
+on saveAs.clicked() {
+    log.info("Save As clicked")
+    // your save-as flow here
+}
+```
+
+This is one of NoCode's strongest UX advantages:
+- explicit and readable
+- easy for newcomers
+- deterministic for tooling/AI
+- fast to evolve without architecture noise
+
+---
 ## 📌 Project Status
 
 - Current Process: [CWUP/README.md](CWUP/README.md)
