@@ -51,6 +51,15 @@ public sealed class NodePropertyMapper
     public const string MetaTreeIndent = "sml_treeIndent";
     public const string MetaMenuPreferGlobal = "sml_menuPreferGlobal";
     public const string MetaMenuShortcut = "sml_menuShortcut";
+    public const string MetaEnableDockingManager = "sml_enableDockingManager";
+    public const string MetaDockSide = "sml_dockSide";
+    public const string MetaDockFixedWidth = "sml_dockFixedWidth";
+    public const string MetaDockFlex = "sml_dockFlex";
+    public const string MetaDockCloseable = "sml_dockCloseable";
+    public const string MetaDockGap = "sml_dockGap";
+    public const string MetaDockDragToRearrangeEnabled = "sml_dockDragToRearrangeEnabled";
+    public const string MetaDockTabsRearrangeGroup = "sml_dockTabsRearrangeGroup";
+    public const string MetaDockingTabHost = "sml_dockingTabHost";
 
     private static readonly IReadOnlyDictionary<string, Action<Control, SmlValue, string>> SimplePropertyHandlers
         = BuildSimplePropertyHandlers();
@@ -399,6 +408,15 @@ public sealed class NodePropertyMapper
         {
             ["preferglobalmenu"] = (control, value, propertyName) => SetMetaBool(control, MetaMenuPreferGlobal, value, propertyName),
             ["shortcut"] = (control, value, propertyName) => SetMetaString(control, MetaMenuShortcut, value, propertyName),
+            ["enabledockingmanager"] = (control, value, propertyName) => SetMetaBool(control, MetaEnableDockingManager, value, propertyName),
+            ["dockingmanager"] = (control, value, propertyName) => SetMetaBool(control, MetaEnableDockingManager, value, propertyName),
+            ["dockside"] = (control, value, propertyName) => SetMetaString(control, MetaDockSide, value, propertyName),
+            ["fixedwidth"] = (control, value, propertyName) => SetMetaInt(control, MetaDockFixedWidth, value, propertyName),
+            ["flex"] = (control, value, propertyName) => SetMetaBool(control, MetaDockFlex, value, propertyName),
+            ["closeable"] = (control, value, propertyName) => SetMetaBool(control, MetaDockCloseable, value, propertyName),
+            ["gap"] = (control, value, propertyName) => SetMetaInt(control, MetaDockGap, value, propertyName),
+            ["dragtorearrangeenabled"] = (control, value, propertyName) => ApplyDragToRearrangeEnabled(control, value, propertyName),
+            ["tabsrearrangegroup"] = (control, value, propertyName) => ApplyTabsRearrangeGroup(control, value, propertyName),
             ["centerx"] = (control, value, propertyName) => SetMetaBool(control, MetaCenterX, value, propertyName),
             ["centery"] = (control, value, propertyName) => SetMetaBool(control, MetaCenterY, value, propertyName),
             ["scrollable"] = (control, value, propertyName) => SetMetaBool(control, MetaScrollable, value, propertyName),
@@ -435,6 +453,34 @@ public sealed class NodePropertyMapper
 
     private static void SetMetaString(Control control, string metaName, SmlValue value, string propertyName)
         => control.SetMeta(metaName, Variant.From(value.AsStringOrThrow(propertyName)));
+
+    private static void ApplyDragToRearrangeEnabled(Control control, SmlValue value, string propertyName)
+    {
+        var enabled = ToBoolOrThrow(value, propertyName);
+
+        // Keep DockingContainer metadata behavior.
+        control.SetMeta(MetaDockDragToRearrangeEnabled, Variant.From(enabled));
+
+        // Restore legacy behavior for plain TabContainer in existing SML docs/default app.
+        if (control is TabContainer tabs)
+        {
+            tabs.DragToRearrangeEnabled = enabled;
+        }
+    }
+
+    private static void ApplyTabsRearrangeGroup(Control control, SmlValue value, string propertyName)
+    {
+        var group = value.AsIntOrThrow(propertyName);
+
+        // Keep DockingContainer metadata behavior.
+        control.SetMeta(MetaDockTabsRearrangeGroup, Variant.From(group));
+
+        // Restore legacy behavior for plain TabContainer in existing SML docs/default app.
+        if (control is TabContainer tabs)
+        {
+            tabs.TabsRearrangeGroup = group;
+        }
+    }
 
     private static bool TryApplyGeneratedLayoutAlias(Control control, string propertyName, SmlValue value)
     {
@@ -576,7 +622,15 @@ public sealed class NodePropertyMapper
     private static void SetPosX(Control control, int x)
     {
         control.SetMeta(MetaX, Variant.From(x));
-        control.Position = new Vector2(x, control.Position.Y);
+        if (Mathf.IsEqualApprox(control.AnchorLeft, control.AnchorRight))
+        {
+            control.Position = new Vector2(x, control.Position.Y);
+        }
+        else
+        {
+            // For stretched controls (e.g. left+right anchors), x should act as left offset.
+            control.SetOffset(Side.Left, x);
+        }
         if (IsWindowNode(control))
         {
             control.SetMeta(MetaWindowPosX, Variant.From(x));
@@ -586,7 +640,15 @@ public sealed class NodePropertyMapper
     private static void SetPosY(Control control, int y)
     {
         control.SetMeta(MetaY, Variant.From(y));
-        control.Position = new Vector2(control.Position.X, y);
+        if (Mathf.IsEqualApprox(control.AnchorTop, control.AnchorBottom))
+        {
+            control.Position = new Vector2(control.Position.X, y);
+        }
+        else
+        {
+            // For stretched controls (e.g. top+bottom anchors), y should act as top offset.
+            control.SetOffset(Side.Top, y);
+        }
         if (IsWindowNode(control))
         {
             control.SetMeta(MetaWindowPosY, Variant.From(y));
@@ -865,7 +927,12 @@ public sealed class NodePropertyMapper
     {
         var fontPath = ResolveAssetPath(rawFontPath, resolveAssetPath);
         Font font;
-        var loadedFont = GD.Load<FontFile>(fontPath);
+        FontFile? loadedFont = null;
+        if (ResourceLoader.Exists(fontPath))
+        {
+            loadedFont = GD.Load<FontFile>(fontPath);
+        }
+
         if (loadedFont is not null)
         {
             font = loadedFont;

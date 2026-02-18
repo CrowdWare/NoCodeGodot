@@ -58,7 +58,69 @@ public sealed class SmlUiBuilder
         var ui = BuildNodeRecursive(rootNode, parentNodeName: null);
         var built = ui ?? BuildFallback($"Could not build root node '{rootNode.Name}'.");
         ApplyAnchorsFromMetaRecursively(built);
+
+        var enableDockingManager = built.HasMeta(NodePropertyMapper.MetaEnableDockingManager)
+            && built.GetMeta(NodePropertyMapper.MetaEnableDockingManager).AsBool();
+        var hasDockingHost = ContainsDockingHost(built);
+        var legacyDockingTabCount = CountDragRearrangeTabContainers(built);
+        RunnerLogger.Info("UI", $"Docking activation check: explicit={enableDockingManager}, host={hasDockingHost}, legacyTabs={legacyDockingTabCount}.");
+        if (enableDockingManager || hasDockingHost)
+        {
+            DockingManagerRuntime.AttachIfNeeded(built);
+        }
+
         return built;
+    }
+
+    private static bool ContainsDockingHost(Control root)
+    {
+        var stack = new Stack<Control>();
+        stack.Push(root);
+
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (current is DockingHostControl)
+            {
+                return true;
+            }
+
+            for (var i = current.GetChildCount() - 1; i >= 0; i--)
+            {
+                if (current.GetChild(i) is Control childControl)
+                {
+                    stack.Push(childControl);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static int CountDragRearrangeTabContainers(Control root)
+    {
+        var count = 0;
+        var stack = new Stack<Control>();
+        stack.Push(root);
+
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (current is TabContainer tabs && tabs.DragToRearrangeEnabled)
+            {
+                count++;
+            }
+
+            for (var i = current.GetChildCount() - 1; i >= 0; i--)
+            {
+                if (current.GetChild(i) is Control childControl)
+                {
+                    stack.Push(childControl);
+                }
+            }
+        }
+
+        return count;
     }
 
     private static void ApplyAnchorsFromMetaRecursively(Control control)
@@ -74,18 +136,18 @@ public sealed class SmlUiBuilder
         // - right only => pin to right edge  (1..1)
         if (hasLeft && hasRight)
         {
-            control.AnchorLeft = 0f;
-            control.AnchorRight = 1f;
+            control.SetAnchor(Side.Left, 0f, true);
+            control.SetAnchor(Side.Right, 1f, true);
         }
         else if (hasRight)
         {
-            control.AnchorLeft = 1f;
-            control.AnchorRight = 1f;
+            control.SetAnchor(Side.Left, 1f, true);
+            control.SetAnchor(Side.Right, 1f, true);
         }
         else if (hasLeft)
         {
-            control.AnchorLeft = 0f;
-            control.AnchorRight = 0f;
+            control.SetAnchor(Side.Left, 0f, true);
+            control.SetAnchor(Side.Right, 0f, true);
         }
 
         // Vertical semantics:
@@ -94,18 +156,18 @@ public sealed class SmlUiBuilder
         // - bottom only=> pin to bottom edge (1..1)
         if (hasTop && hasBottom)
         {
-            control.AnchorTop = 0f;
-            control.AnchorBottom = 1f;
+            control.SetAnchor(Side.Top, 0f, true);
+            control.SetAnchor(Side.Bottom, 1f, true);
         }
         else if (hasBottom)
         {
-            control.AnchorTop = 1f;
-            control.AnchorBottom = 1f;
+            control.SetAnchor(Side.Top, 1f, true);
+            control.SetAnchor(Side.Bottom, 1f, true);
         }
         else if (hasTop)
         {
-            control.AnchorTop = 0f;
-            control.AnchorBottom = 0f;
+            control.SetAnchor(Side.Top, 0f, true);
+            control.SetAnchor(Side.Bottom, 0f, true);
         }
 
         for (var i = 0; i < control.GetChildCount(); i++)
@@ -184,11 +246,8 @@ public sealed class SmlUiBuilder
                 var childControl = BuildNodeRecursive(child, node.Name);
                 if (childControl is not null)
                 {
-                    control.AddChild(childControl);
-
-                    if (control is TabContainer tabs)
+                    if (control is DockingContainerControl dockingContainer)
                     {
-                        var tabIndex = tabs.GetTabIdxFromControl(childControl);
                         var tabTitle = childControl.HasMeta(BuildContextMetaKey("tabTitle"))
                             ? childControl.GetMeta(BuildContextMetaKey("tabTitle")).AsString()
                             : child.TryGetProperty("title", out var titleValue)
@@ -196,7 +255,25 @@ public sealed class SmlUiBuilder
                                 : child.TryGetProperty("label", out var labelValue)
                                     ? labelValue.AsStringOrThrow("label")
                                     : child.Name;
-                        tabs.SetTabTitle(tabIndex, tabTitle);
+
+                        dockingContainer.AddDockTab(childControl, tabTitle);
+                    }
+                    else
+                    {
+                        control.AddChild(childControl);
+
+                        if (control is TabContainer tabs)
+                        {
+                            var tabIndex = tabs.GetTabIdxFromControl(childControl);
+                            var tabTitle = childControl.HasMeta(BuildContextMetaKey("tabTitle"))
+                                ? childControl.GetMeta(BuildContextMetaKey("tabTitle")).AsString()
+                                : child.TryGetProperty("title", out var titleValue)
+                                    ? titleValue.AsStringOrThrow("title")
+                                    : child.TryGetProperty("label", out var labelValue)
+                                        ? labelValue.AsStringOrThrow("label")
+                                        : child.Name;
+                            tabs.SetTabTitle(tabIndex, tabTitle);
+                        }
                     }
                 }
             }

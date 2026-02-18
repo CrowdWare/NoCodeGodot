@@ -1,124 +1,80 @@
 Window {
-    title: "Docking Demo"
-    minSize: 1000, 700
-    size: 1280, 800
+    id: dockingDemoWindow
+    title: "Docking Demo (DockingHost + DockingContainer)"
+    minSize: 900, 560
+    size: 1440, 900
 
-    DockSpace {
-        id: editorDock
-        allowFloating: true
-        allowTabbing: true
-        allowSplitting: true
-        splitterSize: 6
+    DockingHost {
+        id: mainDockHost
+        anchors: left | top | right | bottom
+        gap: 8
 
-        DockPanel {
-            id: farLeftTop
-            title: "Far Left"
-            area: "far-left"
+        DockingContainer {
+            id: leftDock
+            dockSide: "left"
+            fixedWidth: 280
+            dragToRearrangeEnabled: true
+            tabsRearrangeGroup: 1
 
-            Column {
-                spacing: 8
-                Label { text: "Far Left (Top)" }
-                Label { text: "Slot: far-left" }
+            VBoxContainer {
+                title: "Project"
+                Label { text: "Project explorer" }
+            }
+
+            VBoxContainer {
+                title: "Hierarchy"
+                Label { text: "Scene hierarchy" }
+            }
+
+            VBoxContainer {
+                title: "Search"
+                Label { text: "Search results" }
             }
         }
 
-        DockPanel {
-            id: leftTop
-            title: "Left"
-            area: "left"
-
-            Column {
-                spacing: 8
-                Label { text: "Left (Top)" }
-                Label { text: "Slot: left" }
-            }
-        }
-
-        DockPanel {
-            id: rightTop
-            title: "Right"
-            area: "right"
-
-            Column {
-                spacing: 8
-                Label { text: "Right (Top)" }
-                Label { text: "Slot: right" }
-            }
-        }
-
-        DockPanel {
-            id: viewport
-            title: "Viewport"
-            area: "center"
+        DockingContainer {
+            id: centerDock
+            dockSide: "center"
+            flex: true
             closeable: false
-            floatable: false
-            dockable: false
-            isDropTarget: false
+            dragToRearrangeEnabled: false
 
-            Column {
-                spacing: 8
-                Label { text: "Viewport" }
-                Label { text: "Use the 3-dot menu in panel headers to move/floating/close docks." }
+            VBoxContainer {
+                title: "Editor"
+                Label { text: "Main work area" }
+            }
+
+            VBoxContainer {
+                title: "Shader.gd"
+                Label { text: "Code editor tab" }
+            }
+
+            VBoxContainer {
+                title: "Output"
+                Label { text: "Logs / terminal / problems" }
             }
         }
 
-        DockPanel {
-            id: farRightTop
-            title: "Far Right"
-            area: "far-right"
+        DockingContainer {
+            id: rightDock
+            dockSide: "right"
+            fixedWidth: 360
+            dragToRearrangeEnabled: true
+            tabsRearrangeGroup: 1
 
-            Column {
-                spacing: 4
-                Label { text: "Far Right (Top)" }
-                Label { text: "Slot: far-right" }
+            VBoxContainer {
+                title: "Inspector"
+                Label { text: "Selection properties" }
             }
-        }
 
-        DockPanel {
-            id: farLeftBottom
-            title: "Far Left Bottom"
-            area: "bottom-far-left"
-
-            Column {
-                spacing: 4
-                Label { text: "Far Left (Bottom)" }
-                Label { text: "Slot: bottom-far-left" }
+            VBoxContainer {
+                title: "Preview"
+                Label { text: "Preview pane" }
             }
-        }
 
-        DockPanel {
-            id: leftBottom
-            title: "Left Bottom"
-            area: "bottom-left"
-
-            Column {
-                spacing: 4
-                Label { text: "Left (Bottom)" }
-                Label { text: "Slot: bottom-left" }
-            }
-        }
-
-        DockPanel {
-            id: rightBottom
-            title: "Right Bottom"
-            area: "bottom-right"
-
-            Column {
-                spacing: 4
-                Label { text: "Right (Bottom)" }
-                Label { text: "Slot: bottom-right" }
-            }
-        }
-
-        DockPanel {
-            id: farRightBottom
-            title: "Far Right Bottom"
-            area: "bottom-far-right"
-
-            Column {
-                spacing: 4
-                Label { text: "Far Right (Bottom)" }
-                Label { text: "Slot: bottom-far-right" }
+            VBoxContainer {
+                title: "Profiler"
+                Label { text: "Performance metrics" }
             }
         }
     }

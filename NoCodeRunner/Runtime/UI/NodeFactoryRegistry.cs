@@ -41,6 +41,8 @@ public sealed class NodeFactoryRegistry
         Register("Window", () => new Panel());
         Register("Panel", () => new Panel());
         Register("PanelContainer", () => new PanelContainer());
+        Register("DockingHost", () => new DockingHostControl());
+        Register("DockingContainer", () => new DockingContainerControl());
         Register("Label", () => new Label());
         Register("Button", () => new Button());
         Register("TextEdit", () => new TextEdit());

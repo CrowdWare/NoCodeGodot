@@ -27,6 +27,8 @@ public static class SchemaTypes
         new TypeDef("ConfirmationDialog", "AcceptDialog", false),
         new TypeDef("Container", "Control", false),
         new TypeDef("Control", "CanvasItem", false),
+        new TypeDef("DockingContainer", "PanelContainer", false),
+        new TypeDef("DockingHost", "Container", false),
         new TypeDef("FileDialog", "ConfirmationDialog", false),
         new TypeDef("FileSystemDock", "EditorDock", false),
         new TypeDef("FlowContainer", "Container", false),

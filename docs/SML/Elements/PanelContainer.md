@@ -8,6 +8,7 @@
 
 ### Direct subclasses
 
+- [DockingContainer](DockingContainer.md)
 - [OpenXRBindingModifierEditor](OpenXRBindingModifierEditor.md)
 - [ScriptEditor](ScriptEditor.md)
 

@@ -237,31 +237,21 @@ public sealed class SmlUiLoader
             case MarkdownBlockKind.CodeFence:
                 {
                     const int codeFontSize = 16;
-                    var codeHeight = CalculateCodeFenceHeight(block.Text, codeFontSize);
-                    var fenceSyntax = NormalizeCodeFenceLanguageToSyntax(block.Language);
 
-                    var container = NewNode("VBoxContainer");
+                    var container = NewNode("PanelContainer");
                     container.Properties["role"] = SmlValue.FromString("codeblock");
-                    container.Properties["sizeFlagsHorizontal"] = SmlValue.FromInt(0);
-                    container.Properties["sizeFlagsVertical"] = SmlValue.FromInt(0);
-                    container.Properties["spacing"] = SmlValue.FromInt(0);
+                    container.Properties["sizeFlagsHorizontal"] = SmlValue.FromInt(3); // ExpandFill
+                    container.Properties["sizeFlagsVertical"] = SmlValue.FromInt(1);   // Fill
 
-                    var label = NewNode("CodeEdit");
-                    label.Properties["role"] = SmlValue.FromString("code");
-                    label.Properties["text"] = SmlValue.FromString(block.Text);
-                    label.Properties["editable"] = SmlValue.FromBool(false);
-                    label.Properties["multiline"] = SmlValue.FromBool(true);
-                    label.Properties["wrap"] = SmlValue.FromBool(false);
-                    label.Properties["font"] = SmlValue.FromString("appres://Anonymous.ttf");
-                    label.Properties["fontSize"] = SmlValue.FromInt(codeFontSize);
-                    label.Properties["height"] = SmlValue.FromInt(codeHeight);
-                    label.Properties["sizeFlagsHorizontal"] = SmlValue.FromInt(0);
-                    label.Properties["sizeFlagsVertical"] = SmlValue.FromInt(0);
-                    if (!string.IsNullOrWhiteSpace(fenceSyntax))
-                    {
-                        label.Properties["syntax"] = SmlValue.FromString(fenceSyntax);
-                    }
-                    container.Children.Add(label);
+                    var code = NewNode("MarkdownLabel");
+                    code.Properties["role"] = SmlValue.FromString("code");
+                    code.Properties["text"] = SmlValue.FromString($"[code]{EscapeBbCode(block.Text)}[/code]");
+                    code.Properties["wrap"] = SmlValue.FromBool(false);
+                    code.Properties["font"] = SmlValue.FromString("appres://Anonymous.ttf");
+                    code.Properties["fontSize"] = SmlValue.FromInt(codeFontSize);
+                    code.Properties["sizeFlagsHorizontal"] = SmlValue.FromInt(3); // ExpandFill
+                    code.Properties["sizeFlagsVertical"] = SmlValue.FromInt(1);   // Fill
+                    container.Children.Add(code);
                     ApplyMarkdownProperties(container, block.Properties, markdownBaseUri);
                     return container;
                 }

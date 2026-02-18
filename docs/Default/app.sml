@@ -25,12 +25,22 @@ Window {
         }
     }
 
+    Button { 
+        top: 3
+        left: 200
+        text: "This is a control living in the caption"
+    }
+
     PanelContainer {
-         anchors: left | top | bottom
-         sizeFlagsVertical: expandFill
-         width: 300
+        anchors: left | top | bottom
+        sizeFlagsVertical: expandFill
+        offsetTop: 38
+        width: 300
 
         TabContainer {
+            dragToRearrangeEnabled: true
+            tabsRearrangeGroup: 1
+
             VBoxContainer { 
                 title: "Project" 
 
@@ -49,7 +59,7 @@ Window {
         anchors: left | right | top | bottom
         offsetLeft: 300
         offsetRight: -400
-        offsetTop: 0
+        offsetTop: 38
         offsetBottom: 0
 
         TabContainer {
@@ -57,7 +67,9 @@ Window {
                 id: codeEdit
                 title: "<New>"
                 text: "Window { titel: \"Test\"}"     
-                syntax: "sml"   
+                syntax: "sml"
+                //font: "appres://DeineFont.ttf"   
+                fontSize: 13
             }    
         }
         
@@ -67,10 +79,12 @@ Window {
         anchors: right | top | bottom
         offsetLeft: -400
         offsetRight: 0
-        offsetTop: 0
+        offsetTop: 38
         offsetBottom: 0
 
         TabContainer {
+            dragToRearrangeEnabled: true
+            tabsRearrangeGroup: 1
             VBoxContainer { 
                 title: "Desktop"
                 Markdown {        

@@ -9,22 +9,14 @@ fun ready() {
     codeEdit = ui.getObject("codeEdit")
     mainWindow = ui.getObject("mainWindow")
 
-    if (mainWindow == null) {
-        log.warn("mainWindow not set")
-        return
-    }
-    // Window flag globals are auto-exposed by SMS runtime (enum-like).
-    mainWindow.setFlag(extendToTitle, true)
     
-
-    if (tree == null || codeEdit == null) {
-        log.warn("Tree oder CodeEdit nicht gefunden – nichts zu befüllen.")
+    if (tree == null || codeEdit == null || mainWindow == null) {
+        log.warn("MainWindow, Tree oder CodeEdit nicht gefunden – nichts zu befüllen.")
         return
     }
-
+    mainWindow.setFlag(extendToTitle, true)
     codeEdit.onSave("codeEditOnSave")
     populateTree(tree, ".")
-
     
     log.info("TreeView 'treeview' wurde mit Inhalten aus ProjectFS befüllt.")
 }

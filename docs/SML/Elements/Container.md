@@ -11,6 +11,7 @@
 - [AspectRatioContainer](AspectRatioContainer.md)
 - [BoxContainer](BoxContainer.md)
 - [CenterContainer](CenterContainer.md)
+- [DockingHost](DockingHost.md)
 - [EditorProperty](EditorProperty.md)
 - [FlowContainer](FlowContainer.md)
 - [FoldableContainer](FoldableContainer.md)

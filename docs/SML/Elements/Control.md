@@ -45,6 +45,8 @@ All classes listed below inherit from `Control`.
 - [ColorPickerButton](ColorPickerButton.md)
 - [ColorRect](ColorRect.md)
 - [Container](Container.md)
+- [DockingContainer](DockingContainer.md)
+- [DockingHost](DockingHost.md)
 - [EditorDock](EditorDock.md)
 - [EditorInspector](EditorInspector.md)
 - [EditorProperty](EditorProperty.md)

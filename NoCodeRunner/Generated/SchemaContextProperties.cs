@@ -12,6 +12,7 @@ public static class SchemaContextProperties
     public static readonly ContextPropDef[] All =
     [
         new ContextPropDef("TabContainer", "*", "title", "string", "tabTitle"),
+        new ContextPropDef("DockingContainer", "*", "title", "string", "tabTitle"),
     ];
 
     private static readonly IReadOnlyDictionary<string, ContextPropDef> ByKey = BuildByKey();
