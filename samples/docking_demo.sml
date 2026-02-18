@@ -9,7 +9,7 @@ Window {
         anchors: left | top | right | bottom
         gap: 8
 
-        /*DockingContainer {
+        DockingContainer {
             id: farLeftDock
             dockSide: "farLeft"
             fixedWidth: 200
@@ -21,7 +21,7 @@ Window {
                 Label { text: "Far left dock" }
             }
         }
-*/
+
         DockingContainer {
             id: leftDock
             dockSide: "left"
@@ -101,7 +101,7 @@ Window {
 
             VBoxContainer {
                 title: "Console"
-                Label { text: "Far right dock (non-closeable)" }
+                Label { text: "Far right dock" }
             }
         }
     }

@@ -162,13 +162,11 @@ public static partial class DockingManagerRuntime
 
                 if (host.HostContainer.Visible && host.Tabs.GetTabCount() == 0)
                 {
-                    if (host.CanClose)
-                    {
-                        host.HostContainer.Visible = false;
-                        host.IsClosed = true;
-                        host.LastKnownTabCount = 0;
-                        changed = true;
-                    }
+                    // Empty hosts should be auto-hidden regardless of closeable flag.
+                    host.HostContainer.Visible = false;
+                    host.IsClosed = true;
+                    host.LastKnownTabCount = 0;
+                    changed = true;
                 }
                 else
                 {
@@ -270,11 +268,8 @@ public static partial class DockingManagerRuntime
 
             if (sourceTabs.GetTabCount() == 0)
             {
-                if (sourceHost.CanClose)
-                {
-                    sourceHost.HostContainer.Visible = false;
-                    sourceHost.IsClosed = true;
-                }
+                sourceHost.HostContainer.Visible = false;
+                sourceHost.IsClosed = true;
             }
 
             UpdateFlexibleHostsLayout();
@@ -451,11 +446,6 @@ public static partial class DockingManagerRuntime
                     }
 
                     if (!target.IsClosed)
-                    {
-                        continue;
-                    }
-
-                    if (!target.CanClose)
                     {
                         continue;
                     }
