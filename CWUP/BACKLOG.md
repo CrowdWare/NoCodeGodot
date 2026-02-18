@@ -104,9 +104,9 @@
 - [x] tasks/sms_events.md
 - [x] tasks/refactoring.md
 - [x] tasks/documentation.md
-- [ ] tasks/issues_menu.md
-- [/] tasks/issues.md                   check again after refactoring
-- [/] tasks/missing_features.md         check again after refactoring
+- [x] tasks/issues_menu.md
+- [ ] tasks/docking_features.md
+
 
 ## Tasks for NoCodeDesigner
 - [ ] Lifecycle-Template für neue Scripts einführen (OnInit / OnReadyAsync sichtbar als optionaler Einstieg)
