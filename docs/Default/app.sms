@@ -1,11 +1,20 @@
 var tree = null
 var codeEdit = null
 var selectedPath = null
+var mainWindow = null
 
 fun ready() {
     log.info("ready called")
     tree = ui.getObject("treeview")
     codeEdit = ui.getObject("codeEdit")
+    mainWindow = ui.getObject("mainWindow")
+
+    if (mainWindow == null) {
+        log.warn("mainWindow not set")
+        return
+    }
+    // Window flag globals are auto-exposed by SMS runtime (enum-like).
+    mainWindow.setFlag(extendToTitle, true)
     
 
     if (tree == null || codeEdit == null) {
@@ -14,7 +23,6 @@ fun ready() {
     }
 
     codeEdit.onSave("codeEditOnSave")
-    tree.BindEvents()
     populateTree(tree, ".")
 
     

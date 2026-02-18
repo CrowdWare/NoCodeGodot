@@ -4,8 +4,10 @@ using Runtime.Logging;
 using Runtime.Sms;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -27,6 +29,9 @@ public sealed class SmsUiRuntime
     private readonly HashSet<ulong> _dynamicMenuPopupHooked = [];
     private readonly Dictionary<ulong, string> _windowCloseCallbacks = new();
     private readonly HashSet<ulong> _windowCloseHooked = [];
+    private readonly Dictionary<Type, Dictionary<string, List<MethodInfo>>> _methodCache = [];
+    private readonly Dictionary<long, object> _nativeObjects = [];
+    private long _nextNativeObjectId = 1;
     private int _nextTreeHandle = 1;
     private string? _projectRoot;
 
@@ -150,6 +155,53 @@ public sealed class SmsUiRuntime
         }
 
         ExecuteCall("ready()");
+        AutoBindTreeEvents();
+    }
+
+    private void AutoBindTreeEvents()
+    {
+        var dispatcher = _dispatcher ?? ResolveDispatcherFromMain();
+        if (dispatcher is null)
+        {
+            RunnerLogger.Warn("SMS", "Auto tree binding skipped: dispatcher not found.");
+            return;
+        }
+
+        var boundCount = 0;
+        foreach (var tree in EnumerateTrees())
+        {
+            UiRuntimeApi.BindTreeEvents(tree, dispatcher);
+            boundCount++;
+        }
+
+        if (boundCount > 0)
+        {
+            RunnerLogger.Info("SMS", $"Auto-bound tree events for {boundCount} tree control(s) after ready().");
+        }
+    }
+
+    private static IEnumerable<Tree> EnumerateTrees()
+    {
+        if (Engine.GetMainLoop() is not SceneTree sceneTree || sceneTree.Root is null)
+        {
+            yield break;
+        }
+
+        var stack = new Stack<Node>();
+        stack.Push(sceneTree.Root);
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (node is Tree tree)
+            {
+                yield return tree;
+            }
+
+            for (var i = node.GetChildCount() - 1; i >= 0; i--)
+            {
+                stack.Push(node.GetChild(i));
+            }
+        }
     }
 
     private void RegisterNativeFunctions()
@@ -195,11 +247,67 @@ public sealed class SmsUiRuntime
         try
         {
             _engine.Execute("var fs = __sms_fs()\nvar log = __sms_log()\nvar ui = __sms_ui()");
+            BootstrapWindowFlagSymbols();
             BootstrapUiIdSymbols();
         }
         catch (Exception ex)
         {
             RunnerLogger.Error("SMS", "Failed to bootstrap global SMS objects (fs/log/ui).", ex);
+        }
+    }
+
+    private void BootstrapWindowFlagSymbols()
+    {
+        // Stable, documented aliases for SMS scripts.
+        // Keep explicit values so users can rely on constants across platforms.
+        var symbols = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["borderless"] = 0,
+            ["alwaysOnTop"] = 1,
+            ["transparent"] = 2,
+            ["noFocus"] = 3,
+            ["popup"] = 5,
+            ["extendToTitle"] = 6,
+            ["mousePassthrough"] = 7,
+            ["sharpCorners"] = 8,
+            ["excludeFromCapture"] = 9,
+            ["popupWmHint"] = 10,
+            ["minSize"] = 11,
+            ["maxSize"] = 12,
+            ["resizeDisabled"] = 13,
+            ["transient"] = 14,
+            ["modal"] = 15,
+            ["popupExclusive"] = 16
+        };
+
+        var declared = 0;
+        foreach (var entry in symbols)
+        {
+            var symbol = entry.Key;
+            var value = entry.Value;
+            if (!IsValidSmsIdentifier(symbol)
+                || IsSmsKeyword(symbol)
+                || string.Equals(symbol, "fs", StringComparison.Ordinal)
+                || string.Equals(symbol, "log", StringComparison.Ordinal)
+                || string.Equals(symbol, "ui", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            try
+            {
+                _engine.Execute($"var {symbol} = {value}");
+                declared++;
+            }
+            catch (Exception ex)
+            {
+                RunnerLogger.Warn("SMS", $"Could not expose window flag symbol '{symbol}' to SMS globals.", ex);
+            }
+        }
+
+        if (declared > 0)
+        {
+            RunnerLogger.Info("SMS", $"Exposed {declared} window flag symbols as SMS globals.");
         }
     }
 
@@ -341,25 +449,20 @@ public sealed class SmsUiRuntime
                 }
 
                 var node = UiRuntimeApi.GetObjectById(id);
-                if (node is Tree tree)
+                if (node is not null)
                 {
-                    return CreateTreeObject(id, tree);
-                }
+                    if (node is Control control
+                        && control.HasMeta(NodePropertyMapper.MetaNodeName)
+                        && string.Equals(control.GetMeta(NodePropertyMapper.MetaNodeName).AsString(), "Window", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var hostWindow = control.GetWindow();
+                        if (hostWindow is not null)
+                        {
+                            return CreateRuntimeObject(id, hostWindow);
+                        }
+                    }
 
-                if (node is CodeEdit editor)
-                {
-                    return CreateCodeEditObject(id, editor);
-                }
-
-                if (node is MenuButton menuButton)
-                {
-                    return CreateMenuObject(id, menuButton.GetPopup(), menuButton);
-                }
-
-                if (node is PopupMenu popupMenu)
-                {
-                    var source = popupMenu.GetParent() as Control;
-                    return CreateMenuObject(id, popupMenu, source);
+                    return CreateRuntimeObject(id, node);
                 }
 
                 var menuItem = TryCreateMenuItemObject(id);
@@ -379,19 +482,201 @@ public sealed class SmsUiRuntime
                     return NullValue.Instance;
                 }
 
-                return CreateWindowObject(window);
+                return CreateRuntimeObject(
+                    window.HasMeta(NodePropertyMapper.MetaId)
+                        ? window.GetMeta(NodePropertyMapper.MetaId).AsString()
+                        : string.Empty,
+                    window);
             })
         });
     }
 
-    private ObjectValue CreateWindowObject(Window window)
+    private ObjectValue CreateRuntimeObject(string id, object runtimeObject)
     {
-        var windowInstanceId = window.GetInstanceId();
-        EnsureWindowCloseBinding(window);
+        var type = runtimeObject.GetType();
+        var nativeObjectId = _nextNativeObjectId++;
+        _nativeObjects[nativeObjectId] = runtimeObject;
 
-        return new ObjectValue("Window", new Dictionary<string, Value>(StringComparer.Ordinal)
+        var fields = new Dictionary<string, Value>(StringComparer.Ordinal)
         {
-            ["onClose"] = new NativeFunctionValue(methodArgs =>
+            ["id"] = new StringValue(id),
+            ["type"] = new StringValue(type.Name),
+            ["__nativeObjectId"] = new NumberValue(nativeObjectId)
+        };
+
+        var methodMap = GetMethodMap(type);
+        foreach (var entry in methodMap)
+        {
+            var methodName = entry.Key;
+            var methods = entry.Value;
+
+            fields[methodName] = new NativeFunctionValue(methodArgs =>
+            {
+                if (runtimeObject is GodotObject godot && !GodotObject.IsInstanceValid(godot))
+                {
+                    return NullValue.Instance;
+                }
+
+                if (!TrySelectMethod(methods, methodArgs, out var selected, out var convertedArgs))
+                {
+                    RunnerLogger.Warn("SMS", $"No suitable method overload found for '{type.Name}.{methodName}' with {methodArgs.Count} argument(s). Returning null.");
+                    return NullValue.Instance;
+                }
+
+                try
+                {
+                    var result = selected.Invoke(runtimeObject, convertedArgs);
+                    return ToSmsValue(result);
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("SMS", $"Invocation failed for '{type.Name}.{selected.Name}'.", ex);
+                    return NullValue.Instance;
+                }
+            });
+        }
+
+        AttachSmsExtensions(id, runtimeObject, fields);
+
+        return new ObjectValue(type.Name, fields);
+    }
+
+    private void AttachSmsExtensions(string id, object runtimeObject, Dictionary<string, Value> fields)
+    {
+        if (runtimeObject is CodeEdit editor)
+        {
+            EnsureCodeEditSaveShortcut(id, editor);
+            fields["SetPath"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    editor.SetMeta(MetaSmsPath, path);
+                    CodeEditSyntaxRuntime.Load(editor, path);
+                }
+
+                return NullValue.Instance;
+            });
+            fields["GetPath"] = new NativeFunctionValue(_ =>
+            {
+                var path = editor.HasMeta(MetaSmsPath) ? editor.GetMeta(MetaSmsPath).AsString() : string.Empty;
+                return new StringValue(path ?? string.Empty);
+            });
+            fields["onSave"] = new NativeFunctionValue(methodArgs =>
+            {
+                var callbackName = ValueArgString(methodArgs, 0);
+                if (!string.IsNullOrWhiteSpace(callbackName))
+                {
+                    _codeEditSaveCallbacks[id] = callbackName;
+                    RunnerLogger.Info("SMS", $"Registered onSave callback '{callbackName}' for '{id}'.");
+                }
+
+                return NullValue.Instance;
+            });
+        }
+
+        if (runtimeObject is Tree tree)
+        {
+            fields["CreateRoot"] = new NativeFunctionValue(methodArgs =>
+            {
+                var text = ValueArgString(methodArgs, 0);
+                var path = ValueArgString(methodArgs, 1);
+                var item = tree.CreateItem();
+                item.SetText(0, text);
+                item.Collapsed = false;
+                item.SetMetadata(0, path);
+                return new NumberValue(RegisterTreeHandle(item));
+            });
+            fields["CreateChild"] = new NativeFunctionValue(methodArgs =>
+            {
+                var parentHandle = ValueArgInt(methodArgs, 0);
+                if (!_treeHandles.TryGetValue(parentHandle, out var parent))
+                {
+                    return new NumberValue(0);
+                }
+
+                var text = ValueArgString(methodArgs, 1);
+                var path = ValueArgString(methodArgs, 2);
+                var isDirectory = ValueArgBool(methodArgs, 3);
+
+                var item = tree.CreateItem(parent);
+                item.SetText(0, isDirectory ? text + "/" : text);
+                item.SetMetadata(0, path);
+                item.Collapsed = true;
+                return new NumberValue(RegisterTreeHandle(item));
+            });
+            fields["BindEvents"] = new NativeFunctionValue(_ =>
+            {
+                var dispatcher = _dispatcher ?? ResolveDispatcherFromMain();
+                if (dispatcher is not null)
+                {
+                    UiRuntimeApi.BindTreeEvents(tree, dispatcher);
+                    RunnerLogger.Info("SMS", $"Tree events bound for '{id}'.");
+                }
+                else
+                {
+                    RunnerLogger.Warn("SMS", $"BindEvents skipped for '{id}' (dispatcher not found).");
+                }
+
+                return NullValue.Instance;
+            });
+            fields["GetSelectedPath"] = new NativeFunctionValue(_ =>
+            {
+                var selected = tree.GetSelected();
+                return new StringValue(selected?.GetMetadata(0).AsString() ?? string.Empty);
+            });
+        }
+
+        if (runtimeObject is PopupMenu popup)
+        {
+            var source = popup.GetParent() as Control;
+            fields["AddMenuItem"] = new NativeFunctionValue(methodArgs =>
+            {
+                var itemKey = ValueArgString(methodArgs, 0);
+                if (string.IsNullOrWhiteSpace(itemKey))
+                {
+                    return NullValue.Instance;
+                }
+
+                var requestedPopupId = ValueArgInt(methodArgs, 1);
+                var popupId = requestedPopupId > 0 ? requestedPopupId : ResolveNextPopupItemId(popup);
+
+                popup.AddItem(itemKey, popupId);
+                var createdIndex = popup.ItemCount - 1;
+                popup.SetItemMetadata(createdIndex, Variant.From(itemKey));
+                RegisterDynamicMenuItem(id, popup, popupId, itemKey, source);
+                return new NumberValue(popupId);
+            });
+        }
+
+        if (runtimeObject is MenuButton menuButton)
+        {
+            var buttonPopup = menuButton.GetPopup();
+            fields["AddMenuItem"] = new NativeFunctionValue(methodArgs =>
+            {
+                var itemKey = ValueArgString(methodArgs, 0);
+                if (string.IsNullOrWhiteSpace(itemKey))
+                {
+                    return NullValue.Instance;
+                }
+
+                var requestedPopupId = ValueArgInt(methodArgs, 1);
+                var popupId = requestedPopupId > 0 ? requestedPopupId : ResolveNextPopupItemId(buttonPopup);
+
+                buttonPopup.AddItem(itemKey, popupId);
+                var createdIndex = buttonPopup.ItemCount - 1;
+                buttonPopup.SetItemMetadata(createdIndex, Variant.From(itemKey));
+                RegisterDynamicMenuItem(id, buttonPopup, popupId, itemKey, menuButton);
+                return new NumberValue(popupId);
+            });
+        }
+
+        if (runtimeObject is Window window)
+        {
+            var windowInstanceId = window.GetInstanceId();
+            EnsureWindowCloseBinding(window);
+
+            fields["onClose"] = new NativeFunctionValue(methodArgs =>
             {
                 var callbackName = ValueArgString(methodArgs, 0);
                 if (string.IsNullOrWhiteSpace(callbackName))
@@ -403,8 +688,8 @@ public sealed class SmsUiRuntime
                 _windowCloseCallbacks[windowInstanceId] = callbackName;
                 RunnerLogger.Info("SMS", $"Registered onClose callback '{callbackName}' for window #{windowInstanceId}.");
                 return NullValue.Instance;
-            }),
-            ["close"] = new NativeFunctionValue(_ =>
+            });
+            fields["close"] = new NativeFunctionValue(_ =>
             {
                 if (!GodotObject.IsInstanceValid(window))
                 {
@@ -414,8 +699,280 @@ public sealed class SmsUiRuntime
                 InvokeWindowCloseCallback(windowInstanceId);
                 window.QueueFree();
                 return NullValue.Instance;
-            })
-        });
+            });
+        }
+    }
+
+    private Dictionary<string, List<MethodInfo>> GetMethodMap(Type type)
+    {
+        if (_methodCache.TryGetValue(type, out var cached))
+        {
+            return cached;
+        }
+
+        var map = new Dictionary<string, List<MethodInfo>>(StringComparer.Ordinal);
+        var methods = type.GetMethods(BindingFlags.Instance | BindingFlags.Public);
+        foreach (var method in methods)
+        {
+            if (method.IsSpecialName)
+            {
+                continue;
+            }
+
+            if (method.DeclaringType == typeof(object))
+            {
+                continue;
+            }
+
+            if (method.GetParameters().Any(p => p.ParameterType.IsByRef || p.IsOut))
+            {
+                continue;
+            }
+
+            AddMethodAlias(map, method.Name, method);
+            AddMethodAlias(map, ToLowerCamel(method.Name), method);
+        }
+
+        _methodCache[type] = map;
+        return map;
+    }
+
+    private static void AddMethodAlias(Dictionary<string, List<MethodInfo>> map, string name, MethodInfo method)
+    {
+        if (!map.TryGetValue(name, out var list))
+        {
+            list = [];
+            map[name] = list;
+        }
+
+        if (!list.Contains(method))
+        {
+            list.Add(method);
+        }
+    }
+
+    private static string ToLowerCamel(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || char.IsLower(value[0]))
+        {
+            return value;
+        }
+
+        return char.ToLowerInvariant(value[0]) + value[1..];
+    }
+
+    private bool TrySelectMethod(IReadOnlyList<MethodInfo> methods, IReadOnlyList<Value> smsArgs, out MethodInfo selected, out object?[] convertedArgs)
+    {
+        foreach (var method in methods)
+        {
+            var parameters = method.GetParameters();
+            var requiredCount = 0;
+            foreach (var parameter in parameters)
+            {
+                if (!parameter.HasDefaultValue)
+                {
+                    requiredCount++;
+                }
+            }
+
+            if (smsArgs.Count < requiredCount || smsArgs.Count > parameters.Length)
+            {
+                continue;
+            }
+
+            var buffer = new object?[parameters.Length];
+            var ok = true;
+            for (var i = 0; i < smsArgs.Count; i++)
+            {
+                if (!TryConvertSmsValue(smsArgs[i], parameters[i].ParameterType, out var converted))
+                {
+                    ok = false;
+                    break;
+                }
+
+                buffer[i] = converted;
+            }
+
+            if (!ok)
+            {
+                continue;
+            }
+
+            for (var i = smsArgs.Count; i < parameters.Length; i++)
+            {
+                if (parameters[i].HasDefaultValue)
+                {
+                    buffer[i] = parameters[i].DefaultValue;
+                    continue;
+                }
+
+                ok = false;
+                break;
+            }
+
+            if (!ok)
+            {
+                continue;
+            }
+
+            selected = method;
+            convertedArgs = buffer;
+            return true;
+        }
+
+        selected = null!;
+        convertedArgs = [];
+        return false;
+    }
+
+    private bool TryConvertSmsValue(Value value, Type targetType, out object? converted)
+    {
+        var nullableUnderlying = Nullable.GetUnderlyingType(targetType);
+        if (nullableUnderlying is not null)
+        {
+            if (value is NullValue)
+            {
+                converted = null;
+                return true;
+            }
+
+            targetType = nullableUnderlying;
+        }
+
+        if (targetType == typeof(Value))
+        {
+            converted = value;
+            return true;
+        }
+
+        if (targetType == typeof(string))
+        {
+            converted = ValueAsString(value);
+            return true;
+        }
+
+        if (targetType == typeof(bool))
+        {
+            converted = value switch
+            {
+                BooleanValue b => b.Value,
+                NumberValue n => Math.Abs(n.Value) > double.Epsilon,
+                StringValue s => string.Equals(s.Value, "true", StringComparison.OrdinalIgnoreCase),
+                _ => ValueUtils.IsTruthy(value)
+            };
+            return true;
+        }
+
+        if (targetType == typeof(int))
+        {
+            converted = value switch
+            {
+                NumberValue n => n.ToInt(),
+                StringValue s when int.TryParse(s.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) => i,
+                _ => 0
+            };
+            return true;
+        }
+
+        if (targetType == typeof(long))
+        {
+            converted = value switch
+            {
+                NumberValue n => (long)n.Value,
+                StringValue s when long.TryParse(s.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l) => l,
+                _ => 0L
+            };
+            return true;
+        }
+
+        if (targetType == typeof(float))
+        {
+            converted = value switch
+            {
+                NumberValue n => (float)n.Value,
+                StringValue s when float.TryParse(s.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var f) => f,
+                _ => 0f
+            };
+            return true;
+        }
+
+        if (targetType == typeof(double))
+        {
+            converted = value switch
+            {
+                NumberValue n => n.Value,
+                StringValue s when double.TryParse(s.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) => d,
+                _ => 0d
+            };
+            return true;
+        }
+
+        if (targetType.IsEnum)
+        {
+            if (value is NumberValue enumNumber)
+            {
+                converted = Enum.ToObject(targetType, enumNumber.ToInt());
+                return true;
+            }
+
+            if (value is StringValue enumString)
+            {
+                try
+                {
+                    converted = Enum.Parse(targetType, enumString.Value, ignoreCase: true);
+                    return true;
+                }
+                catch
+                {
+                    converted = null;
+                    return false;
+                }
+            }
+        }
+
+        if (targetType == typeof(Variant))
+        {
+            converted = Variant.From(ValueUtils.ToDotNet(value));
+            return true;
+        }
+
+        if (value is ObjectValue objectValue
+            && objectValue.GetField("__nativeObjectId") is NumberValue nativeIdValue)
+        {
+            var nativeId = (long)nativeIdValue.Value;
+            if (_nativeObjects.TryGetValue(nativeId, out var native)
+                && targetType.IsInstanceOfType(native))
+            {
+                converted = native;
+                return true;
+            }
+        }
+
+        converted = null;
+        return false;
+    }
+
+    private Value ToSmsValue(object? value)
+    {
+        return value switch
+        {
+            null => NullValue.Instance,
+            Value smsValue => smsValue,
+            bool b => new BooleanValue(b),
+            string s => new StringValue(s),
+            int i => new NumberValue(i),
+            long l => new NumberValue(l),
+            float f => new NumberValue(f),
+            double d => new NumberValue(d),
+            Enum e => new NumberValue(Convert.ToInt32(e, CultureInfo.InvariantCulture)),
+            Node node => CreateRuntimeObject(
+                node.HasMeta(NodePropertyMapper.MetaId)
+                    ? node.GetMeta(NodePropertyMapper.MetaId).AsString()
+                    : string.Empty,
+                node),
+            GodotObject godotObject => CreateRuntimeObject(string.Empty, godotObject),
+            _ => ValueUtils.FromDotNet(value)
+        };
     }
 
     private void EnsureWindowCloseBinding(Window window)
@@ -447,22 +1004,6 @@ public sealed class SmsUiRuntime
         }
 
         ExecuteCall($"{callbackName}()");
-    }
-
-    private static string TryGetSelectedTreePath(Tree? tree)
-    {
-        if (tree is null)
-        {
-            return string.Empty;
-        }
-
-        var selected = tree.GetSelected();
-        if (selected is null)
-        {
-            return string.Empty;
-        }
-
-        return selected.GetMetadata(0).AsString();
     }
 
     private static string ResolveProjectRoot(string uiSmlUri)
@@ -507,68 +1048,6 @@ public sealed class SmsUiRuntime
             : null;
     }
 
-    private ObjectValue CreateTreeObject(string id, Tree tree)
-    {
-        return new ObjectValue("Tree", new Dictionary<string, Value>(StringComparer.Ordinal)
-        {
-            ["Clear"] = new NativeFunctionValue(_ =>
-            {
-                tree.Clear();
-                tree.Columns = 1;
-                _treeHandles.Clear();
-                return NullValue.Instance;
-            }),
-            ["CreateRoot"] = new NativeFunctionValue(methodArgs =>
-            {
-                var text = ValueArgString(methodArgs, 0);
-                var path = ValueArgString(methodArgs, 1);
-                var item = tree.CreateItem();
-                item.SetText(0, text);
-                item.Collapsed = false;
-                item.SetMetadata(0, path);
-                return new NumberValue(RegisterTreeHandle(item));
-            }),
-            ["CreateChild"] = new NativeFunctionValue(methodArgs =>
-            {
-                var parentHandle = ValueArgInt(methodArgs, 0);
-                if (!_treeHandles.TryGetValue(parentHandle, out var parent))
-                {
-                    return new NumberValue(0);
-                }
-
-                var text = ValueArgString(methodArgs, 1);
-                var path = ValueArgString(methodArgs, 2);
-                var isDirectory = ValueArgBool(methodArgs, 3);
-
-                var item = tree.CreateItem(parent);
-                item.SetText(0, isDirectory ? text + "/" : text);
-                item.SetMetadata(0, path);
-                item.Collapsed = true;
-                return new NumberValue(RegisterTreeHandle(item));
-            }),
-            ["BindEvents"] = new NativeFunctionValue(_ =>
-            {
-                var dispatcher = _dispatcher ?? ResolveDispatcherFromMain();
-                if (dispatcher is not null)
-                {
-                    UiRuntimeApi.BindTreeEvents(tree, dispatcher);
-                    RunnerLogger.Info("SMS", $"Tree events bound for '{id}'.");
-                }
-                else
-                {
-                    RunnerLogger.Warn("SMS", $"BindEvents skipped for '{id}' (dispatcher not found).");
-                }
-
-                return NullValue.Instance;
-            }),
-            ["GetSelectedPath"] = new NativeFunctionValue(_ =>
-            {
-                var path = TryGetSelectedTreePath(tree) ?? string.Empty;
-                return new StringValue(path);
-            })
-        });
-    }
-
     private void TryInvokeEvent(string targetId, string eventName, params object?[] args)
     {
         try
@@ -598,86 +1077,6 @@ public sealed class SmsUiRuntime
         }
 
         return string.Empty;
-    }
-
-    private ObjectValue CreateCodeEditObject(string id, CodeEdit editor)
-    {
-        EnsureCodeEditSaveShortcut(id, editor);
-
-        return new ObjectValue("CodeEdit", new Dictionary<string, Value>(StringComparer.Ordinal)
-        {
-            ["SetPath"] = new NativeFunctionValue(methodArgs =>
-            {
-                var path = ValueArgString(methodArgs, 0);
-                if (!string.IsNullOrWhiteSpace(path))
-                {
-                    editor.SetMeta(MetaSmsPath, path);
-                    CodeEditSyntaxRuntime.Load(editor, path);
-                }
-
-                return NullValue.Instance;
-            }),
-            ["SetText"] = new NativeFunctionValue(methodArgs =>
-            {
-                var text = ValueArgString(methodArgs, 0);
-                editor.Text = text;
-
-                if (editor.HasMeta(MetaSmsPath))
-                {
-                    var path = editor.GetMeta(MetaSmsPath).AsString();
-                    if (!string.IsNullOrWhiteSpace(path))
-                    {
-                        CodeEditSyntaxRuntime.Load(editor, path);
-                    }
-                }
-
-                editor.QueueRedraw();
-                return NullValue.Instance;
-            }),
-            ["GetText"] = new NativeFunctionValue(_ => new StringValue(editor.Text ?? string.Empty)),
-            ["GetPath"] = new NativeFunctionValue(_ =>
-            {
-                var path = editor.HasMeta(MetaSmsPath) ? editor.GetMeta(MetaSmsPath).AsString() : string.Empty;
-                return new StringValue(path ?? string.Empty);
-            }),
-            ["onSave"] = new NativeFunctionValue(methodArgs =>
-            {
-                var callbackName = ValueArgString(methodArgs, 0);
-                if (!string.IsNullOrWhiteSpace(callbackName))
-                {
-                    _codeEditSaveCallbacks[id] = callbackName;
-                    RunnerLogger.Info("SMS", $"Registered onSave callback '{callbackName}' for '{id}'.");
-                }
-
-                return NullValue.Instance;
-            })
-        });
-    }
-
-    private ObjectValue CreateMenuObject(string menuId, PopupMenu popup, Control? sourceControl)
-    {
-        EnsureDynamicMenuBinding(menuId, popup, sourceControl);
-
-        return new ObjectValue("Menu", new Dictionary<string, Value>(StringComparer.Ordinal)
-        {
-            ["AddMenuItem"] = new NativeFunctionValue(methodArgs =>
-            {
-                var itemKey = ValueArgString(methodArgs, 0);
-                if (string.IsNullOrWhiteSpace(itemKey))
-                {
-                    return NullValue.Instance;
-                }
-
-                var requestedPopupId = ValueArgInt(methodArgs, 1);
-                var popupId = requestedPopupId > 0 ? requestedPopupId : ResolveNextPopupItemId(popup);
-
-                popup.AddItem(itemKey, popupId);
-                var createdIndex = popup.ItemCount - 1;
-                popup.SetItemMetadata(createdIndex, Variant.From(itemKey));
-                RegisterDynamicMenuItem(menuId, popup, popupId, itemKey, sourceControl);
-                return new NumberValue(popupId);
-            })
-        });
     }
 
     private ObjectValue? TryCreateMenuItemObject(string itemId)
