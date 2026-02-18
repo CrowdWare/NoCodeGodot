@@ -13,6 +13,7 @@ Inherited properties are documented in: [Container](Container.md)
 |-|-|-|-|
 | — | id | identifier | — |
 | — | gap | int | 0 |
+| — | endGap | int | 30 |
 | — | anchors | string | "" |
 | — | x | int | 0 |
 | — | y | int | 0 |
@@ -20,6 +21,10 @@ Inherited properties are documented in: [Container](Container.md)
 | — | height | int | 0 |
 
 > Layouts multiple DockingContainer children using dockSide/fixedWidth/flex semantics.
+> Supports side columns with optional bottom companions (farLeftBottom, leftBottom, rightBottom, farRightBottom).
+> If only top or bottom panel of a side is present/visible, that panel fills the full host height.
+> If both are present/visible, top and bottom split the host height 50/50.
+> Resize handles are created per interior gap as upper and lower segments to keep middle gap area clickable for menu buttons.
 > Typically used as a full-rect region inside a Window.
 
 ### Examples
@@ -29,6 +34,7 @@ DockingHost {
     id: mainDockHost
     anchors: left | top | right | bottom
     gap: 8
+    endGap: 30
 }
 ```
 
