@@ -15,9 +15,36 @@ public sealed partial class DockingHostControl : Container
     private sealed class LayoutItem
     {
         public required DockingContainerControl Container;
-        public required string Side;
+        public required DockingContainerControl.DockSideKind Side;
         public required bool Flex;
         public required float Width;
+    }
+
+    private sealed class DockColumn
+    {
+        public DockingContainerControl? Top;
+        public DockingContainerControl? Bottom;
+        public bool IsFlex;
+        public float Width;
+
+        public bool HasVisibleTop => Top is not null && Top.Visible;
+        public bool HasVisibleBottom => Bottom is not null && Bottom.Visible;
+        public bool HasVisible => HasVisibleTop || HasVisibleBottom;
+
+        public DockingContainerControl? PrimaryVisible => HasVisibleTop ? Top : (HasVisibleBottom ? Bottom : null);
+
+        public IEnumerable<DockingContainerControl> VisibleContainers()
+        {
+            if (HasVisibleTop && Top is not null)
+            {
+                yield return Top;
+            }
+
+            if (HasVisibleBottom && Bottom is not null)
+            {
+                yield return Bottom;
+            }
+        }
     }
 
     private sealed class GapSegment
@@ -40,6 +67,7 @@ public sealed partial class DockingHostControl : Container
     }
 
     private readonly Dictionary<ulong, Rect2> _rightGapByContainer = [];
+    private readonly Dictionary<ulong, List<DockingContainerControl>> _widthLinkedByContainer = [];
     private readonly List<DockResizeHandleControl> _handles = [];
     private int _lastLoggedHandleCount = -1;
     private int _lastLoggedInteriorGapCount = -1;
@@ -63,6 +91,7 @@ public sealed partial class DockingHostControl : Container
     private void ArrangeChildren()
     {
         _rightGapByContainer.Clear();
+        _widthLinkedByContainer.Clear();
 
         var all = new List<LayoutItem>();
         for (var i = 0; i < GetChildCount(); i++)
@@ -72,7 +101,7 @@ public sealed partial class DockingHostControl : Container
                 continue;
             }
 
-            var side = child.GetDockSide();
+            var side = child.GetDockSideKind();
             var flex = child.IsFlex();
             var width = child.GetFixedWidth();
             all.Add(new LayoutItem
@@ -90,30 +119,55 @@ public sealed partial class DockingHostControl : Container
             return;
         }
 
-        var left = new List<LayoutItem>();
-        var farLeft = new List<LayoutItem>();
-        var center = new List<LayoutItem>();
-        var right = new List<LayoutItem>();
-        var farRight = new List<LayoutItem>();
+        var farLeftColumn = new DockColumn();
+        var leftColumn = new DockColumn();
+        var rightColumn = new DockColumn();
+        var farRightColumn = new DockColumn();
+        var centerColumns = new List<DockColumn>();
 
         foreach (var item in all)
         {
             switch (item.Side)
             {
-                case "farleft":
-                    farLeft.Add(item);
+                case DockingContainerControl.DockSideKind.FarLeft:
+                    farLeftColumn.Top = item.Container;
+                    farLeftColumn.Width = item.Width;
                     break;
-                case "left":
-                    left.Add(item);
+                case DockingContainerControl.DockSideKind.FarLeftBottom:
+                    farLeftColumn.Bottom = item.Container;
+                    farLeftColumn.Width = item.Width;
                     break;
-                case "farright":
-                    farRight.Add(item);
+                case DockingContainerControl.DockSideKind.Left:
+                    leftColumn.Top = item.Container;
+                    leftColumn.Width = item.Width;
                     break;
-                case "right":
-                    right.Add(item);
+                case DockingContainerControl.DockSideKind.LeftBottom:
+                    leftColumn.Bottom = item.Container;
+                    leftColumn.Width = item.Width;
+                    break;
+                case DockingContainerControl.DockSideKind.Right:
+                    rightColumn.Top = item.Container;
+                    rightColumn.Width = item.Width;
+                    break;
+                case DockingContainerControl.DockSideKind.RightBottom:
+                    rightColumn.Bottom = item.Container;
+                    rightColumn.Width = item.Width;
+                    break;
+                case DockingContainerControl.DockSideKind.FarRight:
+                    farRightColumn.Top = item.Container;
+                    farRightColumn.Width = item.Width;
+                    break;
+                case DockingContainerControl.DockSideKind.FarRightBottom:
+                    farRightColumn.Bottom = item.Container;
+                    farRightColumn.Width = item.Width;
                     break;
                 default:
-                    center.Add(item);
+                    centerColumns.Add(new DockColumn
+                    {
+                        Top = item.Container,
+                        IsFlex = item.Flex,
+                        Width = item.Width
+                    });
                     break;
             }
         }
@@ -132,42 +186,59 @@ public sealed partial class DockingHostControl : Container
 
         var widthTotal = Size.X;
         var heightTotal = Size.Y;
-        var visibleCount = all.Count;
+        var orderedColumns = new List<DockColumn>();
+        if (farLeftColumn.HasVisible)
+        {
+            orderedColumns.Add(farLeftColumn);
+        }
+
+        if (leftColumn.HasVisible)
+        {
+            orderedColumns.Add(leftColumn);
+        }
+
+        foreach (var center in centerColumns)
+        {
+            if (center.HasVisible)
+            {
+                orderedColumns.Add(center);
+            }
+        }
+
+        if (rightColumn.HasVisible)
+        {
+            orderedColumns.Add(rightColumn);
+        }
+
+        if (farRightColumn.HasVisible)
+        {
+            orderedColumns.Add(farRightColumn);
+        }
+
+        var visibleCount = orderedColumns.Count;
         var regularGaps = Math.Max(0, visibleCount - 1) * gap;
-
-        var leftFixed = 0f;
-        foreach (var item in farLeft)
-        {
-            leftFixed += item.Width;
-        }
-        foreach (var item in left)
-        {
-            leftFixed += item.Width;
-        }
-
-        var rightFixed = 0f;
-        foreach (var item in right)
-        {
-            rightFixed += item.Width;
-        }
-        foreach (var item in farRight)
-        {
-            rightFixed += item.Width;
-        }
 
         var centerFixed = 0f;
         var centerFlexCount = 0;
-        LayoutItem? firstFlex = null;
-        foreach (var item in center)
+        DockColumn? firstFlex = null;
+        var nonCenterFixed = 0f;
+
+        foreach (var column in orderedColumns)
         {
-            if (item.Flex)
+            if (centerColumns.Contains(column) && column.IsFlex)
             {
-                firstFlex ??= item;
+                firstFlex ??= column;
                 centerFlexCount++;
+                continue;
+            }
+
+            if (centerColumns.Contains(column))
+            {
+                centerFixed += column.Width;
             }
             else
             {
-                centerFixed += item.Width;
+                nonCenterFixed += column.Width;
             }
         }
 
@@ -177,42 +248,93 @@ public sealed partial class DockingHostControl : Container
             centerFlexCount = 1;
         }
 
-        var rest = widthTotal - leftFixed - rightFixed - centerFixed - regularGaps - endGap;
+        var rest = widthTotal - nonCenterFixed - centerFixed - regularGaps - endGap;
         var flexWidth = centerFlexCount > 0 ? Math.Max(0, rest / centerFlexCount) : 0f;
-
-        var ordered = new List<LayoutItem>(all.Count);
-        ordered.AddRange(farLeft);
-        ordered.AddRange(left);
-        ordered.AddRange(center);
-        ordered.AddRange(right);
-        ordered.AddRange(farRight);
 
         var gapSegments = new List<GapSegment>();
         var cursorX = 0f;
-        for (var i = 0; i < ordered.Count; i++)
+        for (var i = 0; i < orderedColumns.Count; i++)
         {
-            var item = ordered[i];
-            var useFlex = firstFlex is not null && ReferenceEquals(item, firstFlex);
-            var itemWidth = useFlex ? flexWidth : item.Width;
-            FitChildInRect(item.Container, new Rect2(cursorX, 0, Math.Max(0, itemWidth), Math.Max(0, heightTotal)));
+            var column = orderedColumns[i];
+            var useFlex = firstFlex is not null && ReferenceEquals(column, firstFlex);
+            var itemWidth = useFlex ? flexWidth : column.Width;
+
+            LayoutColumn(column, cursorX, itemWidth, heightTotal);
+            RegisterWidthLinked(column);
+
+            var leftNeighbor = column.PrimaryVisible;
             cursorX += itemWidth;
 
-            var gapWidth = i == ordered.Count - 1 ? endGap : gap;
+            var gapWidth = i == orderedColumns.Count - 1 ? endGap : gap;
             if (gapWidth > 0)
             {
                 var rect = new Rect2(cursorX, 0, gapWidth, Math.Max(0, heightTotal));
-                _rightGapByContainer[item.Container.GetInstanceId()] = rect;
+                foreach (var visible in column.VisibleContainers())
+                {
+                    _rightGapByContainer[visible.GetInstanceId()] = rect;
+                }
+
                 gapSegments.Add(new GapSegment
                 {
                     Rect = rect,
-                    LeftNeighbor = item.Container,
-                    RightNeighbor = i < ordered.Count - 1 ? ordered[i + 1].Container : null
+                    LeftNeighbor = leftNeighbor,
+                    RightNeighbor = i < orderedColumns.Count - 1 ? orderedColumns[i + 1].PrimaryVisible : null
                 });
                 cursorX += gapWidth;
             }
         }
 
         RebuildHandles(gapSegments);
+    }
+
+    private static void LayoutColumn(DockColumn column, float x, float width, float hostHeight)
+    {
+        var clampedWidth = Math.Max(0, width);
+        var clampedHeight = Math.Max(0, hostHeight);
+
+        var hasTop = column.HasVisibleTop;
+        var hasBottom = column.HasVisibleBottom;
+
+        if (hasTop && hasBottom && column.Top is not null && column.Bottom is not null)
+        {
+            var half = clampedHeight * 0.5f;
+            var topRect = new Rect2(x, 0, clampedWidth, half);
+            var bottomRect = new Rect2(x, half, clampedWidth, clampedHeight - half);
+            column.Top.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
+            column.Bottom.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
+            column.Top.Position = topRect.Position;
+            column.Top.Size = topRect.Size;
+            column.Bottom.Position = bottomRect.Position;
+            column.Bottom.Size = bottomRect.Size;
+            return;
+        }
+
+        var single = column.PrimaryVisible;
+        if (single is not null)
+        {
+            single.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
+            single.Position = new Vector2(x, 0);
+            single.Size = new Vector2(clampedWidth, clampedHeight);
+        }
+    }
+
+    private void RegisterWidthLinked(DockColumn column)
+    {
+        var visible = new List<DockingContainerControl>();
+        foreach (var item in column.VisibleContainers())
+        {
+            visible.Add(item);
+        }
+
+        if (visible.Count <= 1)
+        {
+            return;
+        }
+
+        foreach (var container in visible)
+        {
+            _widthLinkedByContainer[container.GetInstanceId()] = visible;
+        }
     }
 
     public bool TryGetRightGapRect(DockingContainerControl container, out Rect2 rect)
@@ -263,10 +385,24 @@ public sealed partial class DockingHostControl : Container
 
             // Use full gap width as click area so left/right decision is stable.
             var fullGapRect = new Rect2(segment.Rect.Position.X, segment.Rect.Position.Y, segment.Rect.Size.X, segment.Rect.Size.Y);
-            AddResizeHandle(
-                leftNeighbor: segment.LeftNeighbor,
-                rightNeighbor: segment.RightNeighbor,
-                rect: BuildHandleRect(fullGapRect));
+            var (topRect, bottomRect) = BuildHandleRects(fullGapRect);
+            if (topRect is Rect2 t)
+            {
+                AddResizeHandle(
+                    leftNeighbor: segment.LeftNeighbor,
+                    rightNeighbor: segment.RightNeighbor,
+                    rect: t,
+                    suffix: "Top");
+            }
+
+            if (bottomRect is Rect2 b)
+            {
+                AddResizeHandle(
+                    leftNeighbor: segment.LeftNeighbor,
+                    rightNeighbor: segment.RightNeighbor,
+                    rect: b,
+                    suffix: "Bottom");
+            }
         }
 
         LogHandleCountIfChanged(interiorGapCount, _handles.Count);
@@ -284,18 +420,38 @@ public sealed partial class DockingHostControl : Container
         RunnerLogger.Info("UI", $"DockingHost '{Name}': interiorGaps={interiorGapCount}, handles={handleCount}");
     }
 
-    private static Rect2 BuildHandleRect(Rect2 rect)
+    private static (Rect2? Top, Rect2? Bottom) BuildHandleRects(Rect2 rect)
     {
-        var top = Math.Min(HandleTopInset, rect.Size.Y);
-        var height = Math.Max(0f, rect.Size.Y - top);
-        return new Rect2(rect.Position.X, top, rect.Size.X, height);
+        var topInset = Math.Min(HandleTopInset, rect.Size.Y);
+        var usableHeight = Math.Max(0f, rect.Size.Y - topInset);
+        if (usableHeight <= 0f)
+        {
+            return (null, null);
+        }
+
+        // Split every gap-handle into upper and lower segment so middle area stays clickable for menu buttons.
+        // If there is too little height, fall back to one segment in the upper area.
+        if (usableHeight < 48f)
+        {
+            return (new Rect2(rect.Position.X, topInset, rect.Size.X, usableHeight), null);
+        }
+
+        var half = usableHeight * 0.5f;
+        var separator = Math.Min(28f, half * 0.6f);
+        var topHeight = Math.Max(12f, half - (separator * 0.5f));
+        var bottomY = rect.Position.Y + topInset + topHeight + separator;
+        var bottomHeight = Math.Max(12f, rect.Position.Y + rect.Size.Y - bottomY);
+
+        var topRect = new Rect2(rect.Position.X, rect.Position.Y + topInset, rect.Size.X, topHeight);
+        var bottomRect = new Rect2(rect.Position.X, bottomY, rect.Size.X, bottomHeight);
+        return (topRect, bottomRect);
     }
 
-    private void AddResizeHandle(DockingContainerControl leftNeighbor, DockingContainerControl rightNeighbor, Rect2 rect)
+    private void AddResizeHandle(DockingContainerControl leftNeighbor, DockingContainerControl rightNeighbor, Rect2 rect, string suffix)
     {
         var handle = new DockResizeHandleControl
         {
-            Name = $"DockResizeHandle_{leftNeighbor.Name}_{rightNeighbor.Name}",
+            Name = $"DockResizeHandle_{leftNeighbor.Name}_{rightNeighbor.Name}_{suffix}",
             Color = HandleVisibleColor,
             MouseFilter = MouseFilterEnum.Stop,
             MouseDefaultCursorShape = CursorShape.Hsize,
@@ -438,6 +594,7 @@ public sealed partial class DockingHostControl : Container
             : _dragStartWidth - delta;
 
         _activeTargetContainer.SetFixedWidth(proposedWidth);
+        ApplyLinkedWidth(_activeTargetContainer, _activeTargetContainer.GetFixedWidth());
         var currentWidthInt = (int)MathF.Round(_activeTargetContainer.GetFixedWidth());
         if (currentWidthInt != _lastLoggedDragWidth)
         {
@@ -450,6 +607,24 @@ public sealed partial class DockingHostControl : Container
 
         QueueSort();
         AcceptEvent();
+    }
+
+    private void ApplyLinkedWidth(DockingContainerControl source, float width)
+    {
+        if (!_widthLinkedByContainer.TryGetValue(source.GetInstanceId(), out var linked))
+        {
+            return;
+        }
+
+        foreach (var container in linked)
+        {
+            if (ReferenceEquals(container, source))
+            {
+                continue;
+            }
+
+            container.SetFixedWidth(width);
+        }
     }
 
     private float ResolveActiveGapX(DockResizeHandleControl handle, bool usesPositiveDelta, DockingContainerControl activeTarget)

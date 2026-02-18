@@ -11,7 +11,7 @@ Window {
 
         DockingContainer {
             id: farLeftDock
-            dockSide: "farLeft"
+            dockSide: farLeft
             fixedWidth: 200
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
@@ -23,8 +23,21 @@ Window {
         }
 
         DockingContainer {
+            id: farLeftBottomDock
+            dockSide: farLeftBottom
+            fixedWidth: 200
+            dragToRearrangeEnabled: true
+            tabsRearrangeGroup: 1
+
+            VBoxContainer {
+                title: "Far Left Bottom"
+                Label { text: "Far left bottom dock" }
+            }
+        }
+
+        DockingContainer {
             id: leftDock
-            dockSide: "left"
+            dockSide: left
             fixedWidth: 280
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
@@ -46,8 +59,21 @@ Window {
         }
 
         DockingContainer {
+            id: leftBottomDock
+            dockSide: leftBottom
+            fixedWidth: 280
+            dragToRearrangeEnabled: true
+            tabsRearrangeGroup: 1
+
+            VBoxContainer {
+                title: "Left Bottom"
+                Label { text: "Left bottom dock" }
+            }
+        }
+
+        DockingContainer {
             id: centerDock
-            dockSide: "center"
+            dockSide: center
             flex: true
             closeable: false
             dragToRearrangeEnabled: false
@@ -70,7 +96,7 @@ Window {
 
         DockingContainer {
             id: rightDock
-            dockSide: "right"
+            dockSide: right
             fixedWidth: 360
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
@@ -92,8 +118,21 @@ Window {
         }
 
         DockingContainer {
+            id: rightBottomDock
+            dockSide: rightBottom
+            fixedWidth: 360
+            dragToRearrangeEnabled: true
+            tabsRearrangeGroup: 1
+
+            VBoxContainer {
+                title: "Right Bottom"
+                Label { text: "Right bottom dock" }
+            }
+        }
+
+        DockingContainer {
             id: farRightDock
-            dockSide: "farRight"
+            dockSide: farRight
             fixedWidth: 220
             closeable: false
             dragToRearrangeEnabled: true
@@ -102,6 +141,20 @@ Window {
             VBoxContainer {
                 title: "Console"
                 Label { text: "Far right dock" }
+            }
+        }
+
+        DockingContainer {
+            id: farRightBottomDock
+            dockSide: farRightBottom
+            fixedWidth: 220
+            closeable: false
+            dragToRearrangeEnabled: true
+            tabsRearrangeGroup: 1
+
+            VBoxContainer {
+                title: "Far Right Bottom"
+                Label { text: "Far right bottom dock" }
             }
         }
     }

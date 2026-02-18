@@ -56,6 +56,16 @@ public static class SmlSchemaFactory
         schema.RegisterEnumValue("sizeFlagsVertical", "shrinkCenter", 4);
         schema.RegisterEnumValue("sizeFlagsVertical", "shrinkEnd", 8);
 
+        schema.RegisterEnumValue("dockSide", "farLeft", 1);
+        schema.RegisterEnumValue("dockSide", "farLeftBottom", 2);
+        schema.RegisterEnumValue("dockSide", "left", 3);
+        schema.RegisterEnumValue("dockSide", "leftBottom", 4);
+        schema.RegisterEnumValue("dockSide", "center", 5);
+        schema.RegisterEnumValue("dockSide", "right", 6);
+        schema.RegisterEnumValue("dockSide", "rightBottom", 7);
+        schema.RegisterEnumValue("dockSide", "farRight", 8);
+        schema.RegisterEnumValue("dockSide", "farRightBottom", 9);
+
         return schema;
     }
 }

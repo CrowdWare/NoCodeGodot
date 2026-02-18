@@ -6,7 +6,7 @@ func get_spec() -> Dictionary:
         "backing": "PanelContainer",
         "properties": [
             {"sml":"id", "type":"identifier", "default":"—"},
-            {"sml":"dockSide", "type":"string", "default":"\"center\""},
+            {"sml":"dockSide", "type":"enum", "default":"center"},
             {"sml":"fixedWidth", "type":"int", "default":"240"},
             {"sml":"minFixedWidth", "type":"int", "default":"140"},
             {"sml":"flex", "type":"bool", "default":"false"},
@@ -18,12 +18,12 @@ func get_spec() -> Dictionary:
         "notes": [
             "Automatically creates an internal TabContainer.",
             "Direct child controls become tabs; use context property 'title' on each child to define tab captions.",
-            "dockSide supports: farLeft, left, center, right, farRight."
+            "dockSide supports: farLeft, farLeftBottom, left, leftBottom, center, right, rightBottom, farRight, farRightBottom."
         ],
         "examples_sml": [
             "DockingContainer {",
             "    id: leftDock",
-            "    dockSide: \"left\"",
+            "    dockSide: left",
             "    fixedWidth: 280",
             "    dragToRearrangeEnabled: true",
             "    tabsRearrangeGroup: 1",

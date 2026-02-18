@@ -33,17 +33,22 @@ public static partial class DockingManagerRuntime
         {
             var current = stack.Pop();
 
-            if (current is TabContainer tabs && tabs.DragToRearrangeEnabled)
+            if (current is DockingContainerControl dockingContainer)
             {
-                if (tabs.GetParent() is Control hostContainer)
+                if (!scopedMode || dockingContainer.GetParent() is DockingHostControl)
                 {
-                    if (scopedMode && hostContainer is not DockingContainerControl)
+                    var tabs = dockingContainer.EnsureTabHost();
+                    var dragToRearrangeEnabled = dockingContainer.HasMeta(NodePropertyMapper.MetaDockDragToRearrangeEnabled)
+                        ? dockingContainer.GetMeta(NodePropertyMapper.MetaDockDragToRearrangeEnabled).AsBool()
+                        : tabs.DragToRearrangeEnabled;
+
+                    if (!dragToRearrangeEnabled)
                     {
                         continue;
                     }
 
-                    var hostName = ResolveHostName(tabs, hostContainer, result.Count + 1);
-                    result.Add(new DockHostState(hostName, hostContainer, tabs));
+                    var hostName = ResolveHostName(tabs, dockingContainer, result.Count + 1);
+                    result.Add(new DockHostState(hostName, dockingContainer, tabs));
                 }
             }
 
@@ -86,6 +91,11 @@ public static partial class DockingManagerRuntime
 
     private static string ResolveHostName(TabContainer tabs, Control hostContainer, int fallbackIndex)
     {
+        if (hostContainer is DockingContainerControl dockingContainer)
+        {
+            return GetDockSideLabel(dockingContainer.GetDockSideKind());
+        }
+
         if (tabs.HasMeta(NodePropertyMapper.MetaId))
         {
             var id = tabs.GetMeta(NodePropertyMapper.MetaId).AsString();
@@ -106,6 +116,22 @@ public static partial class DockingManagerRuntime
         }
 
         return $"dockHost{fallbackIndex}";
+    }
+
+    private static string GetDockSideLabel(DockingContainerControl.DockSideKind side)
+    {
+        return side switch
+        {
+            DockingContainerControl.DockSideKind.FarLeft => "far left",
+            DockingContainerControl.DockSideKind.FarLeftBottom => "far left bottom",
+            DockingContainerControl.DockSideKind.Left => "left",
+            DockingContainerControl.DockSideKind.LeftBottom => "left bottom",
+            DockingContainerControl.DockSideKind.Right => "right",
+            DockingContainerControl.DockSideKind.RightBottom => "right bottom",
+            DockingContainerControl.DockSideKind.FarRight => "far right",
+            DockingContainerControl.DockSideKind.FarRightBottom => "far right bottom",
+            _ => "center"
+        };
     }
 
     private sealed partial class DockingManagerNode : Node
@@ -337,7 +363,8 @@ public static partial class DockingManagerRuntime
                 && gapRect.Size.X > 0)
             {
                 var x = gapRect.Position.X + ((gapRect.Size.X - buttonWidth) * 0.5f);
-                rect = new Rect2(x, 2f, buttonWidth, buttonHeight);
+                var y = Math.Max(2f, host.HostContainer.Position.Y + 2f);
+                rect = new Rect2(x, y, buttonWidth, buttonHeight);
                 return true;
             }
 
@@ -483,23 +510,19 @@ public static partial class DockingManagerRuntime
         {
             if (hostContainer is DockingContainerControl dockingContainer)
             {
-                var side = dockingContainer.GetDockSide();
-                if (string.Equals(side, "left", StringComparison.OrdinalIgnoreCase))
+                var side = dockingContainer.GetDockSideKind();
+                if (side is DockingContainerControl.DockSideKind.Left
+                    or DockingContainerControl.DockSideKind.LeftBottom
+                    or DockingContainerControl.DockSideKind.FarLeft
+                    or DockingContainerControl.DockSideKind.FarLeftBottom)
                 {
                     return DockSide.Left;
                 }
 
-                if (string.Equals(side, "farleft", StringComparison.OrdinalIgnoreCase))
-                {
-                    return DockSide.Left;
-                }
-
-                if (string.Equals(side, "right", StringComparison.OrdinalIgnoreCase))
-                {
-                    return DockSide.Right;
-                }
-
-                if (string.Equals(side, "farright", StringComparison.OrdinalIgnoreCase))
+                if (side is DockingContainerControl.DockSideKind.Right
+                    or DockingContainerControl.DockSideKind.RightBottom
+                    or DockingContainerControl.DockSideKind.FarRight
+                    or DockingContainerControl.DockSideKind.FarRightBottom)
                 {
                     return DockSide.Right;
                 }
@@ -559,8 +582,6 @@ public static partial class DockingManagerRuntime
 
                 var popup = host.KebabButton.GetPopup();
                 popup.Clear();
-
-                var anyClosed = false;
                 foreach (var target in _hosts)
                 {
                     if (ReferenceEquals(target, host))
@@ -568,21 +589,20 @@ public static partial class DockingManagerRuntime
                         continue;
                     }
 
-                    if (!target.IsClosed)
+                    if (target.Slot == host.Slot)
                     {
                         continue;
                     }
 
-                    anyClosed = true;
-                    var menuText = $"Move current tab to {target.Name}";
+                    var menuText = $"Move to {target.Name}";
                     var id = nextId++;
                     popup.AddItem(menuText, (int)id);
                     _menuActions[id] = new MenuAction(host, target);
                 }
 
-                if (!anyClosed)
+                if (popup.ItemCount == 0)
                 {
-                    popup.AddItem("No closed dock hosts", 0);
+                    popup.AddItem("No target", 0);
                     popup.SetItemDisabled(0, true);
                 }
             }
@@ -596,13 +616,17 @@ public static partial class DockingManagerRuntime
             Name = name;
             HostContainer = hostContainer;
             Tabs = tabs;
-            CanClose = hostContainer is not DockingContainerControl dockingContainer || dockingContainer.IsCloseable();
+            Slot = hostContainer is DockingContainerControl dockingContainer
+                ? dockingContainer.GetDockSideKind()
+                : DockingContainerControl.DockSideKind.Center;
+            CanClose = hostContainer is not DockingContainerControl closeCheckDock || closeCheckDock.IsCloseable();
             IsClosed = !hostContainer.Visible;
         }
 
         public string Name { get; }
         public Control HostContainer { get; }
         public TabContainer Tabs { get; }
+        public DockingContainerControl.DockSideKind Slot { get; }
         public MenuButton? KebabButton { get; set; }
         public bool CanClose { get; }
         public bool IsClosed { get; set; }

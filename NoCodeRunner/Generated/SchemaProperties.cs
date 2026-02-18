@@ -112,7 +112,7 @@ public static class SchemaProperties
         new PropDef("Control", "tooltipAutoTranslateMode", "tooltip_auto_translate_mode", "int"),
         new PropDef("Control", "tooltipText", "tooltip_text", "string"),
         new PropDef("DockingContainer", "id", "id", "identifier"),
-        new PropDef("DockingContainer", "dockSide", "dockSide", "string"),
+        new PropDef("DockingContainer", "dockSide", "dockSide", "enum"),
         new PropDef("DockingContainer", "fixedWidth", "fixedWidth", "int"),
         new PropDef("DockingContainer", "flex", "flex", "bool"),
         new PropDef("DockingContainer", "closeable", "closeable", "bool"),

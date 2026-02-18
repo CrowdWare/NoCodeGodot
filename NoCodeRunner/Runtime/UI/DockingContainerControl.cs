@@ -5,6 +5,19 @@ namespace Runtime.UI;
 
 public sealed partial class DockingContainerControl : PanelContainer
 {
+    public enum DockSideKind
+    {
+        Center,
+        FarLeft,
+        FarLeftBottom,
+        Left,
+        LeftBottom,
+        Right,
+        RightBottom,
+        FarRight,
+        FarRightBottom
+    }
+
     private const float DefaultMinFixedWidth = 140f;
     private TabContainer? _tabHost;
 
@@ -58,14 +71,42 @@ public sealed partial class DockingContainerControl : PanelContainer
         }
     }
 
-    public string GetDockSide()
+    public DockSideKind GetDockSideKind()
     {
-        if (HasMeta(NodePropertyMapper.MetaDockSide))
+        if (!HasMeta(NodePropertyMapper.MetaDockSide))
         {
-            return (GetMeta(NodePropertyMapper.MetaDockSide).AsString() ?? string.Empty).Trim().ToLowerInvariant();
+            return DockSideKind.Center;
         }
 
-        return "center";
+        var side = (GetMeta(NodePropertyMapper.MetaDockSide).AsString() ?? string.Empty).Trim().ToLowerInvariant();
+        return side switch
+        {
+            "farleft" => DockSideKind.FarLeft,
+            "farleftbottom" => DockSideKind.FarLeftBottom,
+            "left" => DockSideKind.Left,
+            "leftbottom" => DockSideKind.LeftBottom,
+            "right" => DockSideKind.Right,
+            "rightbottom" => DockSideKind.RightBottom,
+            "farright" => DockSideKind.FarRight,
+            "farrightbottom" => DockSideKind.FarRightBottom,
+            _ => DockSideKind.Center
+        };
+    }
+
+    public string GetDockSide()
+    {
+        return GetDockSideKind() switch
+        {
+            DockSideKind.FarLeft => "farleft",
+            DockSideKind.FarLeftBottom => "farleftbottom",
+            DockSideKind.Left => "left",
+            DockSideKind.LeftBottom => "leftbottom",
+            DockSideKind.Right => "right",
+            DockSideKind.RightBottom => "rightbottom",
+            DockSideKind.FarRight => "farright",
+            DockSideKind.FarRightBottom => "farrightbottom",
+            _ => "center"
+        };
     }
 
     public bool IsFlex()
@@ -75,7 +116,7 @@ public sealed partial class DockingContainerControl : PanelContainer
             return GetMeta(NodePropertyMapper.MetaDockFlex).AsBool();
         }
 
-        return string.Equals(GetDockSide(), "center", StringComparison.OrdinalIgnoreCase);
+        return GetDockSideKind() == DockSideKind.Center;
     }
 
     public float GetFixedWidth()
