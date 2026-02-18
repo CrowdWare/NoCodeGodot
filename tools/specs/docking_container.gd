@@ -16,7 +16,8 @@ func get_spec() -> Dictionary:
         "actions": [],
         "notes": [
             "Automatically creates an internal TabContainer.",
-            "Direct child controls become tabs; use context property 'title' on each child to define tab captions."
+            "Direct child controls become tabs; use context property 'title' on each child to define tab captions.",
+            "dockSide supports: farLeft, left, center, right, farRight."
         ],
         "examples_sml": [
             "DockingContainer {",

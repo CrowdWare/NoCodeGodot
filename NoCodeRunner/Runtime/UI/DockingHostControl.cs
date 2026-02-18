@@ -50,15 +50,23 @@ public sealed partial class DockingHostControl : Container
         }
 
         var left = new List<LayoutItem>();
+        var farLeft = new List<LayoutItem>();
         var center = new List<LayoutItem>();
         var right = new List<LayoutItem>();
+        var farRight = new List<LayoutItem>();
 
         foreach (var item in all)
         {
             switch (item.Side)
             {
+                case "farleft":
+                    farLeft.Add(item);
+                    break;
                 case "left":
                     left.Add(item);
+                    break;
+                case "farright":
+                    farRight.Add(item);
                     break;
                 case "right":
                     right.Add(item);
@@ -81,6 +89,10 @@ public sealed partial class DockingHostControl : Container
         var totalGaps = Math.Max(0, visibleCount - 1) * gap;
 
         var leftFixed = 0f;
+        foreach (var item in farLeft)
+        {
+            leftFixed += item.Width;
+        }
         foreach (var item in left)
         {
             leftFixed += item.Width;
@@ -91,19 +103,31 @@ public sealed partial class DockingHostControl : Container
         {
             rightFixed += item.Width;
         }
+        foreach (var item in farRight)
+        {
+            rightFixed += item.Width;
+        }
 
         var centerFixed = 0f;
         var centerFlexCount = 0;
+        LayoutItem? firstFlex = null;
         foreach (var item in center)
         {
             if (item.Flex)
             {
+                firstFlex ??= item;
                 centerFlexCount++;
             }
             else
             {
                 centerFixed += item.Width;
             }
+        }
+
+        if (centerFlexCount > 1)
+        {
+            GD.PushWarning($"[UI] DockingHost '{Name}' has {centerFlexCount} flex center containers. Only the first will behave as flex.");
+            centerFlexCount = 1;
         }
 
         var rest = widthTotal - leftFixed - rightFixed - centerFixed - totalGaps;
@@ -116,6 +140,11 @@ public sealed partial class DockingHostControl : Container
             cursorX += itemWidth + gap;
         };
 
+        foreach (var item in farLeft)
+        {
+            place(item, item.Width);
+        }
+
         foreach (var item in left)
         {
             place(item, item.Width);
@@ -123,10 +152,16 @@ public sealed partial class DockingHostControl : Container
 
         foreach (var item in center)
         {
-            place(item, item.Flex ? flexWidth : item.Width);
+            var useFlex = firstFlex is not null && ReferenceEquals(item, firstFlex);
+            place(item, useFlex ? flexWidth : item.Width);
         }
 
         foreach (var item in right)
+        {
+            place(item, item.Width);
+        }
+
+        foreach (var item in farRight)
         {
             place(item, item.Width);
         }

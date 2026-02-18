@@ -9,6 +9,19 @@ Window {
         anchors: left | top | right | bottom
         gap: 8
 
+        /*DockingContainer {
+            id: farLeftDock
+            dockSide: "farLeft"
+            fixedWidth: 200
+            dragToRearrangeEnabled: true
+            tabsRearrangeGroup: 1
+
+            VBoxContainer {
+                title: "Assets"
+                Label { text: "Far left dock" }
+            }
+        }
+*/
         DockingContainer {
             id: leftDock
             dockSide: "left"
@@ -75,6 +88,20 @@ Window {
             VBoxContainer {
                 title: "Profiler"
                 Label { text: "Performance metrics" }
+            }
+        }
+
+        DockingContainer {
+            id: farRightDock
+            dockSide: "farRight"
+            fixedWidth: 220
+            closeable: false
+            dragToRearrangeEnabled: true
+            tabsRearrangeGroup: 1
+
+            VBoxContainer {
+                title: "Console"
+                Label { text: "Far right dock (non-closeable)" }
             }
         }
     }

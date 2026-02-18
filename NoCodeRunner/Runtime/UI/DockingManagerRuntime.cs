@@ -162,10 +162,13 @@ public static partial class DockingManagerRuntime
 
                 if (host.HostContainer.Visible && host.Tabs.GetTabCount() == 0)
                 {
-                    host.HostContainer.Visible = false;
-                    host.IsClosed = true;
-                    host.LastKnownTabCount = 0;
-                    changed = true;
+                    if (host.CanClose)
+                    {
+                        host.HostContainer.Visible = false;
+                        host.IsClosed = true;
+                        host.LastKnownTabCount = 0;
+                        changed = true;
+                    }
                 }
                 else
                 {
@@ -182,8 +185,10 @@ public static partial class DockingManagerRuntime
 
         private void CreateKebabMenu(DockHostState host)
         {
-            var tabBar = host.Tabs.GetTabBar();
-            Control parentForButton = tabBar ?? host.HostContainer;
+            if (!host.CanClose)
+            {
+                return;
+            }
 
             var button = new MenuButton
             {
@@ -199,12 +204,12 @@ public static partial class DockingManagerRuntime
             };
 
             button.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopRight);
-            button.SetOffset(Side.Right, -36);
+            button.SetOffset(Side.Right, -4);
             button.SetOffset(Side.Top, 2);
-            button.SetOffset(Side.Left, -66);
+            button.SetOffset(Side.Left, -34);
             button.SetOffset(Side.Bottom, 26);
 
-            parentForButton.AddChild(button);
+            host.HostContainer.AddChild(button);
             host.KebabButton = button;
 
             var popup = button.GetPopup();
@@ -265,8 +270,11 @@ public static partial class DockingManagerRuntime
 
             if (sourceTabs.GetTabCount() == 0)
             {
-                sourceHost.HostContainer.Visible = false;
-                sourceHost.IsClosed = true;
+                if (sourceHost.CanClose)
+                {
+                    sourceHost.HostContainer.Visible = false;
+                    sourceHost.IsClosed = true;
+                }
             }
 
             UpdateFlexibleHostsLayout();
@@ -363,7 +371,17 @@ public static partial class DockingManagerRuntime
                     return DockSide.Left;
                 }
 
+                if (string.Equals(side, "farleft", StringComparison.OrdinalIgnoreCase))
+                {
+                    return DockSide.Left;
+                }
+
                 if (string.Equals(side, "right", StringComparison.OrdinalIgnoreCase))
+                {
+                    return DockSide.Right;
+                }
+
+                if (string.Equals(side, "farright", StringComparison.OrdinalIgnoreCase))
                 {
                     return DockSide.Right;
                 }
@@ -437,6 +455,11 @@ public static partial class DockingManagerRuntime
                         continue;
                     }
 
+                    if (!target.CanClose)
+                    {
+                        continue;
+                    }
+
                     anyClosed = true;
                     var menuText = $"Move current tab to {target.Name}";
                     var id = nextId++;
@@ -460,6 +483,7 @@ public static partial class DockingManagerRuntime
             Name = name;
             HostContainer = hostContainer;
             Tabs = tabs;
+            CanClose = hostContainer is not DockingContainerControl dockingContainer || dockingContainer.IsCloseable();
             IsClosed = !hostContainer.Visible;
         }
 
@@ -467,6 +491,7 @@ public static partial class DockingManagerRuntime
         public Control HostContainer { get; }
         public TabContainer Tabs { get; }
         public MenuButton? KebabButton { get; set; }
+        public bool CanClose { get; }
         public bool IsClosed { get; set; }
         public int LastKnownTabCount { get; set; }
         public DockSide Side { get; set; } = DockSide.Other;
