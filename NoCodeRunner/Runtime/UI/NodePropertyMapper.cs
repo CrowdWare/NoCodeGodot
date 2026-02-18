@@ -54,9 +54,11 @@ public sealed class NodePropertyMapper
     public const string MetaEnableDockingManager = "sml_enableDockingManager";
     public const string MetaDockSide = "sml_dockSide";
     public const string MetaDockFixedWidth = "sml_dockFixedWidth";
+    public const string MetaDockMinFixedWidth = "sml_dockMinFixedWidth";
     public const string MetaDockFlex = "sml_dockFlex";
     public const string MetaDockCloseable = "sml_dockCloseable";
     public const string MetaDockGap = "sml_dockGap";
+    public const string MetaDockEndGap = "sml_dockEndGap";
     public const string MetaDockDragToRearrangeEnabled = "sml_dockDragToRearrangeEnabled";
     public const string MetaDockTabsRearrangeGroup = "sml_dockTabsRearrangeGroup";
     public const string MetaDockingTabHost = "sml_dockingTabHost";
@@ -412,9 +414,12 @@ public sealed class NodePropertyMapper
             ["dockingmanager"] = (control, value, propertyName) => SetMetaBool(control, MetaEnableDockingManager, value, propertyName),
             ["dockside"] = (control, value, propertyName) => SetMetaString(control, MetaDockSide, value, propertyName),
             ["fixedwidth"] = (control, value, propertyName) => SetMetaInt(control, MetaDockFixedWidth, value, propertyName),
+            ["minfixedwidth"] = (control, value, propertyName) => SetMetaInt(control, MetaDockMinFixedWidth, value, propertyName),
             ["flex"] = (control, value, propertyName) => SetMetaBool(control, MetaDockFlex, value, propertyName),
             ["closeable"] = (control, value, propertyName) => SetMetaBool(control, MetaDockCloseable, value, propertyName),
             ["gap"] = (control, value, propertyName) => SetMetaInt(control, MetaDockGap, value, propertyName),
+            ["endgap"] = (control, value, propertyName) => SetMetaInt(control, MetaDockEndGap, value, propertyName),
+            ["dockendgap"] = (control, value, propertyName) => SetMetaInt(control, MetaDockEndGap, value, propertyName),
             ["dragtorearrangeenabled"] = (control, value, propertyName) => ApplyDragToRearrangeEnabled(control, value, propertyName),
             ["tabsrearrangegroup"] = (control, value, propertyName) => ApplyTabsRearrangeGroup(control, value, propertyName),
             ["centerx"] = (control, value, propertyName) => SetMetaBool(control, MetaCenterX, value, propertyName),

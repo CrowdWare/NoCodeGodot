@@ -7,6 +7,7 @@ func get_spec() -> Dictionary:
         "properties": [
             {"sml":"id", "type":"identifier", "default":"—"},
             {"sml":"gap", "type":"int", "default":"0"},
+            {"sml":"endGap", "type":"int", "default":"30"},
             {"sml":"anchors", "type":"string", "default":"\"\""},
             {"sml":"x", "type":"int", "default":"0"},
             {"sml":"y", "type":"int", "default":"0"},

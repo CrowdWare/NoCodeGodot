@@ -114,6 +114,8 @@ public static partial class DockingManagerRuntime
         private readonly List<FlexibleHostState> _flexibleHosts = [];
         private readonly Dictionary<long, MenuAction> _menuActions = [];
         private double _elapsed;
+        private int _suppressKebabFrames;
+        private Vector2 _lastViewportSize = Vector2.Zero;
         private float _baseLeftInset;
         private float _baseRightInset;
 
@@ -143,6 +145,20 @@ public static partial class DockingManagerRuntime
 
         public override void _Process(double delta)
         {
+            if (IsAnyHandleDragActive())
+            {
+                foreach (var host in _hosts)
+                {
+                    if (GodotObject.IsInstanceValid(host.KebabButton))
+                    {
+                        host.KebabButton.Visible = false;
+                    }
+                }
+
+                // Skip repositioning while dragging to avoid stale button positions.
+                return;
+            }
+
             _elapsed += delta;
             if (_elapsed < 0.2)
             {
@@ -174,20 +190,39 @@ public static partial class DockingManagerRuntime
                 }
             }
 
+            var viewportSize = GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero;
+            if (_lastViewportSize != Vector2.Zero && viewportSize != _lastViewportSize)
+            {
+                _suppressKebabFrames = 2;
+            }
+
+            _lastViewportSize = viewportSize;
+
             if (changed)
             {
                 UpdateFlexibleHostsLayout();
                 RefreshAllMenus();
             }
+
+            if (_suppressKebabFrames > 0)
+            {
+                _suppressKebabFrames--;
+                foreach (var host in _hosts)
+                {
+                    if (GodotObject.IsInstanceValid(host.KebabButton))
+                    {
+                        host.KebabButton.Visible = false;
+                    }
+                }
+
+                return;
+            }
+
+            UpdateKebabPositions();
         }
 
         private void CreateKebabMenu(DockHostState host)
         {
-            if (!host.CanClose)
-            {
-                return;
-            }
-
             var button = new MenuButton
             {
                 Name = $"DockKebab_{host.Name}",
@@ -201,13 +236,17 @@ public static partial class DockingManagerRuntime
                 ZIndex = 1000
             };
 
-            button.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopRight);
-            button.SetOffset(Side.Right, -4);
-            button.SetOffset(Side.Top, 2);
-            button.SetOffset(Side.Left, -34);
-            button.SetOffset(Side.Bottom, 26);
+            button.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopLeft);
 
-            host.HostContainer.AddChild(button);
+            if (TryResolveKebabParent(host, out var parent))
+            {
+                parent.AddChild(button);
+            }
+            else
+            {
+                host.HostContainer.AddChild(button);
+            }
+
             host.KebabButton = button;
 
             var popup = button.GetPopup();
@@ -220,6 +259,90 @@ public static partial class DockingManagerRuntime
 
                 ExecuteMoveAction(action.SourceHost, action.TargetHost);
             };
+
+            UpdateSingleKebabPosition(host);
+        }
+
+        private bool IsAnyHandleDragActive()
+        {
+            foreach (var host in _hosts)
+            {
+                if (host.HostContainer.GetParent() is DockingHostControl dockingHost
+                    && dockingHost.IsHandleDragActive)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void UpdateKebabPositions()
+        {
+            foreach (var host in _hosts)
+            {
+                UpdateSingleKebabPosition(host);
+            }
+        }
+
+        private void UpdateSingleKebabPosition(DockHostState host)
+        {
+            if (!GodotObject.IsInstanceValid(host.KebabButton))
+            {
+                return;
+            }
+
+            var button = host.KebabButton;
+            button.Visible = host.HostContainer.Visible;
+
+            if (!button.Visible)
+            {
+                return;
+            }
+
+            if (!TryResolveKebabParent(host, out var parent) || button.GetParent() != parent)
+            {
+                return;
+            }
+
+            if (!TryGetKebabRect(host, out var kebabRect))
+            {
+                return;
+            }
+
+            button.Position = kebabRect.Position;
+            button.Size = kebabRect.Size;
+        }
+
+        private static bool TryResolveKebabParent(DockHostState host, out Control parent)
+        {
+            if (host.HostContainer.GetParent() is DockingHostControl dockingHost)
+            {
+                parent = dockingHost;
+                return true;
+            }
+
+            parent = host.HostContainer;
+            return false;
+        }
+
+        private static bool TryGetKebabRect(DockHostState host, out Rect2 rect)
+        {
+            const float buttonWidth = 24f;
+            const float buttonHeight = 24f;
+
+            if (host.HostContainer is DockingContainerControl dock
+                && host.HostContainer.GetParent() is DockingHostControl dockingHost
+                && dockingHost.TryGetRightGapRect(dock, out var gapRect)
+                && gapRect.Size.X > 0)
+            {
+                var x = gapRect.Position.X + ((gapRect.Size.X - buttonWidth) * 0.5f);
+                rect = new Rect2(x, 2f, buttonWidth, buttonHeight);
+                return true;
+            }
+
+            rect = new Rect2(Math.Max(0, host.HostContainer.Size.X - 30f), 2f, buttonWidth, buttonHeight);
+            return true;
         }
 
         private void ExecuteMoveAction(DockHostState sourceHost, DockHostState targetHost)
@@ -486,6 +609,7 @@ public static partial class DockingManagerRuntime
         public int LastKnownTabCount { get; set; }
         public DockSide Side { get; set; } = DockSide.Other;
         public float BaseWidth { get; set; }
+        public Vector2 LastKnownSize { get; set; }
     }
 
     private sealed class FlexibleHostState

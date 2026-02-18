@@ -8,6 +8,7 @@ func get_spec() -> Dictionary:
             {"sml":"id", "type":"identifier", "default":"—"},
             {"sml":"dockSide", "type":"string", "default":"\"center\""},
             {"sml":"fixedWidth", "type":"int", "default":"240"},
+            {"sml":"minFixedWidth", "type":"int", "default":"140"},
             {"sml":"flex", "type":"bool", "default":"false"},
             {"sml":"closeable", "type":"bool", "default":"true"},
             {"sml":"dragToRearrangeEnabled", "type":"bool", "default":"true"},

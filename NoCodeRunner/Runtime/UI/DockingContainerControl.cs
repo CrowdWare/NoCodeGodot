@@ -5,6 +5,7 @@ namespace Runtime.UI;
 
 public sealed partial class DockingContainerControl : PanelContainer
 {
+    private const float DefaultMinFixedWidth = 140f;
     private TabContainer? _tabHost;
 
     public override void _Ready()
@@ -79,13 +80,33 @@ public sealed partial class DockingContainerControl : PanelContainer
 
     public float GetFixedWidth()
     {
+        var minFixedWidth = GetMinFixedWidth();
+
         if (HasMeta(NodePropertyMapper.MetaDockFixedWidth))
         {
-            return Math.Max(0, GetMeta(NodePropertyMapper.MetaDockFixedWidth).AsInt32());
+            var width = Math.Max(0, GetMeta(NodePropertyMapper.MetaDockFixedWidth).AsInt32());
+            return Math.Max(minFixedWidth, width);
         }
 
         var minWidth = CustomMinimumSize.X;
-        return minWidth > 0 ? minWidth : 240f;
+        var fallback = minWidth > 0 ? minWidth : 240f;
+        return Math.Max(minFixedWidth, fallback);
+    }
+
+    public float GetMinFixedWidth()
+    {
+        if (HasMeta(NodePropertyMapper.MetaDockMinFixedWidth))
+        {
+            return Math.Max(40f, GetMeta(NodePropertyMapper.MetaDockMinFixedWidth).AsInt32());
+        }
+
+        return DefaultMinFixedWidth;
+    }
+
+    public void SetFixedWidth(float width)
+    {
+        var clamped = Math.Max(GetMinFixedWidth(), width);
+        SetMeta(NodePropertyMapper.MetaDockFixedWidth, Variant.From((int)MathF.Round(clamped)));
     }
 
     public bool IsCloseable()
