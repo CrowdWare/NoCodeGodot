@@ -81,6 +81,7 @@ public sealed partial class DockingHostControl : Container
     private DockLayoutState? _defaultLayoutState;
     private readonly Dictionary<string, HiddenPanelState> _hiddenPanelsByTitle = new(StringComparer.Ordinal);
     private readonly Dictionary<string, HiddenPanelState> _hiddenPanelsById = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _menuItemToPanel = new(StringComparer.OrdinalIgnoreCase);
 
     private sealed class DockLayoutState
     {
@@ -259,6 +260,96 @@ public sealed partial class DockingHostControl : Container
         return IsPanelVisibleById(panelId)
             ? HidePanelById(panelId)
             : ShowPanelById(panelId);
+    }
+
+    public bool MapMenuItemToPanel(string menuItemId, string panelId)
+    {
+        if (string.IsNullOrWhiteSpace(menuItemId) || string.IsNullOrWhiteSpace(panelId))
+        {
+            return false;
+        }
+
+        if (!ContainsPanelId(panelId))
+        {
+            return false;
+        }
+
+        _menuItemToPanel[menuItemId] = panelId;
+        NotifyDockingManagersMenuMappingChanged();
+        return true;
+    }
+
+    public bool UnmapMenuItemToPanel(string menuItemId)
+    {
+        if (string.IsNullOrWhiteSpace(menuItemId))
+        {
+            return false;
+        }
+
+        var removed = _menuItemToPanel.Remove(menuItemId);
+        if (removed)
+        {
+            NotifyDockingManagersMenuMappingChanged();
+        }
+
+        return removed;
+    }
+
+    public bool TryResolveMappedPanelId(string menuItemId, out string panelId)
+    {
+        if (string.IsNullOrWhiteSpace(menuItemId))
+        {
+            panelId = string.Empty;
+            return false;
+        }
+
+        return _menuItemToPanel.TryGetValue(menuItemId, out panelId!);
+    }
+
+    public Dictionary<string, string> GetMenuItemPanelMappings()
+    {
+        return new Dictionary<string, string>(_menuItemToPanel, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public static bool IsMenuItemMappedToPanel(string menuItemId)
+    {
+        if (string.IsNullOrWhiteSpace(menuItemId)
+            || Engine.GetMainLoop() is not SceneTree sceneTree
+            || sceneTree.Root is null)
+        {
+            return false;
+        }
+
+        var stack = new Stack<Node>();
+        stack.Push(sceneTree.Root);
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (current is DockingHostControl host
+                && host.TryResolveMappedPanelId(menuItemId, out var panelId)
+                && !string.IsNullOrWhiteSpace(panelId))
+            {
+                return true;
+            }
+
+            for (var i = current.GetChildCount() - 1; i >= 0; i--)
+            {
+                stack.Push(current.GetChild(i));
+            }
+        }
+
+        return false;
+    }
+
+    private void NotifyDockingManagersMenuMappingChanged()
+    {
+        var tree = GetTree();
+        if (tree is null)
+        {
+            return;
+        }
+
+        tree.CallGroup("docking_manager_nodes", "RequestRebuildPanelMenuBindings");
     }
 
     public bool IsPanelVisibleById(string panelId)

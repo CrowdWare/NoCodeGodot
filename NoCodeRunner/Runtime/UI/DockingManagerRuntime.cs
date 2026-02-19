@@ -127,7 +127,6 @@ public static partial class DockingManagerRuntime
         private readonly Dictionary<string, Button> _dockSelectionButtons = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<PanelMenuBinding> _panelMenuBindings = [];
         private readonly HashSet<ulong> _boundPopupInstanceIds = [];
-        private readonly Dictionary<ulong, DockingHostControl> _popupHosts = [];
         private PopupPanel? _dockSelectionPopup;
         private DockHostState? _dockSelectionSourceHost;
         private double _elapsed;
@@ -136,12 +135,20 @@ public static partial class DockingManagerRuntime
 
         public override void _EnterTree()
         {
+            AddToGroup("docking_manager_nodes");
+
             // Configure native subwindows only when this node is inside the scene tree.
             if (GetTree()?.Root is { } viewportRoot && viewportRoot.GuiEmbedSubwindows)
             {
                 viewportRoot.GuiEmbedSubwindows = false;
             }
 
+            RebuildPanelMenuBindings();
+            SyncBoundMenuChecks();
+        }
+
+        public void RequestRebuildPanelMenuBindings()
+        {
             RebuildPanelMenuBindings();
             SyncBoundMenuChecks();
         }
@@ -225,46 +232,6 @@ public static partial class DockingManagerRuntime
         private void RebuildPanelMenuBindings()
         {
             _panelMenuBindings.Clear();
-            _popupHosts.Clear();
-
-            var hostByPanelId = new Dictionary<string, DockingHostControl>(StringComparer.OrdinalIgnoreCase);
-            foreach (var host in _hosts)
-            {
-                if (!GodotObject.IsInstanceValid(host.Dock))
-                {
-                    continue;
-                }
-
-                if (host.Dock.GetParent() is not DockingHostControl dockingHost)
-                {
-                    continue;
-                }
-
-                for (var i = 0; i < dockingHost.GetChildCount(); i++)
-                {
-                    if (dockingHost.GetChild(i) is not DockingContainerControl container)
-                    {
-                        continue;
-                    }
-
-                    for (var tab = 0; tab < container.GetTabCount(); tab++)
-                    {
-                        var panel = container.GetTabControl(tab);
-                        if (panel is null)
-                        {
-                            continue;
-                        }
-
-                        var panelId = ResolvePanelId(panel);
-                        if (string.IsNullOrWhiteSpace(panelId))
-                        {
-                            continue;
-                        }
-
-                        hostByPanelId[panelId] = dockingHost;
-                    }
-                }
-            }
 
             if (GetParent() is not Control root)
             {
@@ -278,7 +245,7 @@ public static partial class DockingManagerRuntime
                 var current = stack.Pop();
                 if (current is PopupMenu popup)
                 {
-                    BindPopupForPanelToggles(popup, hostByPanelId);
+                    BindPopupForPanelToggles(popup);
                 }
 
                 for (var i = current.GetChildCount() - 1; i >= 0; i--)
@@ -288,24 +255,22 @@ public static partial class DockingManagerRuntime
             }
         }
 
-        private void BindPopupForPanelToggles(PopupMenu popup, Dictionary<string, DockingHostControl> hostByPanelId)
+        private void BindPopupForPanelToggles(PopupMenu popup)
         {
             for (var i = 0; i < popup.ItemCount; i++)
             {
                 var itemId = popup.GetItemMetadata(i).AsString();
-                var panelId = ResolvePanelIdFromMenuItemId(itemId, hostByPanelId);
-                if (string.IsNullOrWhiteSpace(panelId))
+                if (string.IsNullOrWhiteSpace(itemId))
                 {
                     continue;
                 }
 
-                if (!hostByPanelId.TryGetValue(panelId, out var host))
+                if (!TryResolveMappedBinding(itemId, popup, i, out var binding))
                 {
                     continue;
                 }
 
-                _panelMenuBindings.Add(new PanelMenuBinding(host, popup, i, panelId));
-                _popupHosts[popup.GetInstanceId()] = host;
+                _panelMenuBindings.Add(binding);
             }
 
             var popupInstanceId = popup.GetInstanceId();
@@ -320,12 +285,6 @@ public static partial class DockingManagerRuntime
 
         private void HandlePanelMenuPressed(PopupMenu popup, long id)
         {
-            var popupId = popup.GetInstanceId();
-            if (!_popupHosts.TryGetValue(popupId, out var host) || !GodotObject.IsInstanceValid(host))
-            {
-                return;
-            }
-
             var itemIndex = -1;
             for (var i = 0; i < popup.ItemCount; i++)
             {
@@ -341,14 +300,32 @@ public static partial class DockingManagerRuntime
                 return;
             }
 
-            var panelId = popup.GetItemMetadata(itemIndex).AsString();
-            panelId = ResolvePanelIdFromMenuItemId(panelId, null);
-            if (string.IsNullOrWhiteSpace(panelId) || !host.ContainsPanelId(panelId))
+            PanelMenuBinding? matched = null;
+            foreach (var binding in _panelMenuBindings)
+            {
+                if (!GodotObject.IsInstanceValid(binding.Popup)
+                    || !GodotObject.IsInstanceValid(binding.Host)
+                    || binding.ItemIndex < 0
+                    || binding.ItemIndex >= binding.Popup.ItemCount)
+                {
+                    continue;
+                }
+
+                if (binding.Popup.GetInstanceId() == popup.GetInstanceId() && binding.ItemIndex == itemIndex)
+                {
+                    matched = binding;
+                    break;
+                }
+            }
+
+            if (matched is null)
             {
                 return;
             }
 
-            if (!host.TogglePanel(panelId))
+            var host = matched.Host;
+            var panelId = matched.PanelId;
+            if (!host.ContainsPanelId(panelId) || !host.TogglePanel(panelId))
             {
                 return;
             }
@@ -358,26 +335,29 @@ public static partial class DockingManagerRuntime
             SyncBoundMenuChecks();
         }
 
-        private static string ResolvePanelIdFromMenuItemId(string itemId, Dictionary<string, DockingHostControl>? hostByPanelId)
+        private bool TryResolveMappedBinding(string menuItemId, PopupMenu popup, int itemIndex, out PanelMenuBinding binding)
         {
-            if (string.IsNullOrWhiteSpace(itemId))
+            foreach (var hostState in _hosts)
             {
-                return string.Empty;
+                if (!GodotObject.IsInstanceValid(hostState.Dock)
+                    || hostState.Dock.GetParent() is not DockingHostControl host)
+                {
+                    continue;
+                }
+
+                if (!host.TryResolveMappedPanelId(menuItemId, out var panelId)
+                    || string.IsNullOrWhiteSpace(panelId)
+                    || !host.ContainsPanelId(panelId))
+                {
+                    continue;
+                }
+
+                binding = new PanelMenuBinding(host, popup, itemIndex, panelId);
+                return true;
             }
 
-            if (hostByPanelId is not null && hostByPanelId.ContainsKey(itemId))
-            {
-                return itemId;
-            }
-
-            if (!itemId.StartsWith("view", StringComparison.OrdinalIgnoreCase) || itemId.Length <= 4)
-            {
-                return itemId;
-            }
-
-            var suffix = itemId.Substring(4);
-            var normalized = char.ToLowerInvariant(suffix[0]) + suffix.Substring(1);
-            return normalized;
+            binding = null!;
+            return false;
         }
 
         private void SyncBoundMenuChecks()

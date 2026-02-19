@@ -5,6 +5,26 @@ var lastUndockedPanel = null
 fun ready() {
     host = ui.getObject("mainDockHost")
     rightDock = ui.getObject("rightDock")
+
+    if (host == null) {
+        return
+    }
+
+    host.mapMenuItemToPanel("viewAssets", "assets")
+    host.mapMenuItemToPanel("viewFarLeftBottomPanel", "farLeftBottomPanel")
+    host.mapMenuItemToPanel("viewProject", "project")
+    host.mapMenuItemToPanel("viewHierarchy", "hierarchy")
+    host.mapMenuItemToPanel("viewSearch", "search")
+    host.mapMenuItemToPanel("viewEditor", "editor")
+    host.mapMenuItemToPanel("viewShader", "shader")
+    host.mapMenuItemToPanel("viewOutput", "output")
+    host.mapMenuItemToPanel("viewPreview", "preview")
+    host.mapMenuItemToPanel("viewProfiler", "profiler")
+    host.mapMenuItemToPanel("viewLeftBottomPanel", "leftBottomPanel")
+    host.mapMenuItemToPanel("viewInspector", "inspector")
+    host.mapMenuItemToPanel("viewRightBottomPanel", "rightBottomPanel")
+    host.mapMenuItemToPanel("viewConsole", "console")
+    host.mapMenuItemToPanel("viewFarRightBottomPanel", "farRightBottomPanel")
 }
 
 on saveLayout.clicked() {

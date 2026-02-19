@@ -1069,16 +1069,12 @@ public sealed class SmsUiRuntime
 
     private static bool ShouldSuppressMissingMenuHandler(string itemId)
     {
-        if (string.IsNullOrWhiteSpace(itemId)
-            || !itemId.StartsWith("view", StringComparison.OrdinalIgnoreCase)
-            || itemId.Length <= 4)
+        if (string.IsNullOrWhiteSpace(itemId))
         {
             return false;
         }
 
-        var suffix = itemId[4..];
-        var panelId = char.ToLowerInvariant(suffix[0]) + suffix[1..];
-        return UiRuntimeApi.GetObjectById(panelId) is not null;
+        return DockingHostControl.IsMenuItemMappedToPanel(itemId);
     }
 
     private static string ResolveSourceId(UiActionContext ctx)
