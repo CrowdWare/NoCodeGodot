@@ -88,6 +88,10 @@ private void OnTabChanged(long index)
 Must also be executed once during _Ready() for initial sync.
 
 ⸻
+## Now we can also remove the most right extra gap.
+This gap was only there to host the MenuButton.
+
+⸻
 
 ## Acceptance Criteria
 	•	Clicking a tab changes visible content.
