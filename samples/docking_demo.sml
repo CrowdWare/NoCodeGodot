@@ -46,6 +46,7 @@ Window {
             id: farLeftDock
             dockSide: farLeft
             fixedWidth: 200
+            heightPercent: 62
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
 
@@ -60,6 +61,7 @@ Window {
             id: farLeftBottomDock
             dockSide: farLeftBottom
             fixedWidth: 200
+            minFixedHeight: 100
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
 
@@ -74,6 +76,7 @@ Window {
             id: leftDock
             dockSide: left
             fixedWidth: 280
+            fixedHeight: 420
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
 
@@ -100,6 +103,7 @@ Window {
             id: leftBottomDock
             dockSide: leftBottom
             fixedWidth: 280
+            minFixedHeight: 120
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
 
@@ -140,6 +144,7 @@ Window {
             id: rightDock
             dockSide: right
             fixedWidth: 360
+            heightPercent: 68
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
 
@@ -166,6 +171,8 @@ Window {
             id: rightBottomDock
             dockSide: rightBottom
             fixedWidth: 360
+            fixedHeight: 220
+            minFixedHeight: 100
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
 
@@ -180,6 +187,7 @@ Window {
             id: farRightDock
             dockSide: farRight
             fixedWidth: 220
+            heightPercent: 60
             closeable: false
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
@@ -195,6 +203,7 @@ Window {
             id: farRightBottomDock
             dockSide: farRightBottom
             fixedWidth: 220
+            minFixedHeight: 90
             closeable: false
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1

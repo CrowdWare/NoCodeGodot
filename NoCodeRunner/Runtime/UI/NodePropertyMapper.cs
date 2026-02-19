@@ -55,6 +55,9 @@ public sealed class NodePropertyMapper
     public const string MetaDockSide = "sml_dockSide";
     public const string MetaDockFixedWidth = "sml_dockFixedWidth";
     public const string MetaDockMinFixedWidth = "sml_dockMinFixedWidth";
+    public const string MetaDockFixedHeight = "sml_dockFixedHeight";
+    public const string MetaDockMinFixedHeight = "sml_dockMinFixedHeight";
+    public const string MetaDockHeightPercent = "sml_dockHeightPercent";
     public const string MetaDockFlex = "sml_dockFlex";
     public const string MetaDockCloseable = "sml_dockCloseable";
     public const string MetaDockGap = "sml_dockGap";
@@ -415,6 +418,9 @@ public sealed class NodePropertyMapper
             ["dockside"] = (control, value, propertyName) => SetMetaString(control, MetaDockSide, value, propertyName),
             ["fixedwidth"] = (control, value, propertyName) => SetMetaInt(control, MetaDockFixedWidth, value, propertyName),
             ["minfixedwidth"] = (control, value, propertyName) => SetMetaInt(control, MetaDockMinFixedWidth, value, propertyName),
+            ["fixedheight"] = (control, value, propertyName) => SetMetaInt(control, MetaDockFixedHeight, value, propertyName),
+            ["minfixedheight"] = (control, value, propertyName) => SetMetaInt(control, MetaDockMinFixedHeight, value, propertyName),
+            ["heightpercent"] = (control, value, propertyName) => SetMetaFloat(control, MetaDockHeightPercent, value, propertyName),
             ["flex"] = (control, value, propertyName) => SetMetaBool(control, MetaDockFlex, value, propertyName),
             ["closeable"] = (control, value, propertyName) => SetMetaBool(control, MetaDockCloseable, value, propertyName),
             ["gap"] = (control, value, propertyName) => SetMetaInt(control, MetaDockGap, value, propertyName),
@@ -455,6 +461,9 @@ public sealed class NodePropertyMapper
 
     private static void SetMetaInt(Control control, string metaName, SmlValue value, string propertyName)
         => control.SetMeta(metaName, Variant.From(value.AsIntOrThrow(propertyName)));
+
+    private static void SetMetaFloat(Control control, string metaName, SmlValue value, string propertyName)
+        => control.SetMeta(metaName, Variant.From((float)value.AsDoubleOrThrow(propertyName)));
 
     private static void SetMetaString(Control control, string metaName, SmlValue value, string propertyName)
         => control.SetMeta(metaName, Variant.From(value.AsStringOrThrow(propertyName)));

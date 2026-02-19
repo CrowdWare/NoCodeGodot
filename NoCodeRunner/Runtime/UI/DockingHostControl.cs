@@ -911,9 +911,10 @@ public sealed partial class DockingHostControl : Container
 
         if (hasTop && hasBottom && column.Top is not null && column.Bottom is not null)
         {
-            var half = clampedHeight * 0.5f;
-            var topRect = new Rect2(x, 0, clampedWidth, half);
-            var bottomRect = new Rect2(x, half, clampedWidth, clampedHeight - half);
+            var topHeight = ResolveTopSplitHeight(column.Top, column.Bottom, clampedHeight);
+            var bottomHeight = Math.Max(0f, clampedHeight - topHeight);
+            var topRect = new Rect2(x, 0, clampedWidth, topHeight);
+            var bottomRect = new Rect2(x, topHeight, clampedWidth, bottomHeight);
             column.Top.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
             column.Bottom.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
             column.Top.Position = topRect.Position;
@@ -930,6 +931,52 @@ public sealed partial class DockingHostControl : Container
             single.Position = new Vector2(x, 0);
             single.Size = new Vector2(clampedWidth, clampedHeight);
         }
+    }
+
+    private static float ResolveTopSplitHeight(DockingContainerControl top, DockingContainerControl bottom, float totalHeight)
+    {
+        var clampedTotal = Math.Max(0f, totalHeight);
+        if (clampedTotal <= 0f)
+        {
+            return 0f;
+        }
+
+        var minTop = top.GetMinFixedHeight();
+        var minBottom = bottom.GetMinFixedHeight();
+        var maxTop = Math.Max(0f, clampedTotal - minBottom);
+        var minTopClamped = Math.Min(minTop, maxTop);
+
+        float desiredTop;
+        if (top.HasFixedHeight())
+        {
+            desiredTop = top.GetFixedHeight();
+        }
+        else if (top.HasHeightPercent())
+        {
+            desiredTop = clampedTotal * (top.GetHeightPercent() / 100f);
+        }
+        else if (bottom.HasFixedHeight())
+        {
+            desiredTop = clampedTotal - bottom.GetFixedHeight();
+        }
+        else if (bottom.HasHeightPercent())
+        {
+            desiredTop = clampedTotal * (1f - (bottom.GetHeightPercent() / 100f));
+        }
+        else
+        {
+            desiredTop = clampedTotal * 0.5f;
+        }
+
+        var topHeight = Mathf.Clamp(desiredTop, minTopClamped, maxTop);
+        var bottomHeight = clampedTotal - topHeight;
+        if (bottomHeight < minBottom)
+        {
+            bottomHeight = minBottom;
+            topHeight = Math.Max(0f, clampedTotal - bottomHeight);
+        }
+
+        return topHeight;
     }
 
     private void RegisterWidthLinked(DockColumn column)

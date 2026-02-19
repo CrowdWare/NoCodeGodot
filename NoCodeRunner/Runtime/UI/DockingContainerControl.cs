@@ -22,6 +22,7 @@ public sealed partial class DockingContainerControl : PanelContainer
     }
 
     private const float DefaultMinFixedWidth = 140f;
+    private const float DefaultMinFixedHeight = 80f;
     private VBoxContainer? _root;
     private HBoxContainer? _header;
     private TabBar? _tabBar;
@@ -483,6 +484,51 @@ public sealed partial class DockingContainerControl : PanelContainer
         }
 
         return DefaultMinFixedWidth;
+    }
+
+    public bool HasFixedHeight()
+    {
+        return HasMeta(NodePropertyMapper.MetaDockFixedHeight);
+    }
+
+    public float GetFixedHeight()
+    {
+        var minFixedHeight = GetMinFixedHeight();
+
+        if (HasMeta(NodePropertyMapper.MetaDockFixedHeight))
+        {
+            var height = Math.Max(0, GetMeta(NodePropertyMapper.MetaDockFixedHeight).AsInt32());
+            return Math.Max(minFixedHeight, height);
+        }
+
+        var minHeight = CustomMinimumSize.Y;
+        var fallback = minHeight > 0 ? minHeight : 160f;
+        return Math.Max(minFixedHeight, fallback);
+    }
+
+    public float GetMinFixedHeight()
+    {
+        if (HasMeta(NodePropertyMapper.MetaDockMinFixedHeight))
+        {
+            return Math.Max(24f, GetMeta(NodePropertyMapper.MetaDockMinFixedHeight).AsInt32());
+        }
+
+        return DefaultMinFixedHeight;
+    }
+
+    public bool HasHeightPercent()
+    {
+        return HasMeta(NodePropertyMapper.MetaDockHeightPercent);
+    }
+
+    public float GetHeightPercent()
+    {
+        if (!HasMeta(NodePropertyMapper.MetaDockHeightPercent))
+        {
+            return 50f;
+        }
+
+        return Mathf.Clamp((float)GetMeta(NodePropertyMapper.MetaDockHeightPercent).AsDouble(), 0f, 100f);
     }
 
     public void SetFixedWidth(float width)
