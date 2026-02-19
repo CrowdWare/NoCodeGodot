@@ -1,0 +1,1 @@
+./NoCodeRunner.app/contents/MacOS/NoCodeRunner --url "file:///Users/art/SourceCode/NoCodeGodot/docs/Default/app.sml"
