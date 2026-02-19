@@ -76,7 +76,6 @@ public sealed partial class DockingHostControl : Container
     private bool _activeTargetUsesPositiveDelta;
     private float _dragStartMouseX;
     private float _dragStartWidth;
-    private int _lastLoggedDragWidth = -1;
 
     public bool IsHandleDragActive => _activeHandle is not null;
 
@@ -178,7 +177,7 @@ public sealed partial class DockingHostControl : Container
             gap = Math.Max(0, GetMeta(NodePropertyMapper.MetaDockGap).AsInt32());
         }
 
-        var endGap = gap;
+        var endGap = 0f;
         if (HasMeta(NodePropertyMapper.MetaDockEndGap))
         {
             endGap = Math.Max(0, GetMeta(NodePropertyMapper.MetaDockEndGap).AsInt32());
@@ -405,19 +404,8 @@ public sealed partial class DockingHostControl : Container
             }
         }
 
-        LogHandleCountIfChanged(interiorGapCount, _handles.Count);
-    }
-
-    private void LogHandleCountIfChanged(int interiorGapCount, int handleCount)
-    {
-        if (_lastLoggedInteriorGapCount == interiorGapCount && _lastLoggedHandleCount == handleCount)
-        {
-            return;
-        }
-
         _lastLoggedInteriorGapCount = interiorGapCount;
-        _lastLoggedHandleCount = handleCount;
-        RunnerLogger.Info("UI", $"DockingHost '{Name}': interiorGaps={interiorGapCount}, handles={handleCount}");
+        _lastLoggedHandleCount = _handles.Count;
     }
 
     private static (Rect2? Top, Rect2? Bottom) BuildHandleRects(Rect2 rect)
@@ -487,10 +475,6 @@ public sealed partial class DockingHostControl : Container
                 DockingContainerControl? target = null;
                 var usesPositiveDelta = true;
 
-                RunnerLogger.Info(
-                    "UI",
-                    $"DockingHost '{Name}': drag-click gap='{handle.Name}', localX={localX:F1}, handleW={handle.Size.X:F1}, preferLeft={preferLeft}, gapCenterX={gapCenterX:F1}, hostCenterX={hostCenterX:F1}, preferRightByHostSide={preferRightByHostSide}, left='{left?.Name}', right='{right?.Name}'");
-
                 // Deterministic side-priority by host half:
                 // left-half gaps -> left neighbor, right-half gaps -> right neighbor.
                 if (!preferRightByHostSide)
@@ -533,7 +517,6 @@ public sealed partial class DockingHostControl : Container
                 _activeTargetUsesPositiveDelta = usesPositiveDelta;
                 _dragStartMouseX = GetGlobalMousePosition().X;
                 _dragStartWidth = target.GetFixedWidth();
-                _lastLoggedDragWidth = -1;
 
                 // Hide all current gap handles while dragging to avoid stale-gap visuals.
                 foreach (var existingHandle in _handles)
@@ -544,21 +527,10 @@ public sealed partial class DockingHostControl : Container
                     }
                 }
 
-                RunnerLogger.Info(
-                    "UI",
-                    $"DockingHost '{Name}': drag-start gap='{handle.Name}', target='{target.Name}', mode={(usesPositiveDelta ? "left-priority" : "right-priority")}, startWidth={_dragStartWidth:F1}");
                 AcceptEvent();
             }
             else if (_activeHandle == handle)
             {
-                if (_activeTargetContainer is not null)
-                {
-                    var gapX = ResolveActiveGapX(handle, _activeTargetUsesPositiveDelta, _activeTargetContainer);
-                    RunnerLogger.Info(
-                        "UI",
-                        $"DockingHost '{Name}': drag-end gap='{handle.Name}', target='{_activeTargetContainer.Name}', width={_activeTargetContainer.GetFixedWidth():F1}, gapX={gapX:F1}");
-                }
-
                 _activeHandle = null;
                 _activeTargetContainer = null;
 
@@ -595,15 +567,6 @@ public sealed partial class DockingHostControl : Container
 
         _activeTargetContainer.SetFixedWidth(proposedWidth);
         ApplyLinkedWidth(_activeTargetContainer, _activeTargetContainer.GetFixedWidth());
-        var currentWidthInt = (int)MathF.Round(_activeTargetContainer.GetFixedWidth());
-        if (currentWidthInt != _lastLoggedDragWidth)
-        {
-            _lastLoggedDragWidth = currentWidthInt;
-            var gapX = ResolveActiveGapX(handle, _activeTargetUsesPositiveDelta, _activeTargetContainer);
-            RunnerLogger.Info(
-                "UI",
-                $"DockingHost '{Name}': dragging gap='{handle.Name}', target='{_activeTargetContainer.Name}', mouseX={mouseX:F1}, width={_activeTargetContainer.GetFixedWidth():F1}, gapX={gapX:F1}");
-        }
 
         QueueSort();
         AcceptEvent();
