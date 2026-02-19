@@ -290,6 +290,28 @@ public sealed partial class DockingHostControl : Container
         return false;
     }
 
+    public bool ContainsPanelId(string panelId)
+    {
+        if (string.IsNullOrWhiteSpace(panelId))
+        {
+            return false;
+        }
+
+        foreach (var container in GetDockContainers())
+        {
+            for (var i = 0; i < container.GetTabCount(); i++)
+            {
+                var panel = container.GetTabControl(i);
+                if (panel is not null && HasPanelId(panel, panelId))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return _hiddenPanelsById.ContainsKey(panelId);
+    }
+
     public bool HidePanelById(string panelId)
     {
         if (string.IsNullOrWhiteSpace(panelId))

@@ -127,7 +127,7 @@ public sealed class SmsUiRuntime
             }
 
             // Event-first only: on <menuItemId>.clicked()
-            TryInvokeEvent(itemId, "clicked");
+            TryInvokeEvent(itemId, "clicked", warnIfMissing: !ShouldSuppressMissingMenuHandler(itemId));
         });
 
         // SMS should own save behavior so codeEdit.onSave(...) callbacks always fire,
@@ -1049,11 +1049,14 @@ public sealed class SmsUiRuntime
     }
 
     private void TryInvokeEvent(string targetId, string eventName, params object?[] args)
+        => TryInvokeEvent(targetId, eventName, warnIfMissing: true, args);
+
+    private void TryInvokeEvent(string targetId, string eventName, bool warnIfMissing, params object?[] args)
     {
         try
         {
             var handled = _engine.InvokeEvent(targetId, eventName, args);
-            if (!handled)
+            if (!handled && warnIfMissing)
             {
                 RunnerLogger.Warn("SMS", $"No SMS event handler found for '{targetId}.{eventName}'.");
             }
@@ -1062,6 +1065,20 @@ public sealed class SmsUiRuntime
         {
             RunnerLogger.Warn("SMS", $"SMS event dispatch failed for '{targetId}.{eventName}'.", ex);
         }
+    }
+
+    private static bool ShouldSuppressMissingMenuHandler(string itemId)
+    {
+        if (string.IsNullOrWhiteSpace(itemId)
+            || !itemId.StartsWith("view", StringComparison.OrdinalIgnoreCase)
+            || itemId.Length <= 4)
+        {
+            return false;
+        }
+
+        var suffix = itemId[4..];
+        var panelId = char.ToLowerInvariant(suffix[0]) + suffix[1..];
+        return UiRuntimeApi.GetObjectById(panelId) is not null;
     }
 
     private static string ResolveSourceId(UiActionContext ctx)

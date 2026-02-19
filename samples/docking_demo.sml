@@ -20,14 +20,20 @@ Window {
             id: viewMenu
             title: "View"
             Item { id: viewAssets text: "Assets" isChecked: true }
-            Item { id: viewFarLeftBottom text: "Far Left Bottom" isChecked: true }
+            Item { id: viewFarLeftBottomPanel text: "Far Left Bottom" isChecked: true }
             Item { id: viewProject text: "Project" isChecked: true }
+            Item { id: viewHierarchy text: "Hierarchy" isChecked: true }
+            Item { id: viewSearch text: "Search" isChecked: true }
+            Item { id: viewEditor text: "Editor" isChecked: true }
+            Item { id: viewShader text: "Shader.gd" isChecked: true }
+            Item { id: viewOutput text: "Output" isChecked: true }
             Item { id: viewPreview text: "Preview" isChecked: true }
-            Item { id: viewLeftBottom text: "Left Bottom" isChecked: true }
+            Item { id: viewProfiler text: "Profiler" isChecked: true }
+            Item { id: viewLeftBottomPanel text: "Left Bottom" isChecked: true }
             Item { id: viewInspector text: "Inspector" isChecked: true }
-            Item { id: viewRightBottom text: "Right Bottom" isChecked: true }
+            Item { id: viewRightBottomPanel text: "Right Bottom" isChecked: true }
             Item { id: viewConsole text: "Console" isChecked: true }
-            Item { id: viewFarRightBottom text: "Far Right Bottom" isChecked: true }
+            Item { id: viewFarRightBottomPanel text: "Far Right Bottom" isChecked: true }
         }
     }
 
@@ -78,11 +84,13 @@ Window {
             }
 
             VBoxContainer {
+                id: hierarchy
                 title: "Hierarchy"
                 Label { text: "Scene hierarchy" }
             }
 
             VBoxContainer {
+                id: search
                 title: "Search"
                 Label { text: "Search results" }
             }
@@ -110,16 +118,19 @@ Window {
             dragToRearrangeEnabled: false
 
             VBoxContainer {
+                id: editor
                 title: "Editor"
                 Label { text: "Main work area" }
             }
 
             VBoxContainer {
+                id: shader
                 title: "Shader.gd"
                 Label { text: "Code editor tab" }
             }
 
             VBoxContainer {
+                id: output
                 title: "Output"
                 Label { text: "Logs / terminal / problems" }
             }
@@ -145,6 +156,7 @@ Window {
             }
 
             VBoxContainer {
+                id: profiler
                 title: "Profiler"
                 Label { text: "Performance metrics" }
             }

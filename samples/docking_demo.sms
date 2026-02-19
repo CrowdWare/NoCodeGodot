@@ -5,7 +5,6 @@ var lastUndockedPanel = null
 fun ready() {
     host = ui.getObject("mainDockHost")
     rightDock = ui.getObject("rightDock")
-    syncViewChecksFromRuntime()
 }
 
 on saveLayout.clicked() {
@@ -24,7 +23,6 @@ on loadLayout.clicked() {
 
     var ok = host.loadLayout("demo")
     log.info("loadLayout(demo) => ${ok}")
-    syncViewChecksFromRuntime()
 }
 
 on resetLayout.clicked() {
@@ -34,165 +32,5 @@ on resetLayout.clicked() {
 
     var ok = host.resetLayout()
     log.info("resetLayout() => ${ok}")
-    syncViewChecksFromRuntime()
 }
 
-on viewAssets.clicked() {
-    if (host == null) {
-        return
-    }
-
-    host.togglePanel("assets")
-    syncPanelCheck("assets", "viewAssets")
-}
-
-on viewFarLeftBottom.clicked() {
-    if (host == null) {
-        return
-    }
-
-    host.togglePanel("farLeftBottomPanel")
-    syncPanelCheck("farLeftBottomPanel", "viewFarLeftBottom")
-}
-
-on viewProject.clicked() {
-    if (host == null) {
-        return
-    }
-
-    host.togglePanel("project")
-    syncPanelCheck("project", "viewProject")
-}
-
-on viewPreview.clicked() {
-    if (host == null) {
-        return
-    }
-
-    host.togglePanel("preview")
-    syncPanelCheck("preview", "viewPreview")
-}
-
-on viewLeftBottom.clicked() {
-    if (host == null) {
-        return
-    }
-
-    host.togglePanel("leftBottomPanel")
-    syncPanelCheck("leftBottomPanel", "viewLeftBottom")
-}
-
-on viewInspector.clicked() {
-    if (host == null) {
-        return
-    }
-
-    host.togglePanel("inspector")
-    syncPanelCheck("inspector", "viewInspector")
-}
-
-on viewRightBottom.clicked() {
-    if (host == null) {
-        return
-    }
-
-    host.togglePanel("rightBottomPanel")
-    syncPanelCheck("rightBottomPanel", "viewRightBottom")
-}
-
-on viewConsole.clicked() {
-    if (host == null) {
-        return
-    }
-
-    host.togglePanel("console")
-    syncPanelCheck("console", "viewConsole")
-}
-
-on viewFarRightBottom.clicked() {
-    if (host == null) {
-        return
-    }
-
-    host.togglePanel("farRightBottomPanel")
-    syncPanelCheck("farRightBottomPanel", "viewFarRightBottom")
-}
-
-on undockActiveRight.clicked() {
-    if (host == null || rightDock == null) {
-        return
-    }
-
-    var index = rightDock.getCurrentTab()
-    if (index < 0) {
-        return
-    }
-
-    var panel = rightDock.getTabControl(index)
-    if (panel == null) {
-        return
-    }
-
-    var panelTitle = rightDock.getTabTitle(index)
-    var ok = host.extractPanel(panel)
-    if (!ok) {
-        return
-    }
-
-    if (panelTitle == null || panelTitle == "") {
-        panelTitle = "Floating Panel"
-    }
-
-    var windowSml = "Window { id: dockFloatingWindow title: \"${panelTitle}\" size: 800, 540 minSize: 480, 320 Panel { id: floatingRoot } }"
-    var window = ui.CreateWindow(windowSml)
-    if (window == null) {
-        host.dockPanel(panel, "right")
-        return
-    }
-
-    lastUndockedPanel = panel
-    window.onClose("onDockFloatingWindowClosed")
-
-    var floatingRoot = ui.getObject("floatingRoot")
-    if (floatingRoot == null) {
-        host.dockPanel(panel, "right")
-        return
-    }
-
-    floatingRoot.addChild(panel)
-    panel.setAnchorsAndOffsetsPreset(15)
-    log.info("Undocked active tab into dedicated window")
-}
-
-fun onDockFloatingWindowClosed() {
-    if (host == null || lastUndockedPanel == null) {
-        return
-    }
-
-    host.dockPanel(lastUndockedPanel, "right")
-    lastUndockedPanel = null
-}
-
-fun syncViewChecksFromRuntime() {
-    syncPanelCheck("assets", "viewAssets")
-    syncPanelCheck("farLeftBottomPanel", "viewFarLeftBottom")
-    syncPanelCheck("project", "viewProject")
-    syncPanelCheck("leftBottomPanel", "viewLeftBottom")
-    syncPanelCheck("inspector", "viewInspector")
-    syncPanelCheck("rightBottomPanel", "viewRightBottom")
-    syncPanelCheck("console", "viewConsole")
-    syncPanelCheck("farRightBottomPanel", "viewFarRightBottom")
-}
-
-fun syncPanelCheck(panelId, menuItemId) {
-    if (host == null) {
-        return
-    }
-
-    var item = ui.getObject(menuItemId)
-    if (item == null) {
-        return
-    }
-
-    item.SetChecked(host.isPanelVisibleById(panelId))
-}
