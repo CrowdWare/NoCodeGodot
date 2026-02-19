@@ -1248,10 +1248,38 @@ public static partial class DockingManagerRuntime
                     continue;
                 }
 
-                host.KebabButton.Visible = host.HostContainer.Visible;
+                host.KebabButton.Visible = host.HostContainer.Visible && HasCompatibleDockingPeer(host);
                 var popup = host.KebabButton.GetPopup();
                 popup.Clear();
             }
+        }
+
+        private bool HasCompatibleDockingPeer(DockHostState sourceHost)
+        {
+            if (!GodotObject.IsInstanceValid(sourceHost.Dock) || !sourceHost.Dock.IsDragToRearrangeEnabled())
+            {
+                return false;
+            }
+
+            var sourceGroup = sourceHost.Dock.GetTabsRearrangeGroup();
+            foreach (var candidate in _hosts)
+            {
+                if (ReferenceEquals(candidate, sourceHost)
+                    || !GodotObject.IsInstanceValid(candidate.Dock)
+                    || !candidate.Dock.IsDragToRearrangeEnabled())
+                {
+                    continue;
+                }
+
+                if (candidate.Dock.GetTabsRearrangeGroup() != sourceGroup)
+                {
+                    continue;
+                }
+
+                return true;
+            }
+
+            return false;
         }
 
         private static bool CanMoveBetween(DockHostState source, DockHostState target)
