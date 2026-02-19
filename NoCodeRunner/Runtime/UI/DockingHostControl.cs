@@ -2,6 +2,8 @@ using Godot;
 using Runtime.Logging;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
 
 namespace Runtime.UI;
 
@@ -76,8 +78,238 @@ public sealed partial class DockingHostControl : Container
     private bool _activeTargetUsesPositiveDelta;
     private float _dragStartMouseX;
     private float _dragStartWidth;
+    private DockLayoutState? _defaultLayoutState;
+
+    private sealed class DockLayoutState
+    {
+        public List<DockPanelState> Panels { get; set; } = [];
+    }
+
+    private sealed class DockPanelState
+    {
+        public string Key { get; set; } = string.Empty;
+        public string DockSide { get; set; } = "center";
+        public bool Visible { get; set; }
+        public int FixedWidth { get; set; }
+        public List<string> Tabs { get; set; } = [];
+        public string CurrentTabTitle { get; set; } = string.Empty;
+    }
+
+    public override void _Ready()
+    {
+        _defaultLayoutState = CaptureLayoutState();
+    }
 
     public bool IsHandleDragActive => _activeHandle is not null;
+
+    public bool HidePanel(string position)
+    {
+        var targets = FindContainersByPosition(position);
+        var changed = false;
+        foreach (var target in targets)
+        {
+            if (!target.Visible)
+            {
+                continue;
+            }
+
+            target.Visible = false;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            QueueSort();
+        }
+
+        return changed;
+    }
+
+    public bool ShowPanel(string position)
+    {
+        var targets = FindContainersByPosition(position);
+        var changed = false;
+        foreach (var target in targets)
+        {
+            if (target.Visible)
+            {
+                continue;
+            }
+
+            target.Visible = true;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            QueueSort();
+        }
+
+        return changed;
+    }
+
+    public bool DockPanel(Control panel, string position)
+    {
+        var target = FindFirstContainerByPosition(position);
+        if (target is null)
+        {
+            return false;
+        }
+
+        if (panel is DockingContainerControl dockContainer)
+        {
+            dockContainer.SetMeta(NodePropertyMapper.MetaDockSide, Variant.From(target.GetDockSide()));
+            dockContainer.Visible = true;
+            QueueSort();
+            return true;
+        }
+
+        var source = FindContainerContaining(panel);
+        if (source is not null)
+        {
+            source.RemoveDockTab(panel);
+        }
+
+        var title = panel.HasMeta("sml_ctx_tabTitle")
+            ? panel.GetMeta("sml_ctx_tabTitle").AsString()
+            : (string.IsNullOrWhiteSpace(panel.Name) ? "Panel" : panel.Name);
+
+        target.AddDockTab(panel, title);
+        target.Visible = true;
+        QueueSort();
+        return true;
+    }
+
+    public Window? UndockPanel(Control panel)
+    {
+        var source = FindContainerContaining(panel);
+        if (source is null)
+        {
+            return null;
+        }
+
+        var title = panel.HasMeta("sml_ctx_tabTitle")
+            ? panel.GetMeta("sml_ctx_tabTitle").AsString()
+            : (string.IsNullOrWhiteSpace(panel.Name) ? "Panel" : panel.Name);
+
+        source.RemoveDockTab(panel);
+
+        var window = new Window
+        {
+            Name = $"Floating_{panel.Name}",
+            Title = string.IsNullOrWhiteSpace(title) ? panel.Name : title,
+            InitialPosition = Window.WindowInitialPosition.CenterPrimaryScreen,
+            Size = new Vector2I(640, 420),
+            Visible = false
+        };
+
+        panel.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        window.AddChild(panel);
+
+        if (GetTree()?.Root is not null)
+        {
+            GetTree().Root.AddChild(window);
+        }
+
+        window.CloseRequested += () =>
+        {
+            if (panel.GetParent() == window)
+            {
+                window.RemoveChild(panel);
+            }
+
+            source.AddDockTab(panel, title);
+            source.Visible = true;
+            QueueSort();
+            window.QueueFree();
+        };
+
+        window.Show();
+        return window;
+    }
+
+    public bool IsPanelVisible(Control panel)
+    {
+        if (panel is DockingContainerControl dock)
+        {
+            return dock.Visible;
+        }
+
+        var owner = FindContainerContaining(panel);
+        if (owner is not null)
+        {
+            return owner.Visible && panel.Visible;
+        }
+
+        return panel.Visible;
+    }
+
+    public bool SaveLayout(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        var state = CaptureLayoutState();
+        var path = GetLayoutPath(name);
+
+        try
+        {
+            var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, json);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("UI", $"Failed to save docking layout '{name}'.", ex);
+            return false;
+        }
+    }
+
+    public bool LoadLayout(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        var path = GetLayoutPath(name);
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(path);
+            var state = JsonSerializer.Deserialize<DockLayoutState>(json);
+            if (state is null)
+            {
+                return false;
+            }
+
+            ApplyLayoutState(state);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("UI", $"Failed to load docking layout '{name}'.", ex);
+            return false;
+        }
+    }
+
+    public bool ResetLayout()
+    {
+        if (_defaultLayoutState is null)
+        {
+            return false;
+        }
+
+        ApplyLayoutState(_defaultLayoutState);
+        return true;
+    }
 
     public override void _Notification(int what)
     {
@@ -604,5 +836,222 @@ public sealed partial class DockingHostControl : Container
         }
 
         return -1f;
+    }
+
+    private DockLayoutState CaptureLayoutState()
+    {
+        var containers = GetDockContainers();
+        var state = new DockLayoutState();
+        foreach (var container in containers)
+        {
+            var tabs = new List<string>();
+            for (var i = 0; i < container.GetTabCount(); i++)
+            {
+                tabs.Add(container.GetTabTitle(i));
+            }
+
+            var currentTitle = string.Empty;
+            var currentIndex = container.GetCurrentTab();
+            if (currentIndex >= 0 && currentIndex < tabs.Count)
+            {
+                currentTitle = tabs[currentIndex];
+            }
+
+            state.Panels.Add(new DockPanelState
+            {
+                Key = ResolveContainerKey(container),
+                DockSide = container.GetDockSide(),
+                Visible = container.Visible,
+                FixedWidth = (int)MathF.Round(container.GetFixedWidth()),
+                Tabs = tabs,
+                CurrentTabTitle = currentTitle
+            });
+        }
+
+        return state;
+    }
+
+    private void ApplyLayoutState(DockLayoutState state)
+    {
+        var containers = GetDockContainers();
+        var byKey = new Dictionary<string, DockingContainerControl>(StringComparer.Ordinal);
+        foreach (var container in containers)
+        {
+            byKey[ResolveContainerKey(container)] = container;
+        }
+
+        foreach (var panel in state.Panels)
+        {
+            if (!byKey.TryGetValue(panel.Key, out var target))
+            {
+                continue;
+            }
+
+            target.SetMeta(NodePropertyMapper.MetaDockSide, Variant.From(panel.DockSide));
+            target.SetFixedWidth(panel.FixedWidth);
+            target.Visible = panel.Visible;
+        }
+
+        var titleMap = new Dictionary<string, (DockingContainerControl Container, Control Control)>(StringComparer.Ordinal);
+        foreach (var container in containers)
+        {
+            for (var i = 0; i < container.GetTabCount(); i++)
+            {
+                var title = container.GetTabTitle(i);
+                var control = container.GetTabControl(i);
+                if (string.IsNullOrWhiteSpace(title) || control is null || titleMap.ContainsKey(title))
+                {
+                    continue;
+                }
+
+                titleMap[title] = (container, control);
+            }
+        }
+
+        foreach (var panel in state.Panels)
+        {
+            if (!byKey.TryGetValue(panel.Key, out var target))
+            {
+                continue;
+            }
+
+            foreach (var title in panel.Tabs)
+            {
+                if (!titleMap.TryGetValue(title, out var source))
+                {
+                    continue;
+                }
+
+                if (ReferenceEquals(source.Container, target))
+                {
+                    continue;
+                }
+
+                source.Container.RemoveDockTab(source.Control);
+                target.AddDockTab(source.Control, title);
+                titleMap[title] = (target, source.Control);
+            }
+
+            if (!string.IsNullOrWhiteSpace(panel.CurrentTabTitle))
+            {
+                for (var i = 0; i < target.GetTabCount(); i++)
+                {
+                    if (string.Equals(target.GetTabTitle(i), panel.CurrentTabTitle, StringComparison.Ordinal))
+                    {
+                        target.SetCurrentTab(i);
+                        break;
+                    }
+                }
+            }
+        }
+
+        QueueSort();
+    }
+
+    private List<DockingContainerControl> GetDockContainers()
+    {
+        var result = new List<DockingContainerControl>();
+        for (var i = 0; i < GetChildCount(); i++)
+        {
+            if (GetChild(i) is DockingContainerControl container)
+            {
+                result.Add(container);
+            }
+        }
+
+        return result;
+    }
+
+    private DockingContainerControl? FindContainerContaining(Control panel)
+    {
+        var containers = GetDockContainers();
+        foreach (var container in containers)
+        {
+            for (var i = 0; i < container.GetTabCount(); i++)
+            {
+                if (!ReferenceEquals(container.GetTabControl(i), panel))
+                {
+                    continue;
+                }
+
+                return container;
+            }
+        }
+
+        return null;
+    }
+
+    private DockingContainerControl? FindFirstContainerByPosition(string position)
+    {
+        var normalized = NormalizePosition(position);
+        var containers = GetDockContainers();
+        foreach (var container in containers)
+        {
+            if (string.Equals(container.GetDockSide(), normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                return container;
+            }
+        }
+
+        return null;
+    }
+
+    private List<DockingContainerControl> FindContainersByPosition(string position)
+    {
+        var normalized = NormalizePosition(position);
+        var result = new List<DockingContainerControl>();
+        var containers = GetDockContainers();
+        foreach (var container in containers)
+        {
+            if (!string.Equals(container.GetDockSide(), normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            result.Add(container);
+        }
+
+        return result;
+    }
+
+    private string GetLayoutPath(string name)
+    {
+        var hostKey = ResolveHostKey();
+        var safeName = name.Trim().Replace("/", "_").Replace("\\", "_");
+        var relative = $"user://docking/layouts/{hostKey}_{safeName}.json";
+        return ProjectSettings.GlobalizePath(relative);
+    }
+
+    private string ResolveHostKey()
+    {
+        if (HasMeta(NodePropertyMapper.MetaId))
+        {
+            var id = GetMeta(NodePropertyMapper.MetaId).AsString();
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                return id;
+            }
+        }
+
+        return string.IsNullOrWhiteSpace(Name) ? "dockHost" : Name;
+    }
+
+    private static string ResolveContainerKey(DockingContainerControl container)
+    {
+        if (container.HasMeta(NodePropertyMapper.MetaId))
+        {
+            var id = container.GetMeta(NodePropertyMapper.MetaId).AsString();
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                return id;
+            }
+        }
+
+        return container.Name;
+    }
+
+    private static string NormalizePosition(string position)
+    {
+        return (position ?? string.Empty).Trim().ToLowerInvariant();
     }
 }

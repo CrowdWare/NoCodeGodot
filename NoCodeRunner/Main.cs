@@ -1146,18 +1146,25 @@ public partial class Main : Node
 			return;
 		}
 
+		var parsedMode = Window.ModeEnum.Windowed;
+		var hasMode = !string.IsNullOrWhiteSpace(windowState.Mode)
+			&& Enum.TryParse(windowState.Mode, true, out parsedMode);
+
+		if (hasMode && parsedMode != Window.ModeEnum.Windowed && window.Mode != parsedMode)
+		{
+			window.Mode = parsedMode;
+		}
+		else if (window.Mode != Window.ModeEnum.Windowed)
+		{
+			window.Mode = Window.ModeEnum.Windowed;
+		}
+
 		if (windowState.SizeX > 0 && windowState.SizeY > 0)
 		{
 			window.Size = new Vector2I(windowState.SizeX, windowState.SizeY);
 		}
 
 		window.Position = new Vector2I(windowState.PositionX, windowState.PositionY);
-
-		if (!string.IsNullOrWhiteSpace(windowState.Mode)
-			&& Enum.TryParse<Window.ModeEnum>(windowState.Mode, true, out var mode))
-		{
-			window.Mode = mode;
-		}
 	}
 
 	private UiDockingState CaptureDockingState(Control root)
