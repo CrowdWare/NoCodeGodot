@@ -119,7 +119,7 @@ Window {
             dockSide: center
             flex: true
             closeable: false
-            dragToRearrangeEnabled: false
+            dragToRearrangeEnabled: true
 
             VBoxContainer {
                 id: editor

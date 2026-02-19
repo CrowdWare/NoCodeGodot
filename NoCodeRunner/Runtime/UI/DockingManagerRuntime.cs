@@ -127,7 +127,7 @@ public static partial class DockingManagerRuntime
         private readonly Dictionary<string, Button> _dockSelectionButtons = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<PanelMenuBinding> _panelMenuBindings = [];
         private readonly HashSet<ulong> _boundPopupInstanceIds = [];
-        private PopupPanel? _dockSelectionPopup;
+        private PanelContainer? _dockSelectionDialog;
         private DockHostState? _dockSelectionSourceHost;
         private double _elapsed;
         private float _baseLeftInset;
@@ -136,6 +136,7 @@ public static partial class DockingManagerRuntime
         public override void _EnterTree()
         {
             AddToGroup("docking_manager_nodes");
+            SetProcessUnhandledInput(true);
 
             // Configure native subwindows only when this node is inside the scene tree.
             if (GetTree()?.Root is { } viewportRoot && viewportRoot.GuiEmbedSubwindows)
@@ -155,11 +156,11 @@ public static partial class DockingManagerRuntime
 
         public override void _ExitTree()
         {
-            if (_dockSelectionPopup is not null && GodotObject.IsInstanceValid(_dockSelectionPopup))
+            if (_dockSelectionDialog is not null && GodotObject.IsInstanceValid(_dockSelectionDialog))
             {
                 // Avoid remove_child during tree mutation; deferred free is safe here.
-                _dockSelectionPopup.QueueFree();
-                _dockSelectionPopup = null;
+                _dockSelectionDialog.QueueFree();
+                _dockSelectionDialog = null;
             }
         }
 
@@ -413,15 +414,20 @@ public static partial class DockingManagerRuntime
                 return;
             }
 
-            EnsureDockSelectionPopup();
-            if (_dockSelectionPopup is null)
+            EnsureDockSelectionDialog();
+            if (_dockSelectionDialog is null)
             {
                 return;
             }
 
-            if (_dockSelectionPopup.GetParent() is null)
+            if (GetParent() is not Control rootControl)
             {
-                GetTree()!.Root.AddChild(_dockSelectionPopup);
+                return;
+            }
+
+            if (_dockSelectionDialog.GetParent() is null)
+            {
+                rootControl.AddChild(_dockSelectionDialog);
             }
 
             _dockSelectionSourceHost = sourceHost;
@@ -434,55 +440,125 @@ public static partial class DockingManagerRuntime
             var anchorRect = anchorControl.GetGlobalRect();
             var anchorScreenPos = anchorControl.GetScreenPosition();
 
-            _dockSelectionPopup.Popup();
-            var popupSize = _dockSelectionPopup.Size;
-            if (popupSize.X <= 0 || popupSize.Y <= 0)
+            _dockSelectionDialog.Visible = true;
+
+            var dialogSize = _dockSelectionDialog.Size;
+            if (dialogSize.X <= 0 || dialogSize.Y <= 0)
             {
-                popupSize = new Vector2I(360, 190);
-                _dockSelectionPopup.Size = popupSize;
+                dialogSize = new Vector2(360, 220);
+                _dockSelectionDialog.CustomMinimumSize = dialogSize;
+                _dockSelectionDialog.Size = dialogSize;
             }
 
-            // PopupPanel is a Window; position expects screen coordinates.
-            // Therefore we anchor to control screen-position, not viewport-local coordinates.
-            var screen = DisplayServer.WindowGetCurrentScreen();
-            var screenPos = DisplayServer.ScreenGetPosition(screen);
-            var screenSize = DisplayServer.ScreenGetSize(screen);
+            var desired = new Vector2(anchorScreenPos.X, anchorScreenPos.Y + anchorRect.Size.Y + 4f);
+            var bounds = rootControl.GetGlobalRect();
+            var minX = bounds.Position.X;
+            var minY = bounds.Position.Y;
+            var maxX = Math.Max(minX, bounds.End.X - dialogSize.X);
+            var maxY = Math.Max(minY, bounds.End.Y - dialogSize.Y);
+            var clamped = new Vector2(
+                Mathf.Clamp(desired.X, minX, maxX),
+                Mathf.Clamp(desired.Y, minY, maxY));
 
-            var desiredX = Mathf.RoundToInt(anchorScreenPos.X);
-            var desiredY = Mathf.RoundToInt(anchorScreenPos.Y + anchorRect.Size.Y + 4f);
-            var minX = screenPos.X;
-            var minY = screenPos.Y;
-            var maxX = Math.Max(minX, screenPos.X + screenSize.X - popupSize.X);
-            var maxY = Math.Max(minY, screenPos.Y + screenSize.Y - popupSize.Y);
-            var clampedX = Math.Clamp(desiredX, minX, maxX);
-            var clampedY = Math.Clamp(desiredY, minY, maxY);
-            _dockSelectionPopup.Position = new Vector2I(clampedX, clampedY);
+            _dockSelectionDialog.GlobalPosition = clamped;
         }
 
-        private void EnsureDockSelectionPopup()
+        public override void _UnhandledInput(InputEvent @event)
         {
-            if (_dockSelectionPopup is not null && GodotObject.IsInstanceValid(_dockSelectionPopup))
+            if (_dockSelectionDialog is null
+                || !GodotObject.IsInstanceValid(_dockSelectionDialog)
+                || !_dockSelectionDialog.Visible)
             {
                 return;
             }
 
-            var popup = new PopupPanel
+            if (@event is InputEventKey keyEvent
+                && keyEvent.Pressed
+                && !keyEvent.Echo
+                && keyEvent.Keycode == Key.Escape)
             {
-                Name = "DockSelectionPopup",
-                Size = new Vector2I(360, 190),
-                Unfocusable = false,
-                Borderless = false,
-                Transient = false,
+                HideDockSelectionDialog();
+                GetViewport()?.SetInputAsHandled();
+                return;
+            }
+
+            if (@event is InputEventMouseButton mouseEvent
+                && mouseEvent.Pressed
+                && mouseEvent.ButtonIndex == MouseButton.Left)
+            {
+                var dialogRect = _dockSelectionDialog.GetGlobalRect();
+                if (!dialogRect.HasPoint(mouseEvent.GlobalPosition))
+                {
+                    HideDockSelectionDialog();
+                    GetViewport()?.SetInputAsHandled();
+                }
+            }
+        }
+
+        private void HideDockSelectionDialog()
+        {
+            if (_dockSelectionDialog is null || !GodotObject.IsInstanceValid(_dockSelectionDialog))
+            {
+                _dockSelectionSourceHost = null;
+                return;
+            }
+
+            _dockSelectionDialog.Visible = false;
+            _dockSelectionSourceHost = null;
+        }
+
+        private void EnsureDockSelectionDialog()
+        {
+            if (_dockSelectionDialog is not null && GodotObject.IsInstanceValid(_dockSelectionDialog))
+            {
+                return;
+            }
+
+            var dialog = new PanelContainer
+            {
+                Name = "DockSelectionDialog",
+                MouseFilter = Control.MouseFilterEnum.Stop,
+                FocusMode = Control.FocusModeEnum.All,
+                CustomMinimumSize = new Vector2(360, 220),
                 Visible = false
             };
+            dialog.ZIndex = 2000;
+
+            var dialogStyle = new StyleBoxFlat
+            {
+                BgColor = new Color(0.12f, 0.12f, 0.13f, 0.98f),
+                BorderColor = new Color(0.82f, 0.82f, 0.86f, 0.95f),
+                CornerRadiusTopLeft = 8,
+                CornerRadiusTopRight = 8,
+                CornerRadiusBottomRight = 8,
+                CornerRadiusBottomLeft = 8,
+                ShadowColor = new Color(0f, 0f, 0f, 0.35f),
+                ShadowSize = 10,
+                ShadowOffset = new Vector2(0, 3),
+                ContentMarginLeft = 10,
+                ContentMarginTop = 10,
+                ContentMarginRight = 10,
+                ContentMarginBottom = 10
+            };
+            dialogStyle.SetBorderWidthAll(1);
+            dialog.AddThemeStyleboxOverride("panel", dialogStyle);
 
             var root = new VBoxContainer
             {
                 Name = "Root",
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
                 SizeFlagsVertical = Control.SizeFlags.ExpandFill,
-                CustomMinimumSize = new Vector2(360, 190)
+                CustomMinimumSize = new Vector2(360, 220)
             };
+
+            var title = new Label
+            {
+                Name = "Title",
+                Text = "Docking",
+                HorizontalAlignment = HorizontalAlignment.Center,
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
+            };
+            title.AddThemeColorOverride("font_color", new Color(0.97f, 0.97f, 0.99f, 1f));
 
             var dockGrid = new HBoxContainer
             {
@@ -490,6 +566,7 @@ public static partial class DockingManagerRuntime
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
                 SizeFlagsVertical = Control.SizeFlags.ExpandFill
             };
+            dockGrid.AddThemeConstantOverride("separation", 8);
             dockGrid.AddChild(CreateDockColumn("farleft", "farleftbottom"));
             dockGrid.AddChild(CreateDockColumn("left", "leftbottom"));
             dockGrid.AddChild(CreateDockSlotButton("center", center: true));
@@ -501,6 +578,7 @@ public static partial class DockingManagerRuntime
                 Name = "Actions",
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
             };
+            actionRow.AddThemeConstantOverride("separation", 8);
 
             var floatingButton = new Button
             {
@@ -515,7 +593,7 @@ public static partial class DockingManagerRuntime
                     return;
                 }
 
-                _dockSelectionPopup?.Hide();
+                HideDockSelectionDialog();
                 ExecuteUndockAction(sourceHost);
             };
 
@@ -533,17 +611,31 @@ public static partial class DockingManagerRuntime
                 }
 
                 ExecuteCloseAction(sourceHost);
-                _dockSelectionPopup?.Hide();
+                HideDockSelectionDialog();
             };
+
+            var cancelButton = new Button
+            {
+                Text = "Cancel",
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
+            };
+            cancelButton.Pressed += () => HideDockSelectionDialog();
 
             actionRow.AddChild(floatingButton);
             actionRow.AddChild(closedButton);
+            actionRow.AddChild(cancelButton);
 
+            root.AddChild(title);
             root.AddChild(dockGrid);
             root.AddChild(actionRow);
-            popup.AddChild(root);
-            popup.PopupHide += () =>
+            dialog.AddChild(root);
+            dialog.VisibilityChanged += () =>
             {
+                if (dialog.Visible)
+                {
+                    return;
+                }
+
                 _dockSelectionSourceHost = null;
                 foreach (var button in _dockSelectionButtons.Values)
                 {
@@ -554,7 +646,7 @@ public static partial class DockingManagerRuntime
                 }
             };
 
-            _dockSelectionPopup = popup;
+            _dockSelectionDialog = dialog;
         }
 
         private VBoxContainer CreateDockColumn(string topPosition, string bottomPosition)
@@ -580,6 +672,62 @@ public static partial class DockingManagerRuntime
                 SizeFlagsVertical = center ? Control.SizeFlags.ExpandFill : Control.SizeFlags.ExpandFill,
                 CustomMinimumSize = center ? new Vector2(100, 76) : new Vector2(64, 36)
             };
+            button.Flat = false;
+            button.AddThemeColorOverride("font_color", new Color(0.96f, 0.96f, 0.98f, 1f));
+            button.AddThemeColorOverride("font_hover_color", new Color(1f, 1f, 1f, 1f));
+
+            var normal = new StyleBoxFlat
+            {
+                BgColor = center
+                    ? new Color(0.34f, 0.36f, 0.42f, 1f)
+                    : new Color(0.24f, 0.24f, 0.28f, 1f),
+                CornerRadiusTopLeft = 5,
+                CornerRadiusTopRight = 5,
+                CornerRadiusBottomLeft = 5,
+                CornerRadiusBottomRight = 5
+            };
+            normal.SetBorderWidthAll(0);
+
+            var hover = new StyleBoxFlat
+            {
+                BgColor = center
+                    ? new Color(0.40f, 0.42f, 0.50f, 1f)
+                    : new Color(0.30f, 0.32f, 0.38f, 1f),
+                CornerRadiusTopLeft = 5,
+                CornerRadiusTopRight = 5,
+                CornerRadiusBottomLeft = 5,
+                CornerRadiusBottomRight = 5
+            };
+            hover.SetBorderWidthAll(0);
+
+            var pressed = new StyleBoxFlat
+            {
+                BgColor = center
+                    ? new Color(0.30f, 0.44f, 0.68f, 1f)
+                    : new Color(0.20f, 0.34f, 0.56f, 1f),
+                CornerRadiusTopLeft = 5,
+                CornerRadiusTopRight = 5,
+                CornerRadiusBottomLeft = 5,
+                CornerRadiusBottomRight = 5
+            };
+            pressed.SetBorderWidthAll(0);
+
+            var disabled = new StyleBoxFlat
+            {
+                BgColor = center
+                    ? new Color(0.26f, 0.28f, 0.34f, 0.95f)
+                    : new Color(0.28f, 0.30f, 0.34f, 0.95f),
+                CornerRadiusTopLeft = 5,
+                CornerRadiusTopRight = 5,
+                CornerRadiusBottomLeft = 5,
+                CornerRadiusBottomRight = 5
+            };
+            disabled.SetBorderWidthAll(0);
+
+            button.AddThemeStyleboxOverride("normal", normal);
+            button.AddThemeStyleboxOverride("hover", hover);
+            button.AddThemeStyleboxOverride("pressed", pressed);
+            button.AddThemeStyleboxOverride("disabled", disabled);
             button.TooltipText = position;
             _dockSelectionButtons[position] = button;
 
@@ -592,7 +740,7 @@ public static partial class DockingManagerRuntime
                 }
 
                 ExecuteDockSelection(sourceHost, position);
-                _dockSelectionPopup?.Hide();
+                HideDockSelectionDialog();
             };
 
             return button;

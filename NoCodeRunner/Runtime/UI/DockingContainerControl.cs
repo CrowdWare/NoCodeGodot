@@ -145,7 +145,7 @@ public sealed partial class DockingContainerControl : PanelContainer
             SizeFlagsVertical = SizeFlags.ShrinkBegin,
             ClipTabs = true,
             DragToRearrangeEnabled = true,
-            TabsRearrangeGroup = 1
+            TabsRearrangeGroup = 0
         };
         _tabBar.TabChanged += OnTabChanged;
         _tabBar.ActiveTabRearranged += OnActiveTabRearranged;

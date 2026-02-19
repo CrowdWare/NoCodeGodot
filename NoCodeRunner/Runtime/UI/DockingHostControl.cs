@@ -9,7 +9,6 @@ namespace Runtime.UI;
 
 public sealed partial class DockingHostControl : Container
 {
-    private const float HandleTopInset = 30f;
     private const float DefaultHandleWidth = 6f;
     private static readonly Color HandleVisibleColor = new(1f, 1f, 1f, 0.18f);
     private static readonly Color HandleHiddenColor = new(1f, 1f, 1f, 0f);
@@ -1044,57 +1043,17 @@ public sealed partial class DockingHostControl : Container
                 continue;
             }
 
-            // Use full gap width as click area so left/right decision is stable.
+            // Use full-height gap handle (no split, no menu-button cutout).
             var fullGapRect = new Rect2(segment.Rect.Position.X, segment.Rect.Position.Y, segment.Rect.Size.X, segment.Rect.Size.Y);
-            var (topRect, bottomRect) = BuildHandleRects(fullGapRect);
-            if (topRect is Rect2 t)
-            {
-                AddResizeHandle(
-                    leftNeighbor: segment.LeftNeighbor,
-                    rightNeighbor: segment.RightNeighbor,
-                    rect: t,
-                    suffix: "Top");
-            }
-
-            if (bottomRect is Rect2 b)
-            {
-                AddResizeHandle(
-                    leftNeighbor: segment.LeftNeighbor,
-                    rightNeighbor: segment.RightNeighbor,
-                    rect: b,
-                    suffix: "Bottom");
-            }
+            AddResizeHandle(
+                leftNeighbor: segment.LeftNeighbor,
+                rightNeighbor: segment.RightNeighbor,
+                rect: fullGapRect,
+                suffix: "Full");
         }
 
         _lastLoggedInteriorGapCount = interiorGapCount;
         _lastLoggedHandleCount = _handles.Count;
-    }
-
-    private static (Rect2? Top, Rect2? Bottom) BuildHandleRects(Rect2 rect)
-    {
-        var topInset = Math.Min(HandleTopInset, rect.Size.Y);
-        var usableHeight = Math.Max(0f, rect.Size.Y - topInset);
-        if (usableHeight <= 0f)
-        {
-            return (null, null);
-        }
-
-        // Split every gap-handle into upper and lower segment so middle area stays clickable for menu buttons.
-        // If there is too little height, fall back to one segment in the upper area.
-        if (usableHeight < 48f)
-        {
-            return (new Rect2(rect.Position.X, topInset, rect.Size.X, usableHeight), null);
-        }
-
-        var half = usableHeight * 0.5f;
-        var separator = Math.Min(28f, half * 0.6f);
-        var topHeight = Math.Max(12f, half - (separator * 0.5f));
-        var bottomY = rect.Position.Y + topInset + topHeight + separator;
-        var bottomHeight = Math.Max(12f, rect.Position.Y + rect.Size.Y - bottomY);
-
-        var topRect = new Rect2(rect.Position.X, rect.Position.Y + topInset, rect.Size.X, topHeight);
-        var bottomRect = new Rect2(rect.Position.X, bottomY, rect.Size.X, bottomHeight);
-        return (topRect, bottomRect);
     }
 
     private void AddResizeHandle(DockingContainerControl leftNeighbor, DockingContainerControl rightNeighbor, Rect2 rect, string suffix)
