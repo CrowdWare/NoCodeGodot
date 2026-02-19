@@ -12,8 +12,6 @@ public static class SmlSchemaFactory
         SchemaTypes.RegisterKnownNodes(schema);
 
         // Runtime pseudo nodes (not Godot classes) that are valid in SML trees.
-        schema.RegisterKnownNode("Menu");
-        schema.RegisterKnownNode("MenuItem");
         schema.RegisterKnownNode("Item");
         schema.RegisterKnownNode("CheckItem");
         schema.RegisterKnownNode("Separator");

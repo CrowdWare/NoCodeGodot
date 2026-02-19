@@ -79,6 +79,8 @@ public sealed partial class DockingHostControl : Container
     private float _dragStartMouseX;
     private float _dragStartWidth;
     private DockLayoutState? _defaultLayoutState;
+    private readonly Dictionary<string, HiddenPanelState> _hiddenPanelsByTitle = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, HiddenPanelState> _hiddenPanelsById = new(StringComparer.OrdinalIgnoreCase);
 
     private sealed class DockLayoutState
     {
@@ -93,6 +95,14 @@ public sealed partial class DockingHostControl : Container
         public int FixedWidth { get; set; }
         public List<string> Tabs { get; set; } = [];
         public string CurrentTabTitle { get; set; } = string.Empty;
+    }
+
+    private sealed class HiddenPanelState
+    {
+        public required Control Panel;
+        public required DockingContainerControl LastContainer;
+        public required string LastDockSide;
+        public required string Title;
     }
 
     public override void _Ready()
@@ -242,6 +252,266 @@ public sealed partial class DockingHostControl : Container
         }
 
         return panel.Visible;
+    }
+
+    public bool TogglePanel(string panelId)
+    {
+        return IsPanelVisibleById(panelId)
+            ? HidePanelById(panelId)
+            : ShowPanelById(panelId);
+    }
+
+    public bool IsPanelVisibleById(string panelId)
+    {
+        if (string.IsNullOrWhiteSpace(panelId))
+        {
+            return false;
+        }
+
+        foreach (var container in GetDockContainers())
+        {
+            if (!container.Visible)
+            {
+                continue;
+            }
+
+            for (var i = 0; i < container.GetTabCount(); i++)
+            {
+                var panel = container.GetTabControl(i);
+                if (panel is null || !HasPanelId(panel, panelId))
+                {
+                    continue;
+                }
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool HidePanelById(string panelId)
+    {
+        if (string.IsNullOrWhiteSpace(panelId))
+        {
+            return false;
+        }
+
+        foreach (var container in GetDockContainers())
+        {
+            for (var i = 0; i < container.GetTabCount(); i++)
+            {
+                var panel = container.GetTabControl(i);
+                if (panel is null || !HasPanelId(panel, panelId))
+                {
+                    continue;
+                }
+
+                var title = container.GetTabTitle(i);
+                _hiddenPanelsById[panelId] = new HiddenPanelState
+                {
+                    Panel = panel,
+                    LastContainer = container,
+                    LastDockSide = container.GetDockSide(),
+                    Title = string.IsNullOrWhiteSpace(title) ? panelId : title
+                };
+
+                container.RemoveDockTab(panel);
+                if (container.GetTabCount() == 0)
+                {
+                    container.Visible = false;
+                }
+
+                QueueSort();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool ShowPanelById(string panelId)
+    {
+        if (string.IsNullOrWhiteSpace(panelId))
+        {
+            return false;
+        }
+
+        if (!_hiddenPanelsById.TryGetValue(panelId, out var hidden))
+        {
+            return false;
+        }
+
+        if (!GodotObject.IsInstanceValid(hidden.Panel))
+        {
+            _hiddenPanelsById.Remove(panelId);
+            return false;
+        }
+
+        DockingContainerControl? target = null;
+        if (GodotObject.IsInstanceValid(hidden.LastContainer))
+        {
+            target = hidden.LastContainer;
+        }
+        else
+        {
+            target = FindFirstContainerByPosition(hidden.LastDockSide);
+        }
+
+        if (target is null)
+        {
+            _hiddenPanelsById.Remove(panelId);
+            return false;
+        }
+
+        target.AddDockTab(hidden.Panel, hidden.Title);
+        var index = target.GetTabIndexFromControl(hidden.Panel);
+        target.SetCurrentTab(index >= 0 ? index : 0);
+        target.Visible = true;
+
+        _hiddenPanelsById.Remove(panelId);
+        QueueSort();
+        return true;
+    }
+
+    public bool IsPanelVisibleByTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return false;
+        }
+
+        foreach (var container in GetDockContainers())
+        {
+            if (!container.Visible)
+            {
+                continue;
+            }
+
+            for (var i = 0; i < container.GetTabCount(); i++)
+            {
+                if (!string.Equals(container.GetTabTitle(i), title, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool HidePanelByTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return false;
+        }
+
+        foreach (var container in GetDockContainers())
+        {
+            for (var i = 0; i < container.GetTabCount(); i++)
+            {
+                if (!string.Equals(container.GetTabTitle(i), title, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var panel = container.GetTabControl(i);
+                if (panel is null)
+                {
+                    return false;
+                }
+
+                _hiddenPanelsByTitle[title] = new HiddenPanelState
+                {
+                    Panel = panel,
+                    LastContainer = container,
+                    LastDockSide = container.GetDockSide(),
+                    Title = title
+                };
+
+                container.RemoveDockTab(panel);
+                if (container.GetTabCount() == 0)
+                {
+                    container.Visible = false;
+                }
+
+                QueueSort();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool ShowPanelByTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return false;
+        }
+
+        if (!_hiddenPanelsByTitle.TryGetValue(title, out var hidden))
+        {
+            return false;
+        }
+
+        if (!GodotObject.IsInstanceValid(hidden.Panel))
+        {
+            _hiddenPanelsByTitle.Remove(title);
+            return false;
+        }
+
+        DockingContainerControl? target = null;
+        if (GodotObject.IsInstanceValid(hidden.LastContainer))
+        {
+            target = hidden.LastContainer;
+        }
+        else
+        {
+            target = FindFirstContainerByPosition(hidden.LastDockSide);
+        }
+
+        if (target is null)
+        {
+            _hiddenPanelsByTitle.Remove(title);
+            return false;
+        }
+
+        target.AddDockTab(hidden.Panel, hidden.Title);
+        var index = target.GetTabIndexFromControl(hidden.Panel);
+        target.SetCurrentTab(index >= 0 ? index : 0);
+        target.Visible = true;
+
+        _hiddenPanelsByTitle.Remove(title);
+        QueueSort();
+        return true;
+    }
+
+    public bool TryExtractPanel(Control panel, out string title)
+    {
+        title = string.Empty;
+
+        var source = FindContainerContaining(panel);
+        if (source is null)
+        {
+            return false;
+        }
+
+        title = panel.HasMeta("sml_ctx_tabTitle")
+            ? panel.GetMeta("sml_ctx_tabTitle").AsString()
+            : (string.IsNullOrWhiteSpace(panel.Name) ? "Panel" : panel.Name);
+
+        source.RemoveDockTab(panel);
+        QueueSort();
+        return true;
+    }
+
+    public bool ExtractPanel(Control panel)
+    {
+        return TryExtractPanel(panel, out _);
     }
 
     public bool SaveLayout(string name)
@@ -1053,5 +1323,19 @@ public sealed partial class DockingHostControl : Container
     private static string NormalizePosition(string position)
     {
         return (position ?? string.Empty).Trim().ToLowerInvariant();
+    }
+
+    private static bool HasPanelId(Control panel, string panelId)
+    {
+        if (panel.HasMeta(NodePropertyMapper.MetaId))
+        {
+            var id = panel.GetMeta(NodePropertyMapper.MetaId).AsString();
+            if (string.Equals(id, panelId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return string.Equals(panel.Name, panelId, StringComparison.OrdinalIgnoreCase);
     }
 }

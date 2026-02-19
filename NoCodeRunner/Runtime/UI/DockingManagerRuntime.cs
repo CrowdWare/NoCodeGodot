@@ -199,8 +199,115 @@ public static partial class DockingManagerRuntime
                     return;
                 }
 
-                ExecuteMoveAction(action.SourceHost, action.TargetHost);
+                switch (action.Kind)
+                {
+                    case MenuActionKind.Move when action.TargetHost is not null:
+                        ExecuteMoveAction(action.SourceHost, action.TargetHost);
+                        break;
+                    case MenuActionKind.Undock:
+                        ExecuteUndockAction(action.SourceHost);
+                        break;
+                }
             };
+        }
+
+        private void ExecuteUndockAction(DockHostState sourceHost)
+        {
+            if (!GodotObject.IsInstanceValid(sourceHost.Dock))
+            {
+                return;
+            }
+
+            var sourceDock = sourceHost.Dock;
+            if (sourceDock.GetTabCount() <= 0)
+            {
+                return;
+            }
+
+            var sourceIndex = sourceDock.GetCurrentTab();
+            if (sourceIndex < 0 || sourceIndex >= sourceDock.GetTabCount())
+            {
+                sourceIndex = 0;
+            }
+
+            var panel = sourceDock.GetTabControl(sourceIndex);
+            if (panel is null)
+            {
+                return;
+            }
+
+            var panelTitle = sourceDock.GetTabTitle(sourceIndex);
+            if (string.IsNullOrWhiteSpace(panelTitle))
+            {
+                panelTitle = string.IsNullOrWhiteSpace(panel.Name) ? "Floating Panel" : panel.Name;
+            }
+
+            var globalRect = sourceDock.GetGlobalRect();
+            sourceDock.RemoveDockTab(panel);
+
+            if (sourceDock.GetTabCount() == 0)
+            {
+                sourceHost.HostContainer.Visible = false;
+                sourceHost.IsClosed = true;
+            }
+
+            var width = Math.Max(220, Mathf.RoundToInt(globalRect.Size.X));
+            var height = Math.Max(140, Mathf.RoundToInt(globalRect.Size.Y));
+            var posX = Mathf.RoundToInt(globalRect.Position.X);
+            var posY = Mathf.RoundToInt(globalRect.Position.Y);
+
+            var window = new Window
+            {
+                Name = $"Undocked_{sourceDock.Name}_{panel.Name}",
+                Title = panelTitle,
+                InitialPosition = Window.WindowInitialPosition.Absolute,
+                Position = new Vector2I(posX, posY),
+                Size = new Vector2I(width, height),
+                MinSize = new Vector2I(Math.Min(width, 220), Math.Min(height, 140)),
+                Visible = false,
+                Transient = false,
+                Unresizable = false
+            };
+
+            panel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+            window.AddChild(panel);
+
+            if (GetTree()?.Root is null)
+            {
+                sourceDock.AddDockTab(panel, panelTitle);
+                sourceHost.HostContainer.Visible = true;
+                sourceHost.IsClosed = false;
+                RefreshAllMenus();
+                return;
+            }
+
+            // Ensure undocked windows are native OS windows (not embedded as in-viewport panels).
+            GetTree()!.Root.GuiEmbedSubwindows = false;
+            GetTree()!.Root.AddChild(window);
+            window.CloseRequested += () =>
+            {
+                if (panel.GetParent() == window)
+                {
+                    window.RemoveChild(panel);
+                }
+
+                if (GodotObject.IsInstanceValid(sourceDock))
+                {
+                    sourceDock.AddDockTab(panel, panelTitle);
+                    var tabIndex = sourceDock.GetTabIndexFromControl(panel);
+                    sourceDock.SetCurrentTab(tabIndex >= 0 ? tabIndex : 0);
+                    sourceHost.HostContainer.Visible = true;
+                    sourceHost.IsClosed = false;
+                }
+
+                UpdateFlexibleHostsLayout();
+                RefreshAllMenus();
+                window.QueueFree();
+            };
+
+            window.Show();
+            UpdateFlexibleHostsLayout();
+            RefreshAllMenus();
         }
 
         private void ExecuteMoveAction(DockHostState sourceHost, DockHostState targetHost)
@@ -415,6 +522,15 @@ public static partial class DockingManagerRuntime
                 host.KebabButton.Visible = host.HostContainer.Visible;
                 var popup = host.KebabButton.GetPopup();
                 popup.Clear();
+
+                if (host.Dock.GetTabCount() > 0)
+                {
+                    var undockId = nextId++;
+                    popup.AddItem("Ausdocken", (int)undockId);
+                    _menuActions[undockId] = new MenuAction(MenuActionKind.Undock, host, null);
+                }
+
+                var hadUndockEntry = popup.ItemCount > 0;
                 foreach (var target in _hosts)
                 {
                     if (ReferenceEquals(target, host))
@@ -427,10 +543,15 @@ public static partial class DockingManagerRuntime
                         continue;
                     }
 
+                    if (hadUndockEntry && popup.ItemCount == 1)
+                    {
+                        popup.AddSeparator();
+                    }
+
                     var menuText = $"Move to {target.Name}";
                     var id = nextId++;
                     popup.AddItem(menuText, (int)id);
-                    _menuActions[id] = new MenuAction(host, target);
+                    _menuActions[id] = new MenuAction(MenuActionKind.Move, host, target);
                 }
 
                 if (popup.ItemCount == 0)
@@ -502,5 +623,11 @@ public static partial class DockingManagerRuntime
         Right
     }
 
-    private sealed record MenuAction(DockHostState SourceHost, DockHostState TargetHost);
+    private enum MenuActionKind
+    {
+        Move,
+        Undock
+    }
+
+    private sealed record MenuAction(MenuActionKind Kind, DockHostState SourceHost, DockHostState? TargetHost);
 }

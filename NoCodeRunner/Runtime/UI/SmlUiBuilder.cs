@@ -834,8 +834,7 @@ public sealed class SmlUiBuilder
     private static bool IsMenuEntryNode(string nodeName)
     {
         return string.Equals(nodeName, "Item", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(nodeName, "CheckItem", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(nodeName, "MenuItem", StringComparison.OrdinalIgnoreCase);
+               || string.Equals(nodeName, "CheckItem", StringComparison.OrdinalIgnoreCase);
     }
 
     private void DispatchMenuSelection(Control source, string menuId, string itemId)

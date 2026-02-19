@@ -4,6 +4,33 @@ Window {
     minSize: 900, 560
     size: 1440, 900
 
+    MenuBar {
+        id: dockMenu
+        preferGlobalMenu: true
+
+        PopupMenu {
+            id: fileMenu
+            title: "File"
+            Item { id: saveLayout text: "Save Layout" }
+            Item { id: loadLayout text: "Load Layout" }
+            Item { id: resetLayout text: "Reset Layout" }
+        }
+
+        PopupMenu {
+            id: viewMenu
+            title: "View"
+            Item { id: viewAssets text: "Assets" isChecked: true }
+            Item { id: viewFarLeftBottom text: "Far Left Bottom" isChecked: true }
+            Item { id: viewProject text: "Project" isChecked: true }
+            Item { id: viewPreview text: "Preview" isChecked: true }
+            Item { id: viewLeftBottom text: "Left Bottom" isChecked: true }
+            Item { id: viewInspector text: "Inspector" isChecked: true }
+            Item { id: viewRightBottom text: "Right Bottom" isChecked: true }
+            Item { id: viewConsole text: "Console" isChecked: true }
+            Item { id: viewFarRightBottom text: "Far Right Bottom" isChecked: true }
+        }
+    }
+
     DockingHost {
         id: mainDockHost
         anchors: left | top | right | bottom
@@ -17,6 +44,7 @@ Window {
             tabsRearrangeGroup: 1
 
             VBoxContainer {
+                id: assets
                 title: "Assets"
                 Label { text: "Far left dock" }
             }
@@ -30,6 +58,7 @@ Window {
             tabsRearrangeGroup: 1
 
             VBoxContainer {
+                id: farLeftBottomPanel
                 title: "Far Left Bottom"
                 Label { text: "Far left bottom dock" }
             }
@@ -43,6 +72,7 @@ Window {
             tabsRearrangeGroup: 1
 
             VBoxContainer {
+                id: project
                 title: "Project"
                 Label { text: "Project explorer" }
             }
@@ -66,6 +96,7 @@ Window {
             tabsRearrangeGroup: 1
 
             VBoxContainer {
+                id: leftBottomPanel
                 title: "Left Bottom"
                 Label { text: "Left bottom dock" }
             }
@@ -102,11 +133,13 @@ Window {
             tabsRearrangeGroup: 1
 
             VBoxContainer {
+                id: inspector
                 title: "Inspector"
                 Label { text: "Selection properties" }
             }
 
             VBoxContainer {
+                id: preview
                 title: "Preview"
                 Label { text: "Preview pane" }
             }
@@ -125,6 +158,7 @@ Window {
             tabsRearrangeGroup: 1
 
             VBoxContainer {
+                id: rightBottomPanel
                 title: "Right Bottom"
                 Label { text: "Right bottom dock" }
             }
@@ -139,6 +173,7 @@ Window {
             tabsRearrangeGroup: 1
 
             VBoxContainer {
+                id: console
                 title: "Console"
                 Label { text: "Far right dock" }
             }
@@ -153,6 +188,7 @@ Window {
             tabsRearrangeGroup: 1
 
             VBoxContainer {
+                id: farRightBottomPanel
                 title: "Far Right Bottom"
                 Label { text: "Far right bottom dock" }
             }
