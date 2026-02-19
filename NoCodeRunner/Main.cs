@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Runtime.Assets;
 using Runtime.Sml;
@@ -56,6 +57,7 @@ public partial class Main : Node
 	private string? _resolvedStartupUiUrl;
 	private const string DefaultStartUrl = "https://crowdware.github.io/NoCodeGodot/Default/manifest.sml";
 	private const string StartupSettingsFileName = "startup_settings.sml";
+	private const string UiSessionStateFileName = "ui_session_state.json";
 	private CanvasLayer? _startupProgressLayer;
 	private ProgressBar? _startupProgressBar;
 	private Label? _startupProgressLabel;
@@ -83,7 +85,18 @@ public partial class Main : Node
 			DispatchMacAboutAsMenuItemSelected();
 		}
 
+		if (what == NotificationWMCloseRequest)
+		{
+			TrySaveSessionState();
+		}
+
 		base._Notification(what);
+	}
+
+	public override void _ExitTree()
+	{
+		TrySaveSessionState();
+		base._ExitTree();
 	}
 
 	private void DispatchMacAboutAsMenuItemSelected()
@@ -1063,8 +1076,310 @@ public partial class Main : Node
 		}
 
 		OnViewportSizeChanged();
+		TryRestoreSessionState();
 		LayoutRuntime.Apply(rootControl);
 		LogUiScalingState(GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero);
+	}
+
+	private void TryRestoreSessionState()
+	{
+		var state = LoadSessionState();
+		if (state is null)
+		{
+			return;
+		}
+
+		if (state.Window is not null)
+		{
+			ApplyWindowState(state.Window);
+		}
+
+		if (state.Docking is not null && _runtimeUiRoot is not null && ContainsDockingHost(_runtimeUiRoot))
+		{
+			ApplyDockingState(_runtimeUiRoot, state.Docking);
+		}
+	}
+
+	private void TrySaveSessionState()
+	{
+		if (_runtimeUiRoot is null)
+		{
+			return;
+		}
+
+		var state = new UiSessionState
+		{
+			Window = CaptureWindowState()
+		};
+
+		if (ContainsDockingHost(_runtimeUiRoot))
+		{
+			state.Docking = CaptureDockingState(_runtimeUiRoot);
+		}
+
+		SaveSessionState(state);
+	}
+
+	private UiWindowState? CaptureWindowState()
+	{
+		var window = GetWindow();
+		if (window is null)
+		{
+			return null;
+		}
+
+		return new UiWindowState
+		{
+			PositionX = window.Position.X,
+			PositionY = window.Position.Y,
+			SizeX = window.Size.X,
+			SizeY = window.Size.Y,
+			Mode = window.Mode.ToString()
+		};
+	}
+
+	private void ApplyWindowState(UiWindowState windowState)
+	{
+		var window = GetWindow();
+		if (window is null)
+		{
+			return;
+		}
+
+		if (windowState.SizeX > 0 && windowState.SizeY > 0)
+		{
+			window.Size = new Vector2I(windowState.SizeX, windowState.SizeY);
+		}
+
+		window.Position = new Vector2I(windowState.PositionX, windowState.PositionY);
+
+		if (!string.IsNullOrWhiteSpace(windowState.Mode)
+			&& Enum.TryParse<Window.ModeEnum>(windowState.Mode, true, out var mode))
+		{
+			window.Mode = mode;
+		}
+	}
+
+	private UiDockingState CaptureDockingState(Control root)
+	{
+		var containers = CollectDockingContainers(root);
+		var state = new UiDockingState();
+
+		foreach (var container in containers)
+		{
+			var tabTitles = new List<string>();
+			for (var i = 0; i < container.GetTabCount(); i++)
+			{
+				tabTitles.Add(container.GetTabTitle(i));
+			}
+
+			var currentTitle = string.Empty;
+			var current = container.GetCurrentTab();
+			if (current >= 0 && current < tabTitles.Count)
+			{
+				currentTitle = tabTitles[current];
+			}
+
+			state.Containers.Add(new UiDockingContainerState
+			{
+				Key = ResolveControlKey(container),
+				Visible = container.Visible,
+				DockSide = container.GetDockSide(),
+				FixedWidth = (int)MathF.Round(container.GetFixedWidth()),
+				TabTitles = tabTitles,
+				CurrentTitle = currentTitle
+			});
+		}
+
+		return state;
+	}
+
+	private void ApplyDockingState(Control root, UiDockingState dockingState)
+	{
+		var containers = CollectDockingContainers(root);
+		var byKey = new Dictionary<string, DockingContainerControl>(StringComparer.Ordinal);
+		foreach (var container in containers)
+		{
+			byKey[ResolveControlKey(container)] = container;
+		}
+
+		foreach (var saved in dockingState.Containers)
+		{
+			if (!byKey.TryGetValue(saved.Key, out var target))
+			{
+				continue;
+			}
+
+			target.Visible = saved.Visible;
+			target.SetFixedWidth(saved.FixedWidth);
+		}
+
+		var titleMap = BuildTabTitleMap(containers);
+		foreach (var saved in dockingState.Containers)
+		{
+			if (!byKey.TryGetValue(saved.Key, out var target))
+			{
+				continue;
+			}
+
+			foreach (var title in saved.TabTitles)
+			{
+				if (!titleMap.TryGetValue(title, out var sourceEntry))
+				{
+					continue;
+				}
+
+				if (ReferenceEquals(sourceEntry.Container, target))
+				{
+					continue;
+				}
+
+				sourceEntry.Container.RemoveDockTab(sourceEntry.Control);
+				target.AddDockTab(sourceEntry.Control, title);
+				titleMap[title] = (target, sourceEntry.Control);
+			}
+
+			if (!string.IsNullOrWhiteSpace(saved.CurrentTitle))
+			{
+				for (var i = 0; i < target.GetTabCount(); i++)
+				{
+					if (!string.Equals(target.GetTabTitle(i), saved.CurrentTitle, StringComparison.Ordinal))
+					{
+						continue;
+					}
+
+					target.SetCurrentTab(i);
+					break;
+				}
+			}
+		}
+	}
+
+	private static Dictionary<string, (DockingContainerControl Container, Control Control)> BuildTabTitleMap(List<DockingContainerControl> containers)
+	{
+		var result = new Dictionary<string, (DockingContainerControl Container, Control Control)>(StringComparer.Ordinal);
+		foreach (var container in containers)
+		{
+			for (var i = 0; i < container.GetTabCount(); i++)
+			{
+				var title = container.GetTabTitle(i);
+				if (string.IsNullOrWhiteSpace(title) || result.ContainsKey(title))
+				{
+					continue;
+				}
+
+				var control = container.GetTabControl(i);
+				if (control is null)
+				{
+					continue;
+				}
+
+				result[title] = (container, control);
+			}
+		}
+
+		return result;
+	}
+
+	private static List<DockingContainerControl> CollectDockingContainers(Control root)
+	{
+		var result = new List<DockingContainerControl>();
+		var stack = new Stack<Node>();
+		stack.Push(root);
+
+		while (stack.Count > 0)
+		{
+			var current = stack.Pop();
+			if (current is DockingContainerControl container)
+			{
+				result.Add(container);
+			}
+
+			for (var i = current.GetChildCount() - 1; i >= 0; i--)
+			{
+				stack.Push(current.GetChild(i));
+			}
+		}
+
+		return result;
+	}
+
+	private static bool ContainsDockingHost(Control root)
+	{
+		var stack = new Stack<Node>();
+		stack.Push(root);
+
+		while (stack.Count > 0)
+		{
+			var current = stack.Pop();
+			if (current is DockingHostControl)
+			{
+				return true;
+			}
+
+			for (var i = current.GetChildCount() - 1; i >= 0; i--)
+			{
+				stack.Push(current.GetChild(i));
+			}
+		}
+
+		return false;
+	}
+
+	private static string ResolveControlKey(Control control)
+	{
+		if (control.HasMeta(NodePropertyMapper.MetaId))
+		{
+			var id = control.GetMeta(NodePropertyMapper.MetaId).AsString();
+			if (!string.IsNullOrWhiteSpace(id))
+			{
+				return id;
+			}
+		}
+
+		return control.Name;
+	}
+
+	private UiSessionState? LoadSessionState()
+	{
+		var path = ProjectSettings.GlobalizePath($"user://{UiSessionStateFileName}");
+		if (!File.Exists(path))
+		{
+			return null;
+		}
+
+		try
+		{
+			var json = File.ReadAllText(path);
+			return JsonSerializer.Deserialize<UiSessionState>(json);
+		}
+		catch (Exception ex)
+		{
+			RunnerLogger.Warn("UI", "Failed to load ui session state. Ignoring persisted layout.", ex);
+			return null;
+		}
+	}
+
+	private void SaveSessionState(UiSessionState state)
+	{
+		var path = ProjectSettings.GlobalizePath($"user://{UiSessionStateFileName}");
+		var temp = path + ".tmp";
+
+		try
+		{
+			var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
+			File.WriteAllText(temp, json);
+			if (File.Exists(path))
+			{
+				File.Delete(path);
+			}
+
+			File.Move(temp, path);
+		}
+		catch (Exception ex)
+		{
+			RunnerLogger.Warn("UI", "Failed to save ui session state.", ex);
+		}
 	}
 
 	private void OnViewportSizeChanged()
@@ -1084,6 +1399,36 @@ public partial class Main : Node
 		}
 
 		LogUiScalingState(GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero);
+	}
+
+	private sealed class UiSessionState
+	{
+		public UiWindowState? Window { get; set; }
+		public UiDockingState? Docking { get; set; }
+	}
+
+	private sealed class UiWindowState
+	{
+		public int PositionX { get; set; }
+		public int PositionY { get; set; }
+		public int SizeX { get; set; }
+		public int SizeY { get; set; }
+		public string Mode { get; set; } = string.Empty;
+	}
+
+	private sealed class UiDockingState
+	{
+		public List<UiDockingContainerState> Containers { get; set; } = [];
+	}
+
+	private sealed class UiDockingContainerState
+	{
+		public string Key { get; set; } = string.Empty;
+		public bool Visible { get; set; }
+		public string DockSide { get; set; } = string.Empty;
+		public int FixedWidth { get; set; }
+		public List<string> TabTitles { get; set; } = [];
+		public string CurrentTitle { get; set; } = string.Empty;
 	}
 
 	private void ApplyWindowProperties(Control rootControl)
