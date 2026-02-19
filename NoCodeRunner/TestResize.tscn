@@ -8,9 +8,9 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-split_offsets = PackedInt32Array(300, 1800)
+split_offsets = PackedInt32Array(100, 300, 350)
 drag_area_highlight_in_editor = true
-split_offset = 300
+split_offset = 100
 script = ExtResource("1_4sl0u")
 
 [node name="Control" type="Control" parent="." unique_id=960535651]
@@ -91,28 +91,29 @@ drag_to_rearrange_enabled = true
 metadata/_tab_index = 1
 metadata/_tab_name = "Tab 6"
 
-[node name="Right" type="TabContainer" parent="." unique_id=1657721309]
-custom_minimum_size = Vector2(200, 0)
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=380114857]
 layout_mode = 2
-current_tab = 1
-drag_to_rearrange_enabled = true
-tabs_rearrange_group = 1
-tab_0/title = "Tab 3"
-tab_1/title = "Tab 4"
 
-[node name="TabBar" type="TabBar" parent="Right" unique_id=148915521]
-visible = false
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer" unique_id=736247649]
 layout_mode = 2
-tab_close_display_policy = 2
-drag_to_rearrange_enabled = true
-metadata/_tab_index = 0
-metadata/_tab_name = "Tab 3"
 
-[node name="TabBar2" type="TabBar" parent="Right" unique_id=63460262]
+[node name="TabBar" type="TabBar" parent="VBoxContainer/HBoxContainer" unique_id=1961586060]
 layout_mode = 2
-tab_close_display_policy = 2
-drag_to_rearrange_enabled = true
-metadata/_tab_index = 1
-metadata/_tab_name = "Tab 4"
+size_flags_horizontal = 3
+current_tab = 0
+tab_count = 2
+tab_0/title = "Testumgebnung"
+tab_1/title = "Mobile Preview"
+
+[node name="MenuButton" type="MenuButton" parent="VBoxContainer/HBoxContainer" unique_id=1271322129]
+layout_mode = 2
+text = ":"
+
+[node name="Control" type="VBoxContainer" parent="VBoxContainer" unique_id=1112907727]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBoxContainer/Control" unique_id=181548417]
+layout_mode = 2
+text = "Content von Test"
 
 [connection signal="pressed" from="Control/MenuButton" to="." method="_on_menu_button_pressed"]

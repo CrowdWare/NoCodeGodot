@@ -105,6 +105,7 @@
 - [x] tasks/refactoring.md
 - [x] tasks/documentation.md
 - [x] tasks/issues_menu.md
+- [ ] tasks/refactor_docking.md
 - [ ] tasks/docking_features.md
 
 
