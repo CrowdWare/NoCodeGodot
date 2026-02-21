@@ -111,6 +111,7 @@ All classes listed below inherit from `Control`.
 - [VSplitContainer](VSplitContainer.md)
 - [VideoStreamPlayer](VideoStreamPlayer.md)
 - [Viewport3D](Viewport3D.md)
+- [WindowDrag](WindowDrag.md)
 
 ## Properties
 

@@ -346,6 +346,9 @@ public sealed class SmlUiBuilder
         menuBarControl.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         menuBarControl.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
         menuBarControl.CustomMinimumSize = new Vector2(menuBarControl.CustomMinimumSize.X, Math.Max(menuBarControl.CustomMinimumSize.Y, defaults.MinHeight));
+        // Do not let the menu bar background eat caption drag clicks.
+        // Child menu buttons can still process their own input.
+        menuBarControl.MouseFilter = Control.MouseFilterEnum.Ignore;
         menuBarControl.ZIndex = defaults.ZIndex;
 
         var preferGlobalMenu = false;

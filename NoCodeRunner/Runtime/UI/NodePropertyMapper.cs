@@ -60,6 +60,7 @@ public sealed class NodePropertyMapper
     public const string MetaWindowPosY = "sml_windowPosY";
     public const string MetaWindowSizeX = "sml_windowSizeX";
     public const string MetaWindowSizeY = "sml_windowSizeY";
+    public const string MetaWindowExtendToTitle = "sml_windowExtendToTitle";
     public const string MetaPaddingTop = "sml_paddingTop";
     public const string MetaPaddingRight = "sml_paddingRight";
     public const string MetaPaddingBottom = "sml_paddingBottom";
@@ -461,7 +462,19 @@ public sealed class NodePropertyMapper
             ["hideroot"] = (control, value, propertyName) => SetMetaBool(control, MetaTreeHideRoot, value, propertyName),
             ["indent"] = (control, value, propertyName) => SetMetaInt(control, MetaTreeIndent, value, propertyName),
             ["action"] = (control, value, propertyName) => SetMetaString(control, MetaAction, value, propertyName)
+            , ["extendtotitle"] = (control, value, propertyName) => ApplyWindowBoolMeta(control, MetaWindowExtendToTitle, value, propertyName)
         };
+    }
+
+    private static void ApplyWindowBoolMeta(Control control, string metaName, SmlValue value, string propertyName)
+    {
+        if (!IsWindowNode(control))
+        {
+            RunnerLogger.Warn("UI", $"Property '{propertyName}' ignored for node type '{control.GetType().Name}'.");
+            return;
+        }
+
+        control.SetMeta(metaName, Variant.From(ToBoolOrThrow(value, propertyName)));
     }
 
     private static bool TryApplySimpleProperty(Control control, string propertyName, SmlValue value)

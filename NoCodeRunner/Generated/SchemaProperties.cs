@@ -115,6 +115,9 @@ public static class SchemaProperties
         new PropDef("DockingContainer", "dockSide", "dockSide", "enum"),
         new PropDef("DockingContainer", "fixedWidth", "fixedWidth", "int"),
         new PropDef("DockingContainer", "minFixedWidth", "minFixedWidth", "int"),
+        new PropDef("DockingContainer", "fixedHeight", "fixedHeight", "int"),
+        new PropDef("DockingContainer", "minFixedHeight", "minFixedHeight", "int"),
+        new PropDef("DockingContainer", "heightPercent", "heightPercent", "float"),
         new PropDef("DockingContainer", "flex", "flex", "bool"),
         new PropDef("DockingContainer", "closeable", "closeable", "bool"),
         new PropDef("DockingContainer", "dragToRearrangeEnabled", "dragToRearrangeEnabled", "bool"),
@@ -551,6 +554,12 @@ public static class SchemaProperties
         new PropDef("Window", "unresizable", "unresizable", "bool"),
         new PropDef("Window", "visible", "visible", "bool"),
         new PropDef("Window", "wrapControls", "wrap_controls", "bool"),
+        new PropDef("WindowDrag", "id", "id", "identifier"),
+        new PropDef("WindowDrag", "anchors", "anchors", "string"),
+        new PropDef("WindowDrag", "x", "x", "int"),
+        new PropDef("WindowDrag", "y", "y", "int"),
+        new PropDef("WindowDrag", "width", "width", "int"),
+        new PropDef("WindowDrag", "height", "height", "int"),
     ];
 
     public static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, PropDef>> PropsByType = BuildPropsByType();

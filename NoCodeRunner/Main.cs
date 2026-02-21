@@ -1505,6 +1505,13 @@ public partial class Main : Node
 			RunnerLogger.Info("UI", $"Window size applied: {window.Size.X}x{window.Size.Y}");
 		}
 
+		if (rootControl.HasMeta(NodePropertyMapper.MetaWindowExtendToTitle))
+		{
+			var enabled = rootControl.GetMeta(NodePropertyMapper.MetaWindowExtendToTitle).AsBool();
+			window.SetFlag(Window.Flags.ExtendToTitle, enabled);
+			RunnerLogger.Info("UI", $"Window extendToTitle applied: {enabled}");
+		}
+
 		if (rootControl.HasMeta(NodePropertyMapper.MetaWindowPosX)
 			&& rootControl.HasMeta(NodePropertyMapper.MetaWindowPosY))
 		{

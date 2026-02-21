@@ -89,6 +89,7 @@ public static class SchemaTypes
         new TypeDef("VideoStreamPlayer", "Control", false),
         new TypeDef("Viewport3D", "SubViewportContainer", false),
         new TypeDef("Window", "Viewport", false),
+        new TypeDef("WindowDrag", "Panel", false),
     ];
 
     public static readonly IReadOnlyDictionary<string, TypeDef> TypesByName = BuildTypesByName();

@@ -4,6 +4,12 @@
 
 [Panel](Panel.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
 
+## Derived Classes
+
+### Direct subclasses
+
+- [WindowDrag](WindowDrag.md)
+
 ## Properties
 
 This page lists **only properties declared by `Panel`**.

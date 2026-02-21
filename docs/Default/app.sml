@@ -6,6 +6,13 @@ Window {
     size: 1920, 1080
     extendToTitle: true
 
+    WindowDrag {
+        id: titleDrag
+        anchors: left | top | right
+        top: 0
+        height: 38
+    }
+
     MenuBar {
         preferGlobalMenu: true
 
