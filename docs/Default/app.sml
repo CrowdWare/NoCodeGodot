@@ -33,10 +33,18 @@ Window {
         }
     }
 
-    Label {
+    /*Label {
         top: 5
         left: 100
         text: "NoCode Docking Demo"
+    }*/
+
+    Markdown {
+        top: 5
+        left: 100
+        width: 200
+        height: 20
+        text: "**NoCode** - Docking Demo"
     }
 
      DockingHost {
