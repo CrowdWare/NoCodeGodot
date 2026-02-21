@@ -44,8 +44,8 @@ Additional focused docs:
 │  - ui.sml                      │
 │  - assets (.glb, video, .png)  │
 └───────────┬────────────────────┘
-            │ HTTP
-            ▼
+			│ HTTP
+			▼
 ┌──────────────────────────┐
 │      NoCodeRunner        │
 │                          │
@@ -56,7 +56,7 @@ Additional focused docs:
 │  C# Logic Layer          │
 │                          │
 └───────────┬──────────────┘
-            ▼
+			▼
 ┌──────────────────────────┐
 │        Godot Engine      │
 │                          │

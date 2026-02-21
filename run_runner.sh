@@ -18,6 +18,7 @@ if [[ -z "$MODE" ]]; then
   echo "  3) docking  -> samples/docking_demo.sml"
   echo "  4) none     -> ohne URL-Override"
   echo "  5) docs     -> generate SML/SMS docs (headless)"
+  echo "  6) build    -> buil app"
   read -r -p "Auswahl [1-5]: " CHOICE
 
   case "$CHOICE" in
@@ -26,6 +27,7 @@ if [[ -z "$MODE" ]]; then
     3) MODE="docking" ;;
     4) MODE="none" ;;
     5) MODE="docs" ;;
+    6) MODE="build" ;;
     *)
       echo "Ungültige Auswahl. Abbruch."
       exit 1
@@ -59,6 +61,10 @@ case "$MODE" in
 
     echo "Documentation generation completed."
     exit 0
+    ;;
+  build)
+    echo "Building the app..."
+    dotnet build "$REPO_ROOT/NoCodeRunner/NoCodeRunner.csproj"
     ;;
   *)
     echo "Usage: $0 [default|sample|docking|none|docs]"

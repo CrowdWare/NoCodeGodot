@@ -86,10 +86,23 @@ public partial class Main : Node
 	{
 		DiscoverUiActionModules();
 		ConfigureWindowContentScale(UiScalingMode.Layout);
+
 		var startupSettings = await LoadStartupSettingsAsync();
 		RunnerLogger.Configure(startupSettings.IncludeStackTraces, startupSettings.ShowParserWarnings);
 
 		_resolvedStartupUiUrl = await ResolveStartupUiUrlAsync();
+
+		var theme = GD.Load<Theme>("res://theme.tres");
+		if (theme is null)
+		{
+			RunnerLogger.Warn("Startup", "Theme 'res://theme.tres' konnte nicht geladen werden.");
+		}
+		else
+		{
+			GetWindow().Theme = theme;
+			RunnerLogger.Info("Startup", $"Theme loaded {theme}");
+			RunnerLogger.Info("Startup", $"Window.Theme now = {GetWindow().Theme}");
+		}
 
 		if (LoadUiOnStartup)
 		{
@@ -1066,6 +1079,19 @@ public partial class Main : Node
 		{
 			Name = "RuntimeUiHost"
 		};
+
+		var inheritedTheme = GetWindow()?.Theme;
+		if (inheritedTheme is not null)
+		{
+			host.Theme = inheritedTheme;
+			rootControl.Theme = inheritedTheme;
+			RunnerLogger.Info("UI", "Applied window theme directly to RuntimeUiHost and SmlRoot.");
+		}
+		else
+		{
+			RunnerLogger.Warn("UI", "Window theme is null while attaching runtime UI.");
+		}
+
 		host.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 		host.SetOffsetsPreset(Control.LayoutPreset.FullRect);
 		host.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;

@@ -1,8 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://dk5ho55cod4m"]
 
-[ext_resource type="Script" path="res://Main.cs" id="1_main"]
+[ext_resource type="Script" uid="uid://caipyxknfgg2k" path="res://Main.cs" id="1_main"]
 
-[node name="Main" type="Node"]
+[node name="Main" type="Node" unique_id=1669965549]
 script = ExtResource("1_main")
 ManifestUrl = ""
-EnableStartupSync = true

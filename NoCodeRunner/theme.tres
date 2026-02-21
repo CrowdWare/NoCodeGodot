@@ -1,0 +1,26 @@
+[gd_resource type="Theme" format=3 uid="uid://bb34cftxjsnv"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wvktn"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_e1x85"]
+bg_color = Color(0.3316325, 0.70407575, 1.1551381e-06, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_vj6dk"]
+bg_color = Color(0.039215688, 0.11372549, 0.1254902, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_110ce"]
+bg_color = Color(0.9141421, 0.42088473, 0.4643247, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_cjfk0"]
+bg_color = Color(0.23529412, 0.03137255, 0.20784314, 1)
+
+[resource]
+Button/styles/disabled = SubResource("StyleBoxFlat_wvktn")
+Button/styles/normal = SubResource("StyleBoxFlat_e1x85")
+Panel/styles/panel = SubResource("StyleBoxFlat_vj6dk")
+PanelContainer/styles/panel = SubResource("StyleBoxFlat_110ce")
+TabBar/styles/tab_selected = SubResource("StyleBoxFlat_e1x85")
+TabBar/styles/tab_unselected = SubResource("StyleBoxFlat_cjfk0")
+TabContainer/styles/panel = SubResource("StyleBoxFlat_vj6dk")
+TabContainer/styles/tab_selected = SubResource("StyleBoxFlat_e1x85")
+TabContainer/styles/tab_unselected = SubResource("StyleBoxFlat_cjfk0")
