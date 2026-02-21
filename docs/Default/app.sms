@@ -14,7 +14,7 @@ fun ready() {
         log.warn("MainWindow, Tree oder CodeEdit nicht gefunden – nichts zu befüllen.")
         return
     }
-    //mainWindow.setFlag(extendToTitle, true)
+    mainWindow.setFlag(extendToTitle, true)
     codeEdit.onSave("codeEditOnSave")
     populateTree(tree, ".")
     

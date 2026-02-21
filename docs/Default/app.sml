@@ -4,6 +4,7 @@ Window {
     minSize: 800,400
     pos: 0, 0
     size: 1920, 1080
+    extendToTitle: true
 
     MenuBar {
         preferGlobalMenu: true
