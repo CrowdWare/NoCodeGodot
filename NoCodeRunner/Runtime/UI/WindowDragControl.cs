@@ -32,6 +32,9 @@ public sealed partial class WindowDragControl : Panel
     {
         MouseFilter = MouseFilterEnum.Stop;
         FocusMode = FocusModeEnum.None;
+
+        // Keep drag surface visually transparent / borderless.
+        AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
     }
 
     public override void _GuiInput(InputEvent @event)

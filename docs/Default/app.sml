@@ -39,6 +39,28 @@ Window {
         text: "This is a control living in the caption"
     }
 
+     DockingHost {
+        id: mainDockHost
+        anchors: left | top | right | bottom
+        gap: 8
+        offsetTop: 42
+
+        DockingContainer {
+            id: farLeftDock
+            dockSide: left
+            fixedWidth: 200
+            heightPercent: 62
+            dragToRearrangeEnabled: true
+            tabsRearrangeGroup: 1
+
+            VBoxContainer {
+                id: assets
+                title: "Project"
+                Label { text: "Far left dock" }
+            }
+        }
+    }
+    /*
     PanelContainer {
         anchors: left | top | bottom
         sizeFlagsVertical: expandFill
@@ -104,4 +126,5 @@ Window {
             PanelContainer { title: "Portrait" }
         }
     }
+    */
 }
