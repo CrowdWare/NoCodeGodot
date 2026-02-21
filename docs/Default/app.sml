@@ -48,15 +48,55 @@ Window {
         DockingContainer {
             id: farLeftDock
             dockSide: left
-            fixedWidth: 200
-            heightPercent: 62
+            fixedWidth: 300
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
 
             VBoxContainer {
                 id: assets
                 title: "Project"
-                Label { text: "Far left dock" }
+                Tree {
+                    id: treeview
+                    sizeFlagsHorizontal: expandFill
+                    sizeFlagsVertical: expandFill
+                    showGuides: false
+                } 
+            }
+        }
+
+        DockingContainer {
+            id: centerDock
+            dockSide: center
+            flex: true
+            closeable: false
+            dragToRearrangeEnabled: true
+
+            CodeEdit {
+                id: codeEdit
+                title: "<New>"
+                text: "Window { 
+    title: \"Test\"
+}"     
+                syntax: "sml"
+                //font: "appres://DeineFont.ttf"   
+                fontSize: 13
+            }   
+        }
+
+        DockingContainer {
+            id: rightDock
+            dockSide: right
+            fixedWidth: 360
+            dragToRearrangeEnabled: true
+            tabsRearrangeGroup: 1
+
+            VBoxContainer {
+                id: inspector
+                title: "Markdown"
+                Markdown {        
+                    padding: 8,8,8,20
+                    src: "res:/sample.md"
+                }
             }
         }
     }
