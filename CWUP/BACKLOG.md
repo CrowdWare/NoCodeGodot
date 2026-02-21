@@ -106,7 +106,9 @@
 - [x] tasks/documentation.md
 - [x] tasks/issues_menu.md
 - [x] tasks/refactor_docking.md
-- [ ] tasks/docking_features.md
+- [x] tasks/docking_features.md
+- [ ] tasks/os_lib.md
+- [ ] tasks/sms_when_return.md
 
 
 ## Tasks for NoCodeDesigner

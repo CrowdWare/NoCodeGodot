@@ -69,8 +69,9 @@ Window {
 To be able to glue SML to the engine we created on very simple Kotlin based script language, we call **SMS** (**S**imple **M**ultiplatform **S**cript).
 SMS is very easy to learn, because it only handles basic instructions.
 ```kotlin
-fun main(lang) {
-    var msg = null
+fun ready() {
+	var lang = os.getLocale()
+    var msg = ""
     
     when(lang) {
         "de" -> msg = "Hallo Welt!"
@@ -79,7 +80,7 @@ fun main(lang) {
         "pt" -> msg = "Olá Mundo!"
         else -> msg = "Hello World!"
     }
-    print(msg)
+    log.info(msg)
 }
 ```
 SMS uses a direct event style:
