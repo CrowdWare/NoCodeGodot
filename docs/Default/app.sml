@@ -33,10 +33,10 @@ Window {
         }
     }
 
-    Button { 
-        top: 3
-        left: 200
-        text: "This is a control living in the caption"
+    Label {
+        top: 5
+        left: 100
+        text: "NoCode Docking Demo"
     }
 
      DockingHost {
@@ -53,10 +53,21 @@ Window {
             tabsRearrangeGroup: 1
 
             VBoxContainer {
-                id: assets
+                id: project
                 title: "Project"
                 Tree {
                     id: treeview
+                    sizeFlagsHorizontal: expandFill
+                    sizeFlagsVertical: expandFill
+                    showGuides: false
+                } 
+            }
+
+            VBoxContainer {
+                id: hierarchy
+                title: "Hierarchy"
+                Tree {
+                    id: hierarchyTree
                     sizeFlagsHorizontal: expandFill
                     sizeFlagsVertical: expandFill
                     showGuides: false
@@ -98,73 +109,18 @@ Window {
                     src: "res:/sample.md"
                 }
             }
-        }
-    }
-    /*
-    PanelContainer {
-        anchors: left | top | bottom
-        sizeFlagsVertical: expandFill
-        offsetTop: 38
-        width: 300
 
-        TabContainer {
-            dragToRearrangeEnabled: true
-            tabsRearrangeGroup: 1
-
-            VBoxContainer { 
-                title: "Project" 
-
-                Tree {
-                    id: treeview
-                    sizeFlagsHorizontal: expandFill
-                    sizeFlagsVertical: expandFill
-                    showGuides: false
-                } 
+            VBoxContainer {
+                id: preview
+                title: "Portrait"
+                Label { text: "Portrait Preview" }
             }
-            PanelContainer { title: "Hierarchy" }
-        }
-    }
 
-    PanelContainer {
-        anchors: left | right | top | bottom
-        offsetLeft: 300
-        offsetRight: -400
-        offsetTop: 38
-        offsetBottom: 0
-
-        TabContainer {
-            CodeEdit {
-                id: codeEdit
-                title: "<New>"
-                text: "Window { titel: \"Test\"}"     
-                syntax: "sml"
-                //font: "appres://DeineFont.ttf"   
-                fontSize: 13
-            }    
-        }
-        
-    }
-
-    PanelContainer {
-        anchors: right | top | bottom
-        offsetLeft: -400
-        offsetRight: 0
-        offsetTop: 38
-        offsetBottom: 0
-
-        TabContainer {
-            dragToRearrangeEnabled: true
-            tabsRearrangeGroup: 1
-            VBoxContainer { 
-                title: "Desktop"
-                Markdown {        
-                    padding: 8,8,8,20
-                    src: "res:/sample.md"
-                }
+            VBoxContainer {
+                id: profiler
+                title: "Landscape"
+                Label { text: "Landscape Preview" }
             }
-            PanelContainer { title: "Landscape" }
-            PanelContainer { title: "Portrait" }
         }
     }
-    */
 }

@@ -7,6 +7,8 @@ Today, creating software often requires navigating complex toolchains, fragile f
 
 NoCode exists to change that.
 
+![screenprint](images/screenprint.png)
+
 ---
 
 ## 🧠 Core Idea
