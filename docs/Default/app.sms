@@ -8,8 +8,17 @@ fun ready() {
     tree = ui.getObject("treeview")
     codeEdit = ui.getObject("codeEdit")
     mainWindow = ui.getObject("mainWindow")
+    var lang = "pt"
+    var msg = null
+    when(lang) {
+        "de" -> msg = "Hallo Welt!"
+        "es" -> msg = "¡Hola Mundo!"
+        "fr" -> msg = "Bonjour le monde !"
+        "pt" -> msg = "Olá Mundo!"
+        else -> msg = "Hello World!"
+    }
+    log.success(msg)
 
-    
     if (tree == null || codeEdit == null || mainWindow == null) {
         log.warn("MainWindow, Tree oder CodeEdit nicht gefunden – nichts zu befüllen.")
         return
