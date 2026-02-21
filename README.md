@@ -196,9 +196,3 @@ NoCode aims to be:
 ## 🧩 In One Sentence
 
 NoCode is a human-first system for building software by describing intent, not fighting tools.
-
-If you want, next we can:
-	•	shorten this into a README version
-	•	turn it into a Manifest
-	•	adapt it for developers vs non-devs
-	•	or write a “What NoCode is NOT” section
