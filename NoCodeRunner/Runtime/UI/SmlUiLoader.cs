@@ -266,7 +266,7 @@ public sealed class SmlUiLoader
                     code.Properties["role"] = SmlValue.FromString("code");
                     code.Properties["text"] = SmlValue.FromString($"[code]{EscapeBbCode(block.Text)}[/code]");
                     code.Properties["wrap"] = SmlValue.FromBool(false);
-                    code.Properties["font"] = SmlValue.FromString("appres://Anonymous.ttf");
+                    code.Properties["font"] = SmlValue.FromString("appres://assets/fonts/JetBrainsMono-Regular.ttf");
                     code.Properties["fontSize"] = SmlValue.FromInt(codeFontSize);
                     code.Properties["sizeFlagsHorizontal"] = SmlValue.FromInt(3); // ExpandFill
                     code.Properties["sizeFlagsVertical"] = SmlValue.FromInt(1);   // Fill
@@ -354,7 +354,7 @@ public sealed class SmlUiLoader
             ? 1
             : normalized.Split('\n').Length;
 
-        var font = GD.Load<Font>("res://Anonymous.ttf") ?? CreateMonospaceSystemFontForMetrics();
+        var font = GD.Load<Font>("res://assets/fonts/JetBrainsMono-Regular.ttf") ?? CreateMonospaceSystemFontForMetrics();
         var lineHeight = Math.Max(1f, font.GetHeight(fontSize));
 
         const int verticalPadding = 12;

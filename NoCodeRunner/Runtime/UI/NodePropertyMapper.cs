@@ -1019,8 +1019,8 @@ public sealed class NodePropertyMapper
         static string Normalize(string path) => path.Replace('\\', '/').ToLowerInvariant();
         var raw = Normalize(rawFontPath);
         var resolved = Normalize(resolvedFontPath);
-        return raw.EndsWith("anonymous.ttf", StringComparison.Ordinal)
-            || resolved.EndsWith("anonymous.ttf", StringComparison.Ordinal);
+        return raw.EndsWith("jetbrainsmono-regular.ttf", StringComparison.Ordinal)
+            || resolved.EndsWith("jetbrainsmono-regular.ttf", StringComparison.Ordinal);
     }
 
     private static Font CreateMonospaceSystemFont()

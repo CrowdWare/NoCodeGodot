@@ -233,7 +233,7 @@ public sealed class SmlUiBuilder
 
         if (control is CodeEdit && !node.TryGetProperty("font", out _) && !node.TryGetProperty("fontSource", out _))
         {
-            _propertyMapper.Apply(control, "font", SmlValue.FromString("appres:/Anonymous.ttf"), _resolveAssetPath);
+            _propertyMapper.Apply(control, "font", SmlValue.FromString("appres:/assets/fonts/JetBrainsMono-Regular.ttf"), _resolveAssetPath);
         }
 
         if (control is Viewport3DControl viewport3D)
