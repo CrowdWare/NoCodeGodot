@@ -147,10 +147,12 @@ public static partial class DockingManagerRuntime
         private readonly List<PanelMenuBinding> _panelMenuBindings = [];
         private readonly HashSet<ulong> _boundPopupInstanceIds = [];
         private PanelContainer? _dockSelectionDialog;
+        private Control? _dockSelectionOverlay;
         private DockHostState? _dockSelectionSourceHost;
         private double _elapsed;
         private float _baseLeftInset;
         private float _baseRightInset;
+        private readonly List<ResizeHandleState> _resizeHandles = [];
 
         public override void _EnterTree()
         {
@@ -175,6 +177,21 @@ public static partial class DockingManagerRuntime
 
         public override void _ExitTree()
         {
+            foreach (var handle in _resizeHandles)
+            {
+                if (handle.Control is not null && GodotObject.IsInstanceValid(handle.Control))
+                {
+                    handle.Control.QueueFree();
+                }
+            }
+            _resizeHandles.Clear();
+
+            if (_dockSelectionOverlay is not null && GodotObject.IsInstanceValid(_dockSelectionOverlay))
+            {
+                _dockSelectionOverlay.QueueFree();
+                _dockSelectionOverlay = null;
+            }
+
             if (_dockSelectionDialog is not null && GodotObject.IsInstanceValid(_dockSelectionDialog))
             {
                 // Avoid remove_child during tree mutation; deferred free is safe here.
@@ -202,6 +219,7 @@ public static partial class DockingManagerRuntime
                 CreateKebabMenu(host);
             }
 
+            CreateResizeHandles();
             UpdateFlexibleHostsLayout();
             RefreshAllMenus();
         }
@@ -244,6 +262,7 @@ public static partial class DockingManagerRuntime
             if (changed)
             {
                 UpdateFlexibleHostsLayout();
+                UpdateResizeHandleVisibility();
                 RefreshAllMenus();
                 SyncBoundMenuChecks();
             }
@@ -444,10 +463,37 @@ public static partial class DockingManagerRuntime
                 return;
             }
 
+            // Ensure fullscreen overlay exists and is added before the dialog
+            if (_dockSelectionOverlay is null || !GodotObject.IsInstanceValid(_dockSelectionOverlay))
+            {
+                _dockSelectionOverlay = new Control
+                {
+                    Name = "DockSelectionOverlay",
+                    MouseFilter = Control.MouseFilterEnum.Stop,
+                    AnchorsPreset = (int)Control.LayoutPreset.FullRect
+                };
+                _dockSelectionOverlay.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+                _dockSelectionOverlay.GuiInput += overlayEvent =>
+                {
+                    if (overlayEvent is InputEventMouseButton { Pressed: true })
+                    {
+                        HideDockSelectionDialog();
+                    }
+                };
+            }
+
+            if (_dockSelectionOverlay.GetParent() is null)
+            {
+                rootControl.AddChild(_dockSelectionOverlay);
+            }
+
             if (_dockSelectionDialog.GetParent() is null)
             {
                 rootControl.AddChild(_dockSelectionDialog);
             }
+
+            _dockSelectionOverlay.Visible = true;
+            _dockSelectionOverlay.ZIndex = 1999;
 
             _dockSelectionSourceHost = sourceHost;
             UpdateDockSelectionAvailability(sourceHost);
@@ -464,7 +510,7 @@ public static partial class DockingManagerRuntime
             var dialogSize = _dockSelectionDialog.Size;
             if (dialogSize.X <= 0 || dialogSize.Y <= 0)
             {
-                dialogSize = new Vector2(360, 220);
+                dialogSize = new Vector2(200, 160);
                 _dockSelectionDialog.CustomMinimumSize = dialogSize;
                 _dockSelectionDialog.Size = dialogSize;
             }
@@ -491,6 +537,7 @@ public static partial class DockingManagerRuntime
                 return;
             }
 
+            // Escape closes the dialog; clicks outside are handled by the overlay.
             if (@event is InputEventKey keyEvent
                 && keyEvent.Pressed
                 && !keyEvent.Echo
@@ -498,24 +545,16 @@ public static partial class DockingManagerRuntime
             {
                 HideDockSelectionDialog();
                 GetViewport()?.SetInputAsHandled();
-                return;
-            }
-
-            if (@event is InputEventMouseButton mouseEvent
-                && mouseEvent.Pressed
-                && mouseEvent.ButtonIndex == MouseButton.Left)
-            {
-                var dialogRect = _dockSelectionDialog.GetGlobalRect();
-                if (!dialogRect.HasPoint(mouseEvent.GlobalPosition))
-                {
-                    HideDockSelectionDialog();
-                    GetViewport()?.SetInputAsHandled();
-                }
             }
         }
 
         private void HideDockSelectionDialog()
         {
+            if (_dockSelectionOverlay is not null && GodotObject.IsInstanceValid(_dockSelectionOverlay))
+            {
+                _dockSelectionOverlay.Visible = false;
+            }
+
             if (_dockSelectionDialog is null || !GodotObject.IsInstanceValid(_dockSelectionDialog))
             {
                 _dockSelectionSourceHost = null;
@@ -538,26 +577,26 @@ public static partial class DockingManagerRuntime
                 Name = "DockSelectionDialog",
                 MouseFilter = Control.MouseFilterEnum.Stop,
                 FocusMode = Control.FocusModeEnum.All,
-                CustomMinimumSize = new Vector2(360, 220),
+                CustomMinimumSize = new Vector2(200, 0),
                 Visible = false
             };
             dialog.ZIndex = 2000;
 
             var dialogStyle = new StyleBoxFlat
             {
-                BgColor = new Color(0.12f, 0.12f, 0.13f, 0.98f),
-                BorderColor = new Color(0.82f, 0.82f, 0.86f, 0.95f),
-                CornerRadiusTopLeft = 8,
-                CornerRadiusTopRight = 8,
-                CornerRadiusBottomRight = 8,
-                CornerRadiusBottomLeft = 8,
-                ShadowColor = new Color(0f, 0f, 0f, 0.35f),
-                ShadowSize = 10,
-                ShadowOffset = new Vector2(0, 3),
-                ContentMarginLeft = 10,
-                ContentMarginTop = 10,
-                ContentMarginRight = 10,
-                ContentMarginBottom = 10
+                BgColor = new Color(0.14f, 0.15f, 0.18f, 0.98f),
+                BorderColor = new Color(0.26f, 0.30f, 0.36f, 1f),
+                CornerRadiusTopLeft = 6,
+                CornerRadiusTopRight = 6,
+                CornerRadiusBottomRight = 6,
+                CornerRadiusBottomLeft = 6,
+                ShadowColor = new Color(0f, 0f, 0f, 0.40f),
+                ShadowSize = 8,
+                ShadowOffset = new Vector2(0, 2),
+                ContentMarginLeft = 6,
+                ContentMarginTop = 6,
+                ContentMarginRight = 6,
+                ContentMarginBottom = 6
             };
             dialogStyle.SetBorderWidthAll(1);
             dialog.AddThemeStyleboxOverride("panel", dialogStyle);
@@ -566,42 +605,61 @@ public static partial class DockingManagerRuntime
             {
                 Name = "Root",
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-                SizeFlagsVertical = Control.SizeFlags.ExpandFill,
-                CustomMinimumSize = new Vector2(360, 220)
+                SizeFlagsVertical = Control.SizeFlags.ShrinkBegin
+            };
+            root.AddThemeConstantOverride("separation", 4);
+
+            // Header label "Dock Position"
+            var headerRow = new HBoxContainer
+            {
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
             };
 
-            var title = new Label
+            var arrowLeft = new Label { Text = "<" };
+            arrowLeft.AddThemeColorOverride("font_color", new Color(0.6f, 0.65f, 0.72f, 1f));
+
+            var titleLabel = new Label
             {
                 Name = "Title",
-                Text = "Docking",
+                Text = "Dock Position",
                 HorizontalAlignment = HorizontalAlignment.Center,
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
             };
-            title.AddThemeColorOverride("font_color", new Color(0.97f, 0.97f, 0.99f, 1f));
+            titleLabel.AddThemeColorOverride("font_color", new Color(0.87f, 0.91f, 0.98f, 1f));
 
+            var arrowRight = new Label { Text = ">" };
+            arrowRight.AddThemeColorOverride("font_color", new Color(0.6f, 0.65f, 0.72f, 1f));
+
+            headerRow.AddChild(arrowLeft);
+            headerRow.AddChild(titleLabel);
+            headerRow.AddChild(arrowRight);
+
+            // Dock grid
             var dockGrid = new HBoxContainer
             {
                 Name = "Grid",
-                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-                SizeFlagsVertical = Control.SizeFlags.ExpandFill
+                SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter,
+                SizeFlagsVertical = Control.SizeFlags.ShrinkCenter
             };
-            dockGrid.AddThemeConstantOverride("separation", 8);
+            dockGrid.AddThemeConstantOverride("separation", 3);
             dockGrid.AddChild(CreateDockColumn("farleft", "farleftbottom"));
             dockGrid.AddChild(CreateDockColumn("left", "leftbottom"));
             dockGrid.AddChild(CreateDockSlotButton("center", center: true));
             dockGrid.AddChild(CreateDockColumn("right", "rightbottom"));
             dockGrid.AddChild(CreateDockColumn("farright", "farrightbottom"));
 
-            var actionRow = new HBoxContainer
+            // Separator
+            var separator = new HSeparator
             {
-                Name = "Actions",
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
             };
-            actionRow.AddThemeConstantOverride("separation", 8);
 
+            // Action buttons (vertical, full-width, like Godot)
             var floatingButton = new Button
             {
-                Text = "Floating",
+                Text = "  Schwebend machen",
+                Flat = false,
+                Alignment = HorizontalAlignment.Left,
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
             };
             floatingButton.Pressed += () =>
@@ -616,12 +674,14 @@ public static partial class DockingManagerRuntime
                 ExecuteUndockAction(sourceHost);
             };
 
-            var closedButton = new Button
+            var closeButton = new Button
             {
-                Text = "Closed",
+                Text = "  Schließen",
+                Flat = false,
+                Alignment = HorizontalAlignment.Left,
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
             };
-            closedButton.Pressed += () =>
+            closeButton.Pressed += () =>
             {
                 var sourceHost = _dockSelectionSourceHost;
                 if (sourceHost is null)
@@ -633,21 +693,16 @@ public static partial class DockingManagerRuntime
                 HideDockSelectionDialog();
             };
 
-            var cancelButton = new Button
-            {
-                Text = "Cancel",
-                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
-            };
-            cancelButton.Pressed += () => HideDockSelectionDialog();
+            // Style close button with an X prefix
+            var closePrefix = new Label { Text = "✕" };
 
-            actionRow.AddChild(floatingButton);
-            actionRow.AddChild(closedButton);
-            actionRow.AddChild(cancelButton);
-
-            root.AddChild(title);
+            root.AddChild(headerRow);
             root.AddChild(dockGrid);
-            root.AddChild(actionRow);
+            root.AddChild(separator);
+            root.AddChild(floatingButton);
+            root.AddChild(closeButton);
             dialog.AddChild(root);
+
             dialog.VisibilityChanged += () =>
             {
                 if (dialog.Visible)
@@ -660,6 +715,7 @@ public static partial class DockingManagerRuntime
                 {
                     if (GodotObject.IsInstanceValid(button))
                     {
+                        button.Visible = true;
                         button.Disabled = false;
                     }
                 }
@@ -674,8 +730,9 @@ public static partial class DockingManagerRuntime
             {
                 SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter,
                 SizeFlagsVertical = Control.SizeFlags.ExpandFill,
-                CustomMinimumSize = new Vector2(68, 76)
+                CustomMinimumSize = new Vector2(36, 0)
             };
+            column.AddThemeConstantOverride("separation", 3);
 
             column.AddChild(CreateDockSlotButton(topPosition));
             column.AddChild(CreateDockSlotButton(bottomPosition));
@@ -689,7 +746,7 @@ public static partial class DockingManagerRuntime
                 Text = string.Empty,
                 SizeFlagsHorizontal = center ? Control.SizeFlags.ExpandFill : Control.SizeFlags.ShrinkCenter,
                 SizeFlagsVertical = center ? Control.SizeFlags.ExpandFill : Control.SizeFlags.ExpandFill,
-                CustomMinimumSize = center ? new Vector2(100, 76) : new Vector2(64, 36)
+                CustomMinimumSize = center ? new Vector2(44, 0) : new Vector2(34, 26)
             };
             button.Flat = false;
             button.AddThemeColorOverride("font_color", new Color(0.96f, 0.96f, 0.98f, 1f));
@@ -774,7 +831,21 @@ public static partial class DockingManagerRuntime
                     continue;
                 }
 
-                entry.Value.Disabled = !CanDockToPosition(sourceHost, entry.Key);
+                var isCenter = string.Equals(entry.Key, "center", StringComparison.OrdinalIgnoreCase);
+                var canDock = CanDockToPosition(sourceHost, entry.Key);
+
+                if (isCenter)
+                {
+                    // Center is always visible as orientation landmark; disable if not reachable.
+                    entry.Value.Visible = true;
+                    entry.Value.Disabled = !canDock;
+                }
+                else
+                {
+                    // Side slots are hidden when not reachable to keep the dialog compact.
+                    entry.Value.Visible = canDock;
+                    entry.Value.Disabled = false;
+                }
             }
         }
 
@@ -1315,7 +1386,212 @@ public static partial class DockingManagerRuntime
 
             return source.Dock.GetTabsRearrangeGroup() == target.Dock.GetTabsRearrangeGroup();
         }
-    }
+
+        // ── Resize Handles ────────────────────────────────────────────────────────
+
+        private static readonly (DockingContainerControl.DockSideKind Top, DockingContainerControl.DockSideKind Bottom)[]
+            ResizePairs =
+            [
+                (DockingContainerControl.DockSideKind.FarLeft,  DockingContainerControl.DockSideKind.FarLeftBottom),
+                (DockingContainerControl.DockSideKind.Left,     DockingContainerControl.DockSideKind.LeftBottom),
+                (DockingContainerControl.DockSideKind.Right,    DockingContainerControl.DockSideKind.RightBottom),
+                (DockingContainerControl.DockSideKind.FarRight, DockingContainerControl.DockSideKind.FarRightBottom),
+            ];
+
+        private void CreateResizeHandles()
+        {
+            if (GetParent() is not Control rootControl)
+            {
+                return;
+            }
+
+            foreach (var (topKind, bottomKind) in ResizePairs)
+            {
+                var topHost    = FindHostBySlot(topKind);
+                var bottomHost = FindHostBySlot(bottomKind);
+                if (topHost is null || bottomHost is null)
+                {
+                    continue;
+                }
+
+                var handle = BuildResizeHandle(topHost, bottomHost, rootControl);
+                _resizeHandles.Add(new ResizeHandleState(handle, topHost, bottomHost));
+            }
+        }
+
+        private Control BuildResizeHandle(DockHostState topHost, DockHostState bottomHost, Control rootControl)
+        {
+            const int HandleHeight = 8;
+            const int GripperDotSize = 3;
+            const int GripperDots = 3;
+            const int GripperSpacing = 5;
+
+            var handle = new Control
+            {
+                Name = $"ResizeHandle_{topHost.Name}_{bottomHost.Name}",
+                MouseFilter = Control.MouseFilterEnum.Stop,
+                MouseDefaultCursorShape = Control.CursorShape.Vsize,
+                CustomMinimumSize = new Vector2(0, HandleHeight),
+                ZIndex = 500
+            };
+
+            // Hover state tracked manually
+            var hovered = false;
+
+            // Gripper dots drawn via _Draw
+            handle.Draw += () =>
+            {
+                if (!handle.Visible)
+                {
+                    return;
+                }
+
+                var totalW = (GripperDots * GripperDotSize) + ((GripperDots - 1) * GripperSpacing);
+                var startX = (handle.Size.X - totalW) / 2f;
+                var centerY = handle.Size.Y / 2f - GripperDotSize / 2f;
+                var dotColor = hovered
+                    ? new Color(0.75f, 0.78f, 0.85f, 1f)
+                    : new Color(0.45f, 0.48f, 0.55f, 1f);
+
+                for (var i = 0; i < GripperDots; i++)
+                {
+                    var x = startX + i * (GripperDotSize + GripperSpacing);
+                    handle.DrawRect(new Rect2(x, centerY, GripperDotSize, GripperDotSize), dotColor);
+                }
+            };
+
+            // Drag state
+            var dragging = false;
+            var dragStartY = 0f;
+            var dragStartTopHeight = 0f;
+
+            handle.GuiInput += inputEvent =>
+            {
+                if (inputEvent is InputEventMouseButton mb)
+                {
+                    if (mb.ButtonIndex == MouseButton.Left)
+                    {
+                        if (mb.Pressed)
+                        {
+                            dragging = true;
+                            dragStartY = handle.GetGlobalMousePosition().Y;
+                            dragStartTopHeight = topHost.HostContainer.Size.Y;
+                            handle.AcceptEvent();
+                        }
+                        else
+                        {
+                            dragging = false;
+                            handle.AcceptEvent();
+                        }
+                    }
+                }
+                else if (inputEvent is InputEventMouseMotion && dragging)
+                {
+                    var delta = handle.GetGlobalMousePosition().Y - dragStartY;
+                    var newTopHeight = Mathf.Max(40f, dragStartTopHeight + delta);
+
+                    // Respect bottom panel minimum size
+                    var totalAvailable = topHost.HostContainer.Size.Y + bottomHost.HostContainer.Size.Y;
+                    var minBottomHeight = bottomHost.HostContainer.CustomMinimumSize.Y > 0
+                        ? bottomHost.HostContainer.CustomMinimumSize.Y
+                        : 40f;
+                    newTopHeight = Mathf.Min(newTopHeight, totalAvailable - minBottomHeight - HandleHeight);
+
+                    topHost.HostContainer.CustomMinimumSize = new Vector2(
+                        topHost.HostContainer.CustomMinimumSize.X, newTopHeight);
+                    topHost.HostContainer.Size = new Vector2(
+                        topHost.HostContainer.Size.X, newTopHeight);
+
+                    PositionResizeHandle(handle, topHost, bottomHost, rootControl);
+                    handle.AcceptEvent();
+                }
+
+                handle.QueueRedraw();
+            };
+
+            handle.MouseEntered += () => { hovered = true;  handle.QueueRedraw(); };
+            handle.MouseExited  += () => { hovered = false; handle.QueueRedraw(); };
+
+            rootControl.AddChild(handle);
+            PositionResizeHandle(handle, topHost, bottomHost, rootControl);
+            return handle;
+        }
+
+        private static void PositionResizeHandle(Control handle, DockHostState topHost, DockHostState bottomHost, Control rootControl)
+        {
+            if (!GodotObject.IsInstanceValid(topHost.HostContainer)
+                || !GodotObject.IsInstanceValid(bottomHost.HostContainer))
+            {
+                return;
+            }
+
+            // Place the handle at the boundary between top and bottom panel
+            var topRect    = topHost.HostContainer.GetGlobalRect();
+            var rootRect   = rootControl.GetGlobalRect();
+            var handleY    = topRect.End.Y - rootRect.Position.Y - handle.Size.Y / 2f;
+            var handleX    = topRect.Position.X - rootRect.Position.X;
+            var handleW    = topRect.Size.X;
+
+            handle.SetDeferred(Control.PropertyName.Position, new Vector2(handleX, handleY));
+            handle.SetDeferred(Control.PropertyName.Size,     new Vector2(handleW, handle.Size.Y > 0 ? handle.Size.Y : 8));
+        }
+
+        private void UpdateResizeHandleVisibility()
+        {
+            if (GetParent() is not Control rootControl)
+            {
+                return;
+            }
+
+            foreach (var state in _resizeHandles)
+            {
+                if (!GodotObject.IsInstanceValid(state.Control))
+                {
+                    continue;
+                }
+
+                var bothVisible = state.TopHost.HostContainer.Visible
+                               && state.BottomHost.HostContainer.Visible
+                               && GodotObject.IsInstanceValid(state.TopHost.HostContainer)
+                               && GodotObject.IsInstanceValid(state.BottomHost.HostContainer);
+
+                state.Control.Visible = bothVisible;
+
+                if (bothVisible)
+                {
+                    PositionResizeHandle(state.Control, state.TopHost, state.BottomHost, rootControl);
+                }
+            }
+        }
+
+        private DockHostState? FindHostBySlot(DockingContainerControl.DockSideKind slot)
+        {
+            foreach (var host in _hosts)
+            {
+                if (host.Slot == slot)
+                {
+                    return host;
+                }
+            }
+
+            return null;
+        }
+
+        private sealed class ResizeHandleState
+        {
+            public ResizeHandleState(Control control, DockHostState topHost, DockHostState bottomHost)
+            {
+                Control    = control;
+                TopHost    = topHost;
+                BottomHost = bottomHost;
+            }
+
+            public Control       Control    { get; }
+            public DockHostState TopHost    { get; }
+            public DockHostState BottomHost { get; }
+        }
+
+    }  // end DockingManagerNode
 
     private sealed class DockHostState
     {

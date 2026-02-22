@@ -152,6 +152,36 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_textedit_normal"]
+content_margin_left = 8.0
+content_margin_top = 6.0
+content_margin_right = 8.0
+content_margin_bottom = 6.0
+bg_color = Color(0.12941177, 0.14117648, 0.1764706, 1)
+border_width_left = 0
+border_width_top = 0
+border_width_right = 0
+border_width_bottom = 0
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_textedit_focus"]
+content_margin_left = 8.0
+content_margin_top = 6.0
+content_margin_right = 8.0
+content_margin_bottom = 6.0
+bg_color = Color(0.14901961, 0.16470589, 0.20392157, 1)
+border_width_left = 0
+border_width_top = 0
+border_width_right = 0
+border_width_bottom = 0
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tab_hovered"]
 content_margin_left = 12.0
 content_margin_top = 5.0
@@ -234,9 +264,9 @@ TabContainer/styles/tab_unselected = SubResource("StyleBoxFlat_tab_unselected")
 TextEdit/colors/caret_color = Color(0.15686275, 0.6627451, 0.8784314, 1)
 TextEdit/colors/font_color = Color(0.85882354, 0.8862745, 0.9490196, 1)
 TextEdit/colors/selection_color = Color(0.1764706, 0.5176471, 0.2627451, 0.55)
-TextEdit/styles/focus = SubResource("StyleBoxFlat_input_focus")
-TextEdit/styles/normal = SubResource("StyleBoxFlat_input_normal")
-TextEdit/styles/read_only = SubResource("StyleBoxFlat_input_normal")
+TextEdit/styles/focus = SubResource("StyleBoxFlat_textedit_focus")
+TextEdit/styles/normal = SubResource("StyleBoxFlat_textedit_normal")
+TextEdit/styles/read_only = SubResource("StyleBoxFlat_textedit_normal")
 Tree/colors/font_color = Color(0.8117647, 0.8509804, 0.92156863, 1)
 Tree/colors/font_selected_color = Color(0.9882353, 1, 1, 1)
 Tree/colors/guide_color = Color(0.27058825, 0.3137255, 0.38039216, 0.9)
