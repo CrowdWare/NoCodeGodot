@@ -3,10 +3,10 @@
 ## Functional Requirements
 
 ### Platform Support
-- The NoCodeDesigner must run on Windows, macOS, and Linux.
+- The Forge-Designer must run on Windows, macOS, and Linux.
 - Feature parity across platforms (no platform-exclusive features).
 - Platform-specific integrations must degrade gracefully on unsupported systems.
-- The NoCodeRunner must run on Android in addition to desktop platforms.
+- The Forge-Runner must run on Android in addition to desktop platforms.
 
 ## Non-Functional Requirements
 
@@ -73,7 +73,7 @@
 
 ## Use Cases
 
-## Tasks for NoCodeRunner
+## Tasks Forge-Runner
 - [x] tasks/initial.md
 - [x] tasks/sml_parser_core.md
 - [x] tasks/node_factory.md
@@ -111,7 +111,7 @@
 - [ ] tasks/sms_when_return.md
 
 
-## Tasks for NoCodeDesigner
+## Tasks for Forge-Designer
 - [ ] Lifecycle-Template für neue Scripts einführen (OnInit / OnReadyAsync sichtbar als optionaler Einstieg)
 - [ ] Konventionsbasierte UI-Event-Hooks im Script-Template dokumentieren (z. B. treeItemSelected, treeItemToggled, listItemSelected)
 - [ ] Script-Erzeugung im Designer auf neues Template umstellen

@@ -1,11 +1,11 @@
-# 🧭 The NoCode Vision
+# 🧭 The Forge Vision
 
-NoCode is not about avoiding code.
+Forge is not about avoiding code.
 It is about removing unnecessary barriers between ideas and reality.
 
 Today, creating software often requires navigating complex toolchains, fragile frameworks, platform-specific quirks, and constant rewrites. This complexity excludes many people and slows down even experienced developers.
 
-NoCode exists to change that.
+Forge exists to change that.
 
 ![screenprint](images/screenprint.png)
 
@@ -15,13 +15,13 @@ NoCode exists to change that.
 
 Describe what you want – not how the engine works.
 
-NoCode is built around a simple principle:
+Forge is built around a simple principle:
 
 Structure and intent should be declared.
 Execution and optimization belong to the runtime.
 
 Instead of writing imperative glue code, creators describe UI, behavior, and structure using a simple, readable, declarative language (SML).
-The NoCodeRunner interprets this description and executes it on the target platform.
+The Forge-Runner interprets this description and executes it on the target platform.
 
 ---
 
@@ -115,7 +115,7 @@ on saveAs.clicked() {
 }
 ```
 
-This is one of NoCode's strongest UX advantages:
+This is one of Forge's strongest UX advantages:
 - explicit and readable
 - easy for newcomers
 - deterministic for tooling/AI
@@ -125,10 +125,10 @@ This is one of NoCode's strongest UX advantages:
 
 ## 🔒 Separation of Concerns (By Design)
 
-NoCode enforces a strict separation:
+Forge enforces a strict separation:
 	•	Structure & UI → SML
 	•	Behavior & Logic → native C# code
-	•	Execution → NoCodeRunner
+	•	Execution → Forge-Runner
 
 This prevents the common collapse where UI, logic, and state become tangled and unmaintainable.
 
@@ -136,7 +136,7 @@ This prevents the common collapse where UI, logic, and state become tangled and 
 
 ## 🧱 Deterministic, Portable, Durable
 
-NoCode systems are designed to be:
+Forge systems are designed to be:
 	•	deterministic
 	•	platform-independent
 	•	future-proof
@@ -154,9 +154,9 @@ without rewriting the description.
 
 ---
 
-## 🛠 NoCode Is Not a Toy
+## 🛠 Forge Is Not a Toy
 
-NoCode is not a drag-and-drop toy for shallow demos.
+Forge is not a drag-and-drop toy for shallow demos.
 
 It is a professional toolchain for:
 	•	tools
@@ -177,7 +177,7 @@ Without breaking the simplicity of the core.
 
 ## 🤝 Empowering Humans, Not Replacing Them
 
-NoCode is not about replacing developers.
+Forge is not about replacing developers.
 
 It is about:
 	•	enabling designers to build real software
@@ -195,14 +195,14 @@ No black boxes.
 
 ## ⏳ A Long-Term Perspective
 
-NoCode is designed to survive trends.
+Forge is designed to survive trends.
 	•	Frameworks will come and go
 	•	Languages will change
 	•	Platforms will disappear
 
 But clear structure, explicit intent, and simple text formats endure.
 
-NoCode aims to be:
+Forge aims to be:
 	•	boring in the best way
 	•	stable
 	•	understandable
@@ -212,4 +212,4 @@ NoCode aims to be:
 
 ## 🧩 In One Sentence
 
-NoCode is a human-first system for building software by describing intent, not fighting tools.
+Forge is a human-first system for building software by describing intent, not fighting tools.

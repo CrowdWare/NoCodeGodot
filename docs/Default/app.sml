@@ -33,11 +33,6 @@ Window {
         }
     }
 
-    /*Label {
-        top: 5
-        left: 100
-        text: "NoCode Docking Demo"
-    }*/
 
     Markdown {
         top: 5
