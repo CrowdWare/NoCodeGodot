@@ -1,58 +1,49 @@
-﻿var tree = null
+var tree = null
 var codeEdit = null
-var dock = null
-var view = null
 var selectedPath = null
+var mainWindow = null
 
 fun ready() {
+    log.info("ready called")
     tree = ui.getObject("treeview")
     codeEdit = ui.getObject("codeEdit")
-    dock = ui.getObject("editorDock")
-    view = ui.getObject("viewMenu")
+    mainWindow = ui.getObject("mainWindow")
 
-    if (tree == null || codeEdit == null) {
-        log.warn("TreeView oder CodeEdit nicht gefunden – nichts zu befüllen.")
+    if (tree == null || codeEdit == null || mainWindow == null) {
+        log.warn("MainWindow, Tree oder CodeEdit nicht gefunden – nichts zu befüllen.")
         return
     }
-
+    //mainWindow.setFlag(extendToTitle, true)
     codeEdit.onSave("codeEditOnSave")
-    tree.BindEvents()
     populateTree(tree, ".")
-
-    /*var ok = dock.LoadLayout("user:/first_layout.json")
-    if (ok) {
-        log.success("Layout loaded")
-    } else {
-        log.error("Layout could not be loaded")
-    }
-    */
+    
     log.info("TreeView 'treeview' wurde mit Inhalten aus ProjectFS befüllt.")
 }
 
 fun openFloatingWindow() {
-    var windowSml = "Window {  
+    /*var windowSml = "Window {  
     id: floatingWindow title: \"Floating Panel\"  
     minSize: 800,400\
-    pos: 448,156
-    size: 1024,768
-    Page {
+    pos: 0,0
+    size: 1920,1080
+    Panel {
         Label { text: \"Floating Window\" }
     }
-}"
-
-    var window = ui.CreateWindow(windowSml)
+}"*/
+    var sml = fs.readText("Default/main.sml")
+    var window = ui.CreateWindow(sml)
     if (window == null) {
         log.error("Floating window could not be created")
         return
     }
 
-    window.onClose("onFloatingWindowClosed")
-    log.success("Floating window created")
+    window.onClose("onSettingsWindowClosed")
 }
 
-fun onFloatingWindowClosed() {
-    log.info("floating Window has closed")
+fun onSettingsWindowClosed() {
+    log.warning("TODO - Redock panel")
 }
+
 
 fun populateTree(treeObj, rootPath) {
     treeObj.Clear()
@@ -74,103 +65,9 @@ fun populateTreeChildren(treeObj, parentHandle, dirPath) {
     }
 }
 
-fun dockPanelClosed(dockSpace, panelName) {
-    var menuItemId = mapPanelIdToMenuItemId(panelName)
-    if (menuItemId != "") {
-        var item = ui.getObject(menuItemId)
-        if (item != null) {
-            item.SetChecked(false)
-        }
-    }
-}
-
-on saveFile.clicked() {
-    if (dock == null) {
-        return
-    }
-
-    var ok = dock.SaveLayout("user:/first_layout.json")
-    log.info("SaveLayout: ${ok}")
-}
-
-on openFile.clicked() {
-    if (dock == null) {
-        return
-    }
-
-    var ok = dock.LoadLayout("user:/first_layout.json")
-    log.info("LoadLayout: ${ok}")
-}
-
-on settings.clicked() {
-    if (dock == null) {
-        return
-    }
-
-    dock.ResetLayout()
-    log.info("Layout zurückgesetzt")
-}
-
-on floating.clicked() {
-    openFloatingWindow()
-}
-
-on panelLeft.clicked() {
-    reopenPanelFromMenuItem("panelLeft")
-}
-
-on panelRight.clicked() {
-    reopenPanelFromMenuItem("panelRight")
-}
-
-fun reopenPanelFromMenuItem(menuItemId) {
-    if (dock == null) {
-        return
-    }
-
-    var panelId = mapMenuItemIdToPanelId(menuItemId)
-    if (panelId == "") {
-        return
-    }
-
-    var item = ui.getObject(menuItemId)
-    if (item == null) {
-        return
-    }
-
-    // View-Menü ist statisch: Panel kann hier wieder geöffnet werden.
-    var reopened = dock.ReopenPanel(panelId)
-    if (reopened) {
-        item.SetChecked(true)
-        log.info("Panel wieder geöffnet: ${panelId}")
-    } else {
-        // Kein Toggle-Down ohne ClosePanel-API – daher visuell checked halten.
-        item.SetChecked(true)
-    }
-}
-
-fun mapPanelIdToMenuItemId(panelId) {
-    if (panelId == "leftTop") {
-        return "panelLeft"
-    }
-    if (panelId == "rightTop") {
-        return "panelRight"
-    }
-    return ""
-}
-
-fun mapMenuItemIdToPanelId(menuItemId) {
-    if (menuItemId == "panelLeft") {
-        return "leftTop"
-    }
-    if (menuItemId == "panelRight") {
-        return "rightTop"
-    }
-    return ""
-}
-
-fun treeItemSelected(treeView, itemText, itemPath) {
-    log.info("treeItemSelected -> treeView=${treeView}, text='${itemText}'")
+on treeview.itemSelected() {
+    var itemPath = tree.GetSelectedPath()
+    log.info("treeview.itemSelected -> path='${itemPath}'")
 
     if (itemPath == null || itemPath == "") {
         return
@@ -183,20 +80,6 @@ fun treeItemSelected(treeView, itemText, itemPath) {
     }
 }
 
-fun treeItemToggled(treeView, itemText, itemPath, isOn) {
-    log.info("treeItemToggled -> treeView=${treeView}, text='${itemText}', isOn=${isOn}")
-}
-
-// User Defined Code
-//
-fun codeEditOnSave(editorId) {
-    var path = selectedPath
-    if (path == null || path == "") {
-        log.warn("Save abgebrochen: kein Pfad gesetzt.")
-        return
-    }
-
-    var text = codeEdit.GetText()
-    fs.writeText(path, text)
-    log.success("File saved: ${path}")
+on settings.clicked() {
+    openFloatingWindow()
 }

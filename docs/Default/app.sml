@@ -6,13 +6,6 @@ Window {
     size: 1920, 1080
     extendToTitle: true
 
-    WindowDrag {
-        id: titleDrag
-        anchors: left | top | right
-        top: 0
-        height: 38
-    }
-
     MenuBar {
         preferGlobalMenu: true
 
@@ -33,13 +26,20 @@ Window {
         }
     }
 
-
     Markdown {
         top: 5
         left: 100
         width: 200
         height: 20
         text: "**Forge** - Docking Demo"
+    }
+
+    // must be placed after title to stay clickable
+    WindowDrag {
+        id: titleDrag
+        anchors: left | top | right
+        top: 0
+        height: 38
     }
 
      DockingHost {

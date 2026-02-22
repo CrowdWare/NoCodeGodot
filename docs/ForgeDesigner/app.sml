@@ -1,85 +1,128 @@
 Window {
     id: mainWindow
-    title: "ForgeDesigner"
+    title: "Forge"
     minSize: 800,400
-    pos: 0, 0 // centered
-    size: 1024, 768
+    pos: 0, 0
+    size: 1920, 1080
+    extendToTitle: true
 
     MenuBar {
-        id: mainMenu
         preferGlobalMenu: true
 
-        Menu {
+        PopupMenu {
             id: appMenu
-            title: "Programm" 
+            title: "Forge"
 
-            MenuItem { text: "About ForgeDesigner"  id: about }
-            MenuItem { text: "Settings" id: settings}
-            Separator {}
-            MenuItem { text: "Quit ForgeDesigner" id: quit shortcut: "Cmd+Q" }
+            Item { id: about text: "About Forge" }
+            Item { id: settings text: "Settings" }
+            Item { id: quit text: "Quit Forge" }
         }
 
-        Menu { 
-            title: "File"  
-            MenuItem { text: "New"  id: newFile }
-            MenuItem { text: "Open"  id: openFile }
-            MenuItem { text: "Save"  id: saveFile }
-            MenuItem { text: "Save As"  id: saveFileAs }
-        }
-        Menu { title: "Edit"  }
-        Menu {
-            title: "View"
-            id: viewMenu
-            MenuItem { text: "Projekt" id: panelLeft isChecked: true }
-            MenuItem { text: "Markdown" id: panelRight isChecked: true }
-            MenuItem { text: "Floating Window" id: floating}
+        PopupMenu {
+            id: file
+            title: "File"
+
+            Item { id: saveAs text: "Save As..." }
         }
     }
 
-    DockSpace {
-        id: editorDock
-        allowFloating: true
-        allowTabbing: true
-        allowSplitting: true
-        splitterSize: 6
 
-        DockPanel {
-            id: leftTop
-            title: "Projekt"
-            area: "left"
-            width: 300
+    Markdown {
+        top: 5
+        left: 100
+        width: 200
+        height: 20
+        text: "**Forge** - Designer"
+    }
 
-            TreeView {
-                id: treeview
-                showGuides: false
+    WindowDrag {
+        id: titleDrag
+        anchors: left | top | right
+        top: 0
+        height: 38
+    }
+
+     DockingHost {
+        id: mainDockHost
+        anchors: left | top | right | bottom
+        gap: 8
+        offsetTop: 42
+
+        DockingContainer {
+            id: farLeftDock
+            dockSide: left
+            fixedWidth: 300
+            dragToRearrangeEnabled: true
+            tabsRearrangeGroup: 1
+
+            VBoxContainer {
+                id: project
+                title: "Project"
+                Tree {
+                    id: treeview
+                    sizeFlagsHorizontal: expandFill
+                    sizeFlagsVertical: expandFill
+                    showGuides: false
+                } 
+            }
+
+            VBoxContainer {
+                id: hierarchy
+                title: "Hierarchy"
+                Tree {
+                    id: hierarchyTree
+                    sizeFlagsHorizontal: expandFill
+                    sizeFlagsVertical: expandFill
+                    showGuides: false
+                } 
             }
         }
 
-        DockPanel {
-            id: viewport
-            title: "Viewport"
-            area: "center"
+        DockingContainer {
+            id: centerDock
+            dockSide: center
+            flex: true
             closeable: false
-            floatable: false
-            dockable: false
-            isDropTarget: false
+            dragToRearrangeEnabled: true
 
             CodeEdit {
                 id: codeEdit
-                text: "Window { titel: \"Test\"}"     
-                syntax: "sml"       
-            }
+                title: "<New>"
+                text: "Window { 
+    title: \"Test\"
+}"     
+                syntax: "sml"
+                //font: "appres://DeineFont.ttf"   
+                fontSize: 13
+            }   
         }
 
-        DockPanel {
-            id: rightTop
-            title: "Markdown"
-            area: "right"
-            //width: 300
+        DockingContainer {
+            id: rightDock
+            dockSide: right
+            fixedWidth: 360
+            dragToRearrangeEnabled: true
+            tabsRearrangeGroup: 1
 
-            Markdown {
-                padding: 8,8,8,20
-                src: "res:/sample.md"
+            VBoxContainer {
+                id: inspector
+                title: "Markdown"
+                Markdown {        
+                    padding: 8,8,8,20
+                    src: "res:/sample.md"
+                }
+            }
+
+            VBoxContainer {
+                id: preview
+                title: "Portrait"
+                Label { text: "Portrait Preview" }
+            }
+
+            VBoxContainer {
+                id: profiler
+                title: "Landscape"
+                Label { text: "Landscape Preview" }
             }
         }
     }
