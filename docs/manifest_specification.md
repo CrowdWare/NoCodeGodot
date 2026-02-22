@@ -1,4 +1,4 @@
-# Manifest Specification (NoCodeRunner)
+# Manifest Specification (Forge-Runner)
 
 This document defines the manifest formats accepted by the Runner.
 
@@ -133,7 +133,7 @@ During sync:
 Manifest generation helper script:
 
 ```bash
-python /Users/art/SourceCode/NoCodeGodot/scripts/generate_manifest.py --root docs/Default --entry app.sml
+python /Users/art/SourceCode/Forge/scripts/generate_manifest.py --root docs/Default --entry app.sml
 ```
 
 Default excludes include `.import` and `.cs`.

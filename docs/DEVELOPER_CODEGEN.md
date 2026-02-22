@@ -12,7 +12,7 @@ The generation pipeline is split into two Godot scripts:
 They are run via:
 
 ```bash
-/Users/art/SourceCode/NoCodeGodot/run_runner.sh docs
+/Users/art/SourceCode/Forge/run_runner.sh docs
 ```
 
 ## Outputs
@@ -21,17 +21,17 @@ They are run via:
 
 - `docs/SML/Elements/*.md`
   - Per-element developer docs (inheritance, properties, events, actions, pseudo children).
-- `NoCodeRunner/Generated/SchemaTypes.cs`
-- `NoCodeRunner/Generated/SchemaProperties.cs`
-- `NoCodeRunner/Generated/SchemaEvents.cs`
-- `NoCodeRunner/Generated/SchemaContextProperties.cs`
-- `NoCodeRunner/Generated/SchemaLayoutAliases.cs`
-  - Runtime mapping tables used by NoCodeRunner.
+- `ForgeRunner/Generated/SchemaTypes.cs`
+- `ForgeRunner/Generated/SchemaProperties.cs`
+- `ForgeRunner/Generated/SchemaEvents.cs`
+- `ForgeRunner/Generated/SchemaContextProperties.cs`
+- `ForgeRunner/Generated/SchemaLayoutAliases.cs`
+  - Runtime mapping tables used by Forge-Runner.
 
 ### From `generate_sms_functions_docs.gd`
 
 - `docs/sms_functions.md`
-- `NoCodeRunner/Generated/SchemaFunctions.cs`
+- `ForgeRunner/Generated/SchemaFunctions.cs`
 
 ## Data Sources
 
@@ -64,7 +64,7 @@ Current examples:
 
 ## Runtime Contract
 
-Generated files under `NoCodeRunner/Generated` are the runtime source of truth.
+Generated files under `ForgeRunner/Generated` are the runtime source of truth.
 
 - `SchemaTypes`: known type set and parent relation.
 - `SchemaProperties`: SML property name -> Godot property name + type.
@@ -108,7 +108,7 @@ func get_spec() -> Dictionary:
 Then regenerate docs/schema:
 
 ```bash
-/Users/art/SourceCode/NoCodeGodot/run_runner.sh docs
+/Users/art/SourceCode/Forge/run_runner.sh docs
 ```
 
 ## Add a New SMS Runtime Function
@@ -124,13 +124,13 @@ Required fields:
 Regenerate:
 
 ```bash
-/Users/art/SourceCode/NoCodeGodot/run_runner.sh docs
+/Users/art/SourceCode/Forge/run_runner.sh docs
 ```
 
 This updates:
 
 - `docs/sms_functions.md`
-- `NoCodeRunner/Generated/SchemaFunctions.cs`
+- `ForgeRunner/Generated/SchemaFunctions.cs`
 
 ## Validation Checklist
 
@@ -140,7 +140,7 @@ After any generator/spec change:
 2. Build solution:
 
    ```bash
-   dotnet build /Users/art/SourceCode/NoCodeGodot/NoCodeGodot.sln
+   dotnet build /Users/art/SourceCode/Forge/Forge.sln
    ```
 
 3. Verify only expected files changed (docs and generated schema).
@@ -148,7 +148,7 @@ After any generator/spec change:
 
 ## Guardrails
 
-- Do not manually edit `NoCodeRunner/Generated/*.cs`.
+- Do not manually edit `ForgeRunner/Generated/*.cs`.
 - Keep generator output deterministic (stable sorting).
 - Keep runtime behavior data-driven via generated schema files.
 - Prefer spec additions over ad-hoc runtime special cases.

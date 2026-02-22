@@ -88,7 +88,7 @@ def compute_version(files: list[FileEntry]) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Generate manifest.sml for NoCodeGodot sample content.")
+    parser = argparse.ArgumentParser(description="Generate manifest.sml for ForgeGodot sample content.")
     parser.add_argument("--root", default="docs/SampleProject", help="Root directory containing published sample files.")
     parser.add_argument("--entry", default="UI.sml", help="Entry SML file path relative to --root.")
     parser.add_argument("--output", default="manifest.sml", help="Output manifest filename.")

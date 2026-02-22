@@ -75,7 +75,7 @@ These defaults are generated from specs (not hardcoded ad-hoc in runtime code):
 
 Source of truth:
 - `tools/specs/layout_defaults.gd`
-- generated to `NoCodeRunner/Generated/SchemaLayoutDefaults.cs`
+- generated to `ForgeRunner/Generated/SchemaLayoutDefaults.cs`
 
 Precedence:
 - explicit SML value always wins over runtime defaults

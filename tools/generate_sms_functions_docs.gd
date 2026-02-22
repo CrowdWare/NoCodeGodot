@@ -10,7 +10,7 @@ func _initialize() -> void: # CHANGE
     REPO_ROOT = ProjectSettings.globalize_path("res://") + "/.." # CHANGE
     SPEC_DIR = REPO_ROOT + "/tools/specs" # CHANGE
     OUT_PATH = REPO_ROOT + "/docs/sms_functions.md" # CHANGE
-    GENERATED_DIR = REPO_ROOT + "/NoCodeRunner/Generated" # CHANGE
+    GENERATED_DIR = REPO_ROOT + "/ForgeRunner/Generated" # CHANGE
     GENERATED_CS_PATH = GENERATED_DIR + "/SchemaFunctions.cs" # CHANGE
     generate() # CHANGE
     quit() # CHANGE
@@ -19,7 +19,7 @@ func generate() -> void:
     DirAccess.make_dir_recursive_absolute(GENERATED_DIR)
 
     var md := "# SMS Runtime Functions\n\n"
-    md += "This document lists built-in SMS runtime helper functions available in NoCode.\n\n"
+    md += "This document lists built-in SMS runtime helper functions available in Forge.\n\n"
 
     var spec_path := SPEC_DIR + "/functions.gd" # CHANGE
 

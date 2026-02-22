@@ -43,4 +43,4 @@ Inherited actions are documented in: [Button](Button.md)
 ## SML Items (TODO)
 
 This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.
-Use generated runtime schema files (`NoCodeRunner/Generated/Schema*.cs`) and this element reference as implementation hints.
+Use generated runtime schema files (`ForgeRunner/Generated/Schema*.cs`) and this element reference as implementation hints.

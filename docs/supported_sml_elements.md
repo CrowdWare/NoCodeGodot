@@ -1,6 +1,6 @@
 # Supported SML Elements (Runner)
 
-This reference describes SML elements currently supported by `NoCodeRunner`.
+This reference describes SML elements currently supported by `ForgeRunner`.
 
 ## Element → Godot Mapping
 

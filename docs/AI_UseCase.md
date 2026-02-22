@@ -10,7 +10,7 @@ AI-Driven Application Generation with Executable SML
 This use case describes a system in which an AI does not generate traditional source code (C#, C++, etc.), but instead produces declarative SML (Simple Markup Language).
 
 SML defines the structural specification of an application.  
-The NoCodeRunner renders and executes this structure deterministically inside a sandboxed runtime.
+The Forge-Runner renders and executes this structure deterministically inside a sandboxed runtime.
 
 The system forms a closed, fully validatable loop:
 
@@ -72,7 +72,7 @@ This makes it significantly more stable and predictable for AI generation compar
    - Consumes validator errors  
    - Applies targeted structural patches  
 
-5. NoCodeRunner Sandbox  
+5. Forge-Runner Sandbox  
    - Renders UI  
    - Executes events  
    - Runs in an isolated runtime  
@@ -230,7 +230,7 @@ The AI adjusts only the relevant structural nodes.
 
 ## 9. Strategic Significance
 
-In this model, NoCode does not mean:
+In this model, Forge does not mean:
 "The user does not write code."
 
 Instead, it means:
@@ -249,7 +249,7 @@ The system becomes:
 
 This model shifts the focus from programming to structuring.
 
-The NoCodeRunner becomes:
+The Forge-Runner becomes:
 
 - An execution engine  
 - A validation authority  

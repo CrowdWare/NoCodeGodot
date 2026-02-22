@@ -19,7 +19,7 @@ Use the existing function `_generate_reference_sml(names)` in `tools/generate_sm
 Instead of emitting `docs/sms-reference.sml`, emit compiled mapping code into:
 
 ```
-NoCodeRunner/Generated/
+Forge-Runner/Generated/
     SchemaTypes.cs
     SchemaProperties.cs
     SchemaEvents.cs

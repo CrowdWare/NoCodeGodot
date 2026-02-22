@@ -1,6 +1,6 @@
 # SMS Runtime Functions
 
-This document lists built-in SMS runtime helper functions available in NoCode.
+This document lists built-in SMS runtime helper functions available in Forge.
 
 ## File System
 

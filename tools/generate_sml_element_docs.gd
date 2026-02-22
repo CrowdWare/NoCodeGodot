@@ -9,7 +9,7 @@ func _initialize() -> void:
     REPO_ROOT = ProjectSettings.globalize_path("res://") + "/.."
     OUT_DIR = REPO_ROOT + "/docs/SML/Elements"
     SPEC_DIR = REPO_ROOT + "/tools/specs"
-    GENERATED_DIR = REPO_ROOT + "/NoCodeRunner/Generated"
+    GENERATED_DIR = REPO_ROOT + "/ForgeRunner/Generated"
     _run()
     quit()
 
@@ -458,7 +458,7 @@ func _generate_doc(c_name: String) -> void:
     if _is_collection_control(c_name) and c_name not in ["PopupMenu", "ItemList", "OptionButton", "TabBar", "TabContainer"]:
         md += "\n## SML Items (TODO)\n\n"
         md += "This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.\n"
-        md += "Use generated runtime schema files (`NoCodeRunner/Generated/Schema*.cs`) and this element reference as implementation hints.\n"
+        md += "Use generated runtime schema files (`ForgeRunner/Generated/Schema*.cs`) and this element reference as implementation hints.\n"
 
     var path := "%s/%s.md" % [OUT_DIR, c_name]
     var f := FileAccess.open(path, FileAccess.WRITE)

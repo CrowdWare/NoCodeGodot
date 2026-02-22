@@ -1,6 +1,6 @@
 # Asset Pipeline (Blender → glTF → Runner)
 
-This guide describes the practical asset flow used by NoCodeRunner.
+This guide describes the practical asset flow used by Forge-Runner.
 
 ## 1) Author in Blender
 
@@ -55,7 +55,7 @@ For markdown/image/video assets, use `src` / `source` URLs resolved by the runti
 Use the manifest generator:
 
 ```bash
-python /Users/art/SourceCode/NoCodeGodot/scripts/generate_manifest.py --root docs/Default --entry app.sml
+python /Users/art/SourceCode/Forge/scripts/generate_manifest.py --root docs/Default --entry app.sml
 ```
 
 What it does:

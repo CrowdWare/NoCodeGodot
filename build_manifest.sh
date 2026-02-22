@@ -1,2 +1,2 @@
-python /Users/art/SourceCode/NoCodeGodot/scripts/generate_manifest.py --root /Users/art/SourceCode/NoCodeGodot/docs/SampleProject --entry UI.sml --output manifest.sml
-python /Users/art/SourceCode/NoCodeGodot/scripts/generate_manifest.py --root /Users/art/SourceCode/NoCodeGodot/docs/Default --entry app.sml --output manifest.sml
+python /Users/art/SourceCode/Forge/scripts/generate_manifest.py --root /Users/art/SourceCode/Forge/docs/SampleProject --entry UI.sml --output manifest.sml
+python /Users/art/SourceCode/Forge/scripts/generate_manifest.py --root /Users/art/SourceCode/Forge/docs/Default --entry app.sml --output manifest.sml

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Replace the existing Kotlin-based SMS runtime with a native C# implementation inside the NoCodeRunner, and expose a safe, capability-based API for project file operations (read/write/create/delete).
+Replace the existing Kotlin-based SMS runtime with a native C# implementation inside the Forge-Runner, and expose a safe, capability-based API for project file operations (read/write/create/delete).
 After this is working, remove the old “load and execute .cs plugins” path completely.
 
 This enables the current use case: show project data in TreeView and edit files in CodeEdit via SMS-driven actions.
@@ -108,7 +108,7 @@ if (conditionA) {
 ```
 
 ## Sample Code to port to SMS
-We have a sample in /docs/NoCodeDesigner/app.cs which reads a directory to display files in a treeview and acts on TreeViewItem-Events.
+We have a sample in /docs/ForgeDesigner/app.cs which reads a directory to display files in a treeview and acts on TreeViewItem-Events.
 This we should port to app.sms.
 In the code we then have code like this.
 ```kotlin
@@ -124,13 +124,13 @@ fun ready() {
 
 fun TreeItemSelected(tree, item)
 {
-    Info("NoCodeDesigner.App", "treeItemSelected -> treeView=${tree.Value}, text='${item.Text}'")
+    Info("Forge-Designer.App", "treeItemSelected -> treeView=${tree.Value}, text='${item.Text}'")
     codeEdit.loadFile(tree.Value)
 }
 
 fun TreeItemToggled(tree, item, isOn)
 {
-    Info("NoCodeDesigner.App", "treeItemToggled -> treeView=${tree.Value}, text='${item.Text}', isOn=${isOn}")
+    Info("ForgeDesigner.App", "treeItemToggled -> treeView=${tree.Value}, text='${item.Text}', isOn=${isOn}")
 }
 
 fun PopulateTree(tree, path) {
@@ -150,7 +150,7 @@ fun CodeEditOnSave(codeEdit) {
     var path = codeEdit.Path  // current file path
     var text = codeEdit.Text  // current editor text
     ProjectFS.WriteText(path, text)
-    Info("NoCodeDesigner.App", "Saved via SMS: ${path}")
+    Info("ForgeDesigner.App", "Saved via SMS: ${path}")
 }
 ```
 

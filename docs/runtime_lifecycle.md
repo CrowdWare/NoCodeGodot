@@ -1,4 +1,4 @@
-# Runtime Lifecycle (NoCodeRunner)
+# Runtime Lifecycle (ForgeRunner)
 
 This document describes the startup/runtime flow from process start to interactive UI.
 

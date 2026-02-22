@@ -27,7 +27,7 @@ Because the supported set is **the full `Control` class family**, the detailed r
 - This file provides the **overview + grouping**.
 - The complete, per-control list of **properties + events (including inherited)** is provided in:
   - `docs/SML/Elements/*.md` (generated element reference)
-  - `NoCodeRunner/Generated/Schema*.cs` (authoritative runtime mapping tables)
+  - `ForgeRunner/Generated/Schema*.cs` (authoritative runtime mapping tables)
 
 ## Groups
 
@@ -141,4 +141,4 @@ This rule applies globally to all SML controls wherever vector pairs are used.
 - If a node is a `Control` in Godot, it is supported as an SML node (plus `Window` and dialog windows).
 - The **authoritative** list of what is actually supported (after refactoring) is the reference file generated from the runtime.
 
-Next: regenerate `docs/SML/Elements/*.md` and `NoCodeRunner/Generated/Schema*.cs` from the runtime-supported class set.
+Next: regenerate `docs/SML/Elements/*.md` and `ForgeRunner/Generated/Schema*.cs` from the runtime-supported class set.

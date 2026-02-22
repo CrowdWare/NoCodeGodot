@@ -1,6 +1,6 @@
 Window {
     id: mainWindow
-    title: "NoCodeRunner"
+    title: "ForgeRunner"
     minSize: 800,400
     pos: 0, 0
     size: 1920, 1080
@@ -18,11 +18,11 @@ Window {
 
         PopupMenu {
             id: appMenu
-            title: "NoCodeRunner"
+            title: "ForgeRunner"
 
-            Item { id: about text: "About NoCodeRunner" }
+            Item { id: about text: "About ForgeRunner" }
             Item { id: settings text: "Settings" }
-            Item { id: quit text: "Quit NoCodeRunner" }
+            Item { id: quit text: "Quit ForgeRunner" }
         }
 
         PopupMenu {
@@ -39,7 +39,7 @@ Window {
         left: 100
         width: 200
         height: 20
-        text: "**NoCode** - Docking Demo"
+        text: "**Forge** - Docking Demo"
     }
 
      DockingHost {

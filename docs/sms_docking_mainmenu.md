@@ -116,7 +116,7 @@ panelRight.SetText("Markdown (geschlossen)")
 ```sms
 var win = ui.CreateWindow("Window {\n"
     + "  id: mainWindow\n"
-    + "  title: \"NoCodeDesigner\"\n"
+    + "  title: \"ForgeDesigner\"\n"
     + "  minSize: 800,400\n"
     + "  pos: 448,156\n"
     + "  size: 1024,768\n"

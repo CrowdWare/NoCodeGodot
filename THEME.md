@@ -2,9 +2,9 @@
 
 This project uses a Godot theme file at:
 
-- `NoCodeRunner/theme.tres`
+- `ForgeRunner/theme.tres`
 
-The theme is loaded in `NoCodeRunner/Main.cs` via:
+The theme is loaded in `ForgeRunner/Main.cs` via:
 
 - `GD.Load<Theme>("res://theme.tres")`
 
@@ -33,7 +33,7 @@ The theme is loaded in `NoCodeRunner/Main.cs` via:
 
 ## Where to change the accent color
 
-If you want to switch the accent (for example blue → green), edit these entries in `NoCodeRunner/theme.tres`:
+If you want to switch the accent (for example blue → green), edit these entries in `ForgeRunner/theme.tres`:
 
 - `HScrollBar/colors/accent_color`
 - `VScrollBar/colors/accent_color`

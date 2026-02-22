@@ -2,11 +2,11 @@
 set -euo pipefail
 
 GODOT_BIN="/Applications/Godot_mono.app/Contents/MacOS/Godot"
-REPO_ROOT="/Users/art/SourceCode/NoCodeGodot"
-RUNNER_PATH="$REPO_ROOT/NoCodeRunner"
+REPO_ROOT="/Users/art/SourceCode/Forge"
+RUNNER_PATH="$REPO_ROOT/ForgeRunner"
 
 DEFAULT_UI="file://$REPO_ROOT/docs/Default/app.sml"
-SAMPLE_UI="file://$REPO_ROOT/docs/NoCodeDesigner/app.sml"
+SAMPLE_UI="file://$REPO_ROOT/docs/ForgeDesigner/app.sml"
 DOCKING_SAMPLE_UI="file://$REPO_ROOT/samples/docking_demo.sml"
 
 MODE="${1:-}"
@@ -14,7 +14,7 @@ MODE="${1:-}"
 if [[ -z "$MODE" ]]; then
   echo "Bitte Startmodus wählen:"
   echo "  1) default  -> docs/Default/app.sml"
-  echo "  2) Designer -> docs/NoCodeDesigner/app.sml"
+  echo "  2) Designer -> docs/ForgeDesigner/app.sml"
   echo "  3) docking  -> samples/docking_demo.sml"
   echo "  4) none     -> ohne URL-Override"
   echo "  5) docs     -> generate SML/SMS docs (headless)"
@@ -37,19 +37,19 @@ fi
 
 case "$MODE" in
   default)
-    echo "Starting NoCodeRunner with Default app.sml"
+    echo "Starting Forge-Runner with Default app.sml"
     exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --url "$DEFAULT_UI"
     ;;
   sample)
-    echo "Starting NoCodeRunner with NoCodeDesigner app.sml"
+    echo "Starting Forge-Runner with ForgeDesigner app.sml"
     exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --url "$SAMPLE_UI"
     ;;
   docking)
-    echo "Starting NoCodeRunner with Docking sample from samples/docking_demo.sml"
+    echo "Starting Forge-Runner with Docking sample from samples/docking_demo.sml"
     exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --url "$DOCKING_SAMPLE_UI"
     ;;
   none)
-    echo "Starting NoCodeRunner without startup URL override (reset persisted startUrl)"
+    echo "Starting ForgeRunner without startup URL override (reset persisted startUrl)"
     exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --reset-start-url
     ;;
   docs)
@@ -64,7 +64,7 @@ case "$MODE" in
     ;;
   build)
     echo "Building the app..."
-    dotnet build "$REPO_ROOT/NoCodeRunner/NoCodeRunner.csproj"
+    dotnet build "$REPO_ROOT/ForgeRunner/ForgeRunner.csproj"
     ;;
   *)
     echo "Usage: $0 [default|sample|docking|none|docs]"

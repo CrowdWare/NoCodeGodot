@@ -1,1 +1,1 @@
-./NoCodeRunner.app/contents/MacOS/NoCodeRunner --url "file:///Users/art/SourceCode/NoCodeGodot/docs/Default/app.sml"
+./ForgeRunner.app/contents/MacOS/ForgeRunner --url "file:///Users/art/SourceCode/Forge/docs/Default/app.sml"
