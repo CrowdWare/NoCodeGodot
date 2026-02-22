@@ -112,6 +112,7 @@ public sealed partial class DockingHostControl : Container
         public string DockSide { get; set; } = "center";
         public bool Visible { get; set; }
         public int FixedWidth { get; set; }
+        public int? FixedHeight { get; set; }
         public List<string> Tabs { get; set; } = [];
         public string CurrentTabTitle { get; set; } = string.Empty;
     }
@@ -1338,6 +1339,7 @@ public sealed partial class DockingHostControl : Container
                 DockSide = container.GetDockSide(),
                 Visible = container.Visible,
                 FixedWidth = (int)MathF.Round(container.GetFixedWidth()),
+                FixedHeight = container.HasFixedHeight() ? (int?)MathF.Round(container.GetFixedHeight()) : null,
                 Tabs = tabs,
                 CurrentTabTitle = currentTitle
             });
@@ -1364,6 +1366,18 @@ public sealed partial class DockingHostControl : Container
 
             target.SetMeta(NodePropertyMapper.MetaDockSide, Variant.From(panel.DockSide));
             target.SetFixedWidth(panel.FixedWidth);
+            if (panel.FixedHeight.HasValue)
+            {
+                target.SetFixedHeight(panel.FixedHeight.Value);
+            }
+            else
+            {
+                // No fixed height saved – remove runtime override so SML values take effect again.
+                if (target.HasMeta(NodePropertyMapper.MetaDockFixedHeight))
+                {
+                    target.RemoveMeta(NodePropertyMapper.MetaDockFixedHeight);
+                }
+            }
             target.Visible = panel.Visible;
         }
 
