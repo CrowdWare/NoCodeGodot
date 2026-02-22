@@ -7,7 +7,7 @@ Today, creating software often requires navigating complex toolchains, fragile f
 
 Forge exists to change that.
 
-![screenprint](images/screenprint.png)
+![screenprint](images/forge.png)
 
 ---
 
