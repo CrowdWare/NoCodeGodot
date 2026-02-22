@@ -167,6 +167,14 @@ public static partial class DockingManagerRuntime
 
             RebuildPanelMenuBindings();
             SyncBoundMenuChecks();
+
+            // Hosts are populated by Initialize() which runs before AddChild,
+            // so _EnterTree is the first safe place to create resize handles.
+            if (_hosts.Count > 0)
+            {
+                CreateResizeHandles();
+                CallDeferred(MethodName.InitResizeHandlesDeferred);
+            }
         }
 
         public void RequestRebuildPanelMenuBindings()
@@ -219,13 +227,26 @@ public static partial class DockingManagerRuntime
                 CreateKebabMenu(host);
             }
 
-            CreateResizeHandles();
             UpdateFlexibleHostsLayout();
             RefreshAllMenus();
         }
 
         public override void _Process(double delta)
         {
+            // Reposition resize handles every frame - cheap and ensures correctness after layout
+            if (GetParent() is Control rootCtrl)
+            {
+                foreach (var state in _resizeHandles)
+                {
+                    if (!GodotObject.IsInstanceValid(state.Control) || !state.Control.Visible)
+                    {
+                        continue;
+                    }
+
+                    PositionResizeHandle(state.Control, state.TopHost, state.BottomHost, rootCtrl);
+                }
+            }
+
             _elapsed += delta;
             if (_elapsed < 0.2)
             {
@@ -657,7 +678,7 @@ public static partial class DockingManagerRuntime
             // Action buttons (vertical, full-width, like Godot)
             var floatingButton = new Button
             {
-                Text = "  Schwebend machen",
+                Text = "  Make Floating",
                 Flat = false,
                 Alignment = HorizontalAlignment.Left,
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
@@ -676,7 +697,7 @@ public static partial class DockingManagerRuntime
 
             var closeButton = new Button
             {
-                Text = "  Schließen",
+                Text = "  Close Panel",
                 Flat = false,
                 Alignment = HorizontalAlignment.Left,
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
@@ -1398,6 +1419,32 @@ public static partial class DockingManagerRuntime
                 (DockingContainerControl.DockSideKind.FarRight, DockingContainerControl.DockSideKind.FarRightBottom),
             ];
 
+        private void InitResizeHandlesDeferred()
+        {
+            if (GetParent() is not Control rootControl)
+            {
+                return;
+            }
+
+            foreach (var state in _resizeHandles)
+            {
+                if (!GodotObject.IsInstanceValid(state.Control))
+                {
+                    continue;
+                }
+
+                var bothVisible = state.TopHost.HostContainer.Visible
+                               && state.BottomHost.HostContainer.Visible;
+                state.Control.Visible = bothVisible;
+
+                if (bothVisible)
+                {
+                    PositionResizeHandle(state.Control, state.TopHost, state.BottomHost, rootControl);
+                    state.Control.QueueRedraw();
+                }
+            }
+        }
+
         private void CreateResizeHandles()
         {
             if (GetParent() is not Control rootControl)
@@ -1421,7 +1468,6 @@ public static partial class DockingManagerRuntime
 
         private Control BuildResizeHandle(DockHostState topHost, DockHostState bottomHost, Control rootControl)
         {
-            const int HandleHeight = 8;
             const int GripperDotSize = 3;
             const int GripperDots = 3;
             const int GripperSpacing = 5;
@@ -1431,7 +1477,7 @@ public static partial class DockingManagerRuntime
                 Name = $"ResizeHandle_{topHost.Name}_{bottomHost.Name}",
                 MouseFilter = Control.MouseFilterEnum.Stop,
                 MouseDefaultCursorShape = Control.CursorShape.Vsize,
-                CustomMinimumSize = new Vector2(0, HandleHeight),
+                CustomMinimumSize = new Vector2(0, ResizeHandleHeight),
                 ZIndex = 500
             };
 
@@ -1495,7 +1541,7 @@ public static partial class DockingManagerRuntime
                     var minBottomHeight = bottomHost.HostContainer.CustomMinimumSize.Y > 0
                         ? bottomHost.HostContainer.CustomMinimumSize.Y
                         : 40f;
-                    newTopHeight = Mathf.Min(newTopHeight, totalAvailable - minBottomHeight - HandleHeight);
+                    newTopHeight = Mathf.Min(newTopHeight, totalAvailable - minBottomHeight - ResizeHandleHeight);
 
                     topHost.HostContainer.CustomMinimumSize = new Vector2(
                         topHost.HostContainer.CustomMinimumSize.X, newTopHeight);
@@ -1513,9 +1559,12 @@ public static partial class DockingManagerRuntime
             handle.MouseExited  += () => { hovered = false; handle.QueueRedraw(); };
 
             rootControl.AddChild(handle);
-            PositionResizeHandle(handle, topHost, bottomHost, rootControl);
+            // Defer initial positioning until after the first layout pass
+            handle.CallDeferred(Control.MethodName.QueueRedraw);
             return handle;
         }
+
+        private const int ResizeHandleHeight = 8;
 
         private static void PositionResizeHandle(Control handle, DockHostState topHost, DockHostState bottomHost, Control rootControl)
         {
@@ -1525,15 +1574,21 @@ public static partial class DockingManagerRuntime
                 return;
             }
 
-            // Place the handle at the boundary between top and bottom panel
-            var topRect    = topHost.HostContainer.GetGlobalRect();
-            var rootRect   = rootControl.GetGlobalRect();
-            var handleY    = topRect.End.Y - rootRect.Position.Y - handle.Size.Y / 2f;
-            var handleX    = topRect.Position.X - rootRect.Position.X;
-            var handleW    = topRect.Size.X;
+            var topRect  = topHost.HostContainer.GetGlobalRect();
+            var rootRect = rootControl.GetGlobalRect();
 
-            handle.SetDeferred(Control.PropertyName.Position, new Vector2(handleX, handleY));
-            handle.SetDeferred(Control.PropertyName.Size,     new Vector2(handleW, handle.Size.Y > 0 ? handle.Size.Y : 8));
+            // If panels not yet laid out, skip
+            if (topRect.Size.Y < 1f || topRect.Size.X < 1f)
+            {
+                return;
+            }
+
+            var handleX = topRect.Position.X - rootRect.Position.X;
+            var handleY = topRect.End.Y - rootRect.Position.Y - ResizeHandleHeight / 2f;
+            var handleW = topRect.Size.X;
+
+            handle.Position = new Vector2(handleX, handleY);
+            handle.Size     = new Vector2(handleW, ResizeHandleHeight);
         }
 
         private void UpdateResizeHandleVisibility()
@@ -1555,11 +1610,16 @@ public static partial class DockingManagerRuntime
                                && GodotObject.IsInstanceValid(state.TopHost.HostContainer)
                                && GodotObject.IsInstanceValid(state.BottomHost.HostContainer);
 
+                var wasVisible = state.Control.Visible;
                 state.Control.Visible = bothVisible;
 
                 if (bothVisible)
                 {
                     PositionResizeHandle(state.Control, state.TopHost, state.BottomHost, rootControl);
+                    if (!wasVisible)
+                    {
+                        state.Control.QueueRedraw();
+                    }
                 }
             }
         }
