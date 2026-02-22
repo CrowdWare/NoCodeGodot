@@ -29,7 +29,7 @@ namespace Runtime.UI;
 public sealed partial class DockingHostControl : Container
 {
     private const float DefaultHandleWidth = 6f;
-    private static readonly Color HandleVisibleColor = new(1f, 1f, 1f, 0.18f);
+    private static readonly Color HandleVisibleColor = new(0f, 0f, 0f, 0.35f);
     private static readonly Color HandleHiddenColor = new(1f, 1f, 1f, 0f);
 
     private sealed class LayoutItem
@@ -1037,11 +1037,34 @@ public sealed partial class DockingHostControl : Container
         return _rightGapByContainer.TryGetValue(container.GetInstanceId(), out rect);
     }
 
+    private void RepositionVerticalHandles(List<VerticalGapSegment> verticalSegments)
+    {
+        for (var i = 0; i < _verticalHandles.Count && i < verticalSegments.Count; i++)
+        {
+            var handle = _verticalHandles[i];
+            var seg    = verticalSegments[i];
+            if (!GodotObject.IsInstanceValid(handle))
+            {
+                continue;
+            }
+
+            handle.Position = seg.Rect.Position;
+            handle.Size     = seg.Rect.Size;
+        }
+    }
+
     private void RebuildHandles(List<GapSegment> segments, List<VerticalGapSegment> verticalSegments)
     {
-        if (_activeHandle is not null || _activeVerticalHandle is not null)
+        if (_activeVerticalHandle is not null)
         {
-            // Keep active drag handle stable while dragging.
+            // Keep active vertical drag handle stable while dragging.
+            return;
+        }
+
+        if (_activeHandle is not null)
+        {
+            // During horizontal drag: reposition vertical handles live without rebuilding them.
+            RepositionVerticalHandles(verticalSegments);
             return;
         }
 
