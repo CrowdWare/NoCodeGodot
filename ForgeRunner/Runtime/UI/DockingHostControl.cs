@@ -747,7 +747,7 @@ public sealed partial class DockingHostControl : Container
 
         if (all.Count == 0)
         {
-            RebuildHandles([]);
+            RebuildHandles([], []);
             return;
         }
 
@@ -884,6 +884,7 @@ public sealed partial class DockingHostControl : Container
         var flexWidth = centerFlexCount > 0 ? Math.Max(0, rest / centerFlexCount) : 0f;
 
         var gapSegments = new List<GapSegment>();
+        var verticalGapSegments = new List<VerticalGapSegment>();
         var cursorX = 0f;
         for (var i = 0; i < orderedColumns.Count; i++)
         {
@@ -891,7 +892,11 @@ public sealed partial class DockingHostControl : Container
             var useFlex = firstFlex is not null && ReferenceEquals(column, firstFlex);
             var itemWidth = useFlex ? flexWidth : column.Width;
 
-            LayoutColumn(column, cursorX, itemWidth, heightTotal);
+            var vgap = LayoutColumn(column, cursorX, itemWidth, heightTotal, gap);
+            if (vgap is not null)
+            {
+                verticalGapSegments.Add(vgap);
+            }
             RegisterWidthLinked(column);
 
             var leftNeighbor = column.PrimaryVisible;
@@ -916,10 +921,10 @@ public sealed partial class DockingHostControl : Container
             }
         }
 
-        RebuildHandles(gapSegments);
+        RebuildHandles(gapSegments, verticalGapSegments);
     }
 
-    private static void LayoutColumn(DockColumn column, float x, float width, float hostHeight)
+    private static VerticalGapSegment? LayoutColumn(DockColumn column, float x, float width, float hostHeight, float gap)
     {
         var clampedWidth = Math.Max(0, width);
         var clampedHeight = Math.Max(0, hostHeight);
@@ -930,16 +935,25 @@ public sealed partial class DockingHostControl : Container
         if (hasTop && hasBottom && column.Top is not null && column.Bottom is not null)
         {
             var topHeight = ResolveTopSplitHeight(column.Top, column.Bottom, clampedHeight);
-            var bottomHeight = Math.Max(0f, clampedHeight - topHeight);
-            var topRect = new Rect2(x, 0, clampedWidth, topHeight);
-            var bottomRect = new Rect2(x, topHeight, clampedWidth, bottomHeight);
+            // Reserve space for the vertical gap handle
+            var gapH = Math.Max(0f, gap);
+            topHeight = Math.Max(0f, topHeight - gapH / 2f);
+            var bottomHeight = Math.Max(0f, clampedHeight - topHeight - gapH);
+            var topRect    = new Rect2(x, 0,                      clampedWidth, topHeight);
+            var gapRect    = new Rect2(x, topHeight,               clampedWidth, gapH);
+            var bottomRect = new Rect2(x, topHeight + gapH,        clampedWidth, bottomHeight);
             column.Top.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
             column.Bottom.SetAnchorsAndOffsetsPreset(LayoutPreset.TopLeft);
-            column.Top.Position = topRect.Position;
-            column.Top.Size = topRect.Size;
+            column.Top.Position    = topRect.Position;
+            column.Top.Size        = topRect.Size;
             column.Bottom.Position = bottomRect.Position;
-            column.Bottom.Size = bottomRect.Size;
-            return;
+            column.Bottom.Size     = bottomRect.Size;
+            return new VerticalGapSegment
+            {
+                Rect          = gapRect,
+                TopNeighbor    = column.Top,
+                BottomNeighbor = column.Bottom
+            };
         }
 
         var single = column.PrimaryVisible;
@@ -949,6 +963,8 @@ public sealed partial class DockingHostControl : Container
             single.Position = new Vector2(x, 0);
             single.Size = new Vector2(clampedWidth, clampedHeight);
         }
+
+        return null;
     }
 
     private static float ResolveTopSplitHeight(DockingContainerControl top, DockingContainerControl bottom, float totalHeight)
@@ -1021,9 +1037,9 @@ public sealed partial class DockingHostControl : Container
         return _rightGapByContainer.TryGetValue(container.GetInstanceId(), out rect);
     }
 
-    private void RebuildHandles(List<GapSegment> segments)
+    private void RebuildHandles(List<GapSegment> segments, List<VerticalGapSegment> verticalSegments)
     {
-        if (_activeHandle is not null)
+        if (_activeHandle is not null || _activeVerticalHandle is not null)
         {
             // Keep active drag handle stable while dragging.
             return;
@@ -1045,6 +1061,24 @@ public sealed partial class DockingHostControl : Container
         _handles.Clear();
         _activeHandle = null;
         _activeTargetContainer = null;
+
+        // Rebuild vertical (top/bottom) handles
+        foreach (var handle in _verticalHandles)
+        {
+            if (GodotObject.IsInstanceValid(handle))
+            {
+                if (handle.GetParent() is not null)
+                {
+                    handle.GetParent().RemoveChild(handle);
+                }
+
+                handle.Free();
+            }
+        }
+
+        _verticalHandles.Clear();
+        _activeVerticalHandle = null;
+        _activeVerticalTarget = null;
 
         var interiorGapCount = 0;
         foreach (var segment in segments)
@@ -1069,6 +1103,16 @@ public sealed partial class DockingHostControl : Container
                 rightNeighbor: segment.RightNeighbor,
                 rect: fullGapRect,
                 suffix: "Full");
+        }
+
+        foreach (var vsegment in verticalSegments)
+        {
+            if (vsegment.Rect.Size.Y <= 0)
+            {
+                continue;
+            }
+
+            AddVerticalResizeHandle(vsegment.TopNeighbor, vsegment.BottomNeighbor, vsegment.Rect);
         }
 
         _lastLoggedInteriorGapCount = interiorGapCount;

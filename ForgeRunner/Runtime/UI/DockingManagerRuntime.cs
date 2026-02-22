@@ -152,8 +152,6 @@ public static partial class DockingManagerRuntime
         private double _elapsed;
         private float _baseLeftInset;
         private float _baseRightInset;
-        private readonly List<ResizeHandleState> _resizeHandles = [];
-
         public override void _EnterTree()
         {
             AddToGroup("docking_manager_nodes");
@@ -168,13 +166,6 @@ public static partial class DockingManagerRuntime
             RebuildPanelMenuBindings();
             SyncBoundMenuChecks();
 
-            // Hosts are populated by Initialize() which runs before AddChild,
-            // so _EnterTree is the first safe place to create resize handles.
-            if (_hosts.Count > 0)
-            {
-                CreateResizeHandles();
-                CallDeferred(MethodName.InitResizeHandlesDeferred);
-            }
         }
 
         public void RequestRebuildPanelMenuBindings()
@@ -185,16 +176,7 @@ public static partial class DockingManagerRuntime
 
         public override void _ExitTree()
         {
-            foreach (var handle in _resizeHandles)
-            {
-                if (handle.Control is not null && GodotObject.IsInstanceValid(handle.Control))
-                {
-                    handle.Control.QueueFree();
-                }
-            }
-            _resizeHandles.Clear();
-
-            if (_dockSelectionOverlay is not null && GodotObject.IsInstanceValid(_dockSelectionOverlay))
+if (_dockSelectionOverlay is not null && GodotObject.IsInstanceValid(_dockSelectionOverlay))
             {
                 _dockSelectionOverlay.QueueFree();
                 _dockSelectionOverlay = null;
@@ -233,21 +215,7 @@ public static partial class DockingManagerRuntime
 
         public override void _Process(double delta)
         {
-            // Reposition resize handles every frame - cheap and ensures correctness after layout
-            if (GetParent() is Control rootCtrl)
-            {
-                foreach (var state in _resizeHandles)
-                {
-                    if (!GodotObject.IsInstanceValid(state.Control) || !state.Control.Visible)
-                    {
-                        continue;
-                    }
-
-                    PositionResizeHandle(state.Control, state.TopHost, state.BottomHost, rootCtrl);
-                }
-            }
-
-            _elapsed += delta;
+_elapsed += delta;
             if (_elapsed < 0.2)
             {
                 return;
@@ -283,7 +251,6 @@ public static partial class DockingManagerRuntime
             if (changed)
             {
                 UpdateFlexibleHostsLayout();
-                UpdateResizeHandleVisibility();
                 RefreshAllMenus();
                 SyncBoundMenuChecks();
             }
@@ -1408,248 +1375,6 @@ public static partial class DockingManagerRuntime
             return source.Dock.GetTabsRearrangeGroup() == target.Dock.GetTabsRearrangeGroup();
         }
 
-        // ── Resize Handles ────────────────────────────────────────────────────────
-
-        private static readonly (DockingContainerControl.DockSideKind Top, DockingContainerControl.DockSideKind Bottom)[]
-            ResizePairs =
-            [
-                (DockingContainerControl.DockSideKind.FarLeft,  DockingContainerControl.DockSideKind.FarLeftBottom),
-                (DockingContainerControl.DockSideKind.Left,     DockingContainerControl.DockSideKind.LeftBottom),
-                (DockingContainerControl.DockSideKind.Right,    DockingContainerControl.DockSideKind.RightBottom),
-                (DockingContainerControl.DockSideKind.FarRight, DockingContainerControl.DockSideKind.FarRightBottom),
-            ];
-
-        private void InitResizeHandlesDeferred()
-        {
-            if (GetParent() is not Control rootControl)
-            {
-                return;
-            }
-
-            foreach (var state in _resizeHandles)
-            {
-                if (!GodotObject.IsInstanceValid(state.Control))
-                {
-                    continue;
-                }
-
-                var bothVisible = state.TopHost.HostContainer.Visible
-                               && state.BottomHost.HostContainer.Visible;
-                state.Control.Visible = bothVisible;
-
-                if (bothVisible)
-                {
-                    PositionResizeHandle(state.Control, state.TopHost, state.BottomHost, rootControl);
-                    state.Control.QueueRedraw();
-                }
-            }
-        }
-
-        private void CreateResizeHandles()
-        {
-            if (GetParent() is not Control rootControl)
-            {
-                return;
-            }
-
-            foreach (var (topKind, bottomKind) in ResizePairs)
-            {
-                var topHost    = FindHostBySlot(topKind);
-                var bottomHost = FindHostBySlot(bottomKind);
-                if (topHost is null || bottomHost is null)
-                {
-                    continue;
-                }
-
-                var handle = BuildResizeHandle(topHost, bottomHost, rootControl);
-                _resizeHandles.Add(new ResizeHandleState(handle, topHost, bottomHost));
-            }
-        }
-
-        private Control BuildResizeHandle(DockHostState topHost, DockHostState bottomHost, Control rootControl)
-        {
-            const int GripperDotSize = 3;
-            const int GripperDots = 3;
-            const int GripperSpacing = 5;
-
-            var handle = new Control
-            {
-                Name = $"ResizeHandle_{topHost.Name}_{bottomHost.Name}",
-                MouseFilter = Control.MouseFilterEnum.Stop,
-                MouseDefaultCursorShape = Control.CursorShape.Vsize,
-                CustomMinimumSize = new Vector2(0, ResizeHandleHeight),
-                ZIndex = 500
-            };
-
-            // Hover state tracked manually
-            var hovered = false;
-
-            // Gripper dots drawn via _Draw
-            handle.Draw += () =>
-            {
-                if (!handle.Visible)
-                {
-                    return;
-                }
-
-                var totalW = (GripperDots * GripperDotSize) + ((GripperDots - 1) * GripperSpacing);
-                var startX = (handle.Size.X - totalW) / 2f;
-                var centerY = handle.Size.Y / 2f - GripperDotSize / 2f;
-                var dotColor = hovered
-                    ? new Color(0.75f, 0.78f, 0.85f, 1f)
-                    : new Color(0.45f, 0.48f, 0.55f, 1f);
-
-                for (var i = 0; i < GripperDots; i++)
-                {
-                    var x = startX + i * (GripperDotSize + GripperSpacing);
-                    handle.DrawRect(new Rect2(x, centerY, GripperDotSize, GripperDotSize), dotColor);
-                }
-            };
-
-            // Drag state
-            var dragging = false;
-            var dragStartY = 0f;
-            var dragStartTopHeight = 0f;
-
-            handle.GuiInput += inputEvent =>
-            {
-                if (inputEvent is InputEventMouseButton mb)
-                {
-                    if (mb.ButtonIndex == MouseButton.Left)
-                    {
-                        if (mb.Pressed)
-                        {
-                            dragging = true;
-                            dragStartY = handle.GetGlobalMousePosition().Y;
-                            dragStartTopHeight = topHost.HostContainer.Size.Y;
-                            handle.AcceptEvent();
-                        }
-                        else
-                        {
-                            dragging = false;
-                            handle.AcceptEvent();
-                        }
-                    }
-                }
-                else if (inputEvent is InputEventMouseMotion && dragging)
-                {
-                    var delta = handle.GetGlobalMousePosition().Y - dragStartY;
-                    var newTopHeight = Mathf.Max(40f, dragStartTopHeight + delta);
-
-                    // Respect bottom panel minimum size
-                    var totalAvailable = topHost.HostContainer.Size.Y + bottomHost.HostContainer.Size.Y;
-                    var minBottomHeight = bottomHost.HostContainer.CustomMinimumSize.Y > 0
-                        ? bottomHost.HostContainer.CustomMinimumSize.Y
-                        : 40f;
-                    newTopHeight = Mathf.Min(newTopHeight, totalAvailable - minBottomHeight - ResizeHandleHeight);
-
-                    topHost.HostContainer.CustomMinimumSize = new Vector2(
-                        topHost.HostContainer.CustomMinimumSize.X, newTopHeight);
-                    topHost.HostContainer.Size = new Vector2(
-                        topHost.HostContainer.Size.X, newTopHeight);
-
-                    PositionResizeHandle(handle, topHost, bottomHost, rootControl);
-                    handle.AcceptEvent();
-                }
-
-                handle.QueueRedraw();
-            };
-
-            handle.MouseEntered += () => { hovered = true;  handle.QueueRedraw(); };
-            handle.MouseExited  += () => { hovered = false; handle.QueueRedraw(); };
-
-            rootControl.AddChild(handle);
-            // Defer initial positioning until after the first layout pass
-            handle.CallDeferred(Control.MethodName.QueueRedraw);
-            return handle;
-        }
-
-        private const int ResizeHandleHeight = 8;
-
-        private static void PositionResizeHandle(Control handle, DockHostState topHost, DockHostState bottomHost, Control rootControl)
-        {
-            if (!GodotObject.IsInstanceValid(topHost.HostContainer)
-                || !GodotObject.IsInstanceValid(bottomHost.HostContainer))
-            {
-                return;
-            }
-
-            var topRect  = topHost.HostContainer.GetGlobalRect();
-            var rootRect = rootControl.GetGlobalRect();
-
-            // If panels not yet laid out, skip
-            if (topRect.Size.Y < 1f || topRect.Size.X < 1f)
-            {
-                return;
-            }
-
-            var handleX = topRect.Position.X - rootRect.Position.X;
-            var handleY = topRect.End.Y - rootRect.Position.Y - ResizeHandleHeight / 2f;
-            var handleW = topRect.Size.X;
-
-            handle.Position = new Vector2(handleX, handleY);
-            handle.Size     = new Vector2(handleW, ResizeHandleHeight);
-        }
-
-        private void UpdateResizeHandleVisibility()
-        {
-            if (GetParent() is not Control rootControl)
-            {
-                return;
-            }
-
-            foreach (var state in _resizeHandles)
-            {
-                if (!GodotObject.IsInstanceValid(state.Control))
-                {
-                    continue;
-                }
-
-                var bothVisible = state.TopHost.HostContainer.Visible
-                               && state.BottomHost.HostContainer.Visible
-                               && GodotObject.IsInstanceValid(state.TopHost.HostContainer)
-                               && GodotObject.IsInstanceValid(state.BottomHost.HostContainer);
-
-                var wasVisible = state.Control.Visible;
-                state.Control.Visible = bothVisible;
-
-                if (bothVisible)
-                {
-                    PositionResizeHandle(state.Control, state.TopHost, state.BottomHost, rootControl);
-                    if (!wasVisible)
-                    {
-                        state.Control.QueueRedraw();
-                    }
-                }
-            }
-        }
-
-        private DockHostState? FindHostBySlot(DockingContainerControl.DockSideKind slot)
-        {
-            foreach (var host in _hosts)
-            {
-                if (host.Slot == slot)
-                {
-                    return host;
-                }
-            }
-
-            return null;
-        }
-
-        private sealed class ResizeHandleState
-        {
-            public ResizeHandleState(Control control, DockHostState topHost, DockHostState bottomHost)
-            {
-                Control    = control;
-                TopHost    = topHost;
-                BottomHost = bottomHost;
-            }
-
-            public Control       Control    { get; }
-            public DockHostState TopHost    { get; }
-            public DockHostState BottomHost { get; }
-        }
 
     }  // end DockingManagerNode
 

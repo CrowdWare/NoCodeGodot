@@ -556,6 +556,17 @@ public sealed partial class DockingContainerControl : PanelContainer
         SetMeta(NodePropertyMapper.MetaDockFixedWidth, Variant.From((int)MathF.Round(clamped)));
     }
 
+    public void SetFixedHeight(float height)
+    {
+        var clamped = Math.Max(GetMinFixedHeight(), height);
+        // Remove heightPercent so the explicit fixed height takes precedence
+        if (HasMeta(NodePropertyMapper.MetaDockHeightPercent))
+        {
+            RemoveMeta(NodePropertyMapper.MetaDockHeightPercent);
+        }
+        SetMeta(NodePropertyMapper.MetaDockFixedHeight, Variant.From((int)MathF.Round(clamped)));
+    }
+
     public bool IsCloseable()
     {
         if (HasMeta(NodePropertyMapper.MetaDockCloseable))
