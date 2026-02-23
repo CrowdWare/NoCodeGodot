@@ -107,6 +107,7 @@
 - [x] tasks/issues_menu.md
 - [x] tasks/refactor_docking.md
 - [x] tasks/docking_features.md
+- [ ] tasks/bgcolor_docking.md
 - [ ] tasks/os_lib.md
 - [ ] tasks/sms_when_return.md
 
