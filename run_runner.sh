@@ -19,7 +19,7 @@ if [[ -z "$MODE" ]]; then
   echo "  4) none     -> ohne URL-Override"
   echo "  5) docs     -> generate SML/SMS docs (headless)"
   echo "  6) build    -> buil app"
-  read -r -p "Auswahl [1-5]: " CHOICE
+  read -r -p "Auswahl [1-6]: " CHOICE
 
   case "$CHOICE" in
     1) MODE="default" ;;

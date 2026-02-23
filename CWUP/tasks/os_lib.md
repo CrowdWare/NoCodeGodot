@@ -1,5 +1,5 @@
 # OS Lib
-We need an additional library named "os" that can be calles from SMS.
+We need an additional library named "os" that can be called from SMS.
 And the first functions we will implement are:
 ```
 os.getLocale()      // "de_DE"

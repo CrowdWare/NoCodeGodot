@@ -32,11 +32,11 @@ Logs a warning message.
 ### ui.getObject(name: String)
 Returns a runtime object for any SML element with a matching id. Exposes callable methods dynamically from the underlying Godot object. Returns null when no matching id exists.
 
-### ui.CreateWindow(smlText: String)
-Creates a floating window from inline SML text and returns a Window instance (or null on failure). The returned Window supports runtime actions onClose(callbackName) and close().
-
 ### ui.createDialog(path: String)
 Creates a dialog from either a resource path (res:/...) or an inline SML definition string and returns the dialog instance.
+
+### ui.createWindow(smlText: String)
+Creates a floating window from inline SML text and returns a Window instance (or null on failure). The returned Window supports runtime actions onClose(callbackName) and close().
 
 ### Window Flag Constants
 Enum-like global constants for Window flags in SMS. Use with setFlag/getFlag without magic numbers, e.g. mainWindow.setFlag(extendToTitle, true). Available constants: borderless=0, alwaysOnTop=1, transparent=2, noFocus=3, popup=5, extendToTitle=6, mousePassthrough=7, sharpCorners=8, excludeFromCapture=9, popupWmHint=10, minSize=11, maxSize=12, resizeDisabled=13, transient=14, modal=15, popupExclusive=16.

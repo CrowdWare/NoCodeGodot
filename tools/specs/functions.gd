@@ -10,9 +10,9 @@ const FUNCTIONS := {
         "description": "Creates a dialog from either a resource path (res:/...) or an inline SML definition string and returns the dialog instance."
     },
 
-    "ui.CreateWindow": {
+    "ui.createWindow": {
         "category": "UI",
-        "signature": "ui.CreateWindow(smlText: String)",
+        "signature": "ui.createWindow(smlText: String)",
         "description": "Creates a floating window from inline SML text and returns a Window instance (or null on failure). The returned Window supports runtime actions onClose(callbackName) and close()."
     },
 

@@ -145,49 +145,19 @@ content_margin_left = 10.0
 content_margin_top = 8.0
 content_margin_right = 10.0
 content_margin_bottom = 8.0
-bg_color = Color(0.101960786, 0.11372549, 0.14117648, 1)
+bg_color = Color(0.09411765, 0.105882354, 0.13333334, 1)
 border_color = Color(0.1882353, 0.21960784, 0.27058825, 1)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_textedit_normal"]
-content_margin_left = 8.0
-content_margin_top = 6.0
-content_margin_right = 8.0
-content_margin_bottom = 6.0
-bg_color = Color(0.12941177, 0.14117648, 0.1764706, 1)
-border_width_left = 0
-border_width_top = 0
-border_width_right = 0
-border_width_bottom = 0
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_textedit_focus"]
-content_margin_left = 8.0
-content_margin_top = 6.0
-content_margin_right = 8.0
-content_margin_bottom = 6.0
-bg_color = Color(0.14901961, 0.16470589, 0.20392157, 1)
-border_width_left = 0
-border_width_top = 0
-border_width_right = 0
-border_width_bottom = 0
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
-
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tab_hovered"]
 content_margin_left = 12.0
 content_margin_top = 5.0
 content_margin_right = 12.0
 content_margin_bottom = 5.0
-bg_color = Color(0.17254902, 0.19607843, 0.24705882, 1)
+bg_color = Color(0.09411765, 0.105882354, 0.13333334, 1)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
@@ -215,7 +185,7 @@ content_margin_left = 12.0
 content_margin_top = 5.0
 content_margin_right = 12.0
 content_margin_bottom = 5.0
-bg_color = Color(0.13333334, 0.14901961, 0.1882353, 1)
+bg_color = Color(0.09411765, 0.105882354, 0.13333334, 1)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
@@ -223,6 +193,47 @@ border_width_bottom = 1
 border_color = Color(0.2509804, 0.28235295, 0.34117648, 1)
 corner_radius_top_left = 6
 corner_radius_top_right = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tabbar_bg"]
+bg_color = Color(0.09411765, 0.105882354, 0.13333334, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tabcontainer_panel"]
+content_margin_left = 8.0
+content_margin_top = 6.0
+content_margin_right = 8.0
+content_margin_bottom = 6.0
+bg_color = Color(0.09411765, 0.105882354, 0.13333334, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.20784314, 0.23529412, 0.28627452, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_textedit_focus"]
+content_margin_left = 8.0
+content_margin_top = 6.0
+content_margin_right = 8.0
+content_margin_bottom = 6.0
+bg_color = Color(0.09411765, 0.105882354, 0.13333334, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_textedit_normal"]
+content_margin_left = 8.0
+content_margin_top = 6.0
+content_margin_right = 8.0
+content_margin_bottom = 6.0
+bg_color = Color(0.09411765, 0.105882354, 0.13333334, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
 
 [resource]
 Button/colors/font_color = Color(0.8901961, 0.92156863, 0.9647059, 1)
@@ -257,10 +268,12 @@ TabBar/colors/font_unselected_color = Color(0.69803923, 0.7411765, 0.81960785, 1
 TabBar/styles/tab_hovered = SubResource("StyleBoxFlat_tab_hovered")
 TabBar/styles/tab_selected = SubResource("StyleBoxFlat_tab_selected")
 TabBar/styles/tab_unselected = SubResource("StyleBoxFlat_tab_unselected")
-TabContainer/styles/panel = SubResource("StyleBoxFlat_panel")
+TabBar/styles/tabbar_background = SubResource("StyleBoxFlat_tabbar_bg")
+TabContainer/styles/panel = SubResource("StyleBoxFlat_tabcontainer_panel")
 TabContainer/styles/tab_hovered = SubResource("StyleBoxFlat_tab_hovered")
 TabContainer/styles/tab_selected = SubResource("StyleBoxFlat_tab_selected")
 TabContainer/styles/tab_unselected = SubResource("StyleBoxFlat_tab_unselected")
+TabContainer/styles/tabbar_background = SubResource("StyleBoxFlat_tabbar_bg")
 TextEdit/colors/caret_color = Color(0.15686275, 0.6627451, 0.8784314, 1)
 TextEdit/colors/font_color = Color(0.85882354, 0.8862745, 0.9490196, 1)
 TextEdit/colors/selection_color = Color(0.1764706, 0.5176471, 0.2627451, 0.55)
@@ -275,3 +288,4 @@ Tree/colors/selection_color = Color(0.15686275, 0.6627451, 0.8784314, 1)
 Tree/font_sizes/font_size = 12
 Tree/styles/panel = SubResource("StyleBoxFlat_tree_panel")
 VScrollBar/colors/accent_color = Color(0.15686275, 0.6627451, 0.8784314, 1)
+DockingContainerControl/colors/dock_background = Color(0.11372549, 0.11764706, 0.14117647, 1)

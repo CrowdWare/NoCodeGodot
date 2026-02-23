@@ -75,6 +75,15 @@ public sealed partial class DockingContainerControl : PanelContainer
         SyncTabVisibility();
     }
 
+    public override void _Draw()
+    {
+        // Draw the background directly, bypassing Godot's StyleBox rendering pipeline.
+        // This avoids gamma/sRGB corrections that cause color mismatches with the titlebar.
+        // The color is defined as DockingContainerControl/colors/dock_background in the theme.
+        var bgColor = GetThemeColor("dock_background", "DockingContainerControl");
+        DrawRect(new Rect2(Vector2.Zero, Size), bgColor);
+    }
+
     public TabBar EnsureTabBar()
     {
         EnsureDockStructure();
