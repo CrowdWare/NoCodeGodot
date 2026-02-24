@@ -402,4 +402,56 @@ public class SmlParserTests
         var ex = Assert.Throws<SmlParseException>(() => parser.ParseDocument());
         Assert.Contains("Duplicate id 'main'", ex.Message);
     }
+
+    [Fact]
+    public void ParseDocument_WithAttachedPropertyByTypeName_StoresInAttachedProperties()
+    {
+        const string text = """
+        DockingContainer {
+            Panel {
+                DockingContainer.title: "MyTab"
+            }
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("DockingContainer");
+        schema.RegisterKnownNode("Panel");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        var panel = Assert.Single(doc.Roots[0].Children);
+        Assert.Empty(panel.Properties);
+        Assert.True(panel.AttachedProperties.TryGetValue("DockingContainer", out var props));
+        Assert.Equal("MyTab", props!["title"].AsStringOrThrow("title"));
+        Assert.Empty(doc.Warnings);
+    }
+
+    [Fact]
+    public void ParseDocument_WithAttachedPropertyByInstanceId_StoresInAttachedProperties()
+    {
+        const string text = """
+        DockingContainer {
+            id: dock
+            Panel {
+                dock.title: "MyTab"
+            }
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("DockingContainer");
+        schema.RegisterKnownNode("Panel");
+        schema.RegisterIdProperty("id");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        var panel = Assert.Single(doc.Roots[0].Children);
+        Assert.Empty(panel.Properties);
+        Assert.True(panel.AttachedProperties.TryGetValue("dock", out var props));
+        Assert.Equal("MyTab", props!["title"].AsStringOrThrow("title"));
+        Assert.Empty(doc.Warnings);
+    }
 }

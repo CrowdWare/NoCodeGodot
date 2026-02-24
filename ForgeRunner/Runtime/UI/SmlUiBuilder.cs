@@ -290,15 +290,13 @@ public sealed class SmlUiBuilder
                 var childControl = BuildNodeRecursive(child, node.Name);
                 if (childControl is not null)
                 {
+                    ApplyAttachedProperties(childControl, child, node);
+
                     if (control is DockingContainerControl dockingContainer)
                     {
                         var tabTitle = childControl.HasMeta(BuildContextMetaKey("tabTitle"))
                             ? childControl.GetMeta(BuildContextMetaKey("tabTitle")).AsString()
-                            : child.TryGetProperty("title", out var titleValue)
-                                ? titleValue.AsStringOrThrow("title")
-                                : child.TryGetProperty("label", out var labelValue)
-                                    ? labelValue.AsStringOrThrow("label")
-                                    : child.Name;
+                            : child.Name;
 
                         dockingContainer.AddDockTab(childControl, tabTitle);
                     }
@@ -311,11 +309,7 @@ public sealed class SmlUiBuilder
                             var tabIndex = tabs.GetTabIdxFromControl(childControl);
                             var tabTitle = childControl.HasMeta(BuildContextMetaKey("tabTitle"))
                                 ? childControl.GetMeta(BuildContextMetaKey("tabTitle")).AsString()
-                                : child.TryGetProperty("title", out var titleValue)
-                                    ? titleValue.AsStringOrThrow("title")
-                                    : child.TryGetProperty("label", out var labelValue)
-                                        ? labelValue.AsStringOrThrow("label")
-                                        : child.Name;
+                                : child.Name;
                             tabs.SetTabTitle(tabIndex, tabTitle);
                         }
                     }
@@ -1205,6 +1199,45 @@ public sealed class SmlUiBuilder
         return new Id(control.GetMeta(key).AsInt32());
     }
 
+    private static void ApplyAttachedProperties(Control childControl, SmlNode childNode, SmlNode parentNode)
+    {
+        if (childNode.AttachedProperties.Count == 0)
+        {
+            return;
+        }
+
+        var parentId = parentNode.TryGetProperty("id", out var idVal)
+            ? idVal.AsStringOrThrow("id") : null;
+
+        foreach (var (qualifier, props) in childNode.AttachedProperties)
+        {
+            string? resolvedParentType = null;
+
+            if (string.Equals(qualifier, parentNode.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                resolvedParentType = parentNode.Name;
+            }
+            else if (parentId is not null && string.Equals(qualifier, parentId, StringComparison.OrdinalIgnoreCase))
+            {
+                resolvedParentType = parentNode.Name;
+            }
+
+            if (resolvedParentType is null)
+            {
+                RunnerLogger.Warn("UI", $"Attached property qualifier '{qualifier}' does not resolve to any parent of '{childNode.Name}' (line {childNode.Line}).");
+                continue;
+            }
+
+            foreach (var (propName, value) in props)
+            {
+                if (!TryApplyContextProperty(childControl, resolvedParentType, childNode.Name, propName, value))
+                {
+                    RunnerLogger.Warn("UI", $"Unknown attached property '{qualifier}.{propName}' — provider '{resolvedParentType}' does not declare it.");
+                }
+            }
+        }
+    }
+
     private static bool TryApplyContextProperty(
         Control control,
         string? parentNodeName,
@@ -1282,17 +1315,32 @@ public sealed class SmlUiBuilder
 
         if (_localization.TryTranslate(key, out var translated))
         {
-            node.Properties[propertyName] = SmlValue.FromString(translated);
+            WriteLocalizedValue(node, propertyName, translated);
             return;
         }
 
-        if (node.TryGetProperty(propertyName, out _))
+        if (node.TryGetProperty(propertyName, out _)
+            || node.AttachedProperties.Values.Any(p => p.ContainsKey(propertyName)))
         {
             return;
         }
 
         RunnerLogger.Warn("i18n", $"Missing i18n key '{key}' for '{node.Name}.{propertyName}'.");
-        node.Properties[propertyName] = SmlValue.FromString(string.Empty);
+        WriteLocalizedValue(node, propertyName, string.Empty);
+    }
+
+    private static void WriteLocalizedValue(SmlNode node, string propertyName, string value)
+    {
+        foreach (var props in node.AttachedProperties.Values)
+        {
+            if (props.ContainsKey(propertyName))
+            {
+                props[propertyName] = SmlValue.FromString(value);
+                return;
+            }
+        }
+
+        node.Properties[propertyName] = SmlValue.FromString(value);
     }
 
     private void BuildTreeViewItems(Tree tree, SmlNode treeNode)

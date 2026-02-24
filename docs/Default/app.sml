@@ -63,7 +63,7 @@ Window {
 
             VBoxContainer {
                 id: project
-                title: "Project"
+                farLeftDock.title: "Project"
                 titleKey: "tab.project"
                 Tree {
                     id: treeview
@@ -75,7 +75,7 @@ Window {
 
             VBoxContainer {
                 id: hierarchy
-                title: "Hierarchy"
+                farLeftDock.title: "Hierarchy"
                 titleKey: "tab.hierarchy"
                 Tree {
                     id: hierarchyTree
@@ -95,7 +95,7 @@ Window {
 
             CodeEdit {
                 id: codeEdit
-                title: "<New>"
+                centerDock.title: "<New>"
                 titleKey: "tab.new"
                 text: "Window { 
     title: \"Test\"
@@ -115,7 +115,7 @@ Window {
 
             VBoxContainer {
                 id: inspector
-                title: "Markdown"
+                rightDock.title: "Markdown"
                 titleKey: "tab.markdown"
                 Markdown {        
                     padding: 8,8,8,20
@@ -125,14 +125,14 @@ Window {
 
             VBoxContainer {
                 id: preview
-                title: "Portrait"
+                rightDock.title: "Portrait"
                 titleKey: "tab.portrait"
                 Label { text: "Portrait Preview" }
             }
 
             VBoxContainer {
                 id: profiler
-                title: "Landscape"
+                rightDock.title: "Landscape"
                 titleKey: "tab.landscape"
                 Label { text: "Landscape Preview" }
             }

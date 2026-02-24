@@ -110,7 +110,7 @@
 - [x] tasks/bgcolor_docking.md
 - [x] tasks/os_lib.md
 - [x] tasks/dockingmenu.md
-- [ ] tasks/attached_properties.md
+- [x] tasks/attached_properties.md
 - [ ] tasks/resources_and_localization.md
 - [ ] tasks/sml_theme_system.md
 - [ ] tasks/syntax_highlighting_extensions.md

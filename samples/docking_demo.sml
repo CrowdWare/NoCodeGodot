@@ -52,7 +52,7 @@ Window {
 
             VBoxContainer {
                 id: assets
-                title: "Assets"
+                farLeftDock.title: "Assets"
                 Label { text: "Far left dock" }
             }
         }
@@ -67,7 +67,7 @@ Window {
 
             VBoxContainer {
                 id: farLeftBottomPanel
-                title: "Far Left Bottom"
+                farLeftBottomDock.title: "Far Left Bottom"
                 Label { text: "Far left bottom dock" }
             }
         }
@@ -82,19 +82,19 @@ Window {
 
             VBoxContainer {
                 id: project
-                title: "Project"
+                leftDock.title: "Project"
                 Label { text: "Project explorer" }
             }
 
             VBoxContainer {
                 id: hierarchy
-                title: "Hierarchy"
+                leftDock.title: "Hierarchy"
                 Label { text: "Scene hierarchy" }
             }
 
             VBoxContainer {
                 id: search
-                title: "Search"
+                leftDock.title: "Search"
                 Label { text: "Search results" }
             }
         }
@@ -109,7 +109,7 @@ Window {
 
             VBoxContainer {
                 id: leftBottomPanel
-                title: "Left Bottom"
+                leftBottomDock.title: "Left Bottom"
                 Label { text: "Left bottom dock" }
             }
         }
@@ -123,19 +123,19 @@ Window {
 
             VBoxContainer {
                 id: editor
-                title: "Editor"
+                centerDock.title: "Editor"
                 Label { text: "Main work area" }
             }
 
             VBoxContainer {
                 id: shader
-                title: "Shader.gd"
+                centerDock.title: "Shader.gd"
                 Label { text: "Code editor tab" }
             }
 
             VBoxContainer {
                 id: output
-                title: "Output"
+                centerDock.title: "Output"
                 Label { text: "Logs / terminal / problems" }
             }
         }
@@ -150,19 +150,19 @@ Window {
 
             VBoxContainer {
                 id: inspector
-                title: "Inspector"
+                rightDock.title: "Inspector"
                 Label { text: "Selection properties" }
             }
 
             VBoxContainer {
                 id: preview
-                title: "Preview"
+                rightDock.title: "Preview"
                 Label { text: "Preview pane" }
             }
 
             VBoxContainer {
                 id: profiler
-                title: "Profiler"
+                rightDock.title: "Profiler"
                 Label { text: "Performance metrics" }
             }
         }
@@ -178,7 +178,7 @@ Window {
 
             VBoxContainer {
                 id: rightBottomPanel
-                title: "Right Bottom"
+                rightBottomDock.title: "Right Bottom"
                 Label { text: "Right bottom dock" }
             }
         }
@@ -194,7 +194,7 @@ Window {
 
             VBoxContainer {
                 id: console
-                title: "Console"
+                farRightDock.title: "Console"
                 Label { text: "Far right dock" }
             }
         }
@@ -210,7 +210,7 @@ Window {
 
             VBoxContainer {
                 id: farRightBottomPanel
-                title: "Far Right Bottom"
+                farRightBottomDock.title: "Far Right Bottom"
                 Label { text: "Far right bottom dock" }
             }
         }

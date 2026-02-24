@@ -140,6 +140,11 @@ public sealed class SmlNode
     public required int Line { get; init; }
     public Dictionary<string, SmlValue> Properties { get; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, int> PropertyLines { get; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// Attached properties keyed by qualifier (type name or instance id).
+    /// E.g. <c>container.title: "Tab"</c> → AttachedProperties["container"]["title"]
+    /// </summary>
+    public Dictionary<string, Dictionary<string, SmlValue>> AttachedProperties { get; } = new(StringComparer.OrdinalIgnoreCase);
     public List<SmlNode> Children { get; } = [];
 
     public bool TryGetProperty(string key, out SmlValue value)

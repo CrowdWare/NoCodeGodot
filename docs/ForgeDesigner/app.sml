@@ -58,24 +58,24 @@ Window {
 
             VBoxContainer {
                 id: project
-                title: "Project"
+                farLeftDock.title: "Project"
                 Tree {
                     id: treeview
                     sizeFlagsHorizontal: expandFill
                     sizeFlagsVertical: expandFill
                     showGuides: false
-                } 
+                }
             }
 
             VBoxContainer {
                 id: hierarchy
-                title: "Hierarchy"
+                farLeftDock.title: "Hierarchy"
                 Tree {
                     id: hierarchyTree
                     sizeFlagsHorizontal: expandFill
                     sizeFlagsVertical: expandFill
                     showGuides: false
-                } 
+                }
             }
         }
 
@@ -88,14 +88,14 @@ Window {
 
             CodeEdit {
                 id: codeEdit
-                title: "<New>"
-                text: "Window { 
+                centerDock.title: "<New>"
+                text: "Window {
     title: \"Test\"
-}"     
+}"
                 syntax: "sml"
-                //font: "appres://DeineFont.ttf"   
+                //font: "appres://DeineFont.ttf"
                 fontSize: 13
-            }   
+            }
         }
 
         DockingContainer {
@@ -107,8 +107,8 @@ Window {
 
             VBoxContainer {
                 id: inspector
-                title: "Markdown"
-                Markdown {        
+                rightDock.title: "Markdown"
+                Markdown {
                     padding: 8,8,8,20
                     src: "res:/sample.md"
                 }
@@ -116,13 +116,13 @@ Window {
 
             VBoxContainer {
                 id: preview
-                title: "Portrait"
+                rightDock.title: "Portrait"
                 Label { text: "Portrait Preview" }
             }
 
             VBoxContainer {
                 id: profiler
-                title: "Landscape"
+                rightDock.title: "Landscape"
                 Label { text: "Landscape Preview" }
             }
         }

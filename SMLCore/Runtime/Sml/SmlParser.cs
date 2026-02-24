@@ -79,8 +79,24 @@ public sealed class SmlParser
             {
                 Consume();
                 SkipIgnorables();
-                node.Properties[ident.Text] = ParseValue(ident.Text, document, node, ident.Line);
-                node.PropertyLines[ident.Text] = ident.Line;
+                var dotIdx = ident.Text.IndexOf('.');
+                if (dotIdx > 0 && dotIdx < ident.Text.Length - 1)
+                {
+                    var qualifier = ident.Text[..dotIdx];
+                    var propName = ident.Text[(dotIdx + 1)..];
+                    var attachedValue = ParseValue(propName, document, node, ident.Line);
+                    if (!node.AttachedProperties.TryGetValue(qualifier, out var attachedDict))
+                    {
+                        attachedDict = new Dictionary<string, SmlValue>(StringComparer.OrdinalIgnoreCase);
+                        node.AttachedProperties[qualifier] = attachedDict;
+                    }
+                    attachedDict[propName] = attachedValue;
+                }
+                else
+                {
+                    node.Properties[ident.Text] = ParseValue(ident.Text, document, node, ident.Line);
+                    node.PropertyLines[ident.Text] = ident.Line;
+                }
                 SkipIgnorables();
                 continue;
             }
@@ -121,8 +137,24 @@ public sealed class SmlParser
             {
                 Consume();
                 SkipIgnorables();
-                node.Properties[ident.Text] = ParseValue(ident.Text, document, node, ident.Line);
-                node.PropertyLines[ident.Text] = ident.Line;
+                var dotIdx = ident.Text.IndexOf('.');
+                if (dotIdx > 0 && dotIdx < ident.Text.Length - 1)
+                {
+                    var qualifier = ident.Text[..dotIdx];
+                    var propName = ident.Text[(dotIdx + 1)..];
+                    var attachedValue = ParseValue(propName, document, node, ident.Line);
+                    if (!node.AttachedProperties.TryGetValue(qualifier, out var attachedDict))
+                    {
+                        attachedDict = new Dictionary<string, SmlValue>(StringComparer.OrdinalIgnoreCase);
+                        node.AttachedProperties[qualifier] = attachedDict;
+                    }
+                    attachedDict[propName] = attachedValue;
+                }
+                else
+                {
+                    node.Properties[ident.Text] = ParseValue(ident.Text, document, node, ident.Line);
+                    node.PropertyLines[ident.Text] = ident.Line;
+                }
                 SkipIgnorables();
                 continue;
             }
