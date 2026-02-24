@@ -1,8 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-GODOT_BIN="/Applications/Godot_mono.app/Contents/MacOS/Godot"
-REPO_ROOT="/Users/art/SourceCode/Forge"
+REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+# 1) Prefer explicit override via env var
+if [[ -n "${GODOT_BIN:-}" && -x "${GODOT_BIN}" ]]; then
+  : # use it
+# 2) If "godot" is in PATH (Linux /opt symlink, brew, etc.)
+elif command -v godot >/dev/null 2>&1; then
+  GODOT_BIN="$(command -v godot)"
+# 3) Common macOS app locations
+elif [[ -x "/Applications/Godot_mono.app/Contents/MacOS/Godot" ]]; then
+  GODOT_BIN="/Applications/Godot_mono.app/Contents/MacOS/Godot"
+elif [[ -x "$HOME/Applications/Godot_mono.app/Contents/MacOS/Godot" ]]; then
+  GODOT_BIN="$HOME/Applications/Godot_mono.app/Contents/MacOS/Godot"
+# 4) Common Linux /opt installs (your setup)
+elif [[ -x "/opt/godot/godot" ]]; then
+  GODOT_BIN="/opt/godot/godot"
+else
+  echo "ERROR: Godot binary not found. Set GODOT_BIN=/path/to/godot" >&2
+  exit 1
+fi
+
 RUNNER_PATH="$REPO_ROOT/ForgeRunner"
 
 DEFAULT_UI="file://$REPO_ROOT/docs/Default/app.sml"
@@ -18,7 +37,7 @@ if [[ -z "$MODE" ]]; then
   echo "  3) docking  -> samples/docking_demo.sml"
   echo "  4) none     -> ohne URL-Override"
   echo "  5) docs     -> generate SML/SMS docs (headless)"
-  echo "  6) build    -> buil app"
+  echo "  6) build    -> build app"
   read -r -p "Auswahl [1-6]: " CHOICE
 
   case "$CHOICE" in
