@@ -14,22 +14,6 @@ fun ready() {
         return
     }
 
-    log.info("Arch: ${os.getArch()}")
-    log.info("Country: ${os.getCountry()}")
-    log.info("Language: ${os.getLanguage()}")
-    log.info("Locale: ${os.getLocale()}")
-    log.info("Platform: ${os.getPlatform()}")
-    log.info("Timezone: ${os.getTimeZone()}")
-    log.info("Uptime: ${os.getUptime()}")
-    log.info("Desktop: ${os.isDesktop()}")
-    log.info("Mobile: ${os.isMobile()}")
-    log.info("Now: ${os.now()}")
-
-    var caption = ui.getObject("caption")
-    if (caption != null) {
-        i18n.setLocale("pt")
-        caption.text = i18n.tr("caption.demo", "Nichts gefunden")
-    }
     codeEdit.onSave("codeEditOnSave")
     populateTree(tree, ".")
     
