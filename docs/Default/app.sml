@@ -6,12 +6,14 @@ Window {
     size: 1920, 1080
     extendToTitle: true
 
+    // comment
+
     MenuBar {
         preferGlobalMenu: true
 
         PopupMenu {
             id: appMenu
-            title: @Strings.menuAppTitle
+            title: @Strings.menuAppTitle, "Default value"
 
             Item { id: about text: @Strings.menuAppAbout }
             Item { id: settings text: @Strings.menuAppSettings }
