@@ -77,13 +77,25 @@ public sealed partial class DockingContainerControl : PanelContainer
 
     public override void _Draw()
     {
-        // Keep container and tabbar background on the same StyleBox render path,
-        // so both are color-managed identically by Godot.
+        // Draw header and content areas with separate colors:
+        // - header follows dock/caption tone
+        // - content follows tree/panel-like tone for better readability (e.g. Markdown tab)
         var themeBgColor = GetThemeColor("dock_background", "DockingContainerControl");
         var metaBgColor = HasMeta("bgColor") ? GetMeta("bgColor").AsString() : null;
-        var bgColor = ResolveBackgroundColor(metaBgColor, themeBgColor);
-        ApplyTabBarBackgroundColorOverride(bgColor);
-        DrawStyleBox(CreateFlatBackgroundStyle(bgColor), new Rect2(Vector2.Zero, Size));
+        var headerColor = ResolveBackgroundColor(metaBgColor, themeBgColor);
+        var contentColor = ResolveContentBackgroundColor(headerColor);
+
+        ApplyTabBarBackgroundColorOverride(headerColor);
+
+        var fullRect = new Rect2(Vector2.Zero, Size);
+        DrawStyleBox(CreateFlatBackgroundStyle(contentColor), fullRect);
+
+        var headerHeight = GetHeaderHeight();
+        if (headerHeight > 0f)
+        {
+            var headerRect = new Rect2(0, 0, Size.X, Math.Min(headerHeight, Size.Y));
+            DrawStyleBox(CreateFlatBackgroundStyle(headerColor), headerRect);
+        }
     }
 
     public static Color ResolveBackgroundColor(string? metaBgColor, Color fallback)
@@ -107,6 +119,23 @@ public sealed partial class DockingContainerControl : PanelContainer
     {
         EnsureDockStructure();
         return _tabBar!;
+    }
+
+    public float GetHeaderHeight()
+    {
+        EnsureDockStructure();
+
+        if (_header is not null && GodotObject.IsInstanceValid(_header) && _header.Size.Y > 0f)
+        {
+            return _header.Size.Y;
+        }
+
+        if (_tabBar is not null && GodotObject.IsInstanceValid(_tabBar) && _tabBar.Size.Y > 0f)
+        {
+            return _tabBar.Size.Y;
+        }
+
+        return 28f;
     }
 
     public MenuButton EnsureMenuButton()
@@ -649,6 +678,17 @@ public sealed partial class DockingContainerControl : PanelContainer
         };
         style.SetBorderWidthAll(0);
         return style;
+    }
+
+    private Color ResolveContentBackgroundColor(Color fallback)
+    {
+        var panelStyle = GetThemeStylebox("panel", "Tree");
+        if (panelStyle is StyleBoxFlat flat)
+        {
+            return flat.BgColor;
+        }
+
+        return fallback.Darkened(0.08f);
     }
 
     private void OnTabChanged(long _index)

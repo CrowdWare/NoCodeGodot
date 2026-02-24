@@ -906,7 +906,11 @@ public sealed partial class DockingHostControl : Container
             var gapWidth = i == orderedColumns.Count - 1 ? endGap : gap;
             if (gapWidth > 0)
             {
-                var rect = new Rect2(cursorX, 0, gapWidth, Math.Max(0, heightTotal));
+                var topInset = Math.Max(
+                    leftNeighbor?.GetHeaderHeight() ?? 0f,
+                    i < orderedColumns.Count - 1 ? (orderedColumns[i + 1].PrimaryVisible?.GetHeaderHeight() ?? 0f) : 0f);
+                topInset = Mathf.Clamp(topInset, 0f, Math.Max(0f, heightTotal));
+                var rect = new Rect2(cursorX, topInset, gapWidth, Math.Max(0, heightTotal - topInset));
                 foreach (var visible in column.VisibleContainers())
                 {
                     _rightGapByContainer[visible.GetInstanceId()] = rect;

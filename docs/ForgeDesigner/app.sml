@@ -27,19 +27,20 @@ Window {
     }
 
 
+    WindowDrag {
+        id: titleDrag
+        anchors: left | top | right
+        top: 0
+        height: 42
+    }
+
     Markdown {
         top: 5
         left: 100
         width: 200
         height: 20
+        mouseFilter: "ignore"
         text: "**Forge** - Designer"
-    }
-
-    WindowDrag {
-        id: titleDrag
-        anchors: left | top | right
-        top: 0
-        height: 38
     }
 
      DockingHost {
