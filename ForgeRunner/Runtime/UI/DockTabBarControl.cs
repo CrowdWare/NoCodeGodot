@@ -22,12 +22,7 @@ public sealed partial class DockTabBarControl : TabBar
     public override void _Draw()
     {
         var fallback = GetThemeColor("dock_background", "DockingContainerControl");
-        var dock = GetParent()?.GetParent()?.GetParent() as DockingContainerControl;
-        var metaBgColor = dock is not null && dock.HasMeta("bgColor")
-            ? dock.GetMeta("bgColor").AsString()
-            : null;
-
-        var baseColor = DockingContainerControl.ResolveBackgroundColor(metaBgColor, fallback);
+        var baseColor = fallback;
         DrawRect(new Rect2(Vector2.Zero, Size), baseColor);
 
         var font = GetThemeFont("font");

@@ -4,6 +4,15 @@ func get_spec() -> Dictionary:
     return {
         "name": "runtime_overrides",
         "propertiesByType": {
+            "Control": [
+                {
+                    "sml": "mouseFilter",
+                    "godot": "mouse_filter",
+                    "type": "enum",
+                    "default": "stop",
+                    "description": "Mouse event filtering mode. Use enum values: stop, pass, ignore (without quotes)."
+                }
+            ],
             "Tree": [
                 {
                     "sml": "showGuides",

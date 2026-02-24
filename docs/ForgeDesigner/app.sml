@@ -39,7 +39,7 @@ Window {
         left: 100
         width: 200
         height: 20
-        mouseFilter: "ignore"
+        mouseFilter: ignore
         text: "**Forge** - Designer"
     }
 

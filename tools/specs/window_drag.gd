@@ -17,7 +17,8 @@ func get_spec() -> Dictionary:
             "Provides a native draggable title/caption area for custom frameless layouts.",
             "Single left click starts OS window drag.",
             "Double left click toggles maximize/restore (windowed <-> maximized).",
-            "Useful together with Window.extendToTitle: true."
+            "Useful together with Window.extendToTitle: true.",
+            "When used with DockingHost, set WindowDrag.height analogous to DockingHost.offsetTop so caption drag area and dock top offset align."
         ],
         "examples_sml": [
             "Window {",

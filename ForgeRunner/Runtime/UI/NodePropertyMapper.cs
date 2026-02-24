@@ -447,7 +447,6 @@ public sealed class NodePropertyMapper
             ["heightpercent"] = (control, value, propertyName) => SetMetaFloat(control, MetaDockHeightPercent, value, propertyName),
             ["flex"] = (control, value, propertyName) => SetMetaBool(control, MetaDockFlex, value, propertyName),
             ["closeable"] = (control, value, propertyName) => SetMetaBool(control, MetaDockCloseable, value, propertyName),
-            ["bgcolor"] = (control, value, propertyName) => control.SetMeta("bgColor", Variant.From(value.AsStringOrThrow(propertyName))),
             ["gap"] = (control, value, propertyName) => SetMetaInt(control, MetaDockGap, value, propertyName),
             ["endgap"] = (control, value, propertyName) => SetMetaInt(control, MetaDockEndGap, value, propertyName),
             ["dockendgap"] = (control, value, propertyName) => SetMetaInt(control, MetaDockEndGap, value, propertyName),
@@ -1090,19 +1089,12 @@ public sealed class NodePropertyMapper
                 control.MouseFilter = (Control.MouseFilterEnum)value.AsIntOrThrow(propertyName);
                 return;
 
-            case SmlValueKind.String:
-                var raw = value.AsStringOrThrow(propertyName).Trim().ToLowerInvariant();
-                control.MouseFilter = raw switch
-                {
-                    "stop" => Control.MouseFilterEnum.Stop,
-                    "pass" => Control.MouseFilterEnum.Pass,
-                    "ignore" => Control.MouseFilterEnum.Ignore,
-                    _ => throw new SmlParseException($"Property '{propertyName}' must be one of: stop, pass, ignore.")
-                };
+            case SmlValueKind.Enum:
+                control.MouseFilter = (Control.MouseFilterEnum)value.AsEnumIntOrThrow(propertyName);
                 return;
 
             default:
-                throw new SmlParseException($"Property '{propertyName}' must be a string or integer.");
+                throw new SmlParseException($"Property '{propertyName}' must be an enum or integer.");
         }
     }
 

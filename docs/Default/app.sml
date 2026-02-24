@@ -39,7 +39,7 @@ Window {
         left: 100
         width: 200
         height: 20
-        mouseFilter: "ignore"
+        mouseFilter: ignore
         text: "**Forge** - Docking Demo"
     }
 
@@ -55,7 +55,6 @@ Window {
             fixedWidth: 300
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
-            bgColor: "#1C1E24"
 
             VBoxContainer {
                 id: project
@@ -86,7 +85,6 @@ Window {
             flex: true
             closeable: false
             dragToRearrangeEnabled: true
-            bgColor: "#1C1E24"
 
             CodeEdit {
                 id: codeEdit
@@ -106,7 +104,6 @@ Window {
             fixedWidth: 360
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
-            //bgColor: "#FF0000"
 
             VBoxContainer {
                 id: inspector

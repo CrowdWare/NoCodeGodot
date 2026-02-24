@@ -120,41 +120,7 @@ Inherited properties are documented in: [CanvasItem](CanvasItem.md)
 
 | Godot Property | SML Property | Type | Default |
 |-|-|-|-|
-| accessibility_description | accessibilityDescription | string | — |
-| accessibility_live | accessibilityLive | int | — |
-| accessibility_name | accessibilityName | string | — |
-| anchor_bottom | anchorBottom | float | — |
-| anchor_left | anchorLeft | float | — |
-| anchor_right | anchorRight | float | — |
-| anchor_top | anchorTop | float | — |
-| clip_contents | clipContents | bool | — |
-| custom_minimum_size | customMinimumSize | Vector2 | — |
-| focus_behavior_recursive | focusBehaviorRecursive | int | — |
-| focus_mode | focusMode | int | — |
-| grow_horizontal | growHorizontal | int | — |
-| grow_vertical | growVertical | int | — |
-| layout_direction | layoutDirection | int | — |
-| localize_numeral_system | localizeNumeralSystem | bool | — |
-| mouse_behavior_recursive | mouseBehaviorRecursive | int | — |
-| mouse_default_cursor_shape | mouseDefaultCursorShape | int | — |
-| mouse_filter | mouseFilter | int | — |
-| mouse_force_pass_scroll_events | mouseForcePassScrollEvents | bool | — |
-| offset_bottom | offsetBottom | float | — |
-| offset_left | offsetLeft | float | — |
-| offset_right | offsetRight | float | — |
-| offset_top | offsetTop | float | — |
-| pivot_offset | pivotOffset | Vector2 | — |
-| pivot_offset_ratio | pivotOffsetRatio | Vector2 | — |
-| position | position | Vector2 | — |
-| rotation | rotation | float | — |
-| scale | scale | Vector2 | — |
-| size | size | Vector2 | — |
-| size_flags_horizontal | sizeFlagsHorizontal | int | — |
-| size_flags_stretch_ratio | sizeFlagsStretchRatio | float | — |
-| size_flags_vertical | sizeFlagsVertical | int | — |
-| theme_type_variation | themeTypeVariation | string | — |
-| tooltip_auto_translate_mode | tooltipAutoTranslateMode | int | — |
-| tooltip_text | tooltipText | string | — |
+| mouse_filter | mouseFilter | enum | stop |
 
 ## Events
 

@@ -81,8 +81,7 @@ public sealed partial class DockingContainerControl : PanelContainer
         // - header follows dock/caption tone
         // - content follows tree/panel-like tone for better readability (e.g. Markdown tab)
         var themeBgColor = GetThemeColor("dock_background", "DockingContainerControl");
-        var metaBgColor = HasMeta("bgColor") ? GetMeta("bgColor").AsString() : null;
-        var headerColor = ResolveBackgroundColor(metaBgColor, themeBgColor);
+        var headerColor = themeBgColor;
         var contentColor = ResolveContentBackgroundColor(headerColor);
 
         ApplyTabBarBackgroundColorOverride(headerColor);
@@ -95,23 +94,6 @@ public sealed partial class DockingContainerControl : PanelContainer
         {
             var headerRect = new Rect2(0, 0, Size.X, Math.Min(headerHeight, Size.Y));
             DrawStyleBox(CreateFlatBackgroundStyle(headerColor), headerRect);
-        }
-    }
-
-    public static Color ResolveBackgroundColor(string? metaBgColor, Color fallback)
-    {
-        if (string.IsNullOrWhiteSpace(metaBgColor))
-        {
-            return fallback;
-        }
-
-        try
-        {
-            return new Color(metaBgColor);
-        }
-        catch
-        {
-            return fallback;
         }
     }
 
@@ -654,9 +636,7 @@ public sealed partial class DockingContainerControl : PanelContainer
     private void ApplyTabBarBackgroundColorOverride()
     {
         var themeBgColor = GetThemeColor("dock_background", "DockingContainerControl");
-        var metaBgColor = HasMeta("bgColor") ? GetMeta("bgColor").AsString() : null;
-        var bgColor = ResolveBackgroundColor(metaBgColor, themeBgColor);
-        ApplyTabBarBackgroundColorOverride(bgColor);
+        ApplyTabBarBackgroundColorOverride(themeBgColor);
     }
 
     private void ApplyTabBarBackgroundColorOverride(Color bgColor)

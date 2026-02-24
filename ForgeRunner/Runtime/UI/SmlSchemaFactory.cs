@@ -83,6 +83,10 @@ public static class SmlSchemaFactory
         schema.RegisterEnumValue("dockSide", "farRight", 8);
         schema.RegisterEnumValue("dockSide", "farRightBottom", 9);
 
+        schema.RegisterEnumValue("mouseFilter", "stop", 0);
+        schema.RegisterEnumValue("mouseFilter", "pass", 1);
+        schema.RegisterEnumValue("mouseFilter", "ignore", 2);
+
         return schema;
     }
 }
