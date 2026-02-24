@@ -35,9 +35,10 @@ Window {
     }
 
     Markdown {
+        id: caption
         top: 5
         left: 100
-        width: 200
+        width: 300
         height: 20
         mouseFilter: ignore
         text: "**Forge** - Docking Demo"

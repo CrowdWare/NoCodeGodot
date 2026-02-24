@@ -20,6 +20,7 @@
 using Godot;
 using Runtime.Assets;
 using Runtime.Logging;
+using Runtime.Sml;
 using Runtime.Sms;
 using System;
 using System.Collections.Generic;
@@ -28,6 +29,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -37,6 +39,7 @@ public sealed class SmsUiRuntime
 {
     private const string MetaSmsPath = "sms_path";
     private const string MetaSmsSaveShortcutHooked = "sms_saveShortcutHooked";
+    private const string MetaSmsMarkdownText = "sms_markdown_text";
 
     private readonly RunnerUriResolver _uriResolver;
     private readonly string _uiSmlUri;
@@ -632,15 +635,18 @@ public sealed class SmsUiRuntime
     private ObjectValue CreateRuntimeObject(string id, object runtimeObject)
     {
         var type = runtimeObject.GetType();
+        var logicalTypeName = ResolveLogicalTypeName(runtimeObject);
         var nativeObjectId = _nextNativeObjectId++;
         _nativeObjects[nativeObjectId] = runtimeObject;
 
         var fields = new Dictionary<string, Value>(StringComparer.Ordinal)
         {
             ["id"] = new StringValue(id),
-            ["type"] = new StringValue(type.Name),
+            ["type"] = new StringValue(logicalTypeName),
             ["__nativeObjectId"] = new NumberValue(nativeObjectId)
         };
+        var dynamicGetters = new Dictionary<string, ObjectFieldGetter>(StringComparer.Ordinal);
+        var dynamicSetters = new Dictionary<string, ObjectFieldSetter>(StringComparer.Ordinal);
 
         var methodMap = GetMethodMap(type);
         foreach (var entry in methodMap)
@@ -674,12 +680,18 @@ public sealed class SmsUiRuntime
             });
         }
 
-        AttachSmsExtensions(id, runtimeObject, fields);
+        AddRuntimePropertyBridge(runtimeObject, fields, dynamicGetters, dynamicSetters);
+        AttachSmsExtensions(id, runtimeObject, fields, dynamicGetters, dynamicSetters);
 
-        return new ObjectValue(type.Name, fields);
+        return new ObjectValue(logicalTypeName, fields, dynamicGetters, dynamicSetters);
     }
 
-    private void AttachSmsExtensions(string id, object runtimeObject, Dictionary<string, Value> fields)
+    private void AttachSmsExtensions(
+        string id,
+        object runtimeObject,
+        Dictionary<string, Value> fields,
+        Dictionary<string, ObjectFieldGetter> dynamicGetters,
+        Dictionary<string, ObjectFieldSetter> dynamicSetters)
     {
         if (runtimeObject is CodeEdit editor)
         {
@@ -711,6 +723,38 @@ public sealed class SmsUiRuntime
 
                 return NullValue.Instance;
             });
+        }
+
+        if (runtimeObject is Control markdownControl && IsMarkdownControl(markdownControl))
+        {
+            var initialMarkdown = markdownControl.HasMeta(MetaSmsMarkdownText)
+                ? markdownControl.GetMeta(MetaSmsMarkdownText).AsString()
+                : string.Empty;
+            markdownControl.SetMeta(MetaSmsMarkdownText, Variant.From(initialMarkdown));
+
+            RegisterDynamicProperty(
+                "text",
+                fields,
+                dynamicGetters,
+                dynamicSetters,
+                getter: () => new StringValue(markdownControl.GetMeta(MetaSmsMarkdownText).AsString()),
+                setter: value =>
+                {
+                    var nextText = ValueAsString(value);
+                    markdownControl.SetMeta(MetaSmsMarkdownText, Variant.From(nextText));
+                    RenderMarkdownContent(markdownControl, nextText);
+                });
+
+            fields["setText"] = new NativeFunctionValue(methodArgs =>
+            {
+                var nextText = ValueArgString(methodArgs, 0);
+                markdownControl.SetMeta(MetaSmsMarkdownText, Variant.From(nextText));
+                RenderMarkdownContent(markdownControl, nextText);
+                return NullValue.Instance;
+            });
+
+            fields["getText"] = new NativeFunctionValue(_ =>
+                new StringValue(markdownControl.GetMeta(MetaSmsMarkdownText).AsString()));
         }
 
         if (runtimeObject is Tree tree)
@@ -839,6 +883,206 @@ public sealed class SmsUiRuntime
                 return NullValue.Instance;
             });
         }
+    }
+
+    private void AddRuntimePropertyBridge(
+        object runtimeObject,
+        Dictionary<string, Value> fields,
+        Dictionary<string, ObjectFieldGetter> dynamicGetters,
+        Dictionary<string, ObjectFieldSetter> dynamicSetters)
+    {
+        var type = runtimeObject.GetType();
+        foreach (var property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public))
+        {
+            if (property.GetIndexParameters().Length > 0)
+            {
+                continue;
+            }
+
+            RegisterDynamicPropertyAliases(runtimeObject, property.Name, fields, dynamicGetters, dynamicSetters,
+                property.CanRead
+                    ? () =>
+                    {
+                        if (runtimeObject is GodotObject godot && !GodotObject.IsInstanceValid(godot))
+                        {
+                            return NullValue.Instance;
+                        }
+
+                        var value = property.GetValue(runtimeObject);
+                        return ToSmsValue(value);
+                    }
+                    : null,
+                property.CanWrite
+                    ? value =>
+                    {
+                        if (runtimeObject is GodotObject godot && !GodotObject.IsInstanceValid(godot))
+                        {
+                            return;
+                        }
+
+                        if (!TryConvertSmsValue(value, property.PropertyType, out var converted))
+                        {
+                            RunnerLogger.Warn("SMS", $"Cannot assign SMS value to property '{type.Name}.{property.Name}'.");
+                            return;
+                        }
+
+                        try
+                        {
+                            property.SetValue(runtimeObject, converted);
+                        }
+                        catch (Exception ex)
+                        {
+                            RunnerLogger.Warn("SMS", $"Setting property '{type.Name}.{property.Name}' failed.", ex);
+                        }
+                    }
+                    : null);
+        }
+    }
+
+    private static void RegisterDynamicPropertyAliases(
+        object runtimeObject,
+        string name,
+        Dictionary<string, Value> fields,
+        Dictionary<string, ObjectFieldGetter> dynamicGetters,
+        Dictionary<string, ObjectFieldSetter> dynamicSetters,
+        ObjectFieldGetter? getter,
+        ObjectFieldSetter? setter)
+    {
+        RegisterDynamicProperty(name, fields, dynamicGetters, dynamicSetters, getter, setter);
+        var camel = ToLowerCamel(name);
+        if (!string.Equals(camel, name, StringComparison.Ordinal))
+        {
+            RegisterDynamicProperty(camel, fields, dynamicGetters, dynamicSetters, getter, setter);
+        }
+    }
+
+    private static void RegisterDynamicProperty(
+        string name,
+        Dictionary<string, Value> fields,
+        Dictionary<string, ObjectFieldGetter> dynamicGetters,
+        Dictionary<string, ObjectFieldSetter> dynamicSetters,
+        ObjectFieldGetter? getter,
+        ObjectFieldSetter? setter)
+    {
+        if (fields.ContainsKey(name))
+        {
+            return;
+        }
+
+        if (getter is not null)
+        {
+            dynamicGetters[name] = getter;
+            fields[name] = getter();
+        }
+
+        if (setter is not null)
+        {
+            dynamicSetters[name] = setter;
+            if (!fields.ContainsKey(name))
+            {
+                fields[name] = NullValue.Instance;
+            }
+        }
+    }
+
+    private static string ResolveLogicalTypeName(object runtimeObject)
+    {
+        if (runtimeObject is Control control && control.HasMeta(NodePropertyMapper.MetaNodeName))
+        {
+            var logical = control.GetMeta(NodePropertyMapper.MetaNodeName).AsString();
+            if (!string.IsNullOrWhiteSpace(logical))
+            {
+                return logical;
+            }
+        }
+
+        return runtimeObject.GetType().Name;
+    }
+
+    private static bool IsMarkdownControl(Control control)
+    {
+        return control.HasMeta(NodePropertyMapper.MetaNodeName)
+            && string.Equals(control.GetMeta(NodePropertyMapper.MetaNodeName).AsString(), "Markdown", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void RenderMarkdownContent(Control container, string markdownText)
+    {
+        for (var i = container.GetChildCount() - 1; i >= 0; i--)
+        {
+            container.GetChild(i).QueueFree();
+        }
+
+        var parseResult = MarkdownParser.Parse(markdownText ?? string.Empty);
+        foreach (var warning in parseResult.Warnings)
+        {
+            RunnerLogger.Warn("SMS", $"Markdown runtime render warning: {warning}");
+        }
+
+        foreach (var block in parseResult.Blocks)
+        {
+            var text = block.Kind switch
+            {
+                MarkdownBlockKind.Heading => $"[b]{ToBbCode(block.Text)}[/b]",
+                MarkdownBlockKind.ListItem => $"• {ToBbCode(block.Text)}",
+                MarkdownBlockKind.CodeFence => $"[code]{EscapeBbCode(block.Text)}[/code]",
+                MarkdownBlockKind.Image => EscapeBbCode(string.IsNullOrWhiteSpace(block.AltText) ? block.Source : block.AltText),
+                _ => ToBbCode(block.Text)
+            };
+
+            var label = new RichTextLabel
+            {
+                BbcodeEnabled = true,
+                FitContent = true,
+                ScrollActive = false,
+                SelectionEnabled = false,
+                Text = text,
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+                AutowrapMode = TextServer.AutowrapMode.WordSmart
+            };
+
+            container.AddChild(label);
+        }
+    }
+
+    private static string EscapeBbCode(string input)
+    {
+        return (input ?? string.Empty)
+            .Replace("[", "\\[", StringComparison.Ordinal)
+            .Replace("]", "\\]", StringComparison.Ordinal);
+    }
+
+    private static string ToBbCode(string text)
+    {
+        var withEmoji = ReplaceEmojiNames(text ?? string.Empty);
+        var escaped = EscapeBbCode(withEmoji);
+
+        escaped = Regex.Replace(escaped, "\\*\\*\\*([^*]+)\\*\\*\\*", "[b][i]$1[/i][/b]");
+        escaped = Regex.Replace(escaped, "\\*\\*([^*]+)\\*\\*", "[b]$1[/b]");
+        escaped = Regex.Replace(escaped, "\\*([^*]+)\\*", "[i]$1[/i]");
+
+        return escaped;
+    }
+
+    private static string ReplaceEmojiNames(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return input;
+        }
+
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["smile"] = "😄",
+            ["warning"] = "⚠️",
+            ["rocket"] = "🚀",
+            ["heart"] = "❤️"
+        };
+
+        return Regex.Replace(input, ":([a-zA-Z0-9_+-]+):", m =>
+        {
+            var key = m.Groups[1].Value;
+            return map.TryGetValue(key, out var emoji) ? emoji : m.Value;
+        });
     }
 
     private Dictionary<string, List<MethodInfo>> GetMethodMap(Type type)

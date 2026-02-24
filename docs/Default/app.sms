@@ -25,6 +25,13 @@ fun ready() {
     log.info("Mobile: ${os.isMobile()}")
     log.info("Now: ${os.now()}")
 
+    var caption = ui.getObject("caption")
+    var newCaption = when(os.getLanguage()) {
+        "de" -> "**Forge** - Docking Demonstration"
+        else -> "**Forge** - Docking Demo"
+    }
+    caption.text = newCaption
+
     codeEdit.onSave("codeEditOnSave")
     populateTree(tree, ".")
     

@@ -85,13 +85,39 @@ public sealed record ArrayValue(List<Value> Elements) : Value
     }
 }
 
-public sealed record ObjectValue(string ClassName, Dictionary<string, Value> Fields) : Value
+public delegate Value ObjectFieldGetter();
+public delegate void ObjectFieldSetter(Value value);
+
+public sealed record ObjectValue(
+    string ClassName,
+    Dictionary<string, Value> Fields,
+    Dictionary<string, ObjectFieldGetter>? DynamicGetters = null,
+    Dictionary<string, ObjectFieldSetter>? DynamicSetters = null) : Value
 {
     public override object ToDotNet() => Fields.ToDictionary(kv => kv.Key, kv => kv.Value.ToDotNet());
     public override bool IsTruthy() => true;
-    public Value GetField(string name) => Fields.TryGetValue(name, out var value) ? value : NullValue.Instance;
+    public Value GetField(string name)
+    {
+        if (DynamicGetters is not null && DynamicGetters.TryGetValue(name, out var getter))
+        {
+            return getter();
+        }
+
+        return Fields.TryGetValue(name, out var value) ? value : NullValue.Instance;
+    }
+
     public override string ToString() => base.ToString();
-    public void SetField(string name, Value value) => Fields[name] = value;
+
+    public void SetField(string name, Value value)
+    {
+        if (DynamicSetters is not null && DynamicSetters.TryGetValue(name, out var setter))
+        {
+            setter(value);
+            return;
+        }
+
+        Fields[name] = value;
+    }
 }
 
 public sealed record NativeFunctionValue(NativeFunction Function) : Value
