@@ -112,8 +112,8 @@
 - [x] tasks/dockingmenu.md
 - [x] tasks/attached_properties.md
 - [x] tasks/resources_and_localization.md
+- [x] tasks/syntax_highlighting_extensions.md
 - [ ] tasks/sml_theme_system.md
-- [ ] tasks/syntax_highlighting_extensions.md
 
 
 

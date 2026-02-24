@@ -26,7 +26,7 @@ using System.Text.RegularExpressions;
 
 namespace Runtime.UI;
 
-public static class CodeEditSyntaxRuntime
+public static partial class CodeEditSyntaxRuntime
 {
     public const string SyntaxAuto = "auto";
     public const string SyntaxSml = "sml";
@@ -141,7 +141,7 @@ public static class CodeEditSyntaxRuntime
 
         editor.SetMeta(MetaActiveSyntax, Variant.From(syntax));
         ApplyCodeEditorTheme(editor);
-        editor.SyntaxHighlighter = CreateHighlighter(editor, syntax);
+        editor.SyntaxHighlighter = CreateHighlighter(syntax);
 
         if (!string.Equals(previousSyntax, syntax, StringComparison.Ordinal))
         {
@@ -153,7 +153,7 @@ public static class CodeEditSyntaxRuntime
         editor.QueueRedraw();
     }
 
-    private static SyntaxHighlighter? CreateHighlighter(CodeEdit editor, string syntax)
+    private static SyntaxHighlighter? CreateHighlighter(string syntax)
     {
         if (string.Equals(syntax, SyntaxPlainText, StringComparison.OrdinalIgnoreCase))
         {
@@ -162,7 +162,7 @@ public static class CodeEditSyntaxRuntime
 
         if (string.Equals(syntax, SyntaxSml, StringComparison.OrdinalIgnoreCase))
         {
-            return CreateSmlStructuralHighlighter(editor.Text);
+            return CreateSmlStructuralHighlighter();
         }
 
         if (string.Equals(syntax, SyntaxMarkdown, StringComparison.OrdinalIgnoreCase))
@@ -200,35 +200,9 @@ public static class CodeEditSyntaxRuntime
         };
     }
 
-    private static SyntaxHighlighter CreateSmlStructuralHighlighter(string text)
+    private static SmlSyntaxHighlighter CreateSmlStructuralHighlighter()
     {
-        var highlighter = new CodeHighlighter();
-        highlighter.NumberColor = new Color(0.95f, 0.83f, 0.56f, 1f);
-        highlighter.SymbolColor = new Color(0.82f, 0.84f, 0.88f, 1f);
-
-        var nodeColor = new Color(0.49f, 0.86f, 0.79f, 1f);
-        var propertyColor = new Color(0.55f, 0.72f, 1f, 1f);
-        var literalColor = new Color(0.96f, 0.69f, 0.45f, 1f);
-        var boolColor = new Color(0.83f, 0.72f, 0.97f, 1f);
-        var commentColor = new Color(0.52f, 0.57f, 0.55f, 1f);
-
-        highlighter.AddColorRegion("\"", "\"", literalColor);
-        highlighter.AddColorRegion("//", string.Empty, commentColor, true);
-
-        foreach (var nodeName in ExtractSmlNodeNames(text))
-        {
-            highlighter.AddKeywordColor(nodeName, nodeColor);
-        }
-
-        foreach (var propertyName in ExtractSmlPropertyNames(text))
-        {
-            highlighter.AddMemberKeywordColor(propertyName, propertyColor);
-        }
-
-        highlighter.AddKeywordColor("true", boolColor);
-        highlighter.AddKeywordColor("false", boolColor);
-
-        return highlighter;
+        return new SmlSyntaxHighlighter();
     }
 
     private static SyntaxHighlighter? CreateHighlighterFromRuleFile(string rulePath)
@@ -406,8 +380,8 @@ public static class CodeEditSyntaxRuntime
             }
 
             editor.SyntaxHighlighter = isSml
-                ? CreateSmlStructuralHighlighter(editor.Text)
-                : CreateHighlighter(editor, SyntaxSms);
+                ? CreateSmlStructuralHighlighter()
+                : CreateHighlighter(SyntaxSms);
 
             editor.ScrollVertical = previousScroll;
             editor.ScrollHorizontal = previousScrollHorizontal;
@@ -427,43 +401,115 @@ public static class CodeEditSyntaxRuntime
         editor.AddThemeColorOverride("line_number_color", new Color(0.74f, 0.78f, 0.84f, 1f));
     }
 
-    private static HashSet<string> ExtractSmlNodeNames(string text)
+    private sealed partial class SmlSyntaxHighlighter : SyntaxHighlighter
     {
-        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (string.IsNullOrWhiteSpace(text))
+        private static readonly Color DefaultColor  = new(0.96f, 0.97f, 0.99f, 1f);
+        private static readonly Color NodeColor     = new(0.49f, 0.86f, 0.79f, 1f);
+        private static readonly Color PropertyColor = new(0.55f, 0.72f, 1f,    1f);
+        private static readonly Color LiteralColor  = new(0.96f, 0.69f, 0.45f, 1f);
+        private static readonly Color BoolColor     = new(0.83f, 0.72f, 0.97f, 1f);
+        private static readonly Color CommentColor  = new(0.52f, 0.57f, 0.55f, 1f);
+        private static readonly Color NumberColor   = new(0.95f, 0.83f, 0.56f, 1f);
+        private static readonly Color ResourceColor = new(0.56f, 0.93f, 0.56f, 1f);
+
+        private static readonly Regex NodeLineRegex    = new(@"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\{",                     RegexOptions.Compiled);
+        private static readonly Regex AttachedKeyRegex = new(@"^\s*([A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*)\s*:", RegexOptions.Compiled);
+        private static readonly Regex PropertyKeyRegex = new(@"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:",                      RegexOptions.Compiled);
+        private static readonly Regex ResourceRefRegex = new(@"@[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]+)+", RegexOptions.Compiled);
+        private static readonly Regex StringRegex      = new(@"""(?:[^""\\]|\\.)*""",                                   RegexOptions.Compiled);
+        private static readonly Regex NumberRegex      = new(@"(?<![A-Za-z_.\d])-?\d+(?:\.\d+)?(?![A-Za-z_.\d])",      RegexOptions.Compiled);
+        private static readonly Regex BoolRegex        = new(@"(?<![A-Za-z_])(true|false)(?![A-Za-z_])",               RegexOptions.Compiled);
+
+        public override Godot.Collections.Dictionary _GetLineSyntaxHighlighting(int line)
         {
+            var result   = new Godot.Collections.Dictionary();
+            var textEdit = GetTextEdit();
+            if (textEdit == null) return result;
+
+            var text = textEdit.GetLine(line);
+            if (string.IsNullOrEmpty(text)) return result;
+
+            Mark(result, 0, DefaultColor);
+
+            var commentAt = FindCommentStart(text);
+            var code      = commentAt >= 0 ? text[..commentAt] : text;
+
+            var nodeMatch = NodeLineRegex.Match(code);
+            if (nodeMatch.Success)
+            {
+                var g = nodeMatch.Groups[1];
+                Mark(result, g.Index, NodeColor);
+                Mark(result, g.Index + g.Length, DefaultColor);
+            }
+            else
+            {
+                var keyMatch = AttachedKeyRegex.Match(code);
+                if (!keyMatch.Success)
+                    keyMatch = PropertyKeyRegex.Match(code);
+
+                if (keyMatch.Success)
+                {
+                    var g = keyMatch.Groups[1];
+                    Mark(result, g.Index, PropertyColor);
+                    var colon = code.IndexOf(':', g.Index + g.Length);
+                    if (colon >= 0)
+                    {
+                        Mark(result, colon, DefaultColor);
+                        HighlightValue(code, colon + 1, result);
+                    }
+                }
+            }
+
+            if (commentAt >= 0)
+                Mark(result, commentAt, CommentColor);
+
             return result;
         }
 
-        foreach (Match match in Regex.Matches(text, @"(?m)^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\{"))
+        private static void HighlightValue(string code, int from, Godot.Collections.Dictionary result)
         {
-            var identifier = match.Groups[1].Value.Trim();
-            if (!string.IsNullOrWhiteSpace(identifier))
+            if (from >= code.Length) return;
+            var slice = code[from..];
+            var spans = new List<(int S, int E, Color C)>();
+
+            foreach (Match m in ResourceRefRegex.Matches(slice))
+                spans.Add((from + m.Index, from + m.Index + m.Length, ResourceColor));
+            foreach (Match m in StringRegex.Matches(slice))
+                spans.Add((from + m.Index, from + m.Index + m.Length, LiteralColor));
+            foreach (Match m in BoolRegex.Matches(slice))
+                spans.Add((from + m.Index, from + m.Index + m.Length, BoolColor));
+            foreach (Match m in NumberRegex.Matches(slice))
+                spans.Add((from + m.Index, from + m.Index + m.Length, NumberColor));
+
+            spans.Sort((a, b) => a.S.CompareTo(b.S));
+            var cursor = from;
+            foreach (var (s, e, color) in spans)
             {
-                result.Add(identifier);
+                if (s < cursor) continue;
+                Mark(result, s, color);
+                Mark(result, e, DefaultColor);
+                cursor = e;
             }
         }
 
-        return result;
-    }
-
-    private static HashSet<string> ExtractSmlPropertyNames(string text)
-    {
-        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (string.IsNullOrWhiteSpace(text))
+        private static int FindCommentStart(string text)
         {
-            return result;
-        }
-
-        foreach (Match match in Regex.Matches(text, @"(?m)^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*"))
-        {
-            var identifier = match.Groups[1].Value.Trim();
-            if (!string.IsNullOrWhiteSpace(identifier))
+            var inStr = false;
+            for (var i = 0; i < text.Length - 1; i++)
             {
-                result.Add(identifier);
+                if (text[i] == '"' && (i == 0 || text[i - 1] != '\\'))
+                    inStr = !inStr;
+                if (!inStr && text[i] == '/' && text[i + 1] == '/')
+                    return i;
             }
+            return -1;
         }
 
-        return result;
+        private static void Mark(Godot.Collections.Dictionary result, int col, Color color)
+        {
+            var entry = new Godot.Collections.Dictionary();
+            entry["color"] = color;
+            result[col] = entry;
+        }
     }
 }
