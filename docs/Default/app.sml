@@ -1,7 +1,6 @@
 Window {
     id: mainWindow
-    title: "ForgeRunner"
-    titleKey: "window.main.title"
+    title: @Strings.windowTitle
     minSize: 800,400
     pos: 0, 0
     size: 1920, 1080
@@ -12,24 +11,21 @@ Window {
 
         PopupMenu {
             id: appMenu
-            title: "ForgeRunner"
-            titleKey: "menu.app.title"
+            title: @Strings.menuAppTitle
 
-            Item { id: about text: "About ForgeRunner" textKey: "menu.app.about" }
-            Item { id: settings text: "Settings" textKey: "menu.app.settings" }
-            Item { id: quit text: "Quit ForgeRunner" textKey: "menu.app.quit" }
+            Item { id: about text: @Strings.menuAppAbout }
+            Item { id: settings text: @Strings.menuAppSettings }
+            Item { id: quit text: @Strings.menuAppQuit }
         }
 
         PopupMenu {
             id: file
-            title: "File"
-            titleKey: "menu.file.title"
+            title: @Strings.menuFileTitle
 
-            Item { id: saveAs text: "Save As..." textKey: "menu.file.saveAs" }
+            Item { id: saveAs text: @Strings.menuFileSaveAs }
         }
     }
 
-    // must be placed after title to stay clickable
     WindowDrag {
         id: titleDrag
         anchors: left | top | right
@@ -44,8 +40,7 @@ Window {
         width: 300
         height: 20
         mouseFilter: ignore
-        text: "**Forge** - Docking Demo"
-        textKey: "caption.demo"
+        text: @Strings.captionDemo
     }
 
      DockingHost {
@@ -63,26 +58,24 @@ Window {
 
             VBoxContainer {
                 id: project
-                farLeftDock.title: "Project"
-                titleKey: "tab.project"
+                farLeftDock.title: @Strings.tabProject
                 Tree {
                     id: treeview
                     sizeFlagsHorizontal: expandFill
                     sizeFlagsVertical: expandFill
                     showGuides: false
-                } 
+                }
             }
 
             VBoxContainer {
                 id: hierarchy
-                farLeftDock.title: "Hierarchy"
-                titleKey: "tab.hierarchy"
+                farLeftDock.title: @Strings.tabHierarchy
                 Tree {
                     id: hierarchyTree
                     sizeFlagsHorizontal: expandFill
                     sizeFlagsVertical: expandFill
                     showGuides: false
-                } 
+                }
             }
         }
 
@@ -95,15 +88,14 @@ Window {
 
             CodeEdit {
                 id: codeEdit
-                centerDock.title: "<New>"
-                titleKey: "tab.new"
-                text: "Window { 
+                centerDock.title: @Strings.tabNew
+                text: "Window {
     title: \"Test\"
-}"     
+}"
                 syntax: "sml"
-                //font: "appres://DeineFont.ttf"   
+                //font: "appres://DeineFont.ttf"
                 fontSize: 13
-            }   
+            }
         }
 
         DockingContainer {
@@ -115,9 +107,8 @@ Window {
 
             VBoxContainer {
                 id: inspector
-                rightDock.title: "Markdown"
-                titleKey: "tab.markdown"
-                Markdown {        
+                rightDock.title: @Strings.tabMarkdown
+                Markdown {
                     padding: 8,8,8,20
                     src: "res:/sample.md"
                 }
@@ -125,15 +116,13 @@ Window {
 
             VBoxContainer {
                 id: preview
-                rightDock.title: "Portrait"
-                titleKey: "tab.portrait"
+                rightDock.title: @Strings.tabPortrait
                 Label { text: "Portrait Preview" }
             }
 
             VBoxContainer {
                 id: profiler
-                rightDock.title: "Landscape"
-                titleKey: "tab.landscape"
+                rightDock.title: @Strings.tabLandscape
                 Label { text: "Landscape Preview" }
             }
         }

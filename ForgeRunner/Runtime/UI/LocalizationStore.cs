@@ -110,26 +110,29 @@ public sealed class LocalizationStore
         var parser = new SmlParser(source, SmlSchemaFactory.CreateDefault());
         var document = parser.ParseDocument();
 
+        // Strings blocks are parsed as resource namespaces (document.Resources), not roots.
+        // Fall back to document.Roots for compatibility with plain-node strings files.
         SmlNode? stringsNode = null;
-        foreach (var root in document.Roots)
+        if (document.Resources.TryGetValue("Strings", out var resourceStrings))
         {
-            if (string.Equals(root.Name, "Strings", StringComparison.OrdinalIgnoreCase))
+            stringsNode = resourceStrings;
+        }
+        else
+        {
+            foreach (var root in document.Roots)
             {
-                stringsNode = root;
-                break;
+                if (string.Equals(root.Name, "Strings", StringComparison.OrdinalIgnoreCase))
+                {
+                    stringsNode = root;
+                    break;
+                }
             }
+            stringsNode ??= document.Roots.Count > 0 ? document.Roots[0] : null;
         }
 
         if (stringsNode is null)
         {
-            if (document.Roots.Count > 0)
-            {
-                stringsNode = document.Roots[0];
-            }
-            else
-            {
-                return map;
-            }
+            return map;
         }
 
         foreach (var (key, value) in stringsNode.Properties)

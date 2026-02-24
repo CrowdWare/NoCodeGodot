@@ -48,12 +48,28 @@ public sealed class SmlParser
 
         while (_lookahead.Kind != SmlTokenKind.Eof)
         {
-            document.Roots.Add(ParseElement(document));
+            var element = ParseElement(document);
+            if (IsResourceNamespace(element.Name))
+            {
+                document.Resources[element.Name] = element;
+            }
+            else
+            {
+                document.Roots.Add(element);
+            }
             SkipIgnorables();
         }
 
+        ValidateResourceRefs(document);
+
         return document;
     }
+
+    private static bool IsResourceNamespace(string name) =>
+        string.Equals(name, "Strings", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "Colors", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "Icons", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "Layouts", StringComparison.OrdinalIgnoreCase);
 
     private SmlNode ParseElement(SmlDocument document)
     {
@@ -177,6 +193,11 @@ public sealed class SmlParser
     private SmlValue ParseValue(string propertyName, SmlDocument document, SmlNode node, int propertyLine)
     {
         var propertyKind = _schema.GetPropertyKind(propertyName);
+
+        if (_lookahead.Kind == SmlTokenKind.At)
+        {
+            return ParseResourceRef(propertyName, document, node, propertyLine);
+        }
 
         if (_lookahead.Kind == SmlTokenKind.String)
         {
@@ -342,6 +363,124 @@ public sealed class SmlParser
             $"Invalid float literal '{token.Text}' for property '{propertyName}' (line {token.Line}, col {token.Column}).");
     }
 
+    private SmlValue ParseResourceRef(string propertyName, SmlDocument document, SmlNode node, int propertyLine)
+    {
+        Consume(); // consume '@'
+        var refToken = Expect(SmlTokenKind.Identifier, "Expected resource reference (e.g. @Strings.greeting) after '@'.");
+        var dotIdx = refToken.Text.IndexOf('.');
+        if (dotIdx < 1 || dotIdx >= refToken.Text.Length - 1)
+        {
+            throw new SmlParseException(
+                $"Resource reference '@{refToken.Text}' must be in the form '@Namespace.key' " +
+                $"(line {refToken.Line}, col {refToken.Column}).");
+        }
+
+        var ns = refToken.Text[..dotIdx];
+        var path = refToken.Text[(dotIdx + 1)..];
+
+        SkipIgnorables();
+        SmlValue? fallback = null;
+        if (_lookahead.Kind == SmlTokenKind.Comma)
+        {
+            Consume(); // consume ','
+            SkipIgnorables();
+            fallback = ParseFallbackLiteral(propertyName);
+        }
+
+        return SmlValue.FromResourceRef(ns, path, fallback);
+    }
+
+    private SmlValue ParseFallbackLiteral(string propertyName)
+    {
+        if (_lookahead.Kind == SmlTokenKind.String)
+        {
+            return SmlValue.FromString(Consume().Text);
+        }
+
+        if (_lookahead.Kind == SmlTokenKind.Bool)
+        {
+            var token = Consume();
+            return SmlValue.FromBool(string.Equals(token.Text, "true", StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (_lookahead.Kind == SmlTokenKind.Int)
+        {
+            var token = Consume();
+            return SmlValue.FromInt(ParseIntLiteral(token, propertyName));
+        }
+
+        if (_lookahead.Kind == SmlTokenKind.Float)
+        {
+            var token = Consume();
+            return SmlValue.FromFloat(ParseFloatLiteral(token, propertyName));
+        }
+
+        throw Error($"Expected a literal fallback value (string, bool, number) after ',' in resource reference for '{propertyName}'.");
+    }
+
+    private static void ValidateResourceRefs(SmlDocument document)
+    {
+        foreach (var root in document.Roots)
+        {
+            ValidateResourceRefsInNode(document, root);
+        }
+    }
+
+    private static void ValidateResourceRefsInNode(SmlDocument document, SmlNode node)
+    {
+        foreach (var (propName, value) in node.Properties)
+        {
+            if (value.Kind == SmlValueKind.ResourceRef)
+            {
+                ValidateResourceRef(document, node, propName, (SmlResourceRef)value.Value);
+            }
+        }
+
+        foreach (var (qualifier, props) in node.AttachedProperties)
+        {
+            foreach (var (propName, value) in props)
+            {
+                if (value.Kind == SmlValueKind.ResourceRef)
+                {
+                    ValidateResourceRef(document, node, $"{qualifier}.{propName}", (SmlResourceRef)value.Value);
+                }
+            }
+        }
+
+        foreach (var child in node.Children)
+        {
+            ValidateResourceRefsInNode(document, child);
+        }
+    }
+
+    private static void ValidateResourceRef(SmlDocument document, SmlNode node, string propName, SmlResourceRef res)
+    {
+        if (!document.Resources.TryGetValue(res.Namespace, out var nsNode))
+        {
+            // Well-known namespaces (Strings, Colors, Icons, Layouts) are resolved externally
+            // from resource files at runtime — no warning needed for missing inline block.
+            if (IsResourceNamespace(res.Namespace))
+                return;
+
+            // Unknown namespace — only warn if no fallback is provided
+            if (res.Fallback is null)
+            {
+                document.Warnings.Add(
+                    $"Unknown resource namespace '@{res.Namespace}' in '{node.Name}.{propName}' (line {node.Line}). " +
+                    "Consider adding a fallback value or defining the resource block.");
+            }
+
+            return;
+        }
+
+        if (!nsNode.Properties.ContainsKey(res.Path) && res.Fallback is null)
+        {
+            document.Warnings.Add(
+                $"Unknown resource key '@{res.Namespace}.{res.Path}' in '{node.Name}.{propName}' (line {node.Line}). " +
+                "No fallback provided.");
+        }
+    }
+
     private SmlValue ParseAnchorsValue()
     {
         var anchors = new List<string>();
@@ -402,6 +541,11 @@ public sealed class SmlParser
             return;
         }
 
+        if (IsResourceNamespace(nodeName))
+        {
+            return;
+        }
+
         document.Warnings.Add($"Unknown node '{nodeName}' at line {line}. Node will be kept in AST.");
     }
 }
@@ -414,6 +558,7 @@ internal enum SmlTokenKind
     Colon,
     Comma,
     Pipe,
+    At,
     String,
     Int,
     Float,
@@ -515,6 +660,12 @@ internal sealed class SmlLexer
         {
             Advance();
             return new SmlToken(SmlTokenKind.Pipe, "|", startLine, startColumn);
+        }
+
+        if (c == '@')
+        {
+            Advance();
+            return new SmlToken(SmlTokenKind.At, "@", startLine, startColumn);
         }
 
         if (c == '"')

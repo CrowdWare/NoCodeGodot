@@ -78,6 +78,9 @@ case "$MODE" in
     echo "Generating SMS runtime function docs..."
     "$GODOT_BIN" --headless --path "$RUNNER_PATH" --script "$REPO_ROOT/tools/generate_sms_functions_docs.gd"
 
+    echo "Generating SML resource system docs..."
+    "$GODOT_BIN" --headless --path "$RUNNER_PATH" --script "$REPO_ROOT/tools/generate_sml_resources_docs.gd"
+
     echo "Documentation generation completed."
     exit 0
     ;;

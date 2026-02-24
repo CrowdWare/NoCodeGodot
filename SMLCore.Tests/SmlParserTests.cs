@@ -454,4 +454,193 @@ public class SmlParserTests
         Assert.Equal("MyTab", props!["title"].AsStringOrThrow("title"));
         Assert.Empty(doc.Warnings);
     }
+
+    [Fact]
+    public void ParseDocument_WithResourceRef_ParsesNamespaceAndPath()
+    {
+        const string text = """
+        Strings {
+            greeting: "Hello World"
+        }
+        Window {
+            text: @Strings.greeting
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        // Strings block goes to Resources, not Roots
+        Assert.Single(doc.Roots);
+        Assert.Equal("Window", doc.Roots[0].Name);
+        Assert.True(doc.Resources.ContainsKey("Strings"));
+
+        // text property is a ResourceRef
+        var textValue = doc.Roots[0].GetRequiredProperty("text");
+        Assert.Equal(SmlValueKind.ResourceRef, textValue.Kind);
+        var resRef = (SmlResourceRef)textValue.Value;
+        Assert.Equal("Strings", resRef.Namespace);
+        Assert.Equal("greeting", resRef.Path);
+        Assert.Null(resRef.Fallback);
+        Assert.Empty(doc.Warnings);
+    }
+
+    [Fact]
+    public void ParseDocument_WithResourceRefAndFallback_ParsesFallbackValue()
+    {
+        const string text = """
+        Window {
+            text: @Strings.missing, "Default Text"
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        var textValue = doc.Roots[0].GetRequiredProperty("text");
+        Assert.Equal(SmlValueKind.ResourceRef, textValue.Kind);
+        var resRef = (SmlResourceRef)textValue.Value;
+        Assert.Equal("Strings", resRef.Namespace);
+        Assert.Equal("missing", resRef.Path);
+        Assert.NotNull(resRef.Fallback);
+        Assert.Equal(SmlValueKind.String, resRef.Fallback!.Kind);
+        Assert.Equal("Default Text", resRef.Fallback.AsStringOrThrow("fallback"));
+        // No warnings because fallback is provided
+        Assert.Empty(doc.Warnings);
+    }
+
+    [Fact]
+    public void ParseDocument_ResourceNamespaceBlock_GoesToResourcesNotRoots()
+    {
+        const string text = """
+        Colors {
+            primary: "#ff0000"
+            secondary: "#0000ff"
+        }
+        Strings {
+            ok: "OK"
+        }
+        Window {
+            text: @Strings.ok
+        }
+        """;
+
+        var parser = new SmlParser(text);
+        var doc = parser.ParseDocument();
+
+        Assert.Single(doc.Roots);
+        Assert.Equal("Window", doc.Roots[0].Name);
+        Assert.True(doc.Resources.ContainsKey("Colors"));
+        Assert.True(doc.Resources.ContainsKey("Strings"));
+        Assert.Equal("#ff0000", doc.Resources["Colors"].GetRequiredProperty("primary").AsStringOrThrow("primary"));
+        Assert.Equal("OK", doc.Resources["Strings"].GetRequiredProperty("ok").AsStringOrThrow("ok"));
+    }
+
+    [Fact]
+    public void ParseDocument_WithResourceRef_UnknownNamespaceNoFallback_AddsWarning()
+    {
+        const string text = """
+        Window {
+            text: @Missing.key
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        Assert.Single(doc.Warnings);
+        Assert.Contains("@Missing", doc.Warnings[0]);
+    }
+
+    [Fact]
+    public void ParseDocument_WithResourceRef_UnknownKeyNoFallback_AddsWarning()
+    {
+        const string text = """
+        Strings {
+            hello: "Hello"
+        }
+        Window {
+            text: @Strings.doesNotExist
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        Assert.Single(doc.Warnings);
+        Assert.Contains("@Strings.doesNotExist", doc.Warnings[0]);
+    }
+
+    [Fact]
+    public void ParseDocument_WithResourceRef_UnknownNamespaceWithFallback_NoWarning()
+    {
+        const string text = """
+        Window {
+            text: @Strings.missing, "Fallback"
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        Assert.Empty(doc.Warnings);
+    }
+
+    [Fact]
+    public void ParseDocument_WithResourceRef_WellKnownNamespaceNoInlineBlock_NoWarning()
+    {
+        // @Strings.key without an inline Strings block should not warn —
+        // well-known namespaces (Strings, Colors, etc.) are resolved from external files at runtime.
+        const string text = """
+        Window {
+            title: @Strings.windowTitle
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        Assert.Empty(doc.Warnings);
+    }
+
+    [Fact]
+    public void ParseDocument_ResourceNamespaceBlock_NoWarnOnUnknownNode()
+    {
+        const string text = """
+        Strings {
+            hello: "Hello"
+        }
+        Window {
+            text: @Strings.hello
+        }
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+        schema.WarnOnUnknownNodes = true;
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        // No "Unknown node 'Strings'" warning
+        Assert.Empty(doc.Warnings);
+    }
 }

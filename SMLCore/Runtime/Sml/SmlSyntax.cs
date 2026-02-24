@@ -32,13 +32,22 @@ public enum SmlValueKind
     Enum,
     Vec2i,
     Vec3i,
-    Padding
+    Padding,
+    ResourceRef
 }
 
 public readonly record struct SmlVec2i(int X, int Y);
 public readonly record struct SmlVec3i(int X, int Y, int Z);
 public readonly record struct SmlEnumValue(string Name, int? Value);
 public readonly record struct SmlPadding(int Top, int Right, int Bottom, int Left);
+
+/// <summary>
+/// A reference to a named resource, e.g. <c>@Strings.greeting</c>.
+/// </summary>
+/// <param name="Namespace">The resource namespace (e.g. "Strings", "Colors").</param>
+/// <param name="Path">The key within the namespace (e.g. "greeting").</param>
+/// <param name="Fallback">Optional literal fallback value when the resource is not found.</param>
+public readonly record struct SmlResourceRef(string Namespace, string Path, SmlValue? Fallback);
 
 public sealed class SmlValue
 {
@@ -60,6 +69,7 @@ public sealed class SmlValue
     public static SmlValue FromVec2i(int x, int y) => new(SmlValueKind.Vec2i, new SmlVec2i(x, y));
     public static SmlValue FromVec3i(int x, int y, int z) => new(SmlValueKind.Vec3i, new SmlVec3i(x, y, z));
     public static SmlValue FromPadding(int top, int right, int bottom, int left) => new(SmlValueKind.Padding, new SmlPadding(top, right, bottom, left));
+    public static SmlValue FromResourceRef(string ns, string path, SmlValue? fallback) => new(SmlValueKind.ResourceRef, new SmlResourceRef(ns, path, fallback));
 
     public string AsStringOrThrow(string propertyName)
     {
@@ -167,6 +177,11 @@ public sealed class SmlDocument
 {
     public List<SmlNode> Roots { get; } = [];
     public List<string> Warnings { get; } = [];
+    /// <summary>
+    /// Top-level resource namespace blocks (Strings, Colors, Icons, Layouts).
+    /// Keyed by namespace name (case-insensitive).
+    /// </summary>
+    public Dictionary<string, SmlNode> Resources { get; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class SmlParseException : Exception

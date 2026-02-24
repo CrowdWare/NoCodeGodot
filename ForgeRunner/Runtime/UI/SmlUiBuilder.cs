@@ -35,9 +35,6 @@ public sealed class SmlUiBuilder
     public const string MetaScalingMode = "sml_windowScalingMode";
     public const string MetaDesignSizeX = "sml_windowDesignSizeX";
     public const string MetaDesignSizeY = "sml_windowDesignSizeY";
-    public const string MetaI18nTextKey = "sml_i18n_textKey";
-    public const string MetaI18nTitleKey = "sml_i18n_titleKey";
-
     private readonly NodeFactoryRegistry _registry;
     private readonly NodePropertyMapper _propertyMapper;
     private readonly LocalizationStore _localization;
@@ -79,7 +76,7 @@ public sealed class SmlUiBuilder
         _viewportsById.Clear();
 
         var rootNode = document.Roots[0];
-        ApplyLocalizationRecursively(rootNode);
+        ApplyLocalizationRecursively(rootNode, document.Resources);
         var ui = BuildNodeRecursive(rootNode, parentNodeName: null);
         var built = ui ?? BuildFallback($"Could not build root node '{rootNode.Name}'.");
         ApplyAnchorsFromMetaRecursively(built);
@@ -224,25 +221,6 @@ public sealed class SmlUiBuilder
                      .OrderBy(kvp => node.PropertyLines.TryGetValue(kvp.Key, out var line) ? line : int.MaxValue)
                      .ThenBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase))
         {
-            if (string.Equals(propertyName, "textKey", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(propertyName, "titleKey", StringComparison.OrdinalIgnoreCase))
-            {
-                var key = value.AsStringOrThrow(propertyName);
-                if (!string.IsNullOrWhiteSpace(key))
-                {
-                    if (string.Equals(propertyName, "textKey", StringComparison.OrdinalIgnoreCase))
-                    {
-                        control.SetMeta(MetaI18nTextKey, Variant.From(key));
-                    }
-                    else
-                    {
-                        control.SetMeta(MetaI18nTitleKey, Variant.From(key));
-                    }
-                }
-
-                continue;
-            }
-
             if (TryApplyContextProperty(control, parentNodeName, node.Name, propertyName, value))
             {
                 continue;
@@ -1280,67 +1258,72 @@ public sealed class SmlUiBuilder
         return !string.IsNullOrWhiteSpace(node.Name) && char.IsLower(node.Name[0]);
     }
 
-    private void ApplyLocalizationRecursively(SmlNode node)
+    private void ApplyLocalizationRecursively(SmlNode node, Dictionary<string, SmlNode> resources)
     {
-        TryApplyLocalizedProperty(node, "text", "textKey");
-        TryApplyLocalizedProperty(node, "title", "titleKey");
+        ResolveResourceRefsInNode(node, resources);
 
         foreach (var child in node.Children)
         {
-            ApplyLocalizationRecursively(child);
+            ApplyLocalizationRecursively(child, resources);
         }
     }
 
-    private void TryApplyLocalizedProperty(SmlNode node, string propertyName, string keyPropertyName)
+    private void ResolveResourceRefsInNode(SmlNode node, Dictionary<string, SmlNode> resources)
     {
-        if (string.Equals(node.Name, "Markdown", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(propertyName, "text", StringComparison.OrdinalIgnoreCase))
+        var keysToResolve = node.Properties
+            .Where(kvp => kvp.Value.Kind == SmlValueKind.ResourceRef)
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        foreach (var key in keysToResolve)
         {
-            // Markdown text is preprocessed in SmlUiLoader into child nodes.
-            // Re-injecting a "text" property here would be applied to the mapped
-            // VBoxContainer and produce a noisy "text-like property ignored" warning.
-            return;
+            var res = (SmlResourceRef)node.Properties[key].Value;
+            var resolved = ResolveResourceRef(res, node.Name, key);
+            node.Properties[key] = resolved;
         }
 
-        if (!node.TryGetProperty(keyPropertyName, out var keyValue))
+        foreach (var (qualifier, props) in node.AttachedProperties)
         {
-            return;
-        }
+            var attachedKeysToResolve = props
+                .Where(kvp => kvp.Value.Kind == SmlValueKind.ResourceRef)
+                .Select(kvp => kvp.Key)
+                .ToList();
 
-        var key = keyValue.AsStringOrThrow(keyPropertyName);
-        if (string.IsNullOrWhiteSpace(key))
-        {
-            return;
-        }
-
-        if (_localization.TryTranslate(key, out var translated))
-        {
-            WriteLocalizedValue(node, propertyName, translated);
-            return;
-        }
-
-        if (node.TryGetProperty(propertyName, out _)
-            || node.AttachedProperties.Values.Any(p => p.ContainsKey(propertyName)))
-        {
-            return;
-        }
-
-        RunnerLogger.Warn("i18n", $"Missing i18n key '{key}' for '{node.Name}.{propertyName}'.");
-        WriteLocalizedValue(node, propertyName, string.Empty);
-    }
-
-    private static void WriteLocalizedValue(SmlNode node, string propertyName, string value)
-    {
-        foreach (var props in node.AttachedProperties.Values)
-        {
-            if (props.ContainsKey(propertyName))
+            foreach (var key in attachedKeysToResolve)
             {
-                props[propertyName] = SmlValue.FromString(value);
-                return;
+                var res = (SmlResourceRef)props[key].Value;
+                var resolved = ResolveResourceRef(res, node.Name, $"{qualifier}.{key}");
+                props[key] = resolved;
             }
         }
 
-        node.Properties[propertyName] = SmlValue.FromString(value);
+        return;
+
+        SmlValue ResolveResourceRef(SmlResourceRef res, string nodeName, string propDisplay)
+        {
+            // For Strings: localization store takes priority so that language files can override inline defaults
+            if (string.Equals(res.Namespace, "Strings", StringComparison.OrdinalIgnoreCase)
+                && _localization.TryTranslate(res.Path, out var translated))
+            {
+                return SmlValue.FromString(translated);
+            }
+
+            // Inline resource block (default values for all namespaces)
+            if (resources.TryGetValue(res.Namespace, out var nsNode)
+                && nsNode.Properties.TryGetValue(res.Path, out var inlineValue))
+            {
+                return inlineValue;
+            }
+
+            // Use fallback if provided
+            if (res.Fallback is not null)
+            {
+                return res.Fallback;
+            }
+
+            RunnerLogger.Warn("resources", $"Unresolved resource '@{res.Namespace}.{res.Path}' in '{nodeName}.{propDisplay}'.");
+            return SmlValue.FromString(string.Empty);
+        }
     }
 
     private void BuildTreeViewItems(Tree tree, SmlNode treeNode)

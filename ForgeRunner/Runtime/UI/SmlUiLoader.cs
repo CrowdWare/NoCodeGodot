@@ -136,12 +136,31 @@ public sealed class SmlUiLoader
         LocalizationStore localization,
         CancellationToken cancellationToken)
     {
-        if (node.TryGetProperty("textKey", out var textKeyValue))
+        // Resolve @Strings.key references in the text property before Markdown parsing
+        if (node.TryGetProperty("text", out var rawTextValue)
+            && rawTextValue.Kind == SmlValueKind.ResourceRef)
         {
-            var textKey = textKeyValue.AsStringOrThrow("textKey");
-            if (!string.IsNullOrWhiteSpace(textKey) && localization.TryTranslate(textKey, out var localizedMarkdown))
+            var res = (SmlResourceRef)rawTextValue.Value;
+            string? resolved = null;
+
+            if (string.Equals(res.Namespace, "Strings", StringComparison.OrdinalIgnoreCase)
+                && localization.TryTranslate(res.Path, out var translated))
             {
-                node.Properties["text"] = SmlValue.FromString(localizedMarkdown);
+                resolved = translated;
+            }
+            else if (document.Resources.TryGetValue(res.Namespace, out var nsNode)
+                     && nsNode.Properties.TryGetValue(res.Path, out var inlineValue))
+            {
+                resolved = inlineValue.AsStringOrThrow("text");
+            }
+            else if (res.Fallback is not null)
+            {
+                resolved = res.Fallback.AsStringOrThrow("text");
+            }
+
+            if (resolved is not null)
+            {
+                node.Properties["text"] = SmlValue.FromString(resolved);
             }
         }
 

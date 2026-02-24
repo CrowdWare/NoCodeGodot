@@ -889,7 +889,7 @@ func _load_specs() -> Dictionary:
     return out
 
 func _is_non_element_spec(spec_name: String) -> bool:
-    return spec_name in ["sms_functions", "context_properties", "layout_aliases", "layout_defaults", "runtime_overrides"]
+    return spec_name in ["sms_functions", "sml_resources", "context_properties", "layout_aliases", "layout_defaults", "runtime_overrides"]
 
 func _get_context_rules() -> Array:
     if not SPECS.has("context_properties"):

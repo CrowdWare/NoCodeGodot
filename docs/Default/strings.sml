@@ -1,20 +1,20 @@
 Strings {
-    window.main.title: "ForgeRunner"
+    windowTitle: "ForgeRunner"
 
-    menu.app.title: "ForgeRunner"
-    menu.app.about: "About ForgeRunner"
-    menu.app.settings: "Settings"
-    menu.app.quit: "Quit ForgeRunner"
+    menuAppTitle: "ForgeRunner"
+    menuAppAbout: "About ForgeRunner"
+    menuAppSettings: "Settings"
+    menuAppQuit: "Quit ForgeRunner"
 
-    menu.file.title: "File"
-    menu.file.saveAs: "Save As..."
+    menuFileTitle: "File"
+    menuFileSaveAs: "Save As..."
 
-    caption.demo: "**Forge** - Docking Demo"
+    captionDemo: "**Forge** - Docking Demo"
 
-    tab.project: "Project"
-    tab.hierarchy: "Hierarchy"
-    tab.new: "<New>"
-    tab.markdown: "Markdown"
-    tab.portrait: "Portrait"
-    tab.landscape: "Landscape"
+    tabProject: "Project"
+    tabHierarchy: "Hierarchy"
+    tabNew: "<New>"
+    tabMarkdown: "Markdown"
+    tabPortrait: "Portrait"
+    tabLandscape: "Landscape"
 }
