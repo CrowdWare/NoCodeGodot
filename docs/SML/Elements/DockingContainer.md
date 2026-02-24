@@ -24,7 +24,8 @@ Inherited properties are documented in: [PanelContainer](PanelContainer.md)
 | — | tabsRearrangeGroup | int | 1 |
 
 > Automatically creates an internal TabContainer.
-> Direct child controls become tabs; use context property 'title' on each child to define tab captions.
+> Direct child controls become tabs. Use the attached property syntax to define tab captions: `<containerId>.title: "Caption"` or `DockingContainer.title: "Caption"`.
+> Attached properties are resolved by instance id first, then by type name. The qualifier must refer to the direct parent DockingContainer.
 > dockSide supports: farLeft, farLeftBottom, left, leftBottom, center, right, rightBottom, farRight, farRightBottom.
 > For split columns (top/bottom), height can be controlled via fixedHeight (px) or heightPercent (0..100).
 > Priority: fixedHeight > heightPercent > automatic 50/50 fallback.
@@ -41,14 +42,28 @@ DockingContainer {
     fixedWidth: 280
     dragToRearrangeEnabled: true
     tabsRearrangeGroup: 1
+
+    VBoxContainer {
+        id: project
+        leftDock.title: "Project"
+    }
+
+    VBoxContainer {
+        id: search
+        leftDock.title: "Search"
+    }
 }
 
+// Alternatively qualify by type name:
 DockingContainer {
-    id: leftBottomDock
-    dockSide: leftBottom
-    fixedWidth: 280
-    dragToRearrangeEnabled: true
-    tabsRearrangeGroup: 1
+    id: rightDock
+    dockSide: right
+    fixedWidth: 360
+
+    VBoxContainer {
+        id: inspector
+        DockingContainer.title: "Inspector"
+    }
 }
 ```
 

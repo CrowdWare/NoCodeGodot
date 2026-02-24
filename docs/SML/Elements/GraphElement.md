@@ -40,3 +40,20 @@ Inherited signals are documented in: [Container](Container.md)
 | raise_request | `on <id>.raiseRequest() { ... }` | — |
 | resize_end | `on <id>.resizeEnd(newSize) { ... }` | Vector2 newSize |
 | resize_request | `on <id>.resizeRequest(newSize) { ... }` | Vector2 newSize |
+
+## Attached Properties
+
+These properties are declared by a parent provider and set on this element using the qualified syntax `<providerId>.property: value` or `ProviderType.property: value`.
+
+### Provided by `TabContainer`
+
+| Attached Property | Type | Description |
+|-|-|-|
+| title | string | Tab title read by the parent TabContainer. Use attached property syntax: `<containerId>.title: "Caption"` or `TabContainer.title: "Caption"`. |
+
+### Provided by `DockingContainer`
+
+| Attached Property | Type | Description |
+|-|-|-|
+| title | string | Tab title read by the parent DockingContainer. Use attached property syntax: `<containerId>.title: "Caption"` or `DockingContainer.title: "Caption"`. |
+

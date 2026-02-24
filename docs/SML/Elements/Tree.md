@@ -97,6 +97,23 @@ Inherited actions are documented in: [Control](Control.md)
 | set_h_scroll_enabled | `<id>.setHScrollEnabled(hScroll)` | bool hScroll | void |
 | set_v_scroll_enabled | `<id>.setVScrollEnabled(hScroll)` | bool hScroll | void |
 
+## Attached Properties
+
+These properties are declared by a parent provider and set on this element using the qualified syntax `<providerId>.property: value` or `ProviderType.property: value`.
+
+### Provided by `TabContainer`
+
+| Attached Property | Type | Description |
+|-|-|-|
+| title | string | Tab title read by the parent TabContainer. Use attached property syntax: `<containerId>.title: "Caption"` or `TabContainer.title: "Caption"`. |
+
+### Provided by `DockingContainer`
+
+| Attached Property | Type | Description |
+|-|-|-|
+| title | string | Tab title read by the parent DockingContainer. Use attached property syntax: `<containerId>.title: "Caption"` or `DockingContainer.title: "Caption"`. |
+
+
 ## SML Items (TODO)
 
 This control appears to manage internal items, but a dedicated SML pseudo-child specification has not been defined yet.

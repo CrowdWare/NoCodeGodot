@@ -12,7 +12,7 @@ func get_spec() -> Dictionary:
                         "sml": "title",
                         "type": "string",
                         "targetMeta": "tabTitle",
-                        "description": "Tab title interpreted by the parent TabContainer for any child page."
+                        "description": "Tab title read by the parent TabContainer. Use attached property syntax: `<containerId>.title: \"Caption\"` or `TabContainer.title: \"Caption\"`."
                     }
                 ]
             },
@@ -24,7 +24,7 @@ func get_spec() -> Dictionary:
                         "sml": "title",
                         "type": "string",
                         "targetMeta": "tabTitle",
-                        "description": "Tab title interpreted by the DockingContainer's internal TabContainer for any child page."
+                        "description": "Tab title read by the parent DockingContainer. Use attached property syntax: `<containerId>.title: \"Caption\"` or `DockingContainer.title: \"Caption\"`."
                     }
                 ]
             }

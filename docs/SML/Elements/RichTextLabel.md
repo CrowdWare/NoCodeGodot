@@ -134,3 +134,20 @@ Inherited actions are documented in: [Control](Control.md)
 | set_table_column_expand | `<id>.setTableColumnExpand(column, expand, ratio, shrink)` | int column, bool expand, int ratio, bool shrink | void |
 | set_table_column_name | `<id>.setTableColumnName(column, name)` | int column, string name | void |
 | set_use_bbcode | `<id>.setUseBbcode(enable)` | bool enable | void |
+
+## Attached Properties
+
+These properties are declared by a parent provider and set on this element using the qualified syntax `<providerId>.property: value` or `ProviderType.property: value`.
+
+### Provided by `TabContainer`
+
+| Attached Property | Type | Description |
+|-|-|-|
+| title | string | Tab title read by the parent TabContainer. Use attached property syntax: `<containerId>.title: "Caption"` or `TabContainer.title: "Caption"`. |
+
+### Provided by `DockingContainer`
+
+| Attached Property | Type | Description |
+|-|-|-|
+| title | string | Tab title read by the parent DockingContainer. Use attached property syntax: `<containerId>.title: "Caption"` or `DockingContainer.title: "Caption"`. |
+

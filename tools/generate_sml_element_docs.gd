@@ -431,11 +431,12 @@ func _generate_doc(c_name: String) -> void:
         md += "on tabs.tabChanged(index) { ... }\n"
         md += "```\n"
 
-    # Context properties: valid on child Controls only when used under a specific parent.
-    var context_rules := _get_context_rules_for_child(c_name)
+    # Attached properties: only Controls can be children of DockingContainer / TabContainer.
+    var is_control := c_name == "Control" or ClassDB.is_parent_class(c_name, "Control")
+    var context_rules := _get_context_rules_for_child(c_name) if is_control else []
     if context_rules.size() > 0:
-        md += "\n## Context Properties\n\n"
-        md += "These properties are valid only when this element is used as a child in a specific parent context.\n\n"
+        md += "\n## Attached Properties\n\n"
+        md += "These properties are declared by a parent provider and set on this element using the qualified syntax `<providerId>.property: value` or `ProviderType.property: value`.\n\n"
 
         for rule in context_rules:
             var parent_name := String(rule.get("parent", ""))
@@ -443,8 +444,8 @@ func _generate_doc(c_name: String) -> void:
             if parent_name == "" or properties.size() == 0:
                 continue
 
-            md += "### When used inside `%s`\n\n" % parent_name
-            md += "| SML Property | Type | Description |\n|-|-|-|\n"
+            md += "### Provided by `%s`\n\n" % parent_name
+            md += "| Attached Property | Type | Description |\n|-|-|-|\n"
             for p in properties:
                 var p_name := String(p.get("sml", ""))
                 if p_name == "":
@@ -898,7 +899,8 @@ func _get_context_rules() -> Array:
 func _get_context_rules_for_child(child_name: String) -> Array:
     var out: Array = []
     for rule in _get_context_rules():
-        if String(rule.get("child", "")).to_lower() != child_name.to_lower():
+        var child := String(rule.get("child", ""))
+        if child != "*" and child.to_lower() != child_name.to_lower():
             continue
         out.append(rule)
     return out
