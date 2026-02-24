@@ -27,6 +27,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -227,6 +228,7 @@ public sealed class SmsUiRuntime
     {
         _engine.RegisterFunction("__sms_fs", _ => CreateFsObject());
         _engine.RegisterFunction("__sms_log", _ => CreateLogObject());
+        _engine.RegisterFunction("__sms_os", _ => CreateOsObject());
         _engine.RegisterFunction("__sms_ui", _ => CreateUiObject());
         _engine.RegisterFunction("__sms_get_menu_item", args =>
         {
@@ -265,7 +267,7 @@ public sealed class SmsUiRuntime
     {
         try
         {
-            _engine.Execute("var fs = __sms_fs()\nvar log = __sms_log()\nvar ui = __sms_ui()");
+            _engine.Execute("var fs = __sms_fs()\nvar log = __sms_log()\nvar os = __sms_os()\nvar ui = __sms_ui()");
             BootstrapWindowFlagSymbols();
             BootstrapUiIdSymbols();
         }
@@ -453,6 +455,123 @@ public sealed class SmsUiRuntime
                 return NullValue.Instance;
             })
         });
+    }
+
+    private ObjectValue CreateOsObject()
+    {
+        return new ObjectValue("Os", new Dictionary<string, Value>(StringComparer.Ordinal)
+        {
+            ["getLocale"] = new NativeFunctionValue(_ => new StringValue(GetLocale())),
+            ["getLanguage"] = new NativeFunctionValue(_ => new StringValue(GetLanguage())),
+            ["getCountry"] = new NativeFunctionValue(_ => new StringValue(GetCountry())),
+            ["getTimeZone"] = new NativeFunctionValue(_ => new StringValue(TimeZoneInfo.Local.Id)),
+            ["getPlatform"] = new NativeFunctionValue(_ => new StringValue(GetPlatform())),
+            ["getArch"] = new NativeFunctionValue(_ => new StringValue(GetArchitecture())),
+            ["isMobile"] = new NativeFunctionValue(_ => new BooleanValue(string.Equals(GetPlatform(), "android", StringComparison.Ordinal))),
+            ["isDesktop"] = new NativeFunctionValue(_ => new BooleanValue(!string.Equals(GetPlatform(), "android", StringComparison.Ordinal))),
+            ["now"] = new NativeFunctionValue(_ => new NumberValue(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())),
+            ["getUptime"] = new NativeFunctionValue(_ => new NumberValue(Time.GetTicksMsec() / 1000.0))
+        });
+    }
+
+    private static string GetLocale()
+    {
+        var locale = CultureInfo.CurrentCulture.Name;
+        if (string.IsNullOrWhiteSpace(locale))
+        {
+            locale = CultureInfo.CurrentUICulture.Name;
+        }
+
+        if (string.IsNullOrWhiteSpace(locale))
+        {
+            return "en_US";
+        }
+
+        return locale.Replace('-', '_');
+    }
+
+    private static string GetLanguage()
+    {
+        var language = CultureInfo.CurrentCulture.TwoLetterISOLanguageName;
+        if (string.IsNullOrWhiteSpace(language) || string.Equals(language, "iv", StringComparison.OrdinalIgnoreCase))
+        {
+            language = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+        }
+
+        if (string.IsNullOrWhiteSpace(language) || string.Equals(language, "iv", StringComparison.OrdinalIgnoreCase))
+        {
+            return "en";
+        }
+
+        return language.ToLowerInvariant();
+    }
+
+    private static string GetCountry()
+    {
+        try
+        {
+            var cultureName = CultureInfo.CurrentCulture.Name;
+            if (!string.IsNullOrWhiteSpace(cultureName))
+            {
+                return new RegionInfo(cultureName).TwoLetterISORegionName.ToUpperInvariant();
+            }
+        }
+        catch
+        {
+            // Fallback below.
+        }
+
+        try
+        {
+            var uiCultureName = CultureInfo.CurrentUICulture.Name;
+            if (!string.IsNullOrWhiteSpace(uiCultureName))
+            {
+                return new RegionInfo(uiCultureName).TwoLetterISORegionName.ToUpperInvariant();
+            }
+        }
+        catch
+        {
+            // Fallback below.
+        }
+
+        return "US";
+    }
+
+    private static string GetPlatform()
+    {
+        if (OperatingSystem.IsAndroid())
+        {
+            return "android";
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            return "windows";
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            return "mac";
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            return "linux";
+        }
+
+        return "unknown";
+    }
+
+    private static string GetArchitecture()
+    {
+        return RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.Arm64 => "arm64",
+            Architecture.X64 => "x64",
+            Architecture.Arm => "arm",
+            Architecture.X86 => "x86",
+            _ => RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()
+        };
     }
 
     private ObjectValue CreateUiObject()

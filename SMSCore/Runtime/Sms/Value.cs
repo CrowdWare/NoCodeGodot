@@ -42,18 +42,21 @@ public sealed record NumberValue(double Value) : Value
     public override object ToDotNet() => Value;
     public override bool IsTruthy() => Value != 0.0;
     public int ToInt() => (int)Value;
+    public override string ToString() => base.ToString();
 }
 
 public sealed record StringValue(string Value) : Value
 {
     public override object ToDotNet() => Value;
     public override bool IsTruthy() => Value.Length > 0;
+    public override string ToString() => base.ToString();
 }
 
 public sealed record BooleanValue(bool Value) : Value
 {
     public override object ToDotNet() => Value;
     public override bool IsTruthy() => Value;
+    public override string ToString() => base.ToString();
 }
 
 public sealed record NullValue : Value
@@ -62,6 +65,7 @@ public sealed record NullValue : Value
     private NullValue() { }
     public override object? ToDotNet() => null;
     public override bool IsTruthy() => false;
+    public override string ToString() => base.ToString();
 }
 
 public sealed record ArrayValue(List<Value> Elements) : Value
@@ -71,6 +75,7 @@ public sealed record ArrayValue(List<Value> Elements) : Value
     public override bool IsTruthy() => Elements.Count > 0;
     public int Size() => Elements.Count;
     public Value Get(int index) => index >= 0 && index < Elements.Count ? Elements[index] : NullValue.Instance;
+    public override string ToString() => base.ToString();
     public void Set(int index, Value value)
     {
         if (index >= 0 && index < Elements.Count)
@@ -85,6 +90,7 @@ public sealed record ObjectValue(string ClassName, Dictionary<string, Value> Fie
     public override object ToDotNet() => Fields.ToDictionary(kv => kv.Key, kv => kv.Value.ToDotNet());
     public override bool IsTruthy() => true;
     public Value GetField(string name) => Fields.TryGetValue(name, out var value) ? value : NullValue.Instance;
+    public override string ToString() => base.ToString();
     public void SetField(string name, Value value) => Fields[name] = value;
 }
 
@@ -92,6 +98,7 @@ public sealed record NativeFunctionValue(NativeFunction Function) : Value
 {
     public override object ToDotNet() => Function;
     public override bool IsTruthy() => true;
+    public override string ToString() => base.ToString();
 }
 
 public static class ValueUtils

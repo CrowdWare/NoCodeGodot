@@ -14,6 +14,17 @@ fun ready() {
         return
     }
 
+    log.info("Arch: ${os.getArch()}")
+    log.info("Country: ${os.getCountry()}")
+    log.info("Language: ${os.getLanguage()}")
+    log.info("Locale: ${os.getLocale()}")
+    log.info("Platform: ${os.getPlatform()}")
+    log.info("Timezone: ${os.getTimeZone()}")
+    log.info("Uptime: ${os.getUptime()}")
+    log.info("Desktop: ${os.isDesktop()}")
+    log.info("Mobile: ${os.isMobile()}")
+    log.info("Now: ${os.now()}")
+
     codeEdit.onSave("codeEditOnSave")
     populateTree(tree, ".")
     
@@ -21,15 +32,6 @@ fun ready() {
 }
 
 fun openFloatingWindow() {
-    /*var windowSml = "Window {  
-    id: floatingWindow title: \"Floating Panel\"  
-    minSize: 800,400\
-    pos: 0,0
-    size: 1920,1080
-    Panel {
-        Label { text: \"Floating Window\" }
-    }
-}"*/
     var sml = fs.readText("Default/main.sml")
     var window = ui.CreateWindow(sml)
     if (window == null) {

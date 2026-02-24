@@ -80,6 +80,66 @@ const FUNCTIONS := {
         "category": "File System",
         "signature": "fs.readText(path: String)",
         "description": "Reads text content from a file and returns it as a String."
+    },
+
+    "os.getLocale": {
+        "category": "OS",
+        "signature": "os.getLocale()",
+        "description": "Returns the current locale in language_COUNTRY format (for example: de_DE)."
+    },
+
+    "os.getLanguage": {
+        "category": "OS",
+        "signature": "os.getLanguage()",
+        "description": "Returns the current two-letter ISO language code (for example: de)."
+    },
+
+    "os.getCountry": {
+        "category": "OS",
+        "signature": "os.getCountry()",
+        "description": "Returns the current two-letter ISO country code (for example: DE)."
+    },
+
+    "os.getTimeZone": {
+        "category": "OS",
+        "signature": "os.getTimeZone()",
+        "description": "Returns the local time zone identifier (for example: Europe/Berlin)."
+    },
+
+    "os.getPlatform": {
+        "category": "OS",
+        "signature": "os.getPlatform()",
+        "description": "Returns the current platform name: mac, linux, windows, or android."
+    },
+
+    "os.getArch": {
+        "category": "OS",
+        "signature": "os.getArch()",
+        "description": "Returns the current process architecture (for example: arm64 or x64)."
+    },
+
+    "os.isMobile": {
+        "category": "OS",
+        "signature": "os.isMobile()",
+        "description": "Returns true when running on a mobile platform (currently android), otherwise false."
+    },
+
+    "os.isDesktop": {
+        "category": "OS",
+        "signature": "os.isDesktop()",
+        "description": "Returns true when running on a desktop platform, otherwise false."
+    },
+
+    "os.now": {
+        "category": "OS",
+        "signature": "os.now()",
+        "description": "Returns the current Unix epoch time in milliseconds."
+    },
+
+    "os.getUptime": {
+        "category": "OS",
+        "signature": "os.getUptime()",
+        "description": "Returns seconds since SMS runtime initialization."
     }
 }
 

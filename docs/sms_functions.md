@@ -27,6 +27,38 @@ Logs a success message.
 ### log.warn(message: String)
 Logs a warning message.
 
+## OS
+
+### os.getArch()
+Returns the current process architecture (for example: arm64 or x64).
+
+### os.getCountry()
+Returns the current two-letter ISO country code (for example: DE).
+
+### os.getLanguage()
+Returns the current two-letter ISO language code (for example: de).
+
+### os.getLocale()
+Returns the current locale in language_COUNTRY format (for example: de_DE).
+
+### os.getPlatform()
+Returns the current platform name: mac, linux, windows, or android.
+
+### os.getTimeZone()
+Returns the local time zone identifier (for example: Europe/Berlin).
+
+### os.getUptime()
+Returns seconds since SMS runtime initialization.
+
+### os.isDesktop()
+Returns true when running on a desktop platform, otherwise false.
+
+### os.isMobile()
+Returns true when running on a mobile platform (currently android), otherwise false.
+
+### os.now()
+Returns the current Unix epoch time in milliseconds.
+
 ## UI
 
 ### ui.getObject(name: String)

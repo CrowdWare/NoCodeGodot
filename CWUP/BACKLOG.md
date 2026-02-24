@@ -108,7 +108,8 @@
 - [x] tasks/refactor_docking.md
 - [x] tasks/docking_features.md
 - [x] tasks/bgcolor_docking.md
-- [ ] tasks/os_lib.md
+- [x] tasks/os_lib.md
+- [ ] tasks/dockingmenu.md
 
 
 ## Tasks for Forge-Designer
