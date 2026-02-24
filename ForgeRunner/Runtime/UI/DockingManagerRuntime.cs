@@ -605,9 +605,6 @@ _elapsed += delta;
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
             };
 
-            var arrowLeft = new Label { Text = "<" };
-            arrowLeft.AddThemeColorOverride("font_color", new Color(0.6f, 0.65f, 0.72f, 1f));
-
             var titleLabel = new Label
             {
                 Name = "Title",
@@ -617,12 +614,7 @@ _elapsed += delta;
             };
             titleLabel.AddThemeColorOverride("font_color", new Color(0.87f, 0.91f, 0.98f, 1f));
 
-            var arrowRight = new Label { Text = ">" };
-            arrowRight.AddThemeColorOverride("font_color", new Color(0.6f, 0.65f, 0.72f, 1f));
-
-            headerRow.AddChild(arrowLeft);
             headerRow.AddChild(titleLabel);
-            headerRow.AddChild(arrowRight);
 
             // Dock grid
             var dockGrid = new HBoxContainer
