@@ -44,6 +44,7 @@ public sealed class SmsUiRuntime
     private readonly RunnerUriResolver _uriResolver;
     private readonly string _uiSmlUri;
     private readonly ScriptEngine _engine = new();
+    private LocalizationStore _localization = LocalizationStore.Empty;
     private UiActionDispatcher? _dispatcher;
     private readonly Dictionary<int, TreeItem> _treeHandles = [];
     private readonly Dictionary<string, string> _codeEditSaveCallbacks = new(StringComparer.OrdinalIgnoreCase);
@@ -91,6 +92,7 @@ public sealed class SmsUiRuntime
         }
 
         _projectRoot = ResolveProjectRoot(_uiSmlUri);
+        _localization = await LocalizationStore.LoadAsync(_uriResolver, _uiSmlUri, cancellationToken: cancellationToken);
         RegisterNativeFunctions();
         ExecuteBootstrapGlobals();
 
@@ -232,6 +234,7 @@ public sealed class SmsUiRuntime
         _engine.RegisterFunction("__sms_fs", _ => CreateFsObject());
         _engine.RegisterFunction("__sms_log", _ => CreateLogObject());
         _engine.RegisterFunction("__sms_os", _ => CreateOsObject());
+        _engine.RegisterFunction("__sms_i18n", _ => CreateI18nObject());
         _engine.RegisterFunction("__sms_ui", _ => CreateUiObject());
         _engine.RegisterFunction("__sms_get_menu_item", args =>
         {
@@ -270,7 +273,7 @@ public sealed class SmsUiRuntime
     {
         try
         {
-            _engine.Execute("var fs = __sms_fs()\nvar log = __sms_log()\nvar os = __sms_os()\nvar ui = __sms_ui()");
+            _engine.Execute("var fs = __sms_fs()\nvar log = __sms_log()\nvar os = __sms_os()\nvar i18n = __sms_i18n()\nvar ui = __sms_ui()");
             BootstrapWindowFlagSymbols();
             BootstrapUiIdSymbols();
         }
@@ -474,6 +477,28 @@ public sealed class SmsUiRuntime
             ["isDesktop"] = new NativeFunctionValue(_ => new BooleanValue(!string.Equals(GetPlatform(), "android", StringComparison.Ordinal))),
             ["now"] = new NativeFunctionValue(_ => new NumberValue(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())),
             ["getUptime"] = new NativeFunctionValue(_ => new NumberValue(Time.GetTicksMsec() / 1000.0))
+        });
+    }
+
+    private ObjectValue CreateI18nObject()
+    {
+        return new ObjectValue("I18n", new Dictionary<string, Value>(StringComparer.Ordinal)
+        {
+            ["get"] = new NativeFunctionValue(methodArgs =>
+            {
+                var key = ValueArgString(methodArgs, 0);
+                var hasDefault = methodArgs.Count > 1;
+                var defaultValue = hasDefault ? ValueArgString(methodArgs, 1) : key;
+
+                if (_localization.TryTranslate(key, out var translated))
+                {
+                    return new StringValue(translated);
+                }
+
+                RunnerLogger.Warn("i18n", $"Missing translation for key '{key}' (lang='{_localization.LanguageCode}').");
+                return new StringValue(defaultValue);
+            }),
+            ["getLocale"] = new NativeFunctionValue(_ => new StringValue(_localization.LanguageCode))
         });
     }
 

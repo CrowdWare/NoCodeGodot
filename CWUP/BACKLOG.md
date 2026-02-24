@@ -109,7 +109,7 @@
 - [x] tasks/docking_features.md
 - [x] tasks/bgcolor_docking.md
 - [x] tasks/os_lib.md
-- [ ] tasks/dockingmenu.md
+- [x] tasks/dockingmenu.md
 
 
 ## Tasks for Forge-Designer

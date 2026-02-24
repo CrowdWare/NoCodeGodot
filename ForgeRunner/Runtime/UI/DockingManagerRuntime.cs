@@ -491,7 +491,6 @@ _elapsed += delta;
                 : sourceHost.Dock;
 
             var anchorRect = anchorControl.GetGlobalRect();
-            var anchorScreenPos = anchorControl.GetScreenPosition();
 
             _dockSelectionDialog.Visible = true;
 
@@ -503,7 +502,10 @@ _elapsed += delta;
                 _dockSelectionDialog.Size = dialogSize;
             }
 
-            var desired = new Vector2(anchorScreenPos.X, anchorScreenPos.Y + anchorRect.Size.Y + 4f);
+            // Use canvas/global coordinates here. GlobalPosition/GetGlobalRect are in the same
+            // coordinate space as Control.GlobalPosition. Screen coordinates would offset the
+            // popup on moved windows and make the menu appear far away from the kebab button.
+            var desired = new Vector2(anchorRect.Position.X, anchorRect.Position.Y + anchorRect.Size.Y + 4f);
             var bounds = rootControl.GetGlobalRect();
             var minX = bounds.Position.X;
             var minY = bounds.Position.Y;

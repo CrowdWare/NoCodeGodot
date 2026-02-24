@@ -67,10 +67,11 @@ public sealed class SmlUiLoader
         var schema = SmlSchemaFactory.CreateDefault();
         var parser = new SmlParser(content, schema);
         var document = parser.ParseDocument();
-        await PreprocessMarkdownNodesAsync(document, normalizedUri, cancellationToken);
+        var localization = await LocalizationStore.LoadAsync(_uriResolver, normalizedUri, cancellationToken: cancellationToken);
+        await PreprocessMarkdownNodesAsync(document, normalizedUri, localization, cancellationToken);
         var assetPathResolver = CreateAssetPathResolver(normalizedUri);
 
-        var builder = new SmlUiBuilder(_registry, _propertyMapper, _animationApi, assetPathResolver);
+        var builder = new SmlUiBuilder(_registry, _propertyMapper, _animationApi, localization, assetPathResolver);
         _configureActions?.Invoke(builder.Actions);
         return builder.Build(document);
     }
@@ -98,29 +99,52 @@ public sealed class SmlUiLoader
         };
     }
 
-    private async Task PreprocessMarkdownNodesAsync(SmlDocument document, string documentUri, CancellationToken cancellationToken)
+    private async Task PreprocessMarkdownNodesAsync(
+        SmlDocument document,
+        string documentUri,
+        LocalizationStore localization,
+        CancellationToken cancellationToken)
     {
         foreach (var root in document.Roots)
         {
-            await PreprocessMarkdownNodeRecursiveAsync(root, documentUri, document, cancellationToken);
+            await PreprocessMarkdownNodeRecursiveAsync(root, documentUri, document, localization, cancellationToken);
         }
     }
 
-    private async Task PreprocessMarkdownNodeRecursiveAsync(SmlNode node, string currentBaseUri, SmlDocument document, CancellationToken cancellationToken)
+    private async Task PreprocessMarkdownNodeRecursiveAsync(
+        SmlNode node,
+        string currentBaseUri,
+        SmlDocument document,
+        LocalizationStore localization,
+        CancellationToken cancellationToken)
     {
         if (string.Equals(node.Name, "Markdown", StringComparison.OrdinalIgnoreCase))
         {
-            await PreprocessMarkdownContentAsync(node, currentBaseUri, document, cancellationToken);
+            await PreprocessMarkdownContentAsync(node, currentBaseUri, document, localization, cancellationToken);
         }
 
         foreach (var child in node.Children)
         {
-            await PreprocessMarkdownNodeRecursiveAsync(child, currentBaseUri, document, cancellationToken);
+            await PreprocessMarkdownNodeRecursiveAsync(child, currentBaseUri, document, localization, cancellationToken);
         }
     }
 
-    private async Task PreprocessMarkdownContentAsync(SmlNode node, string currentBaseUri, SmlDocument document, CancellationToken cancellationToken)
+    private async Task PreprocessMarkdownContentAsync(
+        SmlNode node,
+        string currentBaseUri,
+        SmlDocument document,
+        LocalizationStore localization,
+        CancellationToken cancellationToken)
     {
+        if (node.TryGetProperty("textKey", out var textKeyValue))
+        {
+            var textKey = textKeyValue.AsStringOrThrow("textKey");
+            if (!string.IsNullOrWhiteSpace(textKey) && localization.TryTranslate(textKey, out var localizedMarkdown))
+            {
+                node.Properties["text"] = SmlValue.FromString(localizedMarkdown);
+            }
+        }
+
         var hasText = node.TryGetProperty("text", out _);
         var hasSrc = node.TryGetProperty("src", out var srcValue);
 

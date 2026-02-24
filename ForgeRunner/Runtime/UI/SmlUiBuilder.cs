@@ -38,6 +38,7 @@ public sealed class SmlUiBuilder
 
     private readonly NodeFactoryRegistry _registry;
     private readonly NodePropertyMapper _propertyMapper;
+    private readonly LocalizationStore _localization;
     private readonly Func<string, string>? _resolveAssetPath;
     private readonly AnimationControlApi _animationApi;
     private readonly UiActionDispatcher _actionDispatcher;
@@ -47,11 +48,13 @@ public sealed class SmlUiBuilder
         NodeFactoryRegistry registry,
         NodePropertyMapper propertyMapper,
         AnimationControlApi animationApi,
+        LocalizationStore? localization = null,
         Func<string, string>? resolveAssetPath = null)
     {
         _registry = registry;
         _propertyMapper = propertyMapper;
         _animationApi = animationApi;
+        _localization = localization ?? LocalizationStore.Empty;
         _resolveAssetPath = resolveAssetPath;
         _actionDispatcher = new UiActionDispatcher();
         RegisterDefaultActionHandlers();
@@ -74,6 +77,7 @@ public sealed class SmlUiBuilder
         _viewportsById.Clear();
 
         var rootNode = document.Roots[0];
+        ApplyLocalizationRecursively(rootNode);
         var ui = BuildNodeRecursive(rootNode, parentNodeName: null);
         var built = ui ?? BuildFallback($"Could not build root node '{rootNode.Name}'.");
         ApplyAnchorsFromMetaRecursively(built);
@@ -218,6 +222,12 @@ public sealed class SmlUiBuilder
                      .OrderBy(kvp => node.PropertyLines.TryGetValue(kvp.Key, out var line) ? line : int.MaxValue)
                      .ThenBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase))
         {
+            if (string.Equals(propertyName, "textKey", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(propertyName, "titleKey", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             if (TryApplyContextProperty(control, parentNodeName, node.Name, propertyName, value))
             {
                 continue;
@@ -1220,6 +1230,45 @@ public sealed class SmlUiBuilder
     private static bool IsLowercaseMetaNode(SmlNode node)
     {
         return !string.IsNullOrWhiteSpace(node.Name) && char.IsLower(node.Name[0]);
+    }
+
+    private void ApplyLocalizationRecursively(SmlNode node)
+    {
+        TryApplyLocalizedProperty(node, "text", "textKey");
+        TryApplyLocalizedProperty(node, "title", "titleKey");
+
+        foreach (var child in node.Children)
+        {
+            ApplyLocalizationRecursively(child);
+        }
+    }
+
+    private void TryApplyLocalizedProperty(SmlNode node, string propertyName, string keyPropertyName)
+    {
+        if (!node.TryGetProperty(keyPropertyName, out var keyValue))
+        {
+            return;
+        }
+
+        var key = keyValue.AsStringOrThrow(keyPropertyName);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        if (_localization.TryTranslate(key, out var translated))
+        {
+            node.Properties[propertyName] = SmlValue.FromString(translated);
+            return;
+        }
+
+        if (node.TryGetProperty(propertyName, out _))
+        {
+            return;
+        }
+
+        RunnerLogger.Warn("i18n", $"Missing i18n key '{key}' for '{node.Name}.{propertyName}'.");
+        node.Properties[propertyName] = SmlValue.FromString(string.Empty);
     }
 
     private void BuildTreeViewItems(Tree tree, SmlNode treeNode)
