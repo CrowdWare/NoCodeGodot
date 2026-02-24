@@ -26,20 +26,21 @@ Window {
         }
     }
 
-    Markdown {
-        top: 5
-        left: 100
-        width: 200
-        height: 20
-        text: "**Forge** - Docking Demo"
-    }
-
     // must be placed after title to stay clickable
     WindowDrag {
         id: titleDrag
         anchors: left | top | right
         top: 0
-        height: 38
+        height: 42
+    }
+
+    Markdown {
+        top: 5
+        left: 100
+        width: 200
+        height: 20
+        mouseFilter: "ignore"
+        text: "**Forge** - Docking Demo"
     }
 
      DockingHost {
@@ -54,6 +55,7 @@ Window {
             fixedWidth: 300
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
+            bgColor: "#1C1E24"
 
             VBoxContainer {
                 id: project
@@ -84,6 +86,7 @@ Window {
             flex: true
             closeable: false
             dragToRearrangeEnabled: true
+            bgColor: "#1C1E24"
 
             CodeEdit {
                 id: codeEdit
@@ -103,6 +106,7 @@ Window {
             fixedWidth: 360
             dragToRearrangeEnabled: true
             tabsRearrangeGroup: 1
+            //bgColor: "#FF0000"
 
             VBoxContainer {
                 id: inspector

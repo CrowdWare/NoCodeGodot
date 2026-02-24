@@ -77,11 +77,30 @@ public sealed partial class DockingContainerControl : PanelContainer
 
     public override void _Draw()
     {
-        // Draw the background directly, bypassing Godot's StyleBox rendering pipeline.
-        // This avoids gamma/sRGB corrections that cause color mismatches with the titlebar.
-        // The color is defined as DockingContainerControl/colors/dock_background in the theme.
-        var bgColor = GetThemeColor("dock_background", "DockingContainerControl");
-        DrawRect(new Rect2(Vector2.Zero, Size), bgColor);
+        // Keep container and tabbar background on the same StyleBox render path,
+        // so both are color-managed identically by Godot.
+        var themeBgColor = GetThemeColor("dock_background", "DockingContainerControl");
+        var metaBgColor = HasMeta("bgColor") ? GetMeta("bgColor").AsString() : null;
+        var bgColor = ResolveBackgroundColor(metaBgColor, themeBgColor);
+        ApplyTabBarBackgroundColorOverride(bgColor);
+        DrawStyleBox(CreateFlatBackgroundStyle(bgColor), new Rect2(Vector2.Zero, Size));
+    }
+
+    public static Color ResolveBackgroundColor(string? metaBgColor, Color fallback)
+    {
+        if (string.IsNullOrWhiteSpace(metaBgColor))
+        {
+            return fallback;
+        }
+
+        try
+        {
+            return new Color(metaBgColor);
+        }
+        catch
+        {
+            return fallback;
+        }
     }
 
     public TabBar EnsureTabBar()
@@ -590,6 +609,8 @@ public sealed partial class DockingContainerControl : PanelContainer
     {
         EnsureDockStructure();
 
+        ApplyTabBarBackgroundColorOverride();
+
         if (HasMeta(NodePropertyMapper.MetaDockDragToRearrangeEnabled))
         {
             _tabBar!.DragToRearrangeEnabled = GetMeta(NodePropertyMapper.MetaDockDragToRearrangeEnabled).AsBool();
@@ -599,6 +620,35 @@ public sealed partial class DockingContainerControl : PanelContainer
         {
             _tabBar!.TabsRearrangeGroup = GetMeta(NodePropertyMapper.MetaDockTabsRearrangeGroup).AsInt32();
         }
+    }
+
+    private void ApplyTabBarBackgroundColorOverride()
+    {
+        var themeBgColor = GetThemeColor("dock_background", "DockingContainerControl");
+        var metaBgColor = HasMeta("bgColor") ? GetMeta("bgColor").AsString() : null;
+        var bgColor = ResolveBackgroundColor(metaBgColor, themeBgColor);
+        ApplyTabBarBackgroundColorOverride(bgColor);
+    }
+
+    private void ApplyTabBarBackgroundColorOverride(Color bgColor)
+    {
+        if (_tabBar is null)
+        {
+            return;
+        }
+
+        _tabBar.AddThemeStyleboxOverride("tabbar_background", CreateFlatBackgroundStyle(bgColor));
+    }
+
+    private static StyleBoxFlat CreateFlatBackgroundStyle(Color bgColor)
+    {
+        var style = new StyleBoxFlat
+        {
+            BgColor = bgColor,
+            DrawCenter = true
+        };
+        style.SetBorderWidthAll(0);
+        return style;
     }
 
     private void OnTabChanged(long _index)

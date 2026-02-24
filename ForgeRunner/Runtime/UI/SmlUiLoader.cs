@@ -184,8 +184,23 @@ public sealed class SmlUiLoader
             var rendered = RenderMarkdownBlock(block, markdownBase);
             if (rendered is not null)
             {
+                PropagateMarkdownInteractionProperties(node, rendered);
                 node.Children.Add(rendered);
             }
+        }
+    }
+
+    private static void PropagateMarkdownInteractionProperties(SmlNode sourceMarkdownNode, SmlNode renderedChild)
+    {
+        if (sourceMarkdownNode.TryGetProperty("mouseFilter", out var mouseFilter)
+            && !renderedChild.Properties.ContainsKey("mouseFilter"))
+        {
+            renderedChild.Properties["mouseFilter"] = mouseFilter;
+        }
+
+        foreach (var child in renderedChild.Children)
+        {
+            PropagateMarkdownInteractionProperties(sourceMarkdownNode, child);
         }
     }
 

@@ -170,6 +170,10 @@ public sealed class NodePropertyMapper
                 ApplyFont(control, value.AsStringOrThrow(propertyName), resolveAssetPath);
                 return;
 
+            case "mousefilter":
+                ApplyMouseFilter(control, value, propertyName);
+                return;
+
             case "halign":
             case "horizontalalignment":
                 ApplyHorizontalAlignment(control, value.AsIntOrThrow(propertyName));
@@ -443,6 +447,7 @@ public sealed class NodePropertyMapper
             ["heightpercent"] = (control, value, propertyName) => SetMetaFloat(control, MetaDockHeightPercent, value, propertyName),
             ["flex"] = (control, value, propertyName) => SetMetaBool(control, MetaDockFlex, value, propertyName),
             ["closeable"] = (control, value, propertyName) => SetMetaBool(control, MetaDockCloseable, value, propertyName),
+            ["bgcolor"] = (control, value, propertyName) => control.SetMeta("bgColor", Variant.From(value.AsStringOrThrow(propertyName))),
             ["gap"] = (control, value, propertyName) => SetMetaInt(control, MetaDockGap, value, propertyName),
             ["endgap"] = (control, value, propertyName) => SetMetaInt(control, MetaDockEndGap, value, propertyName),
             ["dockendgap"] = (control, value, propertyName) => SetMetaInt(control, MetaDockEndGap, value, propertyName),
@@ -1075,6 +1080,30 @@ public sealed class NodePropertyMapper
         return value.Kind == SmlValueKind.Bool
             ? (bool)value.Value
             : throw new SmlParseException($"Property '{propertyName}' must be a boolean.");
+    }
+
+    private static void ApplyMouseFilter(Control control, SmlValue value, string propertyName)
+    {
+        switch (value.Kind)
+        {
+            case SmlValueKind.Int:
+                control.MouseFilter = (Control.MouseFilterEnum)value.AsIntOrThrow(propertyName);
+                return;
+
+            case SmlValueKind.String:
+                var raw = value.AsStringOrThrow(propertyName).Trim().ToLowerInvariant();
+                control.MouseFilter = raw switch
+                {
+                    "stop" => Control.MouseFilterEnum.Stop,
+                    "pass" => Control.MouseFilterEnum.Pass,
+                    "ignore" => Control.MouseFilterEnum.Ignore,
+                    _ => throw new SmlParseException($"Property '{propertyName}' must be one of: stop, pass, ignore.")
+                };
+                return;
+
+            default:
+                throw new SmlParseException($"Property '{propertyName}' must be a string or integer.");
+        }
     }
 
     private static bool TryApplyGeneratedProperty(Control control, string propertyName, SmlValue value)

@@ -33,8 +33,16 @@ public sealed partial class WindowDragControl : Panel
         MouseFilter = MouseFilterEnum.Stop;
         FocusMode = FocusModeEnum.None;
 
-        // Keep drag surface visually transparent / borderless.
-        AddThemeStyleboxOverride("panel", new StyleBoxEmpty());
+        // Render caption drag surface with the same base color that docking uses,
+        // so title area and dock backgrounds stay visually aligned.
+        var dockBackground = GetThemeColor("dock_background", "DockingContainerControl");
+        var panel = new StyleBoxFlat
+        {
+            BgColor = dockBackground,
+            DrawCenter = true
+        };
+        panel.SetBorderWidthAll(0);
+        AddThemeStyleboxOverride("panel", panel);
     }
 
     public override void _GuiInput(InputEvent @event)
