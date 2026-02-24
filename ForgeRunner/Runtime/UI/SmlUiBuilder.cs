@@ -35,6 +35,8 @@ public sealed class SmlUiBuilder
     public const string MetaScalingMode = "sml_windowScalingMode";
     public const string MetaDesignSizeX = "sml_windowDesignSizeX";
     public const string MetaDesignSizeY = "sml_windowDesignSizeY";
+    public const string MetaI18nTextKey = "sml_i18n_textKey";
+    public const string MetaI18nTitleKey = "sml_i18n_titleKey";
 
     private readonly NodeFactoryRegistry _registry;
     private readonly NodePropertyMapper _propertyMapper;
@@ -225,6 +227,19 @@ public sealed class SmlUiBuilder
             if (string.Equals(propertyName, "textKey", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(propertyName, "titleKey", StringComparison.OrdinalIgnoreCase))
             {
+                var key = value.AsStringOrThrow(propertyName);
+                if (!string.IsNullOrWhiteSpace(key))
+                {
+                    if (string.Equals(propertyName, "textKey", StringComparison.OrdinalIgnoreCase))
+                    {
+                        control.SetMeta(MetaI18nTextKey, Variant.From(key));
+                    }
+                    else
+                    {
+                        control.SetMeta(MetaI18nTitleKey, Variant.From(key));
+                    }
+                }
+
                 continue;
             }
 
@@ -1245,6 +1260,15 @@ public sealed class SmlUiBuilder
 
     private void TryApplyLocalizedProperty(SmlNode node, string propertyName, string keyPropertyName)
     {
+        if (string.Equals(node.Name, "Markdown", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(propertyName, "text", StringComparison.OrdinalIgnoreCase))
+        {
+            // Markdown text is preprocessed in SmlUiLoader into child nodes.
+            // Re-injecting a "text" property here would be applied to the mapped
+            // VBoxContainer and produce a noisy "text-like property ignored" warning.
+            return;
+        }
+
         if (!node.TryGetProperty(keyPropertyName, out var keyValue))
         {
             return;

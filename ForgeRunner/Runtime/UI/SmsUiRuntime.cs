@@ -484,7 +484,7 @@ public sealed class SmsUiRuntime
     {
         return new ObjectValue("I18n", new Dictionary<string, Value>(StringComparer.Ordinal)
         {
-            ["get"] = new NativeFunctionValue(methodArgs =>
+            ["tr"] = new NativeFunctionValue(methodArgs =>
             {
                 var key = ValueArgString(methodArgs, 0);
                 var hasDefault = methodArgs.Count > 1;
@@ -498,8 +498,118 @@ public sealed class SmsUiRuntime
                 RunnerLogger.Warn("i18n", $"Missing translation for key '{key}' (lang='{_localization.LanguageCode}').");
                 return new StringValue(defaultValue);
             }),
-            ["getLocale"] = new NativeFunctionValue(_ => new StringValue(_localization.LanguageCode))
+            ["getLocale"] = new NativeFunctionValue(_ => new StringValue(_localization.LanguageCode)),
+            ["setLocale"] = new NativeFunctionValue(methodArgs =>
+            {
+                var requestedLocale = ValueArgString(methodArgs, 0);
+                if (string.IsNullOrWhiteSpace(requestedLocale))
+                {
+                    RunnerLogger.Warn("i18n", "setLocale called without locale. Keeping current locale.");
+                    return new StringValue(_localization.LanguageCode);
+                }
+
+                RunnerLogger.Warn("i18n", $"setLocale('{requestedLocale}') is temporarily disabled due to a known runtime freeze issue. Keeping '{_localization.LanguageCode}'.");
+                return new StringValue(_localization.LanguageCode);
+            })
         });
+    }
+
+    private void RelocalizeActiveUi()
+    {
+        if (Engine.GetMainLoop() is not SceneTree sceneTree || sceneTree.Root is null)
+        {
+            return;
+        }
+
+        var updated = 0;
+        var stack = new Stack<Node>();
+        stack.Push(sceneTree.Root);
+
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (node is Control control)
+            {
+                var changed = false;
+
+                if (control.HasMeta(SmlUiBuilder.MetaI18nTextKey))
+                {
+                    var key = control.GetMeta(SmlUiBuilder.MetaI18nTextKey).AsString();
+                    if (!string.IsNullOrWhiteSpace(key) && _localization.TryTranslate(key, out var text))
+                    {
+                        ApplyLocalizedText(control, text);
+                        changed = true;
+                    }
+                }
+
+                if (control.HasMeta(SmlUiBuilder.MetaI18nTitleKey))
+                {
+                    var key = control.GetMeta(SmlUiBuilder.MetaI18nTitleKey).AsString();
+                    if (!string.IsNullOrWhiteSpace(key) && _localization.TryTranslate(key, out var title))
+                    {
+                        ApplyLocalizedTitle(control, title);
+                        changed = true;
+                    }
+                }
+
+                if (changed)
+                {
+                    updated++;
+                }
+            }
+
+            for (var i = node.GetChildCount() - 1; i >= 0; i--)
+            {
+                stack.Push(node.GetChild(i));
+            }
+        }
+
+        RunnerLogger.Info("i18n", $"Applied locale '{_localization.LanguageCode}' to {updated} control(s).");
+    }
+
+    private void ApplyLocalizedTitle(Control control, string title)
+    {
+        if (control.HasMeta(NodePropertyMapper.MetaNodeName)
+            && string.Equals(control.GetMeta(NodePropertyMapper.MetaNodeName).AsString(), "Window", StringComparison.OrdinalIgnoreCase))
+        {
+            control.SetMeta(NodePropertyMapper.MetaWindowTitle, Variant.From(title));
+            var hostWindow = control.GetWindow();
+            if (hostWindow is not null)
+            {
+                hostWindow.Title = title;
+            }
+
+            return;
+        }
+
+        ApplyLocalizedText(control, title);
+    }
+
+    private void ApplyLocalizedText(Control control, string text)
+    {
+        if (IsMarkdownControl(control))
+        {
+            control.SetMeta(MetaSmsMarkdownText, Variant.From(text));
+            RenderMarkdownContent(control, text);
+            return;
+        }
+
+        switch (control)
+        {
+            case RichTextLabel richTextLabel:
+                richTextLabel.BbcodeEnabled = true;
+                richTextLabel.Text = text;
+                break;
+            case Label label:
+                label.Text = text;
+                break;
+            case Button button:
+                button.Text = text;
+                break;
+            case TextEdit textEdit:
+                textEdit.Text = text;
+                break;
+        }
     }
 
     private static string GetLocale()

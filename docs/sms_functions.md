@@ -59,6 +59,21 @@ Returns true when running on a mobile platform (currently android), otherwise fa
 ### os.now()
 Returns the current Unix epoch time in milliseconds.
 
+## Localization
+
+### i18n.tr(key: String, defaultText?: String)
+Returns a localized string for `key` from `strings-<lang>.sml` with fallback to `strings.sml`.
+If the key is missing in both files, `defaultText` is returned; if `defaultText` is omitted, the key itself is returned.
+
+### i18n.getLocale()
+Returns the active localization language code used by the runtime (for example: `de` or `en`).
+
+### i18n.setLocale(locale: String)
+Changes the active locale at runtime (for example: `"de"`, `"en"`, `"pt"`).
+
+> **Temporary note:** `i18n.setLocale(...)` is currently disabled due to a known runtime freeze issue.
+> At the moment, the call logs a warning and keeps the current locale unchanged.
+
 ## UI
 
 ### ui.getObject(name: String)
