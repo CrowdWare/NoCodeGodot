@@ -11,21 +11,22 @@ SplashScreen {
         HBoxContainer {
             TextureRect {
                 id: logo
-                src: "res://icon.svg"
-                width: 72
-                height: 72
+                src: "res://logo.svg"
+                width: 72   // wird anscheinend nicht unterstützt
+                height: 72  // wird anscheinend nicht unterstützt
             }
             VBoxContainer {
+                padding: 16
                 Label { 
                     id: appName    
                     text: "CrowdWare" 
                     color: "#4fc3f7" 
-                    fontSize: 38 
+                    fontSize: 45
                     //fontWeight: 400
                 }
                 Label { 
                     id: appTitle 
-                    fontSize: 30   
+                    fontSize: 35  
                     text: "Forge" 
                 }
                 Label { id: appTagline text: "By the crowd. For the crowd." }
