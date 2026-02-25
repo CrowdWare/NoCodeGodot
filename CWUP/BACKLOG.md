@@ -114,10 +114,10 @@
 - [x] tasks/resources_and_localization.md
 - [x] tasks/syntax_highlighting_extensions.md
 - [x] tasks/sml_theme_system.md
+- [x] tasks/i18n_setlocale_freeze.md
 
 
 ## Future Tasks
-- [ ] tasks/i18n_setlocale_freeze.md
 
 
 ## Tasks for Forge-Designer

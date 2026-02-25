@@ -45,6 +45,7 @@ public sealed class SmsUiRuntime
     private readonly string _uiSmlUri;
     private readonly ScriptEngine _engine = new();
     private LocalizationStore _localization = LocalizationStore.Empty;
+    private int _isLocaleChanging;
     private UiActionDispatcher? _dispatcher;
     private readonly Dictionary<int, TreeItem> _treeHandles = [];
     private readonly Dictionary<string, string> _codeEditSaveCallbacks = new(StringComparer.OrdinalIgnoreCase);
@@ -508,7 +509,39 @@ public sealed class SmsUiRuntime
                     return new StringValue(_localization.LanguageCode);
                 }
 
-                RunnerLogger.Warn("i18n", $"setLocale('{requestedLocale}') is temporarily disabled due to a known runtime freeze issue. Keeping '{_localization.LanguageCode}'.");
+                // Early-out: already on the requested locale.
+                if (string.Equals(requestedLocale.Trim(), _localization.LanguageCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    return new StringValue(_localization.LanguageCode);
+                }
+
+                // Guard against re-entrant or concurrent calls.
+                if (Interlocked.Exchange(ref _isLocaleChanging, 1) != 0)
+                {
+                    RunnerLogger.Warn("i18n", $"setLocale('{requestedLocale}') skipped: locale change already in progress.");
+                    return new StringValue(_localization.LanguageCode);
+                }
+
+                try
+                {
+                    // Run on the thread pool to avoid the Godot SynchronizationContext deadlock
+                    // that occurs when blocking the main thread on an async continuation that
+                    // itself needs the main thread to resume.
+                    _localization = Task.Run(async () =>
+                        await LocalizationStore.LoadAsync(_uriResolver, _uiSmlUri, requestedLocale)
+                    ).GetAwaiter().GetResult();
+
+                    RunnerLogger.Info("i18n", $"Locale changed to '{_localization.LanguageCode}'.");
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("i18n", $"setLocale('{requestedLocale}') failed. Keeping '{_localization.LanguageCode}'.", ex);
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _isLocaleChanging, 0);
+                }
+
                 return new StringValue(_localization.LanguageCode);
             })
         });
@@ -1074,7 +1107,8 @@ public sealed class SmsUiRuntime
                 SelectionEnabled = false,
                 Text = text,
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-                AutowrapMode = TextServer.AutowrapMode.WordSmart
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                MouseFilter = container.MouseFilter
             };
 
             container.AddChild(label);

@@ -13,6 +13,17 @@ Reads text content from a file and returns it as a String.
 ### fs.writeText(path: String, content: String)
 Writes text content to a file.
 
+## Internationalization
+
+### i18n.getLocale()
+Returns the active two-letter ISO language code (for example: en, de, es).
+
+### i18n.setLocale(locale: String)
+Switches the active locale and reloads the corresponding strings-<locale>.sml file. Subsequent i18n.tr() calls return translations for the new locale. Controls whose text was already rendered during UI build are not automatically updated; update them explicitly via script after calling setLocale. The call is a no-op when the requested locale is already active. A warning is logged on load failure and the previous locale is retained.
+
+### i18n.tr(key: String, default: String?)
+Returns the translation for the given key in the current locale. Falls back to the default value when provided, or to the key itself when no default is given and no translation is found.
+
 ## Logging
 
 ### log.error(message: String)

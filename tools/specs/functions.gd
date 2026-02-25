@@ -82,6 +82,24 @@ const FUNCTIONS := {
         "description": "Reads text content from a file and returns it as a String."
     },
 
+    "i18n.tr": {
+        "category": "Internationalization",
+        "signature": "i18n.tr(key: String, default: String?)",
+        "description": "Returns the translation for the given key in the current locale. Falls back to the default value when provided, or to the key itself when no default is given and no translation is found."
+    },
+
+    "i18n.getLocale": {
+        "category": "Internationalization",
+        "signature": "i18n.getLocale()",
+        "description": "Returns the active two-letter ISO language code (for example: en, de, es)."
+    },
+
+    "i18n.setLocale": {
+        "category": "Internationalization",
+        "signature": "i18n.setLocale(locale: String)",
+        "description": "Switches the active locale and reloads the corresponding strings-<locale>.sml file. Subsequent i18n.tr() calls return translations for the new locale. Controls whose text was already rendered during UI build are not automatically updated; update them explicitly via script after calling setLocale. The call is a no-op when the requested locale is already active. A warning is logged on load failure and the previous locale is retained."
+    },
+
     "os.getLocale": {
         "category": "OS",
         "signature": "os.getLocale()",

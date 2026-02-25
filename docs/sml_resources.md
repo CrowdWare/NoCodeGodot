@@ -36,13 +36,22 @@ Four namespaces are built into SML. Well-known namespaces do not generate valida
 
 ### Colors
 
-Named color values for theming and styling. Resolved from an inline Colors block in the SML document.
+Named color values for theming and styling. Design tokens are defined centrally in theme.sml files and are automatically available in all SML documents without an inline block.
 
 **Resolution order:**
 
-- 1. Inline Colors block in the same SML document.
-- 2. Fallback literal (if provided).
-- 3. Empty string (with a runtime warning).
+- 1. Inline Colors block in the same SML document (highest priority).
+- 2. App-level theme.sml in the same directory as app.sml (optional override).
+- 3. ForgeRunner default theme (res://theme.sml).
+- 4. Fallback literal (if provided).
+- 5. Empty string (with a runtime warning).
+
+**Files:**
+
+| File | Role |
+|---|---|
+| `theme.sml` | App-level override. Optional. Place next to app.sml to customize tokens. |
+| `res://theme.sml` | ForgeRunner built-in default theme. Always loaded as fallback. |
 
 **Example block:**
 ```sml
@@ -72,19 +81,28 @@ Icons {
 
 ### Layouts
 
-Layout configuration values such as sizes, paddings, and spacing constants. Resolved from an inline Layouts block in the SML document.
+Layout configuration values such as sizes, paddings, and spacing constants. Design tokens are defined centrally in theme.sml files and are automatically available in all SML documents.
 
 **Resolution order:**
 
-- 1. Inline Layouts block in the same SML document.
-- 2. Fallback literal (if provided).
-- 3. Empty string (with a runtime warning).
+- 1. Inline Layouts block in the same SML document (highest priority).
+- 2. App-level theme.sml in the same directory as app.sml (optional override).
+- 3. ForgeRunner default theme (res://theme.sml).
+- 4. Fallback literal (if provided).
+- 5. Empty string (with a runtime warning).
+
+**Files:**
+
+| File | Role |
+|---|---|
+| `theme.sml` | App-level override. Optional. Place next to app.sml to customize tokens. |
+| `res://theme.sml` | ForgeRunner built-in default theme. Always loaded as fallback. |
 
 **Example block:**
 ```sml
 Layouts {
-    sidebarWidth: "300"
-    toolbarHeight: "42"
+    buttonPaddingH: 12
+    cornerRadius: 6
 }
 ```
 
