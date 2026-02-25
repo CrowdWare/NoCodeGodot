@@ -88,6 +88,10 @@ public sealed class NodePropertyMapper
     public const string MetaDockDragToRearrangeEnabled = "sml_dockDragToRearrangeEnabled";
     public const string MetaDockTabsRearrangeGroup = "sml_dockTabsRearrangeGroup";
     public const string MetaDockingTabHost = "sml_dockingTabHost";
+    public const string MetaOffsetTop = "sml_offsetTop";
+    public const string MetaOffsetBottom = "sml_offsetBottom";
+    public const string MetaOffsetLeft = "sml_offsetLeft";
+    public const string MetaOffsetRight = "sml_offsetRight";
 
     private static readonly IReadOnlyDictionary<string, Action<Control, SmlValue, string>> SimplePropertyHandlers
         = BuildSimplePropertyHandlers();
@@ -96,6 +100,22 @@ public sealed class NodePropertyMapper
     {
         if (TryApplyGeneratedLayoutAlias(control, propertyName, value))
         {
+            return;
+        }
+
+        // Offset properties must be buffered and applied in a post-build pass,
+        // because setting them directly on a Container child causes a layout loop.
+        var lowerProp = propertyName.ToLowerInvariant();
+        if (lowerProp is "offsettop" or "offsetbottom" or "offsetleft" or "offsetright")
+        {
+            var metaKey = lowerProp switch
+            {
+                "offsettop"    => MetaOffsetTop,
+                "offsetbottom" => MetaOffsetBottom,
+                "offsetleft"   => MetaOffsetLeft,
+                _              => MetaOffsetRight
+            };
+            control.SetMeta(metaKey, Variant.From((float)value.AsDoubleOrThrow(propertyName)));
             return;
         }
 

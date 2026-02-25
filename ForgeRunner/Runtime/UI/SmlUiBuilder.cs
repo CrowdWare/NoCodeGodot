@@ -80,6 +80,7 @@ public sealed class SmlUiBuilder
         var ui = BuildNodeRecursive(rootNode, parentNodeName: null);
         var built = ui ?? BuildFallback($"Could not build root node '{rootNode.Name}'.");
         ApplyAnchorsFromMetaRecursively(built);
+        ApplyOffsetsFromMetaRecursively(built);
         document.Resources.TryGetValue("Fonts", out var fontsNode);
         _propertyMapper.ResolvePendingFontFaceWeights(built, fontsNode, _resolveAssetPath);
 
@@ -200,6 +201,38 @@ public sealed class SmlUiBuilder
             {
                 ApplyAnchorsFromMetaRecursively(childControl);
             }
+        }
+    }
+
+    private static void ApplyOffsetsFromMetaRecursively(Control control)
+    {
+        var hasTop    = control.HasMeta(NodePropertyMapper.MetaOffsetTop);
+        var hasBottom = control.HasMeta(NodePropertyMapper.MetaOffsetBottom);
+        var hasLeft   = control.HasMeta(NodePropertyMapper.MetaOffsetLeft);
+        var hasRight  = control.HasMeta(NodePropertyMapper.MetaOffsetRight);
+
+        if (hasTop || hasBottom || hasLeft || hasRight)
+        {
+            if (control.GetParent() is Container)
+            {
+                RunnerLogger.Warn("UI",
+                    $"Node '{control.Name}': offsetTop/Bottom/Left/Right cannot be used inside a Container " +
+                    $"— it causes a layout loop. Property ignored. " +
+                    $"Use spacing/padding on the parent container instead.");
+            }
+            else
+            {
+                if (hasTop)    control.OffsetTop    = control.GetMeta(NodePropertyMapper.MetaOffsetTop).AsSingle();
+                if (hasBottom) control.OffsetBottom = control.GetMeta(NodePropertyMapper.MetaOffsetBottom).AsSingle();
+                if (hasLeft)   control.OffsetLeft   = control.GetMeta(NodePropertyMapper.MetaOffsetLeft).AsSingle();
+                if (hasRight)  control.OffsetRight  = control.GetMeta(NodePropertyMapper.MetaOffsetRight).AsSingle();
+            }
+        }
+
+        for (var i = 0; i < control.GetChildCount(); i++)
+        {
+            if (control.GetChild(i) is Control childControl)
+                ApplyOffsetsFromMetaRecursively(childControl);
         }
     }
 

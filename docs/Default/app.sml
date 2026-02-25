@@ -1,13 +1,13 @@
 Fonts {
-    Sans-Bold: "appRes://assets/fonts/SansBlack.ttf"
+    Sans-Bold:     "appRes://assets/fonts/SansBlack.ttf"
     Inter-Regular: "appRes://assets/fonts/Inter_18pt-Regular.ttf"
-    Inter-Bold:    "appRes://assets/fonts/Inter-18pt-Bold.ttf"
+    Inter-Bold:    "appRes://assets/fonts/Inter_18pt-Bold.ttf"
 }
 
 SplashScreen {
     id: splashScreen
     size: 640, 480
-    duration: 13000
+    duration: 3000
     loadOnReady: "main.sml"
 
     VBoxContainer {
@@ -15,13 +15,18 @@ SplashScreen {
         padding: 40, 40, 40, 32
 
         HBoxContainer {
-            TextureRect {
-                id: logo
-                src: "appRes://logo.svg"
-                width: 72
-                height: 72
+            VBoxContainer {
                 shrinkH: true
-                shrinkV: true
+                padding: 30, 0, 0, 0
+                TextureRect {
+                    id: logo
+                    src: "appRes://logo.svg"
+                    width: 72
+                    height: 72
+                    offsetTop: 30
+                    shrinkH: true
+                    shrinkV: true
+                }
             }
             VBoxContainer {
                 padding: 16
@@ -43,6 +48,7 @@ SplashScreen {
                 Label { 
                     id: appTagline 
                     fontFace: "Inter"
+                    fontSize: 18
                     fontWeight: regular
                     text: "By the crowd. For the crowd." 
                 }
