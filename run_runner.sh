@@ -38,7 +38,8 @@ if [[ -z "$MODE" ]]; then
   echo "  4) none     -> ohne URL-Override"
   echo "  5) docs     -> generate SML/SMS docs (headless)"
   echo "  6) build    -> build app"
-  read -r -p "Auswahl [1-6]: " CHOICE
+  echo "  7) theme    -> generate theme.tres from theme.sml (headless)"
+  read -r -p "Auswahl [1-7]: " CHOICE
 
   case "$CHOICE" in
     1) MODE="default" ;;
@@ -47,6 +48,7 @@ if [[ -z "$MODE" ]]; then
     4) MODE="none" ;;
     5) MODE="docs" ;;
     6) MODE="build" ;;
+    7) MODE="theme" ;;
     *)
       echo "Ungültige Auswahl. Abbruch."
       exit 1
@@ -88,8 +90,14 @@ case "$MODE" in
     echo "Building the app..."
     dotnet build "$REPO_ROOT/ForgeRunner/ForgeRunner.csproj"
     ;;
+  theme)
+    echo "Generating theme.tres from theme.sml..."
+    "$GODOT_BIN" --headless --path "$RUNNER_PATH" --script "$REPO_ROOT/tools/generate_theme.gd"
+    echo "Theme generation completed."
+    exit 0
+    ;;
   *)
-    echo "Usage: $0 [default|sample|docking|none|docs]"
+    echo "Usage: $0 [default|sample|docking|none|docs|build|theme]"
     exit 1
     ;;
 esac

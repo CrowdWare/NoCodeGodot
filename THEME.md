@@ -1,75 +1,111 @@
 # THEME Guide
 
-This project uses a Godot theme file at:
+The ForgeRunner theme is defined entirely in SML and generated into a Godot theme file.
 
-- `ForgeRunner/theme.tres`
-
-The theme is loaded in `ForgeRunner/Main.cs` via:
-
-- `GD.Load<Theme>("res://theme.tres")`
+- **Source of truth:** `ForgeRunner/theme.sml`
+- **Generated output:** `ForgeRunner/theme.tres`
+- **Loaded at runtime:** `Main.cs` via `GD.Load<Theme>("res://theme.tres")`
 
 ---
 
-## Quick workflow (from UI screenshot to Godot theme)
+## Workflow
 
-1. Pick a reference UI screenshot (for example `images/jetpack_dark.png`).
-2. Define a small set of design tokens:
-   - background/surface colors
-   - text colors
-   - accent color
-   - border colors
-   - corner radius and spacing
-3. Map those tokens to Godot controls in `theme.tres`:
-   - `Panel`, `PanelContainer`
-   - `Button` states (`normal`, `hover`, `pressed`, `disabled`, `focus`)
-   - `LineEdit`, `TextEdit`
-   - `TabBar`, `TabContainer`
-   - `Tree`, `ItemList`
-   - Scrollbar accent colors
-4. Run the app and compare visually.
-5. Fine-tune colors, contrast, and spacing in small iterations.
+### Changing design tokens
+
+1. Edit `ForgeRunner/theme.sml` — all colors and layout values are defined here as named tokens.
+2. Regenerate `theme.tres`:
+
+   ```bash
+   ./run_runner.sh theme
+   ```
+
+3. Run the app and compare visually.
+
+Do **not** edit `theme.tres` directly — it is generated and will be overwritten.
 
 ---
 
-## Where to change the accent color
+## Token overview
 
-If you want to switch the accent (for example blue → green), edit these entries in `ForgeRunner/theme.tres`:
+### Colors
 
-- `HScrollBar/colors/accent_color`
-- `VScrollBar/colors/accent_color`
-- `StyleBoxFlat_focus -> border_color`
-- `StyleBoxFlat_tab_selected -> bg_color` and `border_color`
-- `StyleBoxFlat_button_pressed -> bg_color` and `border_color`
-- `StyleBoxFlat_input_focus -> border_color`
-- `LineEdit/colors/caret_color`, `LineEdit/colors/selection_color`
-- `TextEdit/colors/caret_color`, `TextEdit/colors/selection_color`
-- `Tree/colors/selection_color`
-- `ItemList/colors/selection_color`
+| Token | Role |
+|---|---|
+| `accent` | Primary highlight (buttons pressed, tabs selected, carets, selections) |
+| `focus` | Focus ring outline |
+| `textPrimary` | Default button/label text |
+| `textHover` | Button text on hover |
+| `textPressed` | Button/tab text when active |
+| `textDisabled` | Dimmed text |
+| `textInput` | Text in LineEdit / TextEdit |
+| `textPlaceholder` | Placeholder text in LineEdit |
+| `textList` | Text in Tree / ItemList |
+| `textTabDisabled` | Disabled tab label |
+| `textTabHover` | Hovered tab label |
+| `textTabUnselected` | Inactive tab label |
+| `bgDark` | Darkest surface (tree panels, tab backgrounds, text editors) |
+| `bgBase` | Input field background |
+| `bgMid` | Panel background |
+| `bgPanel` | PanelContainer / dock background |
+| `bgButtonNormal` | Button resting state |
+| `bgButtonHover` | Button hover state |
+| `bgButtonDisabled` | Button disabled state |
+| `bgInputFocus` | Input field focused state |
+| `borderMuted` | Subtle border (disabled button) |
+| `borderNormal` | Default button border |
+| `borderHover` | Button border on hover |
+| `borderInput` | Input field border |
+| `borderTabHover` | Hovered tab border |
+| `borderTabUnselected` | Inactive tab border |
+| `borderPanel` | Tree panel border |
+| `borderPanel2` | Panel / TabContainer border |
+| `borderPanelContainer` | PanelContainer border |
+| `borderTreeGuide` | Tree guide / relationship lines |
+| `selectionGreen` | Text selection in TextEdit |
 
-Tip: keep 2-3 accent shades (base/strong/soft) and reuse them consistently.
+### Layouts
+
+| Token | Role |
+|---|---|
+| `buttonPaddingH` | Button horizontal content margin |
+| `buttonPaddingV` | Button vertical content margin |
+| `inputPaddingH` | Input field horizontal content margin |
+| `inputPaddingV` | Input field vertical content margin |
+| `cornerRadius` | Standard corner radius |
+| `cornerRadiusLarge` | Large corner radius (PanelContainer) |
+| `tabPaddingH` | Tab horizontal content margin |
+| `tabPaddingV` | Tab vertical content margin |
+| `fontSize` | Default font size |
+| `fontSizeTree` | Tree font size |
 
 ---
 
-## Suggested structure for future edits
+## App-level overrides
 
-When editing `theme.tres`, keep this order:
+Apps can provide their own `theme.sml` next to `app.sml` to override individual tokens:
 
-1. `sub_resource` style boxes (surfaces and control states)
-2. control style assignments (`.../styles/...`)
-3. control color assignments (`.../colors/...`)
+```sml
+// docs/MyApp/theme.sml
+Colors {
+    accent: "#FF6B35"
+}
+```
 
-This makes future adjustments faster and avoids missing related entries.
+Only listed tokens are overridden — everything else falls back to the ForgeRunner default.
+
+**Resolution order (highest priority first):**
+1. Inline `Colors {}` / `Layouts {}` block inside the SML document
+2. App-local `theme.sml` (same directory as `app.sml`)
+3. `ForgeRunner/theme.sml` (built-in default)
 
 ---
 
 ## Validation checklist
 
-After changing the theme, verify:
+After changing tokens, verify:
 
-- normal/hover/pressed/disabled button states
-- focus ring visibility on dark backgrounds
-- text readability and contrast
-- selected tab and selected list/tree row visibility
-- caret and selection colors in text inputs
-
-If one control still looks off, search the matching `styles/*` and `colors/*` entries and adjust locally.1
+- Normal / hover / pressed / disabled button states
+- Focus ring visibility on dark backgrounds
+- Text readability and contrast
+- Selected tab and selected list/tree row
+- Caret and selection colors in text inputs

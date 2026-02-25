@@ -34,13 +34,18 @@ const NAMESPACES := {
         "example": "Strings {\n    windowTitle: \"ForgeRunner\"\n    menuAppAbout: \"About ForgeRunner\"\n}"
     },
     "Colors": {
-        "description": "Named color values for theming and styling. Resolved from an inline Colors block in the SML document.",
+        "description": "Named color values for theming and styling. Design tokens are defined centrally in theme.sml files and are automatically available in all SML documents without an inline block.",
         "resolution": [
-            "1. Inline Colors block in the same SML document.",
-            "2. Fallback literal (if provided).",
-            "3. Empty string (with a runtime warning)."
+            "1. Inline Colors block in the same SML document (highest priority).",
+            "2. App-level theme.sml in the same directory as app.sml (optional override).",
+            "3. ForgeRunner default theme (res://theme.sml).",
+            "4. Fallback literal (if provided).",
+            "5. Empty string (with a runtime warning)."
         ],
-        "files": [],
+        "files": [
+            { "name": "theme.sml", "role": "App-level override. Optional. Place next to app.sml to customize tokens." },
+            { "name": "res://theme.sml", "role": "ForgeRunner built-in default theme. Always loaded as fallback." }
+        ],
         "example": "Colors {\n    primary: \"#3A7BD5\"\n    background: \"#1E1E2E\"\n}"
     },
     "Icons": {
@@ -54,14 +59,19 @@ const NAMESPACES := {
         "example": "Icons {\n    save: \"res://assets/icons/save.svg\"\n    close: \"res://assets/icons/close.svg\"\n}"
     },
     "Layouts": {
-        "description": "Layout configuration values such as sizes, paddings, and spacing constants. Resolved from an inline Layouts block in the SML document.",
+        "description": "Layout configuration values such as sizes, paddings, and spacing constants. Design tokens are defined centrally in theme.sml files and are automatically available in all SML documents.",
         "resolution": [
-            "1. Inline Layouts block in the same SML document.",
-            "2. Fallback literal (if provided).",
-            "3. Empty string (with a runtime warning)."
+            "1. Inline Layouts block in the same SML document (highest priority).",
+            "2. App-level theme.sml in the same directory as app.sml (optional override).",
+            "3. ForgeRunner default theme (res://theme.sml).",
+            "4. Fallback literal (if provided).",
+            "5. Empty string (with a runtime warning)."
         ],
-        "files": [],
-        "example": "Layouts {\n    sidebarWidth: \"300\"\n    toolbarHeight: \"42\"\n}"
+        "files": [
+            { "name": "theme.sml", "role": "App-level override. Optional. Place next to app.sml to customize tokens." },
+            { "name": "res://theme.sml", "role": "ForgeRunner built-in default theme. Always loaded as fallback." }
+        ],
+        "example": "Layouts {\n    buttonPaddingH: 12\n    cornerRadius: 6\n}"
     }
 }
 

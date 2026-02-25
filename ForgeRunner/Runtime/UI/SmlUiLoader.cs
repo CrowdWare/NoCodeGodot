@@ -68,6 +68,8 @@ public sealed class SmlUiLoader
         var parser = new SmlParser(content, schema);
         var document = parser.ParseDocument();
         var localization = await LocalizationStore.LoadAsync(_uriResolver, normalizedUri, cancellationToken: cancellationToken);
+        var themeStore = await ThemeStore.LoadAsync(_uriResolver, normalizedUri, cancellationToken);
+        themeStore.InjectIntoResources(document.Resources);
         await PreprocessMarkdownNodesAsync(document, normalizedUri, localization, cancellationToken);
         var assetPathResolver = CreateAssetPathResolver(normalizedUri);
 
