@@ -392,6 +392,10 @@ public partial class Main : Node
 		// Splash is still visible here. Swap in one synchronous block.
 		_resolvedStartupUiUrl = url;
 		_smsUiRuntime = newRuntime;
+		// ConfigureProjectActions was called during LoadFromUriAsync while _smsUiRuntime
+		// still pointed to the old runtime — rebind the dispatcher to the new runtime now.
+		if (_uiDispatcher != null)
+			_smsUiRuntime?.BindDispatcher(_uiDispatcher);
 		DetachUi();
 		AttachUi(rootControl);
 		await EnsureRuntimeUiReadyStateAsync();
