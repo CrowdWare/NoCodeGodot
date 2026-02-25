@@ -121,7 +121,6 @@
 ## Future Tasks
 
 
-
 ## Tasks for Forge-Designer
 - [ ] Lifecycle-Template für neue Scripts einführen (OnInit / OnReadyAsync sichtbar als optionaler Einstieg)
 - [ ] Konventionsbasierte UI-Event-Hooks im Script-Template dokumentieren (z. B. treeItemSelected, treeItemToggled, listItemSelected)
