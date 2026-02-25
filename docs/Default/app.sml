@@ -1,5 +1,7 @@
 Fonts {
     Sans-Bold: "appRes://assets/fonts/SansBlack.ttf"
+    Inter-Regular: "appRes://assets/fonts/Inter_18pt-Regular.ttf"
+    Inter-Bold:    "appRes://assets/fonts/Inter-18pt-Bold.ttf"
 }
 
 SplashScreen {
@@ -38,7 +40,12 @@ SplashScreen {
                     fontWeight: bold
                     text: "Forge" 
                 }
-                Label { id: appTagline text: "By the crowd. For the crowd." }
+                Label { 
+                    id: appTagline 
+                    fontFace: "Inter"
+                    fontWeight: regular
+                    text: "By the crowd. For the crowd." 
+                }
             }
         }
 
