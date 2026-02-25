@@ -403,22 +403,23 @@ public static partial class CodeEditSyntaxRuntime
 
     private sealed partial class SmlSyntaxHighlighter : SyntaxHighlighter
     {
-        private static readonly Color DefaultColor  = new(0.96f, 0.97f, 0.99f, 1f);
-        private static readonly Color NodeColor     = new(0.49f, 0.86f, 0.79f, 1f);
-        private static readonly Color PropertyColor = new(0.55f, 0.72f, 1f,    1f);
-        private static readonly Color LiteralColor  = new(0.96f, 0.69f, 0.45f, 1f);
-        private static readonly Color BoolColor     = new(0.83f, 0.72f, 0.97f, 1f);
-        private static readonly Color CommentColor  = new(0.52f, 0.57f, 0.55f, 1f);
-        private static readonly Color NumberColor   = new(0.95f, 0.83f, 0.56f, 1f);
-        private static readonly Color ResourceColor = new(0.56f, 0.93f, 0.56f, 1f);
+        private static readonly Color DefaultColor  = new(0.96f,  0.97f,  0.99f,  1f);
+        private static readonly Color NodeColor     = new(0.337f, 0.612f, 0.839f, 1f); // #569CD6 - constant.language
+        private static readonly Color PropertyColor = new(0.612f, 0.863f, 0.996f, 1f); // #9CDCFE - variable.other.property
+        private static readonly Color LiteralColor  = new(0.808f, 0.569f, 0.471f, 1f); // #CE9178 - string.quoted
+        private static readonly Color BoolColor     = new(0.337f, 0.612f, 0.839f, 1f); // #569CD6 - constant.language (same scope as nodes)
+        private static readonly Color CommentColor  = new(0.416f, 0.600f, 0.333f, 1f); // #6A9955 - comment
+        private static readonly Color NumberColor   = new(0.710f, 0.808f, 0.659f, 1f); // #B5CEA8 - constant.numeric
+        private static readonly Color ResourceColor = new(0.56f,  0.93f,  0.56f,  1f); // green - approved
 
-        private static readonly Regex NodeLineRegex    = new(@"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\{",                     RegexOptions.Compiled);
-        private static readonly Regex AttachedKeyRegex = new(@"^\s*([A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*)\s*:", RegexOptions.Compiled);
-        private static readonly Regex PropertyKeyRegex = new(@"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:",                      RegexOptions.Compiled);
-        private static readonly Regex ResourceRefRegex = new(@"@[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]+)+", RegexOptions.Compiled);
-        private static readonly Regex StringRegex      = new(@"""(?:[^""\\]|\\.)*""",                                   RegexOptions.Compiled);
-        private static readonly Regex NumberRegex      = new(@"(?<![A-Za-z_.\d])-?\d+(?:\.\d+)?(?![A-Za-z_.\d])",      RegexOptions.Compiled);
-        private static readonly Regex BoolRegex        = new(@"(?<![A-Za-z_])(true|false)(?![A-Za-z_])",               RegexOptions.Compiled);
+        private static readonly Regex NodeLineRegex      = new(@"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\{",                          RegexOptions.Compiled);
+        private static readonly Regex AttachedKeyRegex   = new(@"^\s*([A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*)\s*:", RegexOptions.Compiled);
+        private static readonly Regex PropertyKeyRegex   = new(@"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:",                         RegexOptions.Compiled);
+        private static readonly Regex InlinePropKeyRegex = new(@"(?<![A-Za-z_\d\.])([A-Za-z_][A-Za-z0-9_]*)\s*:(?!:)",      RegexOptions.Compiled);
+        private static readonly Regex ResourceRefRegex   = new(@"@[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]+)+",    RegexOptions.Compiled);
+        private static readonly Regex StringRegex        = new(@"""(?:[^""\\]|\\.)*""",                                      RegexOptions.Compiled);
+        private static readonly Regex NumberRegex        = new(@"(?<![A-Za-z_.\d])-?\d+(?:\.\d+)?(?![A-Za-z_.\d])",         RegexOptions.Compiled);
+        private static readonly Regex BoolRegex          = new(@"(?<![A-Za-z_])(true|false)(?![A-Za-z_])",                  RegexOptions.Compiled);
 
         public override Godot.Collections.Dictionary _GetLineSyntaxHighlighting(int line)
         {
@@ -440,6 +441,9 @@ public static partial class CodeEditSyntaxRuntime
                 var g = nodeMatch.Groups[1];
                 Mark(result, g.Index, NodeColor);
                 Mark(result, g.Index + g.Length, DefaultColor);
+                var braceIdx = code.IndexOf('{', g.Index + g.Length);
+                if (braceIdx >= 0 && braceIdx + 1 < code.Length)
+                    HighlightInlineContent(code, braceIdx + 1, result);
             }
             else
             {
@@ -464,6 +468,38 @@ public static partial class CodeEditSyntaxRuntime
                 Mark(result, commentAt, CommentColor);
 
             return result;
+        }
+
+        private static void HighlightInlineContent(string code, int from, Godot.Collections.Dictionary result)
+        {
+            if (from >= code.Length) return;
+            var slice = code[from..];
+            var spans = new List<(int S, int E, Color C)>();
+
+            // String literals first – protect their content from being re-colored.
+            foreach (Match m in StringRegex.Matches(slice))
+                spans.Add((from + m.Index, from + m.Index + m.Length, LiteralColor));
+            foreach (Match m in ResourceRefRegex.Matches(slice))
+                spans.Add((from + m.Index, from + m.Index + m.Length, ResourceColor));
+            foreach (Match m in InlinePropKeyRegex.Matches(slice))
+            {
+                var g = m.Groups[1];
+                spans.Add((from + g.Index, from + g.Index + g.Length, PropertyColor));
+            }
+            foreach (Match m in BoolRegex.Matches(slice))
+                spans.Add((from + m.Index, from + m.Index + m.Length, BoolColor));
+            foreach (Match m in NumberRegex.Matches(slice))
+                spans.Add((from + m.Index, from + m.Index + m.Length, NumberColor));
+
+            spans.Sort((a, b) => a.S.CompareTo(b.S));
+            var cursor = from;
+            foreach (var (s, e, color) in spans)
+            {
+                if (s < cursor) continue;
+                Mark(result, s, color);
+                Mark(result, e, DefaultColor);
+                cursor = e;
+            }
         }
 
         private static void HighlightValue(string code, int from, Godot.Collections.Dictionary result)
