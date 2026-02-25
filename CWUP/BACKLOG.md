@@ -115,10 +115,11 @@
 - [x] tasks/syntax_highlighting_extensions.md
 - [x] tasks/sml_theme_system.md
 - [x] tasks/i18n_setlocale_freeze.md
+- [ ] tasks/theme_overwrites_complete.md
 
 
 ## Future Tasks
-- [ ] tasks/theme_overrides_complete.md
+
 
 
 ## Tasks for Forge-Designer

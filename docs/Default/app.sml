@@ -21,9 +21,13 @@ SplashScreen {
                     text: "CrowdWare" 
                     color: "#4fc3f7" 
                     fontSize: 38 
-                    fontWeight: 400
+                    //fontWeight: 400
                 }
-                Label { id: appTitle   text: "Forge" }
+                Label { 
+                    id: appTitle 
+                    fontSize: 30   
+                    text: "Forge" 
+                }
                 Label { id: appTagline text: "By the crowd. For the crowd." }
             }
         }
