@@ -14,12 +14,6 @@ fun ready() {
         return
     }
 
-    var caption = ui.getObject("caption")
-    if (caption != null) {
-        i18n.setLocale("es")
-        caption.text = i18n.tr("captionDemo", "Nichts gefunden")
-    }
-
     codeEdit.onSave("codeEditOnSave")
     populateTree(tree, ".")
     
