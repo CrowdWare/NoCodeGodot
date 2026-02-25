@@ -116,7 +116,6 @@
 - [ ] tasks/sml_theme_system.md
 
 
-
 ## Future Tasks
 - [ ] tasks/i18n_setlocale_freeze.md
 
