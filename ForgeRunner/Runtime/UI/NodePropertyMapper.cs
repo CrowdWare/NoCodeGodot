@@ -904,6 +904,14 @@ public sealed class NodePropertyMapper
 
     private static string ResolveAssetPath(string source, Func<string, string>? resolveAssetPath)
     {
+        // Godot-native paths must not go through the file-system URI resolver —
+        // they are loaded directly via Godot's ResourceLoader.
+        if (source.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
+            || source.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
+        {
+            return source;
+        }
+
         if (resolveAssetPath is null)
         {
             return source;

@@ -9,7 +9,7 @@ SplashScreen {
         padding: 40, 40, 40, 32
 
         HBoxContainer {
-            Image {
+            TextureRect {
                 id: logo
                 src: "res://icon.svg"
                 width: 72

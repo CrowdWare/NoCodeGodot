@@ -76,7 +76,7 @@ public sealed class NodeFactoryRegistry
             FitContent = true,
             ScrollActive = false
         });
-        Register("Image", () => new TextureRect());
+        Register("TextureRect", () => new TextureRect());
         Register("Control", () => new Control());
         Register("TabBar", () => new TabBar());
         Register("TabContainer", () => new TabContainer());
