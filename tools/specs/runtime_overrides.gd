@@ -50,6 +50,20 @@ func get_spec() -> Dictionary:
                     "description": "Path to a .ttf/.otf font file. Alias: fontSource."
                 },
                 {
+                    "sml": "fontFace",
+                    "godot": "font (theme override, via Fonts resource block)",
+                    "type": "string",
+                    "default": "—",
+                    "description": "Font family name. Looks up 'Face-Weight' key in the Fonts resource block. Combine with fontWeight."
+                },
+                {
+                    "sml": "fontWeight",
+                    "godot": "font (theme override, via Fonts resource block)",
+                    "type": "identifier or int",
+                    "default": "regular",
+                    "description": "Font weight for fontFace. Named aliases (unquoted): thin, extraLight, light, regular, medium, semiBold, bold, extraBold, black. Numeric: 100–900."
+                },
+                {
                     "sml": "bgColor",
                     "godot": "normal StyleBoxFlat (theme override)",
                     "type": "color",
@@ -99,6 +113,20 @@ func get_spec() -> Dictionary:
                     "type": "string(path)",
                     "default": "—",
                     "description": "Path to a .ttf/.otf font file. Alias: fontSource."
+                },
+                {
+                    "sml": "fontFace",
+                    "godot": "normal_font (theme override, via Fonts resource block)",
+                    "type": "string",
+                    "default": "—",
+                    "description": "Font family name. Looks up 'Face-Weight' key in the Fonts resource block. Combine with fontWeight."
+                },
+                {
+                    "sml": "fontWeight",
+                    "godot": "normal_font (theme override, via Fonts resource block)",
+                    "type": "identifier or int",
+                    "default": "regular",
+                    "description": "Font weight for fontFace. Named aliases (unquoted): thin, extraLight, light, regular, medium, semiBold, bold, extraBold, black. Numeric: 100–900."
                 }
             ],
             "Button": [
@@ -122,6 +150,20 @@ func get_spec() -> Dictionary:
                     "type": "string(path)",
                     "default": "—",
                     "description": "Path to a .ttf/.otf font file. Also applies to OptionButton and MenuButton. Alias: fontSource."
+                },
+                {
+                    "sml": "fontFace",
+                    "godot": "font (theme override, via Fonts resource block)",
+                    "type": "string",
+                    "default": "—",
+                    "description": "Font family name. Also applies to OptionButton and MenuButton. Looks up 'Face-Weight' key in the Fonts resource block."
+                },
+                {
+                    "sml": "fontWeight",
+                    "godot": "font (theme override, via Fonts resource block)",
+                    "type": "identifier or int",
+                    "default": "regular",
+                    "description": "Font weight for fontFace. Named aliases (unquoted): thin, extraLight, light, regular, medium, semiBold, bold, extraBold, black. Numeric: 100–900."
                 },
                 {
                     "sml": "bgColor",
@@ -175,6 +217,20 @@ func get_spec() -> Dictionary:
                     "description": "Path to a .ttf/.otf font file. Alias: fontSource."
                 },
                 {
+                    "sml": "fontFace",
+                    "godot": "font (theme override, via Fonts resource block)",
+                    "type": "string",
+                    "default": "—",
+                    "description": "Font family name. Looks up 'Face-Weight' key in the Fonts resource block. Combine with fontWeight."
+                },
+                {
+                    "sml": "fontWeight",
+                    "godot": "font (theme override, via Fonts resource block)",
+                    "type": "identifier or int",
+                    "default": "regular",
+                    "description": "Font weight for fontFace. Named aliases (unquoted): thin, extraLight, light, regular, medium, semiBold, bold, extraBold, black. Numeric: 100–900."
+                },
+                {
                     "sml": "bgColor",
                     "godot": "normal StyleBoxFlat (theme override)",
                     "type": "color",
@@ -224,6 +280,20 @@ func get_spec() -> Dictionary:
                     "type": "string(path)",
                     "default": "—",
                     "description": "Path to a .ttf/.otf font file. Also applies to CodeEdit. Alias: fontSource."
+                },
+                {
+                    "sml": "fontFace",
+                    "godot": "font (theme override, via Fonts resource block)",
+                    "type": "string",
+                    "default": "—",
+                    "description": "Font family name. Also applies to CodeEdit. Looks up 'Face-Weight' key in the Fonts resource block."
+                },
+                {
+                    "sml": "fontWeight",
+                    "godot": "font (theme override, via Fonts resource block)",
+                    "type": "identifier or int",
+                    "default": "regular",
+                    "description": "Font weight for fontFace. Named aliases (unquoted): thin, extraLight, light, regular, medium, semiBold, bold, extraBold, black. Numeric: 100–900."
                 },
                 {
                     "sml": "bgColor",

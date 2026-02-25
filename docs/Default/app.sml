@@ -1,7 +1,11 @@
+Fonts {
+    Sans-Bold: "appRes://assets/fonts/SansBlack.ttf"
+}
+
 SplashScreen {
     id: splashScreen
     size: 640, 480
-    duration: 3000
+    duration: 13000
     loadOnReady: "main.sml"
 
     VBoxContainer {
@@ -11,7 +15,7 @@ SplashScreen {
         HBoxContainer {
             TextureRect {
                 id: logo
-                src: "res://logo.svg"
+                src: "appRes://logo.svg"
                 width: 72
                 height: 72
                 shrinkH: true
@@ -23,13 +27,15 @@ SplashScreen {
                     id: appName    
                     text: "CrowdWare" 
                     color: "#4fc3f7" 
+                    fontFace: "Sans"
                     fontSize: 45
-                    //fontWeight: bold
+                    fontWeight: bold
                 }
                 Label { 
                     id: appTitle 
                     fontSize: 35
-                    //fontWeight: bold
+                    fontFace: "Sans"
+                    fontWeight: bold
                     text: "Forge" 
                 }
                 Label { id: appTagline text: "By the crowd. For the crowd." }

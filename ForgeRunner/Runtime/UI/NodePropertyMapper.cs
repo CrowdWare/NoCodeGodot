@@ -25,6 +25,7 @@ using Runtime.ThreeD;
 using System;
 using System.Globalization;
 using System.Collections.Generic;
+using System.IO;
 
 namespace Runtime.UI;
 
@@ -186,6 +187,17 @@ public sealed class NodePropertyMapper
             case "font":
             case "fontsource":
                 ApplyFont(control, value.AsStringOrThrow(propertyName), resolveAssetPath);
+                return;
+
+            case "fontface":
+                control.SetMeta("sml_fontface", Variant.From(value.AsStringOrThrow(propertyName)));
+                return;
+
+            case "fontweight":
+                var weightRaw = value.Kind == SmlValueKind.Int
+                    ? value.AsIntOrThrow(propertyName).ToString(CultureInfo.InvariantCulture)
+                    : value.AsStringOrThrow(propertyName);
+                control.SetMeta("sml_fontweight", Variant.From(NormalizeWeightAlias(weightRaw)));
                 return;
 
             case "mousefilter":
@@ -1040,11 +1052,7 @@ public sealed class NodePropertyMapper
     {
         var fontPath = ResolveAssetPath(rawFontPath, resolveAssetPath);
         Font font;
-        FontFile? loadedFont = null;
-        if (ResourceLoader.Exists(fontPath))
-        {
-            loadedFont = GD.Load<FontFile>(fontPath);
-        }
+        var loadedFont = LoadFontFile(fontPath);
 
         if (loadedFont is not null)
         {
@@ -1081,6 +1089,66 @@ public sealed class NodePropertyMapper
             default:
                 RunnerLogger.Warn("UI", $"Property 'font' ignored for node type '{control.GetType().Name}'.");
                 break;
+        }
+    }
+
+    private static FontFile? LoadFontFile(string fontPath)
+    {
+        if (fontPath.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
+            || fontPath.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
+        {
+            if (ResourceLoader.Exists(fontPath))
+                return GD.Load<FontFile>(fontPath);
+
+            // Fallback: font exists on disk but hasn't been imported by the Godot editor yet.
+            var globalPath = ProjectSettings.GlobalizePath(fontPath);
+            if (File.Exists(globalPath))
+            {
+                RunnerLogger.Info("UI", $"Font '{fontPath}' not imported by editor; loading from disk.");
+                return LoadFontFromDisk(globalPath);
+            }
+
+            return null;
+        }
+
+        string absolutePath;
+        if (fontPath.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!Uri.TryCreate(fontPath, UriKind.Absolute, out var fileUri) || !fileUri.IsFile)
+                return null;
+            absolutePath = fileUri.LocalPath;
+        }
+        else if (Path.IsPathRooted(fontPath))
+        {
+            absolutePath = fontPath;
+        }
+        else
+        {
+            return null;
+        }
+
+        return LoadFontFromDisk(absolutePath);
+    }
+
+    private static FontFile? LoadFontFromDisk(string absolutePath)
+    {
+        if (!File.Exists(absolutePath))
+        {
+            RunnerLogger.Warn("UI", $"Font file not found at '{absolutePath}'.");
+            return null;
+        }
+
+        try
+        {
+            var bytes = File.ReadAllBytes(absolutePath);
+            var fontFile = new FontFile();
+            fontFile.Data = bytes;
+            return fontFile;
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("UI", $"Could not read font file '{absolutePath}'.", ex);
+            return null;
         }
     }
 
@@ -1330,6 +1398,62 @@ public sealed class NodePropertyMapper
             SmlValueKind.Enum => (Control.SizeFlags)value.AsEnumIntOrThrow(propertyName),
             _ => throw new SmlParseException($"Property '{propertyName}' must be an integer or enum value.")
         };
+    }
+
+    private static string NormalizeWeightAlias(string raw)
+    {
+        return raw.Trim().ToLowerInvariant() switch
+        {
+            "100" or "thin"       => "Thin",
+            "200" or "extralight" => "ExtraLight",
+            "300" or "light"      => "Light",
+            "400" or "regular"    => "Regular",
+            "500" or "medium"     => "Medium",
+            "600" or "semibold"   => "SemiBold",
+            "700" or "bold"       => "Bold",
+            "800" or "extrabold"  => "ExtraBold",
+            "900" or "black"      => "Black",
+            _                     => "Regular"
+        };
+    }
+
+    /// <summary>
+    /// Post-build pass: resolves buffered fontFace + fontWeight metadata on all nodes
+    /// using the Fonts resource block from the SML document.
+    /// Call this after BuildNodeRecursive() completes.
+    /// </summary>
+    public void ResolvePendingFontFaceWeights(Control root, SmlNode? fontsNode, Func<string, string>? resolveAssetPath = null)
+    {
+        ResolveFontFaceWeightInControl(root, fontsNode, resolveAssetPath);
+    }
+
+    private static void ResolveFontFaceWeightInControl(Control control, SmlNode? fontsNode, Func<string, string>? resolveAssetPath)
+    {
+        if (control.HasMeta("sml_fontface"))
+        {
+            var face   = control.GetMeta("sml_fontface").AsString();
+            var weight = control.HasMeta("sml_fontweight")
+                ? control.GetMeta("sml_fontweight").AsString()
+                : "Regular";
+            var key = $"{face}-{weight}";
+
+            if (fontsNode != null && fontsNode.Properties.TryGetValue(key, out var pathValue))
+            {
+                var path = pathValue.AsStringOrThrow($"Fonts.{key}");
+                ApplyFont(control, path, resolveAssetPath);
+            }
+            else
+            {
+                RunnerLogger.Warn("UI", $"Font '{key}' not found in Fonts resource block. " +
+                    $"Add 'Fonts {{ {key}: \"res://fonts/{key}.ttf\" }}' to your SML document.");
+            }
+        }
+
+        for (var i = 0; i < control.GetChildCount(); i++)
+        {
+            if (control.GetChild(i) is Control child)
+                ResolveFontFaceWeightInControl(child, fontsNode, resolveAssetPath);
+        }
     }
 
 }

@@ -69,7 +69,8 @@ public sealed class SmlParser
         string.Equals(name, "Strings", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(name, "Colors", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(name, "Icons", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(name, "Layouts", StringComparison.OrdinalIgnoreCase);
+        string.Equals(name, "Layouts", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "Fonts", StringComparison.OrdinalIgnoreCase);
 
     private SmlNode ParseElement(SmlDocument document)
     {

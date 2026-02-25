@@ -72,6 +72,15 @@ const NAMESPACES := {
             { "name": "res://theme.sml", "role": "ForgeRunner built-in default theme. Always loaded as fallback." }
         ],
         "example": "Layouts {\n    buttonPaddingH: 12\n    cornerRadius: 6\n}"
+    },
+    "Fonts": {
+        "description": "Named font paths for use with fontFace and fontWeight properties. Keys follow the convention 'FamilyName-WeightAlias' (e.g. Roboto-Bold). The runtime looks up the key based on the fontFace + fontWeight combination and loads the font via AddThemeFontOverride.",
+        "resolution": [
+            "1. Inline Fonts block in the same SML document.",
+            "2. Fallback: warning is logged and no font override is applied."
+        ],
+        "files": [],
+        "example": "Fonts {\n    Roboto-Regular: \"res://fonts/Roboto-Regular.ttf\"\n    Roboto-Bold:    \"res://fonts/Roboto-Bold.ttf\"\n    Roboto-Light:   \"res://fonts/Roboto-Light.ttf\"\n}\n\nLabel {\n    fontFace: \"Roboto\"\n    fontWeight: bold\n    text: \"Hello\"\n}"
     }
 }
 

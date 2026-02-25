@@ -61,6 +61,30 @@ Colors {
 }
 ```
 
+### Fonts
+
+Named font paths for use with fontFace and fontWeight properties. Keys follow the convention 'FamilyName-WeightAlias' (e.g. Roboto-Bold). The runtime looks up the key based on the fontFace + fontWeight combination and loads the font via AddThemeFontOverride.
+
+**Resolution order:**
+
+- 1. Inline Fonts block in the same SML document.
+- 2. Fallback: warning is logged and no font override is applied.
+
+**Example block:**
+```sml
+Fonts {
+    Roboto-Regular: "res://fonts/Roboto-Regular.ttf"
+    Roboto-Bold:    "res://fonts/Roboto-Bold.ttf"
+    Roboto-Light:   "res://fonts/Roboto-Light.ttf"
+}
+
+Label {
+    fontFace: "Roboto"
+    fontWeight: bold
+    text: "Hello"
+}
+```
+
 ### Icons
 
 Icon resource paths for images and buttons. Resolved from an inline Icons block in the SML document.

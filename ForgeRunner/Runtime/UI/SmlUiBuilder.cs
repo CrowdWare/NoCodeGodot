@@ -80,6 +80,8 @@ public sealed class SmlUiBuilder
         var ui = BuildNodeRecursive(rootNode, parentNodeName: null);
         var built = ui ?? BuildFallback($"Could not build root node '{rootNode.Name}'.");
         ApplyAnchorsFromMetaRecursively(built);
+        document.Resources.TryGetValue("Fonts", out var fontsNode);
+        _propertyMapper.ResolvePendingFontFaceWeights(built, fontsNode, _resolveAssetPath);
 
         var enableDockingManager = built.HasMeta(NodePropertyMapper.MetaEnableDockingManager)
             && built.GetMeta(NodePropertyMapper.MetaEnableDockingManager).AsBool();

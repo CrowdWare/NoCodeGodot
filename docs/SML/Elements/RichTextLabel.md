@@ -14,6 +14,8 @@ Inherited properties are documented in: [Control](Control.md)
 | default_color (theme override) | color | color | — |
 | normal_font_size (theme override) | fontSize | int | — |
 | normal_font (theme override) | font | string(path) | — |
+| normal_font (theme override, via Fonts resource block) | fontFace | string | — |
+| normal_font (theme override, via Fonts resource block) | fontWeight | identifier or int | regular |
 
 ## Events
 
