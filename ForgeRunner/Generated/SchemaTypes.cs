@@ -70,6 +70,7 @@ public static class SchemaTypes
         new TypeDef("Separator", "Control", false),
         new TypeDef("Slider", "Range", false),
         new TypeDef("SpinBox", "Range", false),
+        new TypeDef("SplashScreen", "Panel", false),
         new TypeDef("SplitContainer", "Container", false),
         new TypeDef("SubViewport", "Viewport", false),
         new TypeDef("SubViewportContainer", "Container", false),

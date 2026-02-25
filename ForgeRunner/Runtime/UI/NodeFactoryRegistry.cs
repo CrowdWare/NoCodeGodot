@@ -58,6 +58,7 @@ public sealed class NodeFactoryRegistry
     private void RegisterDefaults()
     {
         Register("Window", () => new Panel());
+        Register("SplashScreen", () => new Panel());
         Register("Panel", () => new Panel());
         Register("WindowDrag", () => new WindowDragControl());
         Register("PanelContainer", () => new PanelContainer());
@@ -81,6 +82,7 @@ public sealed class NodeFactoryRegistry
         Register("TabContainer", () => new TabContainer());
         Register("MenuBar", () => new MenuBar());
         Register("HSlider", () => new HSlider());
+        Register("ProgressBar", () => new ProgressBar());
         Register("Tree", () => new Tree());
         Register("Slider", () => new HSlider());
         Register("Video", () => new VideoStreamPlayer());

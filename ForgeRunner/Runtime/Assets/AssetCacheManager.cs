@@ -88,11 +88,19 @@ public sealed class AssetCacheManager
         return new AssetSyncPlan(downloadCount, plannedBytes, unknownSizeCount);
     }
 
+    public static IReadOnlySet<string> BuildEntryPathSet(ManifestDocument manifest)
+    {
+        var entry = NormalizeRelativePath(manifest.EntryPoint ?? "app.sml");
+        var companion = NormalizeRelativePath(Path.ChangeExtension(entry, ".sms"));
+        return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { entry, companion };
+    }
+
     public async Task<AssetSyncResult> SyncAsync(
         ManifestDocument manifest,
         CancellationToken cancellationToken = default,
         IProgress<AssetSyncProgress>? progress = null,
-        AssetSyncPlan? planOverride = null)
+        AssetSyncPlan? planOverride = null,
+        IReadOnlySet<string>? entryPathsOnly = null)
     {
         var appCacheRoot = GetAppCacheRoot(manifest.SourceManifestUrl);
         var assetsRoot = Path.Combine(appCacheRoot, "files");
@@ -126,6 +134,12 @@ public sealed class AssetCacheManager
             cancellationToken.ThrowIfCancellationRequested();
 
             var relativePath = NormalizeRelativePath(asset.Path);
+
+            if (entryPathsOnly is not null && !entryPathsOnly.Contains(relativePath))
+            {
+                continue;
+            }
+
             var absolutePath = Path.Combine(assetsRoot, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
 

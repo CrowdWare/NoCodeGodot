@@ -8,6 +8,7 @@
 
 ### Direct subclasses
 
+- [SplashScreen](SplashScreen.md)
 - [WindowDrag](WindowDrag.md)
 
 ## Properties

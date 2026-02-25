@@ -398,7 +398,7 @@ public static partial class CodeEditSyntaxRuntime
         private static readonly Color BoolColor     = new(0.337f, 0.612f, 0.839f, 1f); // #569CD6 - constant.language (same scope as nodes)
         private static readonly Color CommentColor  = new(0.416f, 0.600f, 0.333f, 1f); // #6A9955 - comment
         private static readonly Color NumberColor   = new(0.710f, 0.808f, 0.659f, 1f); // #B5CEA8 - constant.numeric
-        private static readonly Color ResourceColor = new(0.56f,  0.93f,  0.56f,  1f); // green - approved
+        private static readonly Color ResourceColor = new(0.56f,  0.93f,  0.56f,  1f); // #8FED8F - resource link
 
         private static readonly Regex NodeLineRegex      = new(@"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\{",                          RegexOptions.Compiled);
         private static readonly Regex AttachedKeyRegex   = new(@"^\s*([A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*)\s*:", RegexOptions.Compiled);

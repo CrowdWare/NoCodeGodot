@@ -61,6 +61,8 @@ public sealed class NodePropertyMapper
     public const string MetaWindowSizeX = "sml_windowSizeX";
     public const string MetaWindowSizeY = "sml_windowSizeY";
     public const string MetaWindowExtendToTitle = "sml_windowExtendToTitle";
+    public const string MetaSplashDuration    = "sml_splashDuration";
+    public const string MetaSplashLoadOnReady = "sml_splashLoadOnReady";
     public const string MetaPaddingTop = "sml_paddingTop";
     public const string MetaPaddingRight = "sml_paddingRight";
     public const string MetaPaddingBottom = "sml_paddingBottom";
@@ -306,6 +308,18 @@ public sealed class NodePropertyMapper
                 if (control is Godot.Range valueRange)
                 {
                     valueRange.Value = value.AsIntOrThrow(propertyName);
+                    return;
+                }
+                break;
+
+            case "visible":
+                control.Visible = ToBoolOrThrow(value, propertyName);
+                return;
+
+            case "showpercentage":
+                if (control is ProgressBar progressBar)
+                {
+                    progressBar.ShowPercentage = ToBoolOrThrow(value, propertyName);
                     return;
                 }
                 break;
@@ -707,8 +721,10 @@ public sealed class NodePropertyMapper
 
     private static bool IsWindowNode(Control control)
     {
-        return control.HasMeta(MetaNodeName)
-            && string.Equals(control.GetMeta(MetaNodeName).AsString(), "Window", StringComparison.OrdinalIgnoreCase);
+        if (!control.HasMeta(MetaNodeName)) return false;
+        var name = control.GetMeta(MetaNodeName).AsString();
+        return string.Equals(name, "Window",       StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "SplashScreen", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void ApplyTextLike(Control control, string text)

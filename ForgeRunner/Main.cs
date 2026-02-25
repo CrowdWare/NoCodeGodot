@@ -29,6 +29,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Runtime.Assets;
 using Runtime.Sml;
+using System.Linq;
 
 public partial class Main : Node
 {
@@ -81,6 +82,19 @@ public partial class Main : Node
 	private ProgressBar? _startupProgressBar;
 	private Label? _startupProgressLabel;
 	private bool _viewportSizeChangedConnected;
+	private CanvasLayer? _runtimeUiLayer;
+	private Runtime.Manifest.ManifestDocument? _startupManifest;
+
+	public override void _EnterTree()
+	{
+		// Ensure the viewport renders with a transparent background from the very
+		// first frame. Combined with the project.godot clear-color setting and
+		// window/size/transparent=true, the initial window is see-through rather than
+		// black while the SML document is loading.
+		RenderingServer.SetDefaultClearColor(Colors.Transparent);
+		GetViewport().TransparentBg = true;
+		base._EnterTree();
+	}
 
 	public override async void _Ready()
 	{
@@ -89,8 +103,6 @@ public partial class Main : Node
 
 		var startupSettings = await LoadStartupSettingsAsync();
 		RunnerLogger.Configure(startupSettings.IncludeStackTraces, startupSettings.ShowParserWarnings);
-
-		_resolvedStartupUiUrl = await ResolveStartupUiUrlAsync();
 
 		var theme = GD.Load<Theme>("res://theme.tres");
 		if (theme is null)
@@ -104,9 +116,23 @@ public partial class Main : Node
 			RunnerLogger.Info("Startup", $"Window.Theme now = {GetWindow().Theme}");
 		}
 
-		if (LoadUiOnStartup)
+		if (!LoadUiOnStartup)
 		{
-			await RunUiStartup();
+			return;
+		}
+
+		_resolvedStartupUiUrl = await ResolveEntryFileUrlAsync();
+		await RunUiStartup();
+
+		// Phase 2: Restliche Assets laden (parallel zum SplashScreen-Timer)
+		if (_runtimeUiRoot is not null && IsSplashScreenRoot(_runtimeUiRoot))
+		{
+			await RunSplashFlowAsync(_runtimeUiRoot);
+		}
+		else if (_startupManifest is not null)
+		{
+			// Kein SplashScreen → restliche Assets mit bestehendem Overlay nachladen
+			await SyncRemainingAssetsAsync(progressBar: null);
 		}
 	}
 
@@ -161,6 +187,217 @@ public partial class Main : Node
 			Clicked: "about",
 			ClickedIdValue: IdRuntimeScope.GetOrCreate("about")
 		));
+	}
+
+	private void DetachUi()
+	{
+		if (_viewportSizeChangedConnected)
+		{
+			GetViewport().SizeChanged -= OnViewportSizeChanged;
+			_viewportSizeChangedConnected = false;
+		}
+
+		_runtimeUiLayer?.QueueFree();
+		_runtimeUiLayer  = null;
+		_runtimeUiHost   = null;
+		_runtimeUiRoot   = null;
+		_fixedUiViewport = null;
+		_fixedUiTexture  = null;
+		_uiScalingConfig = new UiScalingConfig(UiScalingMode.Layout, Vector2I.Zero);
+	}
+
+	private static bool IsSplashScreenRoot(Control control)
+	{
+		return control.HasMeta(NodePropertyMapper.MetaNodeName)
+			&& string.Equals(
+				control.GetMeta(NodePropertyMapper.MetaNodeName).AsString(),
+				"SplashScreen",
+				StringComparison.OrdinalIgnoreCase);
+	}
+
+	private async Task<string> ResolveEntryFileUrlAsync()
+	{
+		var options = ParseStartupOptions();
+		var settings = await LoadStartupSettingsAsync();
+
+		if (options.ResetStartUrl)
+		{
+			settings.StartUrl = null;
+			await SaveStartupSettingsAsync(settings);
+		}
+
+		var configuredStartUrl = options.UrlOverride
+			?? settings.StartUrl
+			?? (!string.IsNullOrWhiteSpace(UiSmlUrl) ? UiSmlUrl : null);
+
+		if (!string.IsNullOrWhiteSpace(configuredStartUrl))
+		{
+			var normalized = _uriResolver.Normalize(configuredStartUrl);
+			var kind = SmlUriResolver.ClassifyScheme(normalized);
+			if (SmlUriResolver.IsLocalScheme(kind))
+			{
+				RunnerLogger.Info("Startup", $"Local entry URL resolved directly: '{normalized}'");
+				return normalized;
+			}
+		}
+
+		if (!EnableStartupSync)
+		{
+			return ResolveLegacyStartupUiUrl(configuredStartUrl ?? string.Empty);
+		}
+
+		var manifestUrl = ToManifestUrl(configuredStartUrl ?? DefaultStartUrl);
+		if (manifestUrl is null)
+		{
+			var direct = await TryResolveDirectUiAsync(configuredStartUrl ?? DefaultStartUrl);
+			return direct ?? BuildFallbackAppFileUrl();
+		}
+
+		try
+		{
+			_startupManifest = await _manifestLoader.LoadAsync(manifestUrl);
+			var entryPaths = AssetCacheManager.BuildEntryPathSet(_startupManifest);
+			var entryResult = await _assetCacheManager.SyncAsync(
+				_startupManifest, entryPathsOnly: entryPaths);
+			if (!string.IsNullOrWhiteSpace(entryResult.EntryFileUrl))
+			{
+				RunnerLogger.Info("Startup", $"Entry file synced: '{entryResult.EntryFileUrl}'");
+				return entryResult.EntryFileUrl;
+			}
+		}
+		catch (Exception ex)
+		{
+			var offline = IsOfflineException(ex);
+			RunnerLogger.Warn("Startup", $"Entry-file sync failed for '{manifestUrl}'", ex);
+			RunnerLogger.Info("Startup", $"Offline: {offline}");
+			var cached = _assetCacheManager.TryGetCachedEntryUrl(manifestUrl);
+			if (!string.IsNullOrWhiteSpace(cached))
+			{
+				return cached;
+			}
+		}
+
+		return BuildFallbackAppFileUrl();
+	}
+
+	private async Task SyncRemainingAssetsAsync(ProgressBar? progressBar)
+	{
+		if (_startupManifest is null)
+		{
+			return;
+		}
+
+		var syncPlan = await _assetCacheManager.BuildSyncPlanAsync(_startupManifest);
+		if (syncPlan.DownloadCount == 0)
+		{
+			return;
+		}
+
+		IProgress<AssetSyncProgress>? reporter;
+
+		if (progressBar is not null)
+		{
+			reporter = new Progress<AssetSyncProgress>(p =>
+			{
+				if (!IsInstanceValid(progressBar)) return;
+				progressBar.Visible  = p.TotalCount > 0;
+				progressBar.MaxValue = Math.Max(1, p.TotalCount);
+				progressBar.Value    = Math.Min(p.CompletedCount, p.TotalCount);
+			});
+
+			try
+			{
+				await _assetCacheManager.SyncAsync(_startupManifest, progress: reporter);
+			}
+			finally
+			{
+				if (IsInstanceValid(progressBar))
+				{
+					progressBar.Visible = false;
+				}
+			}
+		}
+		else
+		{
+			ShowStartupProgressOverlay(syncPlan);
+			reporter = new Progress<AssetSyncProgress>(ReportStartupProgress);
+			try
+			{
+				await _assetCacheManager.SyncAsync(_startupManifest, progress: reporter);
+			}
+			finally
+			{
+				HideStartupProgressOverlay();
+			}
+		}
+	}
+
+	private async Task RunSplashFlowAsync(Control splashRoot)
+	{
+		var durationMs = splashRoot.HasMeta(NodePropertyMapper.MetaSplashDuration)
+			? splashRoot.GetMeta(NodePropertyMapper.MetaSplashDuration).AsInt32()
+			: 0;
+		var loadOnReady = splashRoot.HasMeta(NodePropertyMapper.MetaSplashLoadOnReady)
+			? splashRoot.GetMeta(NodePropertyMapper.MetaSplashLoadOnReady).AsString()
+			: string.Empty;
+
+		// Resolve relative loadOnReady URLs against the current document's URL
+		if (!string.IsNullOrEmpty(loadOnReady) && !string.IsNullOrEmpty(_resolvedStartupUiUrl))
+		{
+			loadOnReady = _uriResolver.ResolveReference(loadOnReady, _resolvedStartupUiUrl);
+		}
+
+		var progressBar = EnumerateDescendants<ProgressBar>(splashRoot).FirstOrDefault();
+
+		var timerTask = durationMs > 0 ? Task.Delay(durationMs) : Task.CompletedTask;
+		var syncTask  = SyncRemainingAssetsAsync(progressBar);
+
+		await Task.WhenAll(timerTask, syncTask);
+
+		if (!string.IsNullOrEmpty(loadOnReady))
+		{
+			// Load the next document while the splash is still visible, then swap
+			// atomically — this avoids any black-screen gap between the two UIs.
+			await SwapToUiAsync(loadOnReady);
+		}
+	}
+
+	/// <summary>
+	/// Pre-loads a new SML document, then atomically swaps out the current UI
+	/// (e.g. SplashScreen) for the new one without an intermediate blank frame.
+	/// </summary>
+	private async Task SwapToUiAsync(string url)
+	{
+		var newRuntime = new SmsUiRuntime(_uriResolver, url);
+		await newRuntime.InitializeAsync();
+
+		var loader = new SmlUiLoader(
+			_nodeFactoryRegistry,
+			_nodePropertyMapper,
+			animationApi: null,
+			configureActions: ConfigureProjectActions,
+			uriResolver: _uriResolver);
+
+		Control? rootControl;
+		try
+		{
+			rootControl = await loader.LoadFromUriAsync(url);
+		}
+		catch (Exception ex)
+		{
+			RunnerLogger.Error("UI", $"Failed to load UI from '{url}'", ex);
+			return;
+		}
+
+		// Splash is still visible here. Swap in one synchronous block.
+		_resolvedStartupUiUrl = url;
+		_smsUiRuntime = newRuntime;
+		DetachUi();
+		AttachUi(rootControl);
+		await EnsureRuntimeUiReadyStateAsync();
+		RunnerLogger.Info("UI", $"UI loaded from '{url}'.");
+		await InvokeUiReadyHandlersAsync();
+		_smsUiRuntime?.InvokeReady();
 	}
 
 	private async Task<string> ResolveStartupUiUrlAsync()
@@ -1111,6 +1348,7 @@ public partial class Main : Node
 		layer.AddChild(host);
 		AddChild(layer);
 
+		_runtimeUiLayer = layer;
 		_runtimeUiHost = host;
 		_runtimeUiRoot = rootControl;
 
@@ -1136,7 +1374,13 @@ public partial class Main : Node
 
 		if (state.Window is not null)
 		{
-			ApplyWindowState(state.Window);
+			var currentWindowId = _runtimeUiRoot is not null ? ResolveControlKey(_runtimeUiRoot) : string.Empty;
+			var savedWindowId = state.Window.WindowId;
+			var bothHaveNoId = string.IsNullOrWhiteSpace(savedWindowId) && string.IsNullOrWhiteSpace(currentWindowId);
+			if (bothHaveNoId || savedWindowId == currentWindowId)
+			{
+				ApplyWindowState(state.Window);
+			}
 		}
 
 		if (state.Docking is not null && _runtimeUiRoot is not null && ContainsDockingHost(_runtimeUiRoot))
@@ -1175,6 +1419,7 @@ public partial class Main : Node
 
 		return new UiWindowState
 		{
+			WindowId = _runtimeUiRoot is not null ? ResolveControlKey(_runtimeUiRoot) : string.Empty,
 			PositionX = window.Position.X,
 			PositionY = window.Position.Y,
 			SizeX = window.Size.X,
@@ -1461,6 +1706,7 @@ public partial class Main : Node
 
 	private sealed class UiWindowState
 	{
+		public string WindowId { get; set; } = string.Empty;
 		public int PositionX { get; set; }
 		public int PositionY { get; set; }
 		public int SizeX { get; set; }
@@ -1488,6 +1734,22 @@ public partial class Main : Node
 		if (GetWindow() is not { } window)
 		{
 			return;
+		}
+
+		// When transitioning to a Window node, reset the project-default flags that were
+		// configured for the SplashScreen (non-resizable, borderless, always-on-top).
+		var nodeName = rootControl.HasMeta(NodePropertyMapper.MetaNodeName)
+			? rootControl.GetMeta(NodePropertyMapper.MetaNodeName).AsString()
+			: string.Empty;
+
+		if (string.Equals(nodeName, "Window", StringComparison.OrdinalIgnoreCase))
+		{
+			window.SetFlag(Window.Flags.ResizeDisabled, false);
+			window.SetFlag(Window.Flags.Borderless, false);
+			window.SetFlag(Window.Flags.AlwaysOnTop, false);
+			window.MinimizeDisabled = false;
+			window.MaximizeDisabled = false;
+			RunnerLogger.Info("UI", "Window flags reset to normal (resizable, all buttons, not borderless, not always-on-top)");
 		}
 
 		if (rootControl.HasMeta(NodePropertyMapper.MetaWindowTitle))

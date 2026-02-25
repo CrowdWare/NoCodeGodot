@@ -953,7 +953,10 @@ public sealed class SmlUiBuilder
 
     private static bool TryApplyWindowScalingMetadata(Control control, string nodeName, string propertyName, SmlValue value)
     {
-        if (!nodeName.Equals("Window", StringComparison.OrdinalIgnoreCase))
+        var isWindow = nodeName.Equals("Window",       StringComparison.OrdinalIgnoreCase);
+        var isSplash = nodeName.Equals("SplashScreen", StringComparison.OrdinalIgnoreCase);
+
+        if (!isWindow && !isSplash)
         {
             return false;
         }
@@ -961,13 +964,27 @@ public sealed class SmlUiBuilder
         switch (propertyName.ToLowerInvariant())
         {
             case "scaling":
+                if (!isWindow) return false;
                 control.SetMeta(MetaScalingMode, Variant.From(value.AsStringOrThrow(propertyName)));
                 return true;
 
             case "designsize":
+                if (!isWindow) return false;
                 var designSize = value.AsVec2iOrThrow(propertyName);
                 control.SetMeta(MetaDesignSizeX, Variant.From(designSize.X));
                 control.SetMeta(MetaDesignSizeY, Variant.From(designSize.Y));
+                return true;
+
+            case "duration":
+                if (!isSplash) return false;
+                control.SetMeta(NodePropertyMapper.MetaSplashDuration,
+                    Variant.From(value.AsIntOrThrow(propertyName)));
+                return true;
+
+            case "loadonready":
+                if (!isSplash) return false;
+                control.SetMeta(NodePropertyMapper.MetaSplashLoadOnReady,
+                    Variant.From(value.AsStringOrThrow(propertyName)));
                 return true;
 
             default:

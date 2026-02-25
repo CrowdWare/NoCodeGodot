@@ -94,6 +94,7 @@ All classes listed below inherit from `Control`.
 - [Separator](Separator.md)
 - [Slider](Slider.md)
 - [SpinBox](SpinBox.md)
+- [SplashScreen](SplashScreen.md)
 - [SplitContainer](SplitContainer.md)
 - [SubViewportContainer](SubViewportContainer.md)
 - [TabBar](TabBar.md)
