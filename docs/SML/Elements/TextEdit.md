@@ -17,8 +17,13 @@ Inherited properties are documented in: [Control](Control.md)
 
 | Godot Property | SML Property | Type | Default |
 |-|-|-|-|
+| font_color (theme override) | color | color | — |
 | font_size (theme override) | fontSize | int | — |
 | font (theme override) | font | string(path) | — |
+| normal/read_only/focus StyleBoxFlat (theme override) | bgColor | color | — |
+| normal StyleBoxFlat (theme override) | borderColor | color | — |
+| normal StyleBoxFlat (theme override) | borderWidth | int | — |
+| normal StyleBoxFlat (theme override) | borderRadius | int | — |
 
 ## Events
 

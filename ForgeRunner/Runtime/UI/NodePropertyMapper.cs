@@ -140,6 +140,22 @@ public sealed class NodePropertyMapper
                 ApplyColor(control, value.AsStringOrThrow(propertyName), propertyName);
                 return;
 
+            case "bgcolor":
+                ApplyBgColor(control, value.AsStringOrThrow(propertyName), propertyName);
+                return;
+
+            case "bordercolor":
+                ApplyBorderColor(control, value.AsStringOrThrow(propertyName), propertyName);
+                return;
+
+            case "borderwidth":
+                ApplyBorderWidth(control, value.AsIntOrThrow(propertyName));
+                return;
+
+            case "borderradius":
+                ApplyBorderRadius(control, value.AsIntOrThrow(propertyName));
+                return;
+
             case "spacing":
                 ApplySpacing(control, value.AsIntOrThrow(propertyName));
                 return;
@@ -869,6 +885,14 @@ public sealed class NodePropertyMapper
                 button.AddThemeColorOverride("font_color", color);
                 break;
 
+            case LineEdit lineEdit:
+                lineEdit.AddThemeColorOverride("font_color", color);
+                break;
+
+            case TextEdit textEdit:
+                textEdit.AddThemeColorOverride("font_color", color);
+                break;
+
             default:
                 RunnerLogger.Warn("UI", $"Property 'color' ignored for node type '{control.GetType().Name}'.");
                 break;
@@ -1003,6 +1027,9 @@ public sealed class NodePropertyMapper
             case TextEdit textEdit:
                 textEdit.AddThemeFontSizeOverride("font_size", fontSize);
                 break;
+            case LineEdit lineEdit:
+                lineEdit.AddThemeFontSizeOverride("font_size", fontSize);
+                break;
             default:
                 RunnerLogger.Warn("UI", $"Property 'fontSize' ignored for node type '{control.GetType().Name}'.");
                 break;
@@ -1047,6 +1074,9 @@ public sealed class NodePropertyMapper
                 break;
             case TextEdit textEdit:
                 textEdit.AddThemeFontOverride("font", font);
+                break;
+            case LineEdit lineEdit:
+                lineEdit.AddThemeFontOverride("font", font);
                 break;
             default:
                 RunnerLogger.Warn("UI", $"Property 'font' ignored for node type '{control.GetType().Name}'.");
@@ -1108,6 +1138,84 @@ public sealed class NodePropertyMapper
                 RunnerLogger.Warn("UI", $"Property 'halign' ignored for node type '{control.GetType().Name}'.");
                 break;
         }
+    }
+
+    private static StyleBoxFlat GetOrCreateBgStyle(Control control)
+    {
+        const string key = "sml_bg_style";
+        if (control.HasMeta(key))
+            return control.GetMeta(key).As<StyleBoxFlat>()!;
+        var style = new StyleBoxFlat { BgColor = Colors.Transparent };
+        control.SetMeta(key, style);
+        return style;
+    }
+
+    private static void EnsureBgStyleApplied(Control control, StyleBoxFlat style)
+    {
+        switch (control)
+        {
+            case PanelContainer panelContainer:
+                panelContainer.AddThemeStyleboxOverride("panel", style);
+                break;
+            case Panel panel:
+                panel.AddThemeStyleboxOverride("panel", style);
+                break;
+            case Button button:
+                button.AddThemeStyleboxOverride("normal", style);
+                break;
+            case LineEdit lineEdit:
+                lineEdit.AddThemeStyleboxOverride("normal", style);
+                break;
+            case TextEdit textEdit:
+                textEdit.AddThemeStyleboxOverride("normal", style);
+                textEdit.AddThemeStyleboxOverride("read_only", style);
+                textEdit.AddThemeStyleboxOverride("focus", style);
+                break;
+            case Label label:
+                label.AddThemeStyleboxOverride("normal", style);
+                break;
+            case MarkdownContainer markdownContainer:
+                markdownContainer.SetBgStyle(style);
+                break;
+            default:
+                RunnerLogger.Warn("UI", $"Background style properties not supported for node type '{control.GetType().Name}'.");
+                break;
+        }
+    }
+
+    private static void ApplyBgColor(Control control, string rawColor, string propertyName)
+    {
+        if (!TryParseColor(rawColor, out var color))
+            throw new SmlParseException($"Property '{propertyName}' must be a color in #RRGGBB or #AARRGGBB format.");
+        var style = GetOrCreateBgStyle(control);
+        style.BgColor = color;
+        EnsureBgStyleApplied(control, style);
+    }
+
+    private static void ApplyBorderColor(Control control, string rawColor, string propertyName)
+    {
+        if (!TryParseColor(rawColor, out var color))
+            throw new SmlParseException($"Property '{propertyName}' must be a color in #RRGGBB or #AARRGGBB format.");
+        var style = GetOrCreateBgStyle(control);
+        style.BorderColor = color;
+        EnsureBgStyleApplied(control, style);
+    }
+
+    private static void ApplyBorderWidth(Control control, int width)
+    {
+        var style = GetOrCreateBgStyle(control);
+        style.SetBorderWidthAll(width);
+        EnsureBgStyleApplied(control, style);
+    }
+
+    private static void ApplyBorderRadius(Control control, int radius)
+    {
+        var style = GetOrCreateBgStyle(control);
+        style.CornerRadiusTopLeft = radius;
+        style.CornerRadiusTopRight = radius;
+        style.CornerRadiusBottomLeft = radius;
+        style.CornerRadiusBottomRight = radius;
+        EnsureBgStyleApplied(control, style);
     }
 
     private static bool ToBoolOrThrow(SmlValue value, string propertyName)

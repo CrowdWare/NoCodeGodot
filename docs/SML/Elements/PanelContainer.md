@@ -19,6 +19,10 @@ Inherited properties are documented in: [Container](Container.md)
 
 | Godot Property | SML Property | Type | Default |
 |-|-|-|-|
+| panel StyleBoxFlat (theme override) | bgColor | color | — |
+| panel StyleBoxFlat (theme override) | borderColor | color | — |
+| panel StyleBoxFlat (theme override) | borderWidth | int | — |
+| panel StyleBoxFlat (theme override) | borderRadius | int | — |
 
 ## Events
 

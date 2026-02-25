@@ -11,40 +11,13 @@ Inherited properties are documented in: [Control](Control.md)
 
 | Godot Property | SML Property | Type | Default |
 |-|-|-|-|
-| alignment | alignment | int | — |
-| backspace_deletes_composite_character_enabled | backspaceDeletesCompositeCharacterEnabled | bool | — |
-| caret_blink | caretBlink | bool | — |
-| caret_blink_interval | caretBlinkInterval | float | — |
-| caret_column | caretColumn | int | — |
-| caret_force_displayed | caretForceDisplayed | bool | — |
-| caret_mid_grapheme | caretMidGrapheme | bool | — |
-| clear_button_enabled | clearButtonEnabled | bool | — |
-| context_menu_enabled | contextMenuEnabled | bool | — |
-| deselect_on_focus_loss_enabled | deselectOnFocusLossEnabled | bool | — |
-| drag_and_drop_selection_enabled | dragAndDropSelectionEnabled | bool | — |
-| draw_control_chars | drawControlChars | bool | — |
-| editable | editable | bool | — |
-| emoji_menu_enabled | emojiMenuEnabled | bool | — |
-| expand_to_text_length | expandToTextLength | bool | — |
-| flat | flat | bool | — |
-| icon_expand_mode | iconExpandMode | int | — |
-| keep_editing_on_text_submit | keepEditingOnTextSubmit | bool | — |
-| language | language | string | — |
-| max_length | maxLength | int | — |
-| middle_mouse_paste_enabled | middleMousePasteEnabled | bool | — |
-| placeholder_text | placeholderText | string | — |
-| right_icon_scale | rightIconScale | float | — |
-| secret | secret | bool | — |
-| secret_character | secretCharacter | string | — |
-| select_all_on_focus | selectAllOnFocus | bool | — |
-| selecting_enabled | selectingEnabled | bool | — |
-| shortcut_keys_enabled | shortcutKeysEnabled | bool | — |
-| structured_text_bidi_override | structuredTextBidiOverride | int | — |
-| text | text | string | — |
-| text_direction | textDirection | int | — |
-| virtual_keyboard_enabled | virtualKeyboardEnabled | bool | — |
-| virtual_keyboard_show_on_focus | virtualKeyboardShowOnFocus | bool | — |
-| virtual_keyboard_type | virtualKeyboardType | int | — |
+| font_color (theme override) | color | color | — |
+| font_size (theme override) | fontSize | int | — |
+| font (theme override) | font | string(path) | — |
+| normal StyleBoxFlat (theme override) | bgColor | color | — |
+| normal StyleBoxFlat (theme override) | borderColor | color | — |
+| normal StyleBoxFlat (theme override) | borderWidth | int | — |
+| normal StyleBoxFlat (theme override) | borderRadius | int | — |
 
 ## Events
 

@@ -70,7 +70,7 @@ public sealed class NodeFactoryRegistry
         Register("CodeEdit", () => new CodeEdit());
         Register("HBoxContainer", () => new HBoxContainer());
         Register("VBoxContainer", () => new VBoxContainer());
-        Register("Markdown", () => new VBoxContainer());
+        Register("Markdown", () => new MarkdownContainer());
         Register("MarkdownLabel", () => new RichTextLabel
         {
             FitContent = true,

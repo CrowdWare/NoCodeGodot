@@ -123,6 +123,8 @@ Inherited properties are documented in: [CanvasItem](CanvasItem.md)
 | Godot Property | SML Property | Type | Default |
 |-|-|-|-|
 | mouse_filter | mouseFilter | enum | stop |
+| size_flags_horizontal | shrinkH | bool | false |
+| size_flags_vertical | shrinkV | bool | false |
 
 ## Events
 
