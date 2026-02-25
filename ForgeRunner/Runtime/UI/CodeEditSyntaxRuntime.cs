@@ -212,24 +212,12 @@ public static partial class CodeEditSyntaxRuntime
         highlighter.SymbolColor = new Color(0.83f, 0.86f, 0.90f, 1f);
         highlighter.FunctionColor = new Color(0.94f, 0.96f, 0.99f, 1f);
         highlighter.MemberVariableColor = new Color(0.80f, 0.90f, 1f, 1f);
-        highlighter.AddColorRegion("\"", "\"", new Color(0.73f, 0.92f, 0.67f, 1f));
+        highlighter.AddColorRegion("\"", "\"", new Color(0.745f, 0.537f, 0.435f, 1f));
         highlighter.AddColorRegion("//", string.Empty, new Color(0.58f, 0.64f, 0.60f, 1f), true);
 
-        var keywordColor = new Color(0.70f, 0.80f, 1f, 1f);
-        var rulePathLower = rulePath.ToLowerInvariant();
-        if (rulePathLower.Contains("cs_syntax"))
-        {
-            keywordColor = new Color(0.86f, 0.70f, 1f, 1f);
-        }
-        else if (rulePathLower.Contains("sms_syntax"))
-        {
-            keywordColor = new Color(0.87f, 0.75f, 1f, 1f);
-        }
-        else if (rulePathLower.Contains("sml_syntax"))
-        {
-            keywordColor = new Color(0.61f, 0.86f, 0.80f, 1f);
-        }
-
+        
+        var keywordColor = new Color(0.357f, 0.533f, 0.769f, 1f);
+        
         var globalPath = ProjectSettings.GlobalizePath(rulePath);
         if (!File.Exists(globalPath))
         {
