@@ -20,15 +20,12 @@ SplashScreen {
                 padding: 30, 0, 0, 0
                 TextureRect {
                     id: logo
-                    src: "appRes://logo.svg"
-                    width: 72
-                    height: 72
-                    offsetTop: 30
-                    shrinkH: true
-                    shrinkV: true
+                    src: "appRes://logo.png"
+                    width: 350
+                    height: 175
                 }
             }
-            VBoxContainer {
+            /*VBoxContainer {
                 padding: 16
                 Label { 
                     id: appName    
@@ -52,7 +49,7 @@ SplashScreen {
                     fontWeight: regular
                     text: "By the crowd. For the crowd." 
                 }
-            }
+            }*/
         }
 
         Control { sizeFlagsVertical: expandFill }
