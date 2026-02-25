@@ -19,6 +19,7 @@ Inherited properties are documented in: [BoxContainer](BoxContainer.md)
 
 | Godot Property | SML Property | Type | Default |
 |-|-|-|-|
+| separation (theme override) | spacing | int | — |
 
 ## Events
 

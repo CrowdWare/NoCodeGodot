@@ -16,7 +16,13 @@ SplashScreen {
                 height: 72
             }
             VBoxContainer {
-                Label { id: appName    text: "CrowdWare" color: "#4fc3f7" }
+                Label { 
+                    id: appName    
+                    text: "CrowdWare" 
+                    color: "#4fc3f7" 
+                    fontSize: 38 
+                    fontWeight: 400
+                }
                 Label { id: appTitle   text: "Forge" }
                 Label { id: appTagline text: "By the crowd. For the crowd." }
             }

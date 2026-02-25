@@ -21,18 +21,9 @@ Inherited properties are documented in: [BaseButton](BaseButton.md)
 
 | Godot Property | SML Property | Type | Default |
 |-|-|-|-|
-| alignment | alignment | int | — |
-| autowrap_mode | autowrapMode | int | — |
-| autowrap_trim_flags | autowrapTrimFlags | int | — |
-| clip_text | clipText | bool | — |
-| expand_icon | expandIcon | bool | — |
-| flat | flat | bool | — |
-| icon_alignment | iconAlignment | int | — |
-| language | language | string | — |
-| text | text | string | — |
-| text_direction | textDirection | int | — |
-| text_overrun_behavior | textOverrunBehavior | int | — |
-| vertical_icon_alignment | verticalIconAlignment | int | — |
+| font_color (theme override) | color | color | — |
+| font_size (theme override) | fontSize | int | — |
+| font (theme override) | font | string(path) | — |
 
 ## Events
 
