@@ -189,6 +189,18 @@ public sealed class NodePropertyMapper
                 control.SizeFlagsVertical = ToSizeFlagsOrThrow(value, propertyName);
                 return;
 
+            case "shrinkh":
+                control.SizeFlagsHorizontal = ToBoolOrThrow(value, propertyName)
+                    ? Control.SizeFlags.ShrinkBegin
+                    : Control.SizeFlags.Fill;
+                return;
+
+            case "shrinkv":
+                control.SizeFlagsVertical = ToBoolOrThrow(value, propertyName)
+                    ? Control.SizeFlags.ShrinkBegin
+                    : Control.SizeFlags.Fill;
+                return;
+
             case "id":
                 var idValue = value.AsStringOrThrow(propertyName);
                 control.SetMeta(MetaId, Variant.From(idValue));

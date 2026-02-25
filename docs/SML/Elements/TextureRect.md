@@ -2,7 +2,13 @@
 
 ## Inheritance
 
-[TextureRect](TextureRect.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
+[TextureRect](TextureRect.md) → [TextureRect](TextureRect.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
+
+## Derived Classes
+
+### Direct subclasses
+
+- [TextureRect](TextureRect.md)
 
 ## Properties
 
@@ -11,10 +17,27 @@ Inherited properties are documented in: [Control](Control.md)
 
 | Godot Property | SML Property | Type | Default |
 |-|-|-|-|
-| expand_mode | expandMode | int | — |
-| flip_h | flipH | bool | — |
-| flip_v | flipV | bool | — |
-| stretch_mode | stretchMode | int | — |
+| — | id | identifier | — |
+| — | src | string(url) | "" |
+| — | alt | string | "" |
+| — | width | int | — |
+| — | height | int | — |
+| — | shrinkH | bool | false |
+| — | shrinkV | bool | false |
+
+> Displays an image or SVG. Use width/height to set a fixed size, combined with shrinkH/shrinkV to prevent the control from expanding beyond that size inside a container.
+
+### Examples
+
+```sml
+TextureRect {
+    src: "res://logo.svg"
+    width: 72
+    height: 72
+    shrinkH: true
+    shrinkV: true
+}
+```
 
 ## Events
 

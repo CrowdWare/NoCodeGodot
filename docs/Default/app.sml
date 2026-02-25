@@ -12,8 +12,10 @@ SplashScreen {
             TextureRect {
                 id: logo
                 src: "res://logo.svg"
-                width: 72   // wird anscheinend nicht unterstützt
-                height: 72  // wird anscheinend nicht unterstützt
+                width: 72
+                height: 72
+                shrinkH: true
+                shrinkV: true
             }
             VBoxContainer {
                 padding: 16

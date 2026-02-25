@@ -79,7 +79,7 @@ public static class SchemaTypes
         new TypeDef("TextEdit", "Control", false),
         new TypeDef("TextureButton", "BaseButton", false),
         new TypeDef("TextureProgressBar", "Range", false),
-        new TypeDef("TextureRect", "Control", false),
+        new TypeDef("TextureRect", "TextureRect", false),
         new TypeDef("Tree", "Control", true),
         new TypeDef("VBoxContainer", "BoxContainer", false),
         new TypeDef("VFlowContainer", "FlowContainer", false),

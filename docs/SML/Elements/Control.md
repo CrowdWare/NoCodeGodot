@@ -103,6 +103,7 @@ All classes listed below inherit from `Control`.
 - [TextureButton](TextureButton.md)
 - [TextureProgressBar](TextureProgressBar.md)
 - [TextureRect](TextureRect.md)
+- [TextureRect](TextureRect.md)
 - [Tree](Tree.md)
 - [VBoxContainer](VBoxContainer.md)
 - [VFlowContainer](VFlowContainer.md)
