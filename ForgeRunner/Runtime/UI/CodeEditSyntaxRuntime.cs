@@ -291,9 +291,9 @@ public static partial class CodeEditSyntaxRuntime
         highlighter.FunctionColor = new Color(0.94f, 0.96f, 0.99f, 1f);
         highlighter.MemberVariableColor = new Color(0.94f, 0.96f, 0.99f, 1f);
 
-        var h1Color = new Color(0.92f, 0.72f, 1f, 1f);
-        var h2Color = new Color(0.82f, 0.76f, 1f, 1f);
-        var h3Color = new Color(0.75f, 0.82f, 1f, 1f);
+        var h1Color = new Color(0.357f, 0.533f, 0.769f, 1f);
+        var h2Color = new Color(0.357f, 0.533f, 0.769f, 1f);
+        var h3Color = new Color(0.357f, 0.533f, 0.769f, 1f);
         var boldItalicColor = new Color(1f, 0.82f, 0.66f, 1f);
         var boldColor = new Color(0.98f, 0.84f, 0.65f, 1f);
         var italicColor = new Color(0.96f, 0.78f, 0.72f, 1f);
