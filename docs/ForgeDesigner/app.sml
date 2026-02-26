@@ -1,130 +1,72 @@
-Window {
-    id: mainWindow
-    title: "Forge"
-    minSize: 800,400
-    pos: 0, 0
-    size: 1920, 1080
-    extendToTitle: true
+Fonts {
+    Sans-Bold:     "appRes://assets/fonts/SansBlack.ttf"
+    Inter-Regular: "appRes://assets/fonts/Inter_18pt-Regular.ttf"
+    Inter-Bold:    "appRes://assets/fonts/Inter_18pt-Bold.ttf"
+}
 
-    MenuBar {
-        preferGlobalMenu: true
+SplashScreen {
+    id: splashScreen
+    size: 640, 480
+    duration: 3000
+    loadOnReady: "main.sml"
 
-        PopupMenu {
-            id: appMenu
-            title: "Forge"
-
-            Item { id: about text: "About Forge" }
-            Item { id: settings text: "Settings" }
-            Item { id: quit text: "Quit Forge" }
-        }
-
-        PopupMenu {
-            id: file
-            title: "File"
-
-            Item { id: saveAs text: "Save As..." }
-        }
-    }
-
-
-    WindowDrag {
-        id: titleDrag
-        anchors: left | top | right
-        top: 0
-        height: 42
-    }
-
-    Markdown {
-        top: 5
-        left: 100
-        width: 200
-        height: 20
-        mouseFilter: ignore
-        text: "**Forge** - Designer"
-    }
-
-     DockingHost {
-        id: mainDockHost
+    VBoxContainer {
         anchors: left | top | right | bottom
-        gap: 8
-        offsetTop: 42
+        padding: 40, 40, 40, 32
 
-        DockingContainer {
-            id: farLeftDock
-            dockSide: left
-            fixedWidth: 300
-            dragToRearrangeEnabled: true
-            tabsRearrangeGroup: 1
-
+        HBoxContainer {
             VBoxContainer {
-                id: project
-                farLeftDock.title: "Project"
-                Tree {
-                    id: treeview
-                    sizeFlagsHorizontal: expandFill
-                    sizeFlagsVertical: expandFill
-                    showGuides: false
+                shrinkH: true
+                padding: 30, 0, 0, 0
+                TextureRect {
+                    id: logo
+                    src: "appRes://logo.png"
+                    width: 350
+                    height: 175
                 }
             }
-
-            VBoxContainer {
-                id: hierarchy
-                farLeftDock.title: "Hierarchy"
-                Tree {
-                    id: hierarchyTree
-                    sizeFlagsHorizontal: expandFill
-                    sizeFlagsVertical: expandFill
-                    showGuides: false
+            /*VBoxContainer {
+                padding: 16
+                Label { 
+                    id: appName    
+                    text: "CrowdWare" 
+                    color: "#4fc3f7" 
+                    fontFace: "Sans"
+                    fontSize: 45
+                    fontWeight: bold
                 }
-            }
+                Label { 
+                    id: appTitle 
+                    fontSize: 35
+                    fontFace: "Sans"
+                    fontWeight: bold
+                    text: "Forge" 
+                }
+                Label { 
+                    id: appTagline 
+                    fontFace: "Inter"
+                    fontSize: 18
+                    fontWeight: regular
+                    text: "By the crowd. For the crowd." 
+                }
+            }*/
         }
 
-        DockingContainer {
-            id: centerDock
-            dockSide: center
-            flex: true
-            closeable: false
-            dragToRearrangeEnabled: true
+        Control { sizeFlagsVertical: expandFill }
 
-            CodeEdit {
-                id: codeEdit
-                centerDock.title: "<New>"
-                text: "Window {
-    title: \"Test\"
-}"
-                syntax: "sml"
-                //font: "appres://DeineFont.ttf"
-                fontSize: 13
-            }
+        Label {
+            id: statusLabel
+            text: "Loading assets..."
+            visible: false
         }
-
-        DockingContainer {
-            id: rightDock
-            dockSide: right
-            fixedWidth: 360
-            dragToRearrangeEnabled: true
-            tabsRearrangeGroup: 1
-
-            VBoxContainer {
-                id: inspector
-                rightDock.title: "Markdown"
-                Markdown {
-                    padding: 8,8,8,20
-                    src: "res:/sample.md"
-                }
-            }
-
-            VBoxContainer {
-                id: preview
-                rightDock.title: "Portrait"
-                Label { text: "Portrait Preview" }
-            }
-
-            VBoxContainer {
-                id: profiler
-                rightDock.title: "Landscape"
-                Label { text: "Landscape Preview" }
-            }
+        ProgressBar {
+            id: downloadProgress
+            min: 0
+            max: 100
+            value: 0
+            showPercentage: false
+            sizeFlagsHorizontal: expandFill
+            visible: false
         }
     }
 }

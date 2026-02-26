@@ -25,31 +25,6 @@ SplashScreen {
                     height: 175
                 }
             }
-            /*VBoxContainer {
-                padding: 16
-                Label { 
-                    id: appName    
-                    text: "CrowdWare" 
-                    color: "#4fc3f7" 
-                    fontFace: "Sans"
-                    fontSize: 45
-                    fontWeight: bold
-                }
-                Label { 
-                    id: appTitle 
-                    fontSize: 35
-                    fontFace: "Sans"
-                    fontWeight: bold
-                    text: "Forge" 
-                }
-                Label { 
-                    id: appTagline 
-                    fontFace: "Inter"
-                    fontSize: 18
-                    fontWeight: regular
-                    text: "By the crowd. For the crowd." 
-                }
-            }*/
         }
 
         Control { sizeFlagsVertical: expandFill }
