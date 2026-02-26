@@ -25,6 +25,34 @@ func get_spec() -> Dictionary:
                     "type": "bool",
                     "default": "false",
                     "description": "Prevents vertical expansion beyond explicit height. true = ShrinkBegin, false = Fill."
+                },
+                {
+                    "sml": "bgColor",
+                    "godot": "— (drawn via BgControl._Draw)",
+                    "type": "color",
+                    "default": "—",
+                    "description": "Background color. Quoted string: \"#RRGGBB\" or \"#AARRGGBB\"."
+                },
+                {
+                    "sml": "borderColor",
+                    "godot": "— (drawn via BgControl._Draw)",
+                    "type": "color",
+                    "default": "—",
+                    "description": "Border color. Quoted string: \"#RRGGBB\" or \"#AARRGGBB\"."
+                },
+                {
+                    "sml": "borderWidth",
+                    "godot": "— (drawn via BgControl._Draw)",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Border width in pixels (all sides)."
+                },
+                {
+                    "sml": "borderRadius",
+                    "godot": "— (drawn via BgControl._Draw)",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Corner radius in pixels (all corners)."
                 }
             ],
             "Label": [
@@ -391,6 +419,34 @@ func get_spec() -> Dictionary:
                     "type": "int",
                     "default": "—",
                     "description": "Gap between child elements in pixels."
+                },
+                {
+                    "sml": "bgColor",
+                    "godot": "— (drawn via BgVBoxContainer._Draw)",
+                    "type": "color",
+                    "default": "—",
+                    "description": "Background color. Quoted string: \"#RRGGBB\" or \"#AARRGGBB\"."
+                },
+                {
+                    "sml": "borderColor",
+                    "godot": "— (drawn via BgVBoxContainer._Draw)",
+                    "type": "color",
+                    "default": "—",
+                    "description": "Border color. Quoted string: \"#RRGGBB\" or \"#AARRGGBB\"."
+                },
+                {
+                    "sml": "borderWidth",
+                    "godot": "— (drawn via BgVBoxContainer._Draw)",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Border width in pixels (all sides)."
+                },
+                {
+                    "sml": "borderRadius",
+                    "godot": "— (drawn via BgVBoxContainer._Draw)",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Corner radius in pixels (all corners)."
                 }
             ],
             "HBoxContainer": [
@@ -400,6 +456,34 @@ func get_spec() -> Dictionary:
                     "type": "int",
                     "default": "—",
                     "description": "Gap between child elements in pixels."
+                },
+                {
+                    "sml": "bgColor",
+                    "godot": "— (drawn via BgHBoxContainer._Draw)",
+                    "type": "color",
+                    "default": "—",
+                    "description": "Background color. Quoted string: \"#RRGGBB\" or \"#AARRGGBB\"."
+                },
+                {
+                    "sml": "borderColor",
+                    "godot": "— (drawn via BgHBoxContainer._Draw)",
+                    "type": "color",
+                    "default": "—",
+                    "description": "Border color. Quoted string: \"#RRGGBB\" or \"#AARRGGBB\"."
+                },
+                {
+                    "sml": "borderWidth",
+                    "godot": "— (drawn via BgHBoxContainer._Draw)",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Border width in pixels (all sides)."
+                },
+                {
+                    "sml": "borderRadius",
+                    "godot": "— (drawn via BgHBoxContainer._Draw)",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Corner radius in pixels (all corners)."
                 }
             ],
             "Markdown": [

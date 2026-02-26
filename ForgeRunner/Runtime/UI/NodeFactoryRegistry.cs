@@ -68,8 +68,9 @@ public sealed class NodeFactoryRegistry
         Register("Button", () => new Button());
         Register("TextEdit", () => new TextEdit());
         Register("CodeEdit", () => new CodeEdit());
-        Register("HBoxContainer", () => new HBoxContainer());
-        Register("VBoxContainer", () => new VBoxContainer());
+        Register("HBoxContainer", () => new BgHBoxContainer());
+        Register("VBoxContainer", () => new BgVBoxContainer());
+        Register("CenterContainer", () => new CenterContainer());
         Register("Markdown", () => new MarkdownContainer());
         Register("MarkdownLabel", () => new RichTextLabel
         {
@@ -77,7 +78,7 @@ public sealed class NodeFactoryRegistry
             ScrollActive = false
         });
         Register("TextureRect", () => new TextureRect());
-        Register("Control", () => new Control());
+        Register("Control", () => new BgControl());
         Register("TabBar", () => new TabBar());
         Register("TabContainer", () => new TabContainer());
         Register("MenuBar", () => new MenuBar());

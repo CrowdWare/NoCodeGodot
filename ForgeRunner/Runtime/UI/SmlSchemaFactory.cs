@@ -87,6 +87,10 @@ public static class SmlSchemaFactory
         schema.RegisterEnumValue("mouseFilter", "pass", 1);
         schema.RegisterEnumValue("mouseFilter", "ignore", 2);
 
+        schema.RegisterEnumValue("alignment", "begin", 0);
+        schema.RegisterEnumValue("alignment", "center", 1);
+        schema.RegisterEnumValue("alignment", "end", 2);
+
         schema.RegisterIdentifierProperty("fontWeight");
 
         return schema;

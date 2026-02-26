@@ -2,7 +2,7 @@
 
 ## Inheritance
 
-[VBoxContainer](VBoxContainer.md) → [BoxContainer](BoxContainer.md) → [Container](Container.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
+[VBoxContainer](VBoxContainer.md) → [VBoxContainer](VBoxContainer.md) → [BoxContainer](BoxContainer.md) → [Container](Container.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
 
 ## Derived Classes
 
@@ -11,6 +11,7 @@
 - [ColorPicker](ColorPicker.md)
 - [Markdown](Markdown.md)
 - [ScriptEditorBase](ScriptEditorBase.md)
+- [VBoxContainer](VBoxContainer.md)
 
 ## Properties
 
@@ -19,7 +20,23 @@ Inherited properties are documented in: [BoxContainer](BoxContainer.md)
 
 | Godot Property | SML Property | Type | Default |
 |-|-|-|-|
+| — | id | identifier | — |
+| — | alignment | enum: begin, center, end | begin |
+| — | spacing | int | — |
 | separation (theme override) | spacing | int | — |
+| — (drawn via BgVBoxContainer._Draw) | bgColor | color | — |
+| — (drawn via BgVBoxContainer._Draw) | borderColor | color | — |
+| — (drawn via BgVBoxContainer._Draw) | borderWidth | int | — |
+| — (drawn via BgVBoxContainer._Draw) | borderRadius | int | — |
+### Examples
+
+```sml
+VBoxContainer {
+    alignment: center
+    Label { text: "Top" }
+    Label { text: "Bottom" }
+}
+```
 
 ## Events
 

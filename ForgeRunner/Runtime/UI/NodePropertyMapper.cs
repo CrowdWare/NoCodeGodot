@@ -224,6 +224,11 @@ public sealed class NodePropertyMapper
                 ApplyMouseFilter(control, value, propertyName);
                 return;
 
+            case "alignment":
+                if (control is BoxContainer box)
+                    box.Alignment = (BoxContainer.AlignmentMode)ToGeneratedInt(value, propertyName);
+                return;
+
             case "halign":
             case "horizontalalignment":
                 ApplyHorizontalAlignment(control, value.AsIntOrThrow(propertyName));
@@ -1264,6 +1269,15 @@ public sealed class NodePropertyMapper
                 break;
             case MarkdownContainer markdownContainer:
                 markdownContainer.SetBgStyle(style);
+                break;
+            case BgVBoxContainer bgVBox:
+                bgVBox.SetBgStyle(style);
+                break;
+            case BgHBoxContainer bgHBox:
+                bgHBox.SetBgStyle(style);
+                break;
+            case BgControl bgControl:
+                bgControl.SetBgStyle(style);
                 break;
             default:
                 RunnerLogger.Warn("UI", $"Background style properties not supported for node type '{control.GetType().Name}'.");

@@ -1,9 +1,9 @@
 Manifest {
-    version: "auto-f2ff6b230d53d972"
+    version: "auto-5f47552f158f3822"
     entry: "app.sml"
 
     Files {
-        File { path: "app.sml" hash: "sha256:5b91ac48ee22ba32c6cd20896a5b3e8452c16e8f7f069e70b878c487ca0d3c6a" size: 1136 }
+        File { path: "app.sml" hash: "sha256:f853d43fb62420187cabe3b52d9e0a6863da7c9dca050b7170c76405a8ac3a4c" size: 845 }
         File { path: "assets/images/document.png" hash: "sha256:6166ec358361da7cfb0c9ac6c8b72304865a1a63c44ffa911208dc6a86b6a446" size: 2010 }
         File { path: "assets/images/eye_closed.png" hash: "sha256:1ae6a66afbdac21914d67b0697ccafcd4fe86500d91102f365fcb48090546d5d" size: 2321 }
         File { path: "assets/images/eye_open.png" hash: "sha256:3324a51a6c3fcc088c6b6faca3c5604955e723aaacb03749526bcf42d6e0bb9d" size: 2338 }

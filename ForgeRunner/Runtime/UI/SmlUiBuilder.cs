@@ -951,10 +951,10 @@ public sealed class SmlUiBuilder
 
         margin.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         margin.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+        margin.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+
         content.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         content.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-        content.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        content.SetOffsetsPreset(Control.LayoutPreset.FullRect);
 
         margin.AddChild(content);
         return margin;
@@ -977,10 +977,10 @@ public sealed class SmlUiBuilder
 
         scroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         scroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+        scroll.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+
         content.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         content.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-        content.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        content.SetOffsetsPreset(Control.LayoutPreset.FullRect);
 
         scroll.AddChild(content);
         return scroll;

@@ -63,6 +63,7 @@ All classes listed below inherit from `Control`.
 - [GraphNode](GraphNode.md)
 - [GridContainer](GridContainer.md)
 - [HBoxContainer](HBoxContainer.md)
+- [HBoxContainer](HBoxContainer.md)
 - [HFlowContainer](HFlowContainer.md)
 - [HScrollBar](HScrollBar.md)
 - [HSeparator](HSeparator.md)
@@ -106,6 +107,7 @@ All classes listed below inherit from `Control`.
 - [TextureRect](TextureRect.md)
 - [Tree](Tree.md)
 - [VBoxContainer](VBoxContainer.md)
+- [VBoxContainer](VBoxContainer.md)
 - [VFlowContainer](VFlowContainer.md)
 - [VScrollBar](VScrollBar.md)
 - [VSeparator](VSeparator.md)
@@ -125,6 +127,10 @@ Inherited properties are documented in: [CanvasItem](CanvasItem.md)
 | mouse_filter | mouseFilter | enum | stop |
 | size_flags_horizontal | shrinkH | bool | false |
 | size_flags_vertical | shrinkV | bool | false |
+| — (drawn via BgControl._Draw) | bgColor | color | — |
+| — (drawn via BgControl._Draw) | borderColor | color | — |
+| — (drawn via BgControl._Draw) | borderWidth | int | — |
+| — (drawn via BgControl._Draw) | borderRadius | int | — |
 
 ## Events
 

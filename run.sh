@@ -152,7 +152,7 @@ case "$MODE" in
       exit 1
     fi
     echo "Starting ForgeRunner.app..."
-    exec "$APP" --url "$DEFAULT_UI"
+    exec "$APP" #--url "$DEFAULT_UI"
     ;;
   release)
     require_godot
