@@ -32,6 +32,16 @@ require_godot() {
   fi
 }
 
+generate_version() {
+  local year month day hour min
+  year=$(date +%Y); month=$(date +%m); day=$(date +%d)
+  hour=$(date +%H); min=$(date +%M)
+  local major=$(( (year - 2014) / 10 ))
+  local year_part=$(( (year - 2014) - 10 ))
+  local v="${major}.${year_part}${month}.${day}${hour}${min}"
+  echo "${v:0:11}"
+}
+
 MODE="${1:-}"
 
 if [[ -z "$MODE" ]]; then
@@ -47,7 +57,8 @@ if [[ -z "$MODE" ]]; then
   echo "  9) publish   -> manifest + git commit + git push"
   echo " 10) export    -> macOS Release bauen (Godot export)"
   echo " 11) app       -> ForgeRunner.app starten (Release)"
-  read -r -p "Auswahl [1-11]: " CHOICE
+  echo " 12) release   -> version setzen + export + tag + GitHub Release"
+  read -r -p "Auswahl [1-12]: " CHOICE
 
   case "$CHOICE" in
     1) MODE="default" ;;
@@ -61,6 +72,7 @@ if [[ -z "$MODE" ]]; then
     9) MODE="publish" ;;
     10) MODE="export" ;;
     11) MODE="app" ;;
+    12) MODE="release" ;;
     *)
       echo "Ungültige Auswahl. Abbruch."
       exit 1
@@ -142,8 +154,45 @@ case "$MODE" in
     echo "Starting ForgeRunner.app..."
     exec "$APP" --url "$DEFAULT_UI"
     ;;
+  release)
+    require_godot
+    if ! command -v gh >/dev/null 2>&1; then
+      echo "ERROR: gh CLI not found. Install via: brew install gh" >&2
+      exit 1
+    fi
+
+    VERSION="$(generate_version)"
+    TAG="v$VERSION"
+    echo "Release $TAG"
+
+    echo "Setting version in all projects..."
+    bash "$REPO_ROOT/scripts/set_version.sh" "$VERSION"
+
+    echo "Exporting macOS release..."
+    "$GODOT_BIN" --headless --path "$RUNNER_PATH" --export-release "macOS"
+
+    ZIP="$REPO_ROOT/ForgeRunner-${TAG}-macOS.zip"
+    echo "Zipping ForgeRunner.app -> $(basename "$ZIP")..."
+    cd "$REPO_ROOT"
+    zip -r -q "$ZIP" ForgeRunner.app
+
+    echo "Committing version bump + tagging $TAG..."
+    git add ForgeRunner/ForgeRunner.csproj SMLCore/SMLCore.csproj SMSCore/SMSCore.csproj
+    git commit -m "release: $TAG"
+    git tag "$TAG"
+    git push
+    git push origin "$TAG"
+
+    echo "Creating GitHub Release $TAG..."
+    gh release create "$TAG" "$ZIP" \
+      --title "Forge $TAG" \
+      --generate-notes
+
+    rm "$ZIP"
+    echo "Release $TAG published."
+    ;;
   *)
-    echo "Usage: $0 [default|designer|docking|none|docs|build|theme|manifest|publish|export|app]"
+    echo "Usage: $0 [default|designer|docking|none|docs|build|theme|manifest|publish|export|app|release]"
     exit 1
     ;;
 esac
