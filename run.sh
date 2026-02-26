@@ -57,7 +57,7 @@ if [[ -z "$MODE" ]]; then
   echo "  9) publish   -> manifest + git commit + git push"
   echo " 10) export    -> macOS Release bauen (Godot export)"
   echo " 11) app       -> ForgeRunner.app starten (Release)"
-  echo " 12) release   -> version setzen + export + tag + GitHub Release"
+  echo " 12) release   -> version setzen + export + tag + GitHub Release (default: pre)"
   read -r -p "Auswahl [1-12]: " CHOICE
 
   case "$CHOICE" in
@@ -161,9 +161,22 @@ case "$MODE" in
       exit 1
     fi
 
+    CHANNEL="${2:-pre}"   # pre | alpha | beta | stable
     VERSION="$(generate_version)"
     TAG="v$VERSION"
-    echo "Release $TAG"
+
+    case "$CHANNEL" in
+      stable)
+        PRERELEASE_FLAG=""
+        TITLE="Forge $TAG"
+        ;;
+      *)
+        PRERELEASE_FLAG="--prerelease"
+        TITLE="Forge $TAG ($CHANNEL)"
+        ;;
+    esac
+
+    echo "Release $TAG [$CHANNEL]"
 
     echo "Setting version in all projects..."
     bash "$REPO_ROOT/scripts/set_version.sh" "$VERSION"
@@ -178,18 +191,19 @@ case "$MODE" in
 
     echo "Committing version bump + tagging $TAG..."
     git add ForgeRunner/ForgeRunner.csproj SMLCore/SMLCore.csproj SMSCore/SMSCore.csproj
-    git commit -m "release: $TAG"
+    git commit -m "release: $TAG [$CHANNEL]"
     git tag "$TAG"
     git push
     git push origin "$TAG"
 
     echo "Creating GitHub Release $TAG..."
     gh release create "$TAG" "$ZIP" \
-      --title "Forge $TAG" \
-      --generate-notes
+      --title "$TITLE" \
+      --generate-notes \
+      $PRERELEASE_FLAG
 
     rm "$ZIP"
-    echo "Release $TAG published."
+    echo "Release $TAG [$CHANNEL] published."
     ;;
   *)
     echo "Usage: $0 [default|designer|docking|none|docs|build|theme|manifest|publish|export|app|release]"
