@@ -45,7 +45,9 @@ if [[ -z "$MODE" ]]; then
   echo "  7) theme     -> theme.tres aus theme.sml generieren (headless)"
   echo "  8) manifest  -> manifest.sml für alle Docs generieren"
   echo "  9) publish   -> manifest + git commit + git push"
-  read -r -p "Auswahl [1-9]: " CHOICE
+  echo " 10) export    -> macOS Release bauen (Godot export)"
+  echo " 11) app       -> ForgeRunner.app starten (Release)"
+  read -r -p "Auswahl [1-11]: " CHOICE
 
   case "$CHOICE" in
     1) MODE="default" ;;
@@ -57,6 +59,8 @@ if [[ -z "$MODE" ]]; then
     7) MODE="theme" ;;
     8) MODE="manifest" ;;
     9) MODE="publish" ;;
+    10) MODE="export" ;;
+    11) MODE="app" ;;
     *)
       echo "Ungültige Auswahl. Abbruch."
       exit 1
@@ -117,13 +121,29 @@ case "$MODE" in
     bash "$REPO_ROOT/scripts/build_manifest.sh"
 
     cd "$REPO_ROOT"
+    COMMIT_MSG="${2:-"manifest: rebuild $(date +%Y-%m-%d)"}"
     git add .
-    git commit -m "manifest: rebuild $(date +%Y-%m-%d)"
+    git commit -m "$COMMIT_MSG"
     git push
     echo "Published."
     ;;
+  export)
+    require_godot
+    echo "Exporting macOS release..."
+    "$GODOT_BIN" --headless --path "$RUNNER_PATH" --export-release "macOS"
+    echo "Export completed -> ForgeRunner.app"
+    ;;
+  app)
+    APP="$REPO_ROOT/ForgeRunner.app/Contents/MacOS/ForgeRunner"
+    if [[ ! -x "$APP" ]]; then
+      echo "ERROR: ForgeRunner.app not found. Run './run.sh export' first." >&2
+      exit 1
+    fi
+    echo "Starting ForgeRunner.app..."
+    exec "$APP" --url "$DEFAULT_UI"
+    ;;
   *)
-    echo "Usage: $0 [default|designer|docking|none|docs|build|theme|manifest|publish]"
+    echo "Usage: $0 [default|designer|docking|none|docs|build|theme|manifest|publish|export|app]"
     exit 1
     ;;
 esac
