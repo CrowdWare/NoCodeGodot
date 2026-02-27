@@ -74,6 +74,7 @@ Window {
             //bgColor: "#FF0000"
             borderTop: 1
             borderBottom: 1
+            height: 44
 
             Control {
                 shrinkH: true
