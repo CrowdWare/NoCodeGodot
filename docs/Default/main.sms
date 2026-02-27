@@ -1,9 +1,48 @@
-var tree = null
-var codeEdit = null
-var selectedPath = null
-var mainWindow = null
+var tabStart  = null
+var tabLearn  = null
+var tabDiscover  = null
+var tabUpdates  = null
+
+//var pageStart = null
+//var pageLearn = null
+//var pageDiscover = null
+//var pageUpdates = null
 
 fun ready() {
-    log.info("ready called")
-   
+    tabStart  = ui.getObject("tabStart")
+    tabLearn  = ui.getObject("tabLearn")
+    tabDiscover = ui.getObject("tabDiscover")
+    tabUpdates  = ui.getObject("tabUpdates")
+
+    tabStart.buttonPressed = true
+    //pageStart = ui.getObject("pageStart")
+    //pageLearn = ui.getObject("pageLearn")
+    //pageDiscover = ui.getObject("pageDiscover")
+    //pageUpdates = ui.getObject("pageUpdates")
+
+    activateTab(0)
 }
+
+fun activateTab(index) {
+    log.info("activateTab($index)")
+    tabStart.buttonPressed = false
+    tabLearn.buttonPressed = false
+    tabDiscover.buttonPressed = false
+    tabUpdates.buttonPressed = false
+
+    //pageStart.visible = false
+    //pageLearn.visible = false
+    //pageDiscover.visible = false
+    //pageUpdates.visible = false
+    when(index) {
+        0 -> tabStart.buttonPressed = true
+        1 -> tabLearn.buttonPressed = true
+        2 -> tabDiscover.buttonPressed = true 
+        3 -> tabUpdates.buttonPressed = true
+    }
+}
+
+on tabStart.clicked() { activateTab(0) }
+on tabLearn.clicked()  { activateTab(1) }
+on tabDiscover.clicked()  { activateTab(2) }
+on tabUpdates.clicked()  { activateTab(3) }

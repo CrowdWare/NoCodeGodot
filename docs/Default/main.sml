@@ -8,76 +8,170 @@ Window {
     // Drag area behind title bar content
     WindowDrag {
         anchors: left | top | right
-        height: 40
+        top: 0
+        height: 55
+    }
+
+    TextureRect {
+        src: "appRes://logo.svg"
+        top: 13
+        left: 70
+        width: 30
+        height: 30
+        shrinkH: true
+        shrinkV: true
+        mouseFilter: ignore
+    }
+
+    Label {
+        text: "Forge"
+        top: 13
+        left: 110
+        fontWeight: bold
+        fontSize: 27
+        mouseFilter: ignore
+    }
+
+    LineEdit {
+        id: searchBar
+        anchors: left | top | right
+        offsetTop: 13
+        offsetLeft: 200
+        offsetRight: -200
+        placeholderText: @Strings.searchPlaceholder
+    }
+
+    Button {
+        id: btnUser
+        anchors: top | right
+        offsetTop: 13
+        offsetLeft: -122
+        offsetRight: -55
+        text: "● 1000"
+        
+    }
+
+    Button {
+        id: btnBell
+        anchors: top | right
+        offsetTop: 13
+        offsetLeft: -45
+        offsetRight: -32
+        text: "🔔"
     }
 
     VBoxContainer {
         anchors: left | top | right | bottom
+        offsetTop: 55
         spacing: 0
-
-        // ── Title Bar ────────────────────────────────────────────
-        // height: 40 prevents the MarginContainer padding wrapper from inflating
-        // the row. Horizontal spacing is handled by spacing: 8.
-        HBoxContainer {
-            id: titleBar
-            height: 40
-            spacing: 8
-
-            HBoxContainer {
-                spacing: 6
-                mouseFilter: ignore
-                padding: 0, 0, 0, 8
-
-                TextureRect {
-                    src: "appRes://logo.png"
-                    width: 20
-                    height: 20
-                    shrinkH: true
-                    shrinkV: true
-                    mouseFilter: ignore
-                }
-
-                Label {
-                    text: "Forge"
-                    fontWeight: bold
-                    mouseFilter: ignore
-                }
-            }
-
-            LineEdit {
-                id: searchBar
-                sizeFlagsHorizontal: expandFill
-                placeholderText: @Strings.searchPlaceholder
-            }
-
-            HBoxContainer {
-                spacing: 4
-                padding: 0, 8, 0, 0
-
-                Button {
-                    id: btnBell
-                    text: "🔔"
-                    shrinkH: true
-                }
-
-                Button {
-                    id: btnUser
-                    text: "●"
-                    shrinkH: true
-                }
-            }
-        }
 
         // ── Navigation Tabs ───────────────────────────────────────
         HBoxContainer {
             id: navBar
             spacing: 0
+            padding: 8
 
-            Button { id: tabStart    text: @Strings.navStart    shrinkH: true }
-            Button { id: tabLearn    text: @Strings.navLearn    shrinkH: true }
-            Button { id: tabDiscover text: @Strings.navDiscover shrinkH: true }
-            Button { id: tabUpdates  text: @Strings.navUpdates  shrinkH: true }
+            Control {
+                shrinkH: true
+                width: 120
+                height: 44
 
+                TextureButton { 
+                    id: tabStart 
+                    textureNormal: "res://assets/images/button_normal.png" 
+                    texturePressed: "res://assets/images/button_focused.png"
+                    shrinkH: true 
+                    toggleMode: true
+                }
+                TextureRect {
+                    src: "appRes://logo.svg"
+                    top: 15
+                    left: 10
+                    width: 30
+                    height: 30
+                }
+                Label {
+                    top: 15
+                    left: 45
+                    text: "Start"
+                }
+            }
+            Control {
+                shrinkH: true
+                width: 120
+                height: 44
+
+                TextureButton { 
+                    id: tabLearn
+                    textureNormal: "res://assets/images/button_normal.png" 
+                    texturePressed: "res://assets/images/button_focused.png"
+                    shrinkH: true 
+                    toggleMode: true
+                }
+                TextureRect {
+                    src: "appRes://logo.svg"
+                    top: 15
+                    left: 10
+                    width: 30
+                    height: 30
+                }
+                Label {
+                    top: 15
+                    left: 45
+                    text: "Learn"
+                }
+            }
+            Control {
+                shrinkH: true
+                width: 120
+                height: 44
+                
+                TextureButton { 
+                    id: tabDiscover
+                    textureNormal: "res://assets/images/button_normal.png" 
+                    texturePressed: "res://assets/images/button_focused.png"
+                    shrinkH: true 
+                    toggleMode: true
+                }
+                TextureRect {
+                    src: "appRes://logo.svg"
+                    top: 15
+                    left: 10
+                    width: 30
+                    height: 30
+                }
+                Label {
+                    top: 15
+                    left: 45
+                    text: "Discover"
+                }
+            }
+            Control {
+                shrinkH: true
+                width: 120
+                height: 44
+                
+                TextureButton { 
+                    id: tabUpdates
+                    textureNormal: "res://assets/images/button_normal.png" 
+                    texturePressed: "res://assets/images/button_focused.png"
+                    shrinkH: true 
+                    toggleMode: true
+                }
+                TextureRect {
+                    src: "appRes://logo.svg"
+                    top: 15
+                    left: 10
+                    width: 30
+                    height: 30
+                }
+                Label {
+                    top: 15
+                    left: 45
+                    text: "Updates"
+                }
+            }
+            
             Control { sizeFlagsHorizontal: expandFill }
         }
 

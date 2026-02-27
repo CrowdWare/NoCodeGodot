@@ -156,6 +156,15 @@ public sealed class SmsUiRuntime
             TryInvokeEvent(itemId, "clicked", warnIfMissing: !ShouldSuppressMissingMenuHandler(itemId));
         });
 
+        dispatcher.RegisterActionHandlerIfMissing("buttonClicked", ctx =>
+        {
+            var sourceId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(sourceId))
+            {
+                TryInvokeEvent(sourceId, "clicked");
+            }
+        });
+
         // SMS should own save behavior so codeEdit.onSave(...) callbacks always fire,
         // even if a generic fallback handler was registered earlier.
         dispatcher.RegisterActionHandler("save", ctx =>

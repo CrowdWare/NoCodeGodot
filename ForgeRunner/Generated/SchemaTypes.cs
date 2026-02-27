@@ -77,7 +77,7 @@ public static class SchemaTypes
         new TypeDef("TabBar", "Control", true),
         new TypeDef("TabContainer", "Container", true),
         new TypeDef("TextEdit", "Control", false),
-        new TypeDef("TextureButton", "BaseButton", false),
+        new TypeDef("TextureButton", "TextureButton", false),
         new TypeDef("TextureProgressBar", "Range", false),
         new TypeDef("TextureRect", "TextureRect", false),
         new TypeDef("Tree", "Control", true),

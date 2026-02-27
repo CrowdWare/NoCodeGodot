@@ -102,6 +102,7 @@ All classes listed below inherit from `Control`.
 - [TabContainer](TabContainer.md)
 - [TextEdit](TextEdit.md)
 - [TextureButton](TextureButton.md)
+- [TextureButton](TextureButton.md)
 - [TextureProgressBar](TextureProgressBar.md)
 - [TextureRect](TextureRect.md)
 - [TextureRect](TextureRect.md)

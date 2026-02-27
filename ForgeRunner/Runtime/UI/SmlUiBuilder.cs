@@ -1029,7 +1029,7 @@ public sealed class SmlUiBuilder
 
     private void BindInteractions(Control control)
     {
-        if (control is Button button)
+        if (control is BaseButton button)
         {
             button.Pressed += () =>
             {
@@ -1047,13 +1047,18 @@ public sealed class SmlUiBuilder
 
                 RunnerLogger.Info("UI", $"Button pressed: id='{id}', action='{action}', target='{target}'");
 
+                var resolvedAction = !string.IsNullOrWhiteSpace(action) ? action
+                    : string.IsNullOrWhiteSpace(target) ? "buttonClicked"
+                    : action;
+
                 _actionDispatcher.Dispatch(new UiActionContext(
                     Source: control,
                     SourceId: id,
                     SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
-                    Action: action,
+                    Action: resolvedAction,
                     Clicked: target,
-                    ClickedIdValue: GetMetaId(control, NodePropertyMapper.MetaClickedIdValue)
+                    ClickedIdValue: GetMetaId(control, NodePropertyMapper.MetaClickedIdValue),
+                    BoolValue: button.ButtonPressed
                 ));
             };
         }

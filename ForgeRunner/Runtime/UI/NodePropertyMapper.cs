@@ -305,6 +305,52 @@ public sealed class NodePropertyMapper
                 }
                 break;
 
+            case "texturenormal":
+                if (control is TextureButton tbNormal)
+                {
+                    var raw = value.AsStringOrThrow(propertyName);
+                    tbNormal.TextureNormal = LoadTexture2D(ResolveAssetPath(raw, resolveAssetPath), raw);
+                    return;
+                }
+                break;
+
+            case "texturehover":
+            case "texturehovered":
+                if (control is TextureButton tbHover)
+                {
+                    var raw = value.AsStringOrThrow(propertyName);
+                    tbHover.TextureHover = LoadTexture2D(ResolveAssetPath(raw, resolveAssetPath), raw);
+                    return;
+                }
+                break;
+
+            case "texturepressed":
+                if (control is TextureButton tbPressed)
+                {
+                    var raw = value.AsStringOrThrow(propertyName);
+                    tbPressed.TexturePressed = LoadTexture2D(ResolveAssetPath(raw, resolveAssetPath), raw);
+                    return;
+                }
+                break;
+
+            case "texturedisabled":
+                if (control is TextureButton tbDisabled)
+                {
+                    var raw = value.AsStringOrThrow(propertyName);
+                    tbDisabled.TextureDisabled = LoadTexture2D(ResolveAssetPath(raw, resolveAssetPath), raw);
+                    return;
+                }
+                break;
+
+            case "texturefocused":
+                if (control is TextureButton tbFocused)
+                {
+                    var raw = value.AsStringOrThrow(propertyName);
+                    tbFocused.TextureFocused = LoadTexture2D(ResolveAssetPath(raw, resolveAssetPath), raw);
+                    return;
+                }
+                break;
+
             case "alt":
                 control.SetMeta("sml_alt", Variant.From(value.AsStringOrThrow(propertyName)));
                 return;
@@ -987,10 +1033,9 @@ public sealed class NodePropertyMapper
 
     private static string ResolveAssetPath(string source, Func<string, string>? resolveAssetPath)
     {
-        // Godot-native paths must not go through the file-system URI resolver —
-        // they are loaded directly via Godot's ResourceLoader.
-        if (source.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
-            || source.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
+        // user:// always points to the Godot user data directory — no SML-relative resolution needed.
+        // res:// goes through the resolveAssetPath callback so it resolves relative to the SML file's directory.
+        if (source.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
         {
             return source;
         }
@@ -1056,6 +1101,26 @@ public sealed class NodePropertyMapper
         image.Texture = ImageTexture.CreateFromImage(img);
         image.ExpandMode = TextureRect.ExpandModeEnum.FitWidthProportional;
         image.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
+    }
+
+    private static Texture2D? LoadTexture2D(string source, string originalSource)
+    {
+        var localPath = ToLocalImagePath(source);
+        if (string.IsNullOrWhiteSpace(localPath))
+        {
+            RunnerLogger.Warn("UI", $"Texture source '{originalSource}' could not be resolved to a loadable path.");
+            return null;
+        }
+
+        var img = new Image();
+        var err = img.Load(localPath);
+        if (err != Error.Ok)
+        {
+            RunnerLogger.Warn("UI", $"Could not load texture '{originalSource}' (path: '{localPath}'): {err}");
+            return null;
+        }
+
+        return ImageTexture.CreateFromImage(img);
     }
 
     private static string? ToLocalImagePath(string source)

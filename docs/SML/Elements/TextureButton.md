@@ -2,7 +2,13 @@
 
 ## Inheritance
 
-[TextureButton](TextureButton.md) → [BaseButton](BaseButton.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
+[TextureButton](TextureButton.md) → [TextureButton](TextureButton.md) → [BaseButton](BaseButton.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
+
+## Derived Classes
+
+### Direct subclasses
+
+- [TextureButton](TextureButton.md)
 
 ## Properties
 
@@ -11,10 +17,28 @@ Inherited properties are documented in: [BaseButton](BaseButton.md)
 
 | Godot Property | SML Property | Type | Default |
 |-|-|-|-|
-| flip_h | flipH | bool | — |
-| flip_v | flipV | bool | — |
-| ignore_texture_size | ignoreTextureSize | bool | — |
-| stretch_mode | stretchMode | int | — |
+| — | id | identifier | — |
+| — | textureNormal | string(url) | "" |
+| — | textureHover | string(url) | "" |
+| — | texturePressed | string(url) | "" |
+| — | textureDisabled | string(url) | "" |
+| — | textureFocused | string(url) | "" |
+| — | disabled | bool | false |
+| — | toggleMode | bool | false |
+
+> A button that displays textures for each interaction state instead of a text label.
+> All texture properties accept the same path formats as TextureRect: res://, user://, appRes://, file://, or absolute paths.
+
+### Examples
+
+```sml
+TextureButton {
+    id: myBtn
+    textureNormal:  "appRes://assets/icons/bell.png"
+    textureHover:   "appRes://assets/icons/bell_hover.png"
+    texturePressed: "appRes://assets/icons/bell_pressed.png"
+}
+```
 
 ## Events
 
