@@ -42,6 +42,8 @@ public sealed class SmlUiBuilder
     private readonly AnimationControlApi _animationApi;
     private readonly UiActionDispatcher _actionDispatcher;
     private readonly Dictionary<string, Viewport3DControl> _viewportsById = new(StringComparer.OrdinalIgnoreCase);
+    // Populated per Build() call; holds inline + pre-loaded component definitions.
+    private Dictionary<string, SmlComponentDef> _components = new(StringComparer.OrdinalIgnoreCase);
 
     public SmlUiBuilder(
         NodeFactoryRegistry registry,
@@ -74,6 +76,7 @@ public sealed class SmlUiBuilder
         }
 
         _viewportsById.Clear();
+        _components = document.Components;
 
         var rootNode = document.Roots[0];
         ApplyLocalizationRecursively(rootNode, document.Resources);
@@ -284,6 +287,11 @@ public sealed class SmlUiBuilder
     {
         if (!_registry.TryCreate(node.Name, out var control))
         {
+            // Unknown factory name — check if it's a user-defined component
+            var compDef = ResolveComponent(node.Name);
+            if (compDef != null)
+                return BuildComponentInstance(compDef, node, parentNodeName);
+
             RunnerLogger.Warn("UI", $"No factory registered for '{node.Name}'. Node skipped.");
             return null;
         }
@@ -387,6 +395,83 @@ public sealed class SmlUiBuilder
         }
 
         return control;
+    }
+
+    // ── User-Defined Component Instantiation ────────────────────────────────
+
+    /// <summary>
+    /// Resolves a node name to a user-defined component definition.
+    /// Namespace prefix (e.g. "ui." in "ui.NavTab") is stripped for the lookup.
+    /// External components must be pre-loaded into <c>document.Components</c>
+    /// by <see cref="SmlUiLoader"/> before <see cref="Build"/> is called.
+    /// </summary>
+    private SmlComponentDef? ResolveComponent(string nodeName)
+    {
+        var typeName = nodeName;
+        var dotIdx = nodeName.LastIndexOf('.');
+        if (dotIdx > 0)
+            typeName = nodeName[(dotIdx + 1)..];
+
+        return _components.TryGetValue(typeName, out var compDef) ? compDef : null;
+    }
+
+    /// <summary>
+    /// Instantiates a component: merges caller-provided props with declared defaults,
+    /// substitutes all <c>{propName}</c> references in the body, then builds the result.
+    /// </summary>
+    private Control? BuildComponentInstance(SmlComponentDef compDef, SmlNode instanceNode, string? parentNodeName)
+    {
+        // Merge: declared defaults, overridden by caller-provided values
+        var resolvedProps = new Dictionary<string, SmlValue>(compDef.Props, StringComparer.OrdinalIgnoreCase);
+        foreach (var (propName, value) in instanceNode.Properties)
+            resolvedProps[propName] = value;
+
+        // Deep-clone body with prop references substituted
+        var instantiatedBody = SubstitutePropRefs(compDef.Body, resolvedProps);
+
+        return BuildNodeRecursive(instantiatedBody, parentNodeName);
+    }
+
+    /// <summary>
+    /// Recursively clones an <see cref="SmlNode"/> tree, replacing every
+    /// <see cref="SmlValueKind.PropRef"/> value with the resolved prop value.
+    /// </summary>
+    private static SmlNode SubstitutePropRefs(SmlNode template, Dictionary<string, SmlValue> props)
+    {
+        var node = new SmlNode { Name = template.Name, Line = template.Line };
+
+        foreach (var (propName, value) in template.Properties)
+        {
+            node.Properties[propName] = ResolvePropRef(value, props);
+            if (template.PropertyLines.TryGetValue(propName, out var line))
+                node.PropertyLines[propName] = line;
+        }
+
+        foreach (var (qualifier, attachedProps) in template.AttachedProperties)
+        {
+            var resolved = new Dictionary<string, SmlValue>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (propName, value) in attachedProps)
+                resolved[propName] = ResolvePropRef(value, props);
+            node.AttachedProperties[qualifier] = resolved;
+        }
+
+        foreach (var child in template.Children)
+            node.Children.Add(SubstitutePropRefs(child, props));
+
+        return node;
+    }
+
+    private static SmlValue ResolvePropRef(SmlValue value, Dictionary<string, SmlValue> props)
+    {
+        if (value.Kind != SmlValueKind.PropRef)
+            return value;
+
+        var propName = (string)value.Value;
+        if (props.TryGetValue(propName, out var resolved))
+            return resolved;
+
+        RunnerLogger.Warn("UI", $"Component prop reference '{{{propName}}}' could not be resolved. Using empty string.");
+        return SmlValue.FromString(string.Empty);
     }
 
     private void BuildMenuBar(Control menuBarControl, SmlNode menuBarNode)

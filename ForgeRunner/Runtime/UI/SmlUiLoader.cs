@@ -71,6 +71,7 @@ public sealed class SmlUiLoader
         var themeStore = await ThemeStore.LoadAsync(_uriResolver, normalizedUri, cancellationToken);
         themeStore.InjectIntoResources(document.Resources);
         await PreprocessMarkdownNodesAsync(document, normalizedUri, localization, cancellationToken);
+        await PreloadExternalComponentsAsync(document, normalizedUri, cancellationToken);
         var assetPathResolver = CreateAssetPathResolver(normalizedUri);
 
         var builder = new SmlUiBuilder(_registry, _propertyMapper, _animationApi, localization, assetPathResolver);
@@ -99,6 +100,83 @@ public sealed class SmlUiLoader
                 return source;
             }
         };
+    }
+
+    /// <summary>
+    /// Scans <paramref name="document"/> for all dotted node names (e.g. "ui.NavTab"),
+    /// loads each corresponding .sml file asynchronously, and injects the parsed
+    /// component definitions into <see cref="SmlDocument.Components"/> so that
+    /// <see cref="SmlUiBuilder"/> can instantiate them without any file I/O.
+    /// </summary>
+    private async Task PreloadExternalComponentsAsync(
+        SmlDocument document,
+        string baseUri,
+        CancellationToken cancellationToken)
+    {
+        var dottedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CollectDottedNodeNames(document.Roots, dottedNames);
+
+        foreach (var fullName in dottedNames)
+        {
+            var dotIdx = fullName.LastIndexOf('.');
+            var dirPath = fullName[..dotIdx].Replace('.', '/');
+            var typeName = fullName[(dotIdx + 1)..];
+
+            if (document.Components.ContainsKey(typeName))
+                continue; // already defined inline
+
+            var def = await TryLoadExternalComponentAsync(dirPath, typeName, baseUri, cancellationToken);
+            if (def != null)
+                document.Components[typeName] = def;
+            else
+                RunnerLogger.Warn("UI", $"No component file found for '{fullName}'. Node will be skipped.");
+        }
+    }
+
+    private async Task<SmlComponentDef?> TryLoadExternalComponentAsync(
+        string dirPath,
+        string typeName,
+        string baseUri,
+        CancellationToken cancellationToken)
+    {
+        // Try PascalCase filename first, then lowercase fallback.
+        foreach (var fileName in new[] { $"{typeName}.sml", $"{typeName.ToLowerInvariant()}.sml" })
+        {
+            var relativePath = $"{dirPath}/{fileName}";
+            string content;
+            try
+            {
+                content = await _uriResolver.LoadTextAsync(relativePath, baseUri, cancellationToken);
+            }
+            catch (FileNotFoundException) { continue; }
+            catch (Exception ex)
+            {
+                RunnerLogger.Warn("UI", $"Component file load failed for '{relativePath}'", ex);
+                continue;
+            }
+
+            var schema = SmlSchemaFactory.CreateDefault();
+            var parser = new SmlParser(content, schema);
+            var doc = parser.ParseDocument();
+
+            foreach (var warning in doc.Warnings)
+                RunnerLogger.Warn("UI", $"[Component '{relativePath}'] {warning}");
+
+            if (doc.Components.TryGetValue(typeName, out var def))
+                return def;
+        }
+
+        return null;
+    }
+
+    private static void CollectDottedNodeNames(IEnumerable<SmlNode> nodes, HashSet<string> result)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.Name.Contains('.'))
+                result.Add(node.Name);
+            CollectDottedNodeNames(node.Children, result);
+        }
     }
 
     private async Task PreprocessMarkdownNodesAsync(

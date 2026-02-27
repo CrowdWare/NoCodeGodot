@@ -33,7 +33,9 @@ public enum SmlValueKind
     Vec2i,
     Vec3i,
     Padding,
-    ResourceRef
+    ResourceRef,
+    /// <summary>A reference to a declared component property, e.g. <c>{text}</c>.</summary>
+    PropRef
 }
 
 public readonly record struct SmlVec2i(int X, int Y);
@@ -70,6 +72,7 @@ public sealed class SmlValue
     public static SmlValue FromVec3i(int x, int y, int z) => new(SmlValueKind.Vec3i, new SmlVec3i(x, y, z));
     public static SmlValue FromPadding(int top, int right, int bottom, int left) => new(SmlValueKind.Padding, new SmlPadding(top, right, bottom, left));
     public static SmlValue FromResourceRef(string ns, string path, SmlValue? fallback) => new(SmlValueKind.ResourceRef, new SmlResourceRef(ns, path, fallback));
+    public static SmlValue FromPropRef(string propName) => new(SmlValueKind.PropRef, propName);
 
     public string AsStringOrThrow(string propertyName)
     {
@@ -156,6 +159,17 @@ public sealed class SmlNode
     /// </summary>
     public Dictionary<string, Dictionary<string, SmlValue>> AttachedProperties { get; } = new(StringComparer.OrdinalIgnoreCase);
     public List<SmlNode> Children { get; } = [];
+    /// <summary>
+    /// Prop declarations found inside a component definition block.
+    /// Null for regular nodes. Non-null when the node will become an <see cref="SmlComponentDef"/>.
+    /// </summary>
+    public Dictionary<string, SmlValue>? PropDeclarations { get; private set; }
+
+    internal void AddPropDeclaration(string name, SmlValue defaultValue)
+    {
+        PropDeclarations ??= new Dictionary<string, SmlValue>(StringComparer.OrdinalIgnoreCase);
+        PropDeclarations[name] = defaultValue;
+    }
 
     public bool TryGetProperty(string key, out SmlValue value)
     {
@@ -173,6 +187,42 @@ public sealed class SmlNode
     }
 }
 
+/// <summary>
+/// A user-defined reusable component, declared as a top-level block in SML.
+/// </summary>
+/// <example>
+/// <code>
+/// NavTab {
+///     property text:   "Tab"
+///     property tabId:  id
+///     property active: false
+///
+///     Control {
+///         Label { text: {text} }
+///     }
+/// }
+/// </code>
+/// </example>
+public sealed class SmlComponentDef
+{
+    public SmlComponentDef(string name, string? ns, Dictionary<string, SmlValue> props, SmlNode body)
+    {
+        Name = name;
+        Namespace = ns;
+        Props = props;
+        Body = body;
+    }
+
+    /// <summary>Component type name (e.g. "NavTab").</summary>
+    public string Name { get; }
+    /// <summary>Namespace from dot-notation (e.g. "ui" for "ui.NavTab"). Null for simple names.</summary>
+    public string? Namespace { get; }
+    /// <summary>Declared props with their default values. Keyed by prop name (case-insensitive).</summary>
+    public Dictionary<string, SmlValue> Props { get; }
+    /// <summary>The single root element of the component body.</summary>
+    public SmlNode Body { get; }
+}
+
 public sealed class SmlDocument
 {
     public List<SmlNode> Roots { get; } = [];
@@ -182,6 +232,11 @@ public sealed class SmlDocument
     /// Keyed by namespace name (case-insensitive).
     /// </summary>
     public Dictionary<string, SmlNode> Resources { get; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// User-defined component definitions declared in this document.
+    /// Keyed by component name (case-insensitive). Inline definitions take precedence over file-based ones.
+    /// </summary>
+    public Dictionary<string, SmlComponentDef> Components { get; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class SmlParseException : Exception

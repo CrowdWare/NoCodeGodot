@@ -169,8 +169,10 @@ public class SmlParserTests
     }
 
     [Fact]
-    public void ParseDocument_WithUnregisteredUnquotedIdentifier_Throws()
+    public void ParseDocument_WithUnregisteredUnquotedIdentifier_AcceptsAsIdentifier()
     {
+        // Unregistered properties accept unquoted identifiers — needed for component prop values
+        // (e.g. tabId: tabStart). The runtime validates types, not the parser.
         const string text = """
         Window {
             title: hello
@@ -181,8 +183,11 @@ public class SmlParserTests
         schema.RegisterKnownNode("Window");
 
         var parser = new SmlParser(text, schema);
-        var ex = Assert.Throws<SmlParseException>(() => parser.ParseDocument());
-        Assert.Contains("Unquoted identifier", ex.Message);
+        var doc = parser.ParseDocument();
+
+        var value = doc.Roots[0].GetRequiredProperty("title");
+        Assert.Equal(SmlValueKind.Identifier, value.Kind);
+        Assert.Equal("hello", value.AsStringOrThrow("title"));
     }
 
     [Fact]
@@ -642,5 +647,309 @@ public class SmlParserTests
 
         // No "Unknown node 'Strings'" warning
         Assert.Empty(doc.Warnings);
+    }
+
+    // ── User-Defined Components ──────────────────────────────────────────────
+
+    [Fact]
+    public void ParseDocument_WithInlineComponentDef_GoesToComponents()
+    {
+        const string text = """
+        NavTab {
+            property text: "Tab"
+            property active: false
+
+            Control {
+                Label { text: {text} }
+            }
+        }
+        Window {
+            NavTab { text: "Start" }
+        }
+        """;
+
+        var parser = new SmlParser(text);
+        var doc = parser.ParseDocument();
+
+        // Component does not go into Roots
+        Assert.Single(doc.Roots);
+        Assert.Equal("Window", doc.Roots[0].Name);
+
+        // Component is registered
+        Assert.True(doc.Components.ContainsKey("NavTab"));
+        var comp = doc.Components["NavTab"];
+        Assert.Equal("NavTab", comp.Name);
+        Assert.Null(comp.Namespace);
+
+        // Props
+        Assert.Equal(2, comp.Props.Count);
+        Assert.Equal("Tab", comp.Props["text"].AsStringOrThrow("text"));
+        Assert.False(comp.Props["active"].AsBoolOrThrow("active"));
+
+        // Body
+        Assert.Equal("Control", comp.Body.Name);
+    }
+
+    [Fact]
+    public void ParseDocument_WithComponentPropIdTypeHint_StoresAsIdentifier()
+    {
+        const string text = """
+        NavTab {
+            property tabId: id
+
+            Control {
+                Button { id: {tabId} }
+            }
+        }
+        Window {}
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        var comp = doc.Components["NavTab"];
+        Assert.True(comp.Props.ContainsKey("tabId"));
+        Assert.Equal(SmlValueKind.Identifier, comp.Props["tabId"].Kind);
+        Assert.Equal("id", (string)comp.Props["tabId"].Value);
+    }
+
+    [Fact]
+    public void ParseDocument_WithPropRef_ParsesAsPropRefValue()
+    {
+        const string text = """
+        Card {
+            property title: "Default"
+
+            VBox {
+                Label { text: {title} }
+            }
+        }
+        Window {}
+        """;
+
+        var parser = new SmlParser(text);
+        var doc = parser.ParseDocument();
+
+        var comp = doc.Components["Card"];
+        var label = comp.Body.Children[0];
+        Assert.Equal("Label", label.Name);
+
+        var textVal = label.GetRequiredProperty("text");
+        Assert.Equal(SmlValueKind.PropRef, textVal.Kind);
+        Assert.Equal("title", (string)textVal.Value);
+    }
+
+    [Fact]
+    public void ParseDocument_WithComponentAndPropRefOnMultipleProps_SubstitutesAll()
+    {
+        const string text = """
+        NavTab {
+            property text:   "Tab"
+            property tabId:  id
+            property active: false
+
+            Control {
+                Button {
+                    id: {tabId}
+                    toggleMode: {active}
+                }
+                Label { text: {text} }
+            }
+        }
+        Window {}
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        var comp = doc.Components["NavTab"];
+        Assert.Equal(3, comp.Props.Count);
+
+        var button = comp.Body.Children[0];
+        Assert.Equal(SmlValueKind.PropRef, button.GetRequiredProperty("id").Kind);
+        Assert.Equal("tabId", (string)button.GetRequiredProperty("id").Value);
+        Assert.Equal(SmlValueKind.PropRef, button.GetRequiredProperty("toggleMode").Kind);
+        Assert.Equal("active", (string)button.GetRequiredProperty("toggleMode").Value);
+
+        var label = comp.Body.Children[1];
+        Assert.Equal(SmlValueKind.PropRef, label.GetRequiredProperty("text").Kind);
+        Assert.Equal("text", (string)label.GetRequiredProperty("text").Value);
+    }
+
+    [Fact]
+    public void ParseDocument_WithNamespacedComponent_SetsNamespaceAndName()
+    {
+        const string text = """
+        ui.NavTab {
+            property text: "Tab"
+
+            Control {}
+        }
+        Window {}
+        """;
+
+        var parser = new SmlParser(text);
+        var doc = parser.ParseDocument();
+
+        // Component is keyed by short name
+        Assert.True(doc.Components.ContainsKey("NavTab"));
+        var comp = doc.Components["NavTab"];
+        Assert.Equal("NavTab", comp.Name);
+        Assert.Equal("ui", comp.Namespace);
+    }
+
+    [Fact]
+    public void ParseDocument_ComponentWithNoBody_Throws()
+    {
+        const string text = """
+        EmptyComp {
+            property text: "x"
+        }
+        Window {}
+        """;
+
+        var parser = new SmlParser(text);
+        var ex = Assert.Throws<SmlParseException>(() => parser.ParseDocument());
+        Assert.Contains("no body element", ex.Message);
+    }
+
+    [Fact]
+    public void ParseDocument_ComponentWithMultipleRootElements_Throws()
+    {
+        const string text = """
+        BadComp {
+            property x: ""
+            Control {}
+            Control {}
+        }
+        Window {}
+        """;
+
+        var parser = new SmlParser(text);
+        var ex = Assert.Throws<SmlParseException>(() => parser.ParseDocument());
+        Assert.Contains("exactly one root element", ex.Message);
+    }
+
+    [Fact]
+    public void ParseDocument_ComponentWithInheritance_SynthesizesBodyFromBaseType()
+    {
+        const string text = """
+        NavTab {
+            property text:   "Tab"
+            property tabId:  id
+            inheritance:     Control
+
+            shrinkH: true
+            width: 120
+            height: 44
+
+            Label { text: {text} }
+        }
+        Window {}
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+        schema.RegisterKnownNode("Control");
+        schema.RegisterKnownNode("Label");
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        var comp = doc.Components["NavTab"];
+
+        // Body is the synthesized Control node
+        Assert.Equal("Control", comp.Body.Name);
+
+        // Props are on the component
+        Assert.Equal(2, comp.Props.Count);
+        Assert.Equal("Tab", comp.Props["text"].AsStringOrThrow("text"));
+
+        // Default properties landed on the body
+        Assert.Equal(120, comp.Body.GetRequiredProperty("width").AsIntOrThrow("width"));
+        Assert.Equal(44,  comp.Body.GetRequiredProperty("height").AsIntOrThrow("height"));
+        Assert.True(comp.Body.GetRequiredProperty("shrinkH").AsBoolOrThrow("shrinkH"));
+
+        // inheritance: itself must NOT be on the body
+        Assert.False(comp.Body.Properties.ContainsKey("inheritance"));
+
+        // Children were moved into the body
+        var label = Assert.Single(comp.Body.Children);
+        Assert.Equal("Label", label.Name);
+        Assert.Equal(SmlValueKind.PropRef, label.GetRequiredProperty("text").Kind);
+    }
+
+    [Fact]
+    public void ParseDocument_ComponentWithInheritance_EmptyChildrenAllowed()
+    {
+        const string text = """
+        PaddedBox {
+            property size: 8
+            inheritance: VBoxContainer
+        }
+        Window {}
+        """;
+
+        var parser = new SmlParser(text);
+        var doc = parser.ParseDocument();
+
+        Assert.True(doc.Components.ContainsKey("PaddedBox"));
+        Assert.Equal("VBoxContainer", doc.Components["PaddedBox"].Body.Name);
+        Assert.Empty(doc.Components["PaddedBox"].Body.Children);
+    }
+
+    [Fact]
+    public void ParseDocument_ComponentWithInheritance_PropRefOnBodyProperty()
+    {
+        // Body properties themselves can be PropRefs
+        const string text = """
+        Spacer {
+            property size: 8
+            inheritance: Control
+
+            width: {size}
+            height: {size}
+        }
+        Window {}
+        """;
+
+        var parser = new SmlParser(text);
+        var doc = parser.ParseDocument();
+
+        var comp = doc.Components["Spacer"];
+        Assert.Equal("Control", comp.Body.Name);
+        Assert.Equal(SmlValueKind.PropRef, comp.Body.GetRequiredProperty("width").Kind);
+        Assert.Equal("size", (string)comp.Body.GetRequiredProperty("width").Value);
+        Assert.Equal(SmlValueKind.PropRef, comp.Body.GetRequiredProperty("height").Kind);
+    }
+
+    [Fact]
+    public void ParseDocument_ComponentDef_DoesNotWarnAsUnknownNode()
+    {
+        const string text = """
+        MyWidget {
+            property label: "x"
+
+            Control {}
+        }
+        Window {}
+        """;
+
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("Window");
+        schema.RegisterKnownNode("Control");
+        schema.WarnOnUnknownNodes = true;
+
+        var parser = new SmlParser(text, schema);
+        var doc = parser.ParseDocument();
+
+        // No "Unknown node 'MyWidget'" warning — it's a component definition
+        Assert.DoesNotContain(doc.Warnings, w => w.Contains("'MyWidget'"));
     }
 }

@@ -53,6 +53,12 @@ public sealed class SmlParser
             {
                 document.Resources[element.Name] = element;
             }
+            else if (element.PropDeclarations != null)
+            {
+                // Has 'property' declarations → user-defined component
+                var compDef = BuildComponentDef(element);
+                document.Components[compDef.Name] = compDef;
+            }
             else
             {
                 document.Roots.Add(element);
@@ -62,7 +68,66 @@ public sealed class SmlParser
 
         ValidateResourceRefs(document);
 
+        // Remove spurious "unknown node" warnings for user-defined component names
+        foreach (var compName in document.Components.Keys)
+            document.Warnings.RemoveAll(w => w.StartsWith($"Unknown node '{compName}'"));
+
         return document;
+    }
+
+    private static bool IsRootElement(string name) =>
+        string.Equals(name, "Window", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "Dialog", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "Page", StringComparison.OrdinalIgnoreCase);
+
+    private static SmlComponentDef BuildComponentDef(SmlNode node)
+    {
+        string? ns = null;
+        var typeName = node.Name;
+        var dotIdx = node.Name.LastIndexOf('.');
+        if (dotIdx > 0)
+        {
+            ns = node.Name[..dotIdx];
+            typeName = node.Name[(dotIdx + 1)..];
+        }
+
+        var props = node.PropDeclarations
+            ?? new Dictionary<string, SmlValue>(StringComparer.OrdinalIgnoreCase);
+
+        SmlNode body;
+        if (node.Properties.TryGetValue("inheritance", out var inheritanceValue))
+        {
+            // Synthesize body: create a root node of the declared Godot type,
+            // copy all non-special properties as its defaults, and move all children into it.
+            var baseType = (string)inheritanceValue.Value;
+            body = new SmlNode { Name = baseType, Line = node.Line };
+
+            foreach (var (propName, value) in node.Properties)
+            {
+                if (propName.Equals("inheritance", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                body.Properties[propName] = value;
+                if (node.PropertyLines.TryGetValue(propName, out var pLine))
+                    body.PropertyLines[propName] = pLine;
+            }
+
+            foreach (var child in node.Children)
+                body.Children.Add(child);
+        }
+        else
+        {
+            if (node.Children.Count == 0)
+                throw new SmlParseException(
+                    $"Component '{node.Name}' at line {node.Line} has no body element.");
+
+            if (node.Children.Count > 1)
+                throw new SmlParseException(
+                    $"Component '{node.Name}' at line {node.Line} must have exactly one root element, found {node.Children.Count}.");
+
+            body = node.Children[0];
+        }
+
+        return new SmlComponentDef(typeName, ns, props, body);
     }
 
     private static bool IsResourceNamespace(string name) =>
@@ -92,6 +157,33 @@ public sealed class SmlParser
         {
             var ident = Expect(SmlTokenKind.Identifier, "Expected property or nested element.");
             SkipIgnorables();
+
+            // Component prop declaration: property <name>: <default>
+            if (ident.Text.Equals("property", StringComparison.OrdinalIgnoreCase)
+                && _lookahead.Kind == SmlTokenKind.Identifier)
+            {
+                var propNameToken = Consume();
+                SkipIgnorables();
+                Expect(SmlTokenKind.Colon, $"Expected ':' after property name '{propNameToken.Text}'.");
+                SkipIgnorables();
+                var defaultVal = ParseComponentPropDefault(propNameToken.Text);
+                node.AddPropDeclaration(propNameToken.Text, defaultVal);
+                SkipIgnorables();
+                continue;
+            }
+
+            // Component inheritance declaration: inheritance: GodotTypeName
+            if (ident.Text.Equals("inheritance", StringComparison.OrdinalIgnoreCase)
+                && _lookahead.Kind == SmlTokenKind.Colon)
+            {
+                Consume(); // ':'
+                SkipIgnorables();
+                var typeToken = Expect(SmlTokenKind.Identifier, "Expected Godot type name after 'inheritance:'.");
+                node.Properties["inheritance"] = SmlValue.FromIdentifier(typeToken.Text);
+                node.PropertyLines["inheritance"] = ident.Line;
+                SkipIgnorables();
+                continue;
+            }
 
             if (_lookahead.Kind == SmlTokenKind.Colon)
             {
@@ -199,6 +291,12 @@ public sealed class SmlParser
         if (_lookahead.Kind == SmlTokenKind.At)
         {
             return ParseResourceRef(propertyName, document, node, propertyLine);
+        }
+
+        // Prop reference: {propName} — resolved at component instantiation time
+        if (_lookahead.Kind == SmlTokenKind.LBrace)
+        {
+            return ParsePropRef();
         }
 
         if (_lookahead.Kind == SmlTokenKind.String)
@@ -321,11 +419,10 @@ public sealed class SmlParser
                 return SmlValue.FromEnum(token.Text, null);
             }
 
-            throw new SmlParseException(
-                $"Unquoted identifier '{token.Text}' for property '{propertyName}' is not allowed. " +
-                "Register the property as Identifier/Enum or use a quoted string. " +
-                $"(line {token.Line}, col {token.Column})"
-            );
+            // SmlPropertyKind.Default: property not registered in schema.
+            // Accept unquoted identifiers — this is the correct path for component prop values
+            // (e.g. tabId: tabStart) since component props are never registered in the schema.
+            return SmlValue.FromIdentifier(token.Text);
         }
 
         throw Error("Expected value.");
@@ -390,6 +487,41 @@ public sealed class SmlParser
         }
 
         return SmlValue.FromResourceRef(ns, path, fallback);
+    }
+
+    private SmlValue ParsePropRef()
+    {
+        Consume(); // consume '{'
+        var nameToken = Expect(SmlTokenKind.Identifier, "Expected property name inside '{...}' reference.");
+        Expect(SmlTokenKind.RBrace, $"Expected '}}' to close property reference '{{{{ {nameToken.Text} }}}}'.");
+        return SmlValue.FromPropRef(nameToken.Text);
+    }
+
+    /// <summary>
+    /// Parses a default value in a component prop declaration.
+    /// Allows bare identifiers (e.g. <c>id</c>) as type hints in addition to normal literals.
+    /// </summary>
+    private SmlValue ParseComponentPropDefault(string propName)
+    {
+        if (_lookahead.Kind == SmlTokenKind.String)
+            return SmlValue.FromString(Consume().Text);
+
+        if (_lookahead.Kind == SmlTokenKind.Bool)
+        {
+            var t = Consume();
+            return SmlValue.FromBool(string.Equals(t.Text, "true", StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (_lookahead.Kind == SmlTokenKind.Int)
+            return SmlValue.FromInt(ParseIntLiteral(Consume(), propName));
+
+        if (_lookahead.Kind == SmlTokenKind.Float)
+            return SmlValue.FromFloat(ParseFloatLiteral(Consume(), propName));
+
+        if (_lookahead.Kind == SmlTokenKind.Identifier)
+            return SmlValue.FromIdentifier(Consume().Text); // type hint, e.g. "id"
+
+        throw Error($"Expected default value for property '{propName}' (string, number, bool, or identifier).");
     }
 
     private SmlValue ParseFallbackLiteral(string propertyName)
@@ -544,6 +676,12 @@ public sealed class SmlParser
         }
 
         if (IsResourceNamespace(nodeName))
+        {
+            return;
+        }
+
+        // Dotted names (e.g. "ui.NavTab") are namespaced component references — never warn.
+        if (nodeName.Contains('.'))
         {
             return;
         }
