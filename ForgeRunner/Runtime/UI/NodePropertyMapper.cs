@@ -806,6 +806,12 @@ public sealed class NodePropertyMapper
             case Button button:
                 button.Text = text;
                 break;
+            case LinkButton linkButton:
+                linkButton.Text = text;
+                break;
+            case LineEdit lineEdit:
+                lineEdit.Text = text;
+                break;
             case TextEdit textEdit:
                 textEdit.Text = text;
                 break;
@@ -922,6 +928,10 @@ public sealed class NodePropertyMapper
                 button.AddThemeColorOverride("font_color", color);
                 break;
 
+            case LinkButton linkButton:
+                linkButton.AddThemeColorOverride("font_color", color);
+                break;
+
             case LineEdit lineEdit:
                 lineEdit.AddThemeColorOverride("font_color", color);
                 break;
@@ -1028,23 +1038,49 @@ public sealed class NodePropertyMapper
 
     private static void ApplyImageSource(TextureRect image, string source, string originalSource)
     {
-        if (!source.StartsWith("res://", StringComparison.OrdinalIgnoreCase)
-            && !source.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
+        var localPath = ToLocalImagePath(source);
+        if (string.IsNullOrWhiteSpace(localPath))
         {
-            RunnerLogger.Warn("UI", $"Image source '{originalSource}' resolved to '{source}', but is not loadable by Godot ResourceLoader. Use res:// or user:// path.");
+            RunnerLogger.Warn("UI", $"Image source '{originalSource}' could not be resolved to a loadable path.");
             return;
         }
 
-        var texture = GD.Load<Texture2D>(source);
-        if (texture is null)
+        var img = new Image();
+        var err = img.Load(localPath);
+        if (err != Error.Ok)
         {
-            RunnerLogger.Warn("UI", $"Could not load image '{source}'.");
+            RunnerLogger.Warn("UI", $"Could not load image '{originalSource}' (path: '{localPath}'): {err}");
             return;
         }
 
-        image.Texture = texture;
+        image.Texture = ImageTexture.CreateFromImage(img);
         image.ExpandMode = TextureRect.ExpandModeEnum.FitWidthProportional;
         image.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
+    }
+
+    private static string? ToLocalImagePath(string source)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+            return null;
+
+        // res:// → globalize to absolute filesystem path so Image.Load() reads the
+        // raw file directly without going through Godot's import pipeline.
+        if (source.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+            return ProjectSettings.GlobalizePath(source);
+
+        // user:// (e.g. HTTP-cached assets) is understood by Godot's Image.Load().
+        if (source.StartsWith("user://", StringComparison.OrdinalIgnoreCase))
+            return ProjectSettings.GlobalizePath(source);
+
+        // file:// URI → convert to local OS path.
+        if (source.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            return Uri.TryCreate(source, UriKind.Absolute, out var uri) ? uri.LocalPath : null;
+
+        // Absolute OS path → use directly.
+        if (System.IO.Path.IsPathRooted(source))
+            return source;
+
+        return null;
     }
 
     private static void ApplyFontSize(Control control, int fontSize)
@@ -1060,6 +1096,9 @@ public sealed class NodePropertyMapper
                 break;
             case Button button:
                 button.AddThemeFontSizeOverride("font_size", fontSize);
+                break;
+            case LinkButton linkButton:
+                linkButton.AddThemeFontSizeOverride("font_size", fontSize);
                 break;
             case TextEdit textEdit:
                 textEdit.AddThemeFontSizeOverride("font_size", fontSize);
@@ -1104,6 +1143,9 @@ public sealed class NodePropertyMapper
                 break;
             case Button button:
                 button.AddThemeFontOverride("font", font);
+                break;
+            case LinkButton linkButton:
+                linkButton.AddThemeFontOverride("font", font);
                 break;
             case TextEdit textEdit:
                 textEdit.AddThemeFontOverride("font", font);

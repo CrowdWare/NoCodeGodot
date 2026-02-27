@@ -1,137 +1,275 @@
 Window {
     id: mainWindow
     title: @Strings.windowTitle
-    minSize: 800,400
-    pos: 0, 0
-    size: 1920, 1080
+    minSize: 900, 580
+    size: 960, 660
     extendToTitle: true
 
-    // comment
-
-    MenuBar {
-        preferGlobalMenu: true
-
-        PopupMenu {
-            id: appMenu
-            title: @Strings.menuAppTitle, "Default value"
-
-            Item { id: about text: @Strings.menuAppAbout }
-            Item { id: settings text: @Strings.menuAppSettings }
-            Item { id: quit text: @Strings.menuAppQuit }
-        }
-
-        PopupMenu {
-            id: file
-            title: @Strings.menuFileTitle
-
-            Item { id: saveAs text: @Strings.menuFileSaveAs }
-        }
-    }
-
+    // Drag area behind title bar content
     WindowDrag {
-        id: titleDrag
         anchors: left | top | right
-        top: 0
-        height: 42
+        height: 40
     }
 
-    Markdown {
-        id: caption
-        top: 5
-        left: 100
-        width: 400
-        height: 20
-        mouseFilter: ignore
-        text: @Strings.captionDemo
-    }
-
-     DockingHost {
-        id: mainDockHost
+    VBoxContainer {
         anchors: left | top | right | bottom
-        gap: 8
-        offsetTop: 42
+        spacing: 0
 
-        DockingContainer {
-            id: farLeftDock
-            dockSide: left
-            fixedWidth: 300
-            dragToRearrangeEnabled: true
-            tabsRearrangeGroup: 1
+        // ── Title Bar ────────────────────────────────────────────
+        // height: 40 prevents the MarginContainer padding wrapper from inflating
+        // the row. Horizontal spacing is handled by spacing: 8.
+        HBoxContainer {
+            id: titleBar
+            height: 40
+            spacing: 8
 
-            VBoxContainer {
-                id: project
-                farLeftDock.title: @Strings.tabProject
-                Tree {
-                    id: treeview
-                    sizeFlagsHorizontal: expandFill
-                    sizeFlagsVertical: expandFill
-                    showGuides: false
+            HBoxContainer {
+                spacing: 6
+                mouseFilter: ignore
+                padding: 0, 0, 0, 8
+
+                TextureRect {
+                    src: "appRes://logo.png"
+                    width: 20
+                    height: 20
+                    shrinkH: true
+                    shrinkV: true
+                    mouseFilter: ignore
+                }
+
+                Label {
+                    text: "Forge"
+                    fontWeight: bold
+                    mouseFilter: ignore
                 }
             }
 
-            VBoxContainer {
-                id: hierarchy
-                farLeftDock.title: @Strings.tabHierarchy
-                Tree {
-                    id: hierarchyTree
-                    sizeFlagsHorizontal: expandFill
-                    sizeFlagsVertical: expandFill
-                    showGuides: false
+            LineEdit {
+                id: searchBar
+                sizeFlagsHorizontal: expandFill
+                placeholderText: @Strings.searchPlaceholder
+            }
+
+            HBoxContainer {
+                spacing: 4
+                padding: 0, 8, 0, 0
+
+                Button {
+                    id: btnBell
+                    text: "🔔"
+                    shrinkH: true
+                }
+
+                Button {
+                    id: btnUser
+                    text: "●"
+                    shrinkH: true
                 }
             }
         }
 
-        DockingContainer {
-            id: centerDock
-            dockSide: center
-            flex: true
-            closeable: false
-            dragToRearrangeEnabled: true
+        // ── Navigation Tabs ───────────────────────────────────────
+        HBoxContainer {
+            id: navBar
+            spacing: 0
 
-            CodeEdit {
-                id: codeEdit
-                centerDock.title: @Strings.tabNew
-                text: "Window {
-    title: \"Test\"
-}"
-                syntax: "sml"
-                //font: "appres://DeineFont.ttf"
-                fontSize: 13
+            Button { id: tabStart    text: @Strings.navStart    shrinkH: true }
+            Button { id: tabLearn    text: @Strings.navLearn    shrinkH: true }
+            Button { id: tabDiscover text: @Strings.navDiscover shrinkH: true }
+            Button { id: tabUpdates  text: @Strings.navUpdates  shrinkH: true }
+
+            Control { sizeFlagsHorizontal: expandFill }
+        }
+
+        // ── Content Area ──────────────────────────────────────────
+        HBoxContainer {
+            id: contentArea
+            sizeFlagsVertical: expandFill
+            spacing: 0
+
+            // Left column
+            VBoxContainer {
+                id: leftCol
+                sizeFlagsHorizontal: expandFill
+                sizeFlagsVertical: expandFill
+                spacing: 24
+                padding: 24, 24, 24, 16
+
+                // Create new project
+                VBoxContainer {
+                    id: createSection
+                    spacing: 12
+
+                    Label {
+                        text: @Strings.headCreateProject
+                        fontSize: 18
+                        fontWeight: bold
+                    }
+
+                    HBoxContainer {
+                        id: actionButtons
+                        spacing: 8
+
+                        Button { id: btnNewProject text: @Strings.btnNewProject  shrinkH: true }
+                        Button { id: btnDesigner   text: @Strings.btnDesigner    shrinkH: true }
+                        Button { id: btnOpen       text: @Strings.btnOpenProject  shrinkH: true }
+                        Button { id: btnExplore    text: @Strings.btnExplore     shrinkH: true }
+                    }
+                }
+
+                // Recommended templates
+                VBoxContainer {
+                    id: templatesSection
+                    spacing: 12
+
+                    Label {
+                        text: @Strings.headTemplates
+                        fontSize: 16
+                        fontWeight: bold
+                    }
+
+                    HBoxContainer {
+                        id: templateCards
+                        spacing: 12
+
+                        // Card: UI Toolkit
+                        VBoxContainer {
+                            id: cardUiToolkit
+                            sizeFlagsHorizontal: expandFill
+                            bgColor: "#1E2030"
+                            borderColor: "#2E3250"
+                            borderWidth: 1
+                            borderRadius: 6
+                            spacing: 0
+
+                            TextureRect {
+                                src: "appRes://assets/images/document.png"
+                                height: 120
+                                sizeFlagsHorizontal: expandFill
+                            }
+
+                            VBoxContainer {
+                                spacing: 4
+                                padding: 8, 8, 8, 8
+
+                                Label {
+                                    text: @Strings.cardUiToolkitTitle
+                                    fontWeight: bold
+                                }
+
+                                Label {
+                                    text: @Strings.cardUiToolkitDesc
+                                    fontSize: 11
+                                }
+                            }
+                        }
+
+                        // Card: RPG Adventure
+                        VBoxContainer {
+                            id: cardRpg
+                            sizeFlagsHorizontal: expandFill
+                            bgColor: "#1E2030"
+                            borderColor: "#2E3250"
+                            borderWidth: 1
+                            borderRadius: 6
+                            spacing: 0
+
+                            TextureRect {
+                                src: "appRes://assets/images/document.png"
+                                height: 120
+                                sizeFlagsHorizontal: expandFill
+                            }
+
+                            VBoxContainer {
+                                spacing: 4
+                                padding: 8, 8, 8, 8
+
+                                Label {
+                                    text: @Strings.cardRpgTitle
+                                    fontWeight: bold
+                                }
+
+                                Label {
+                                    text: @Strings.cardRpgDesc
+                                    fontSize: 11
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            VSeparator {}
+
+            // Right column: News & Tips
+            VBoxContainer {
+                id: rightCol
+                width: 280
+                sizeFlagsVertical: expandFill
+                spacing: 0
+                padding: 16, 16, 16, 12
+
+                Label {
+                    text: @Strings.headNews
+                    fontSize: 14
+                    fontWeight: bold
+                }
+
+                Control { height: 12 }
+
+                VBoxContainer {
+                    id: news1
+                    spacing: 2
+
+                    Label { text: @Strings.news1Title fontWeight: bold fontSize: 13 }
+                    Label { text: @Strings.news1Meta  fontSize: 11 }
+                }
+
+                HSeparator {}
+
+                VBoxContainer {
+                    id: news2
+                    spacing: 2
+
+                    Label { text: @Strings.news2Title fontWeight: bold fontSize: 13 }
+                    Label { text: @Strings.news2Meta  fontSize: 11 }
+                }
+
+                HSeparator {}
+
+                VBoxContainer {
+                    id: news3
+                    spacing: 2
+
+                    Label { text: @Strings.news3Title fontWeight: bold fontSize: 13 }
+                    Label { text: @Strings.news3Meta  fontSize: 11 }
+                }
+
+                Control { sizeFlagsVertical: expandFill }
+
+                LinkButton {
+                    id: btnMoreNews
+                    text: @Strings.newsMore
+                    shrinkH: true
+                }
             }
         }
 
-        DockingContainer {
-            id: rightDock
-            dockSide: right
-            fixedWidth: 360
-            dragToRearrangeEnabled: true
-            tabsRearrangeGroup: 1
+        // ── Status Bar ────────────────────────────────────────────
+        HBoxContainer {
+            id: statusBar
+            spacing: 6
+            padding: 6, 6, 6, 6
 
-            VBoxContainer {
-                id: inspector
-                rightDock.title: @Strings.tabMarkdown
-                Markdown {
-                    padding: 8,8,8,20
-                    src: "res:/sample.md"
-                }
+            Label {
+                text: "●"
+                color: "#4CAF50"
+                fontSize: 10
             }
 
-            VBoxContainer {
-                id: preview
-                rightDock.title: @Strings.tabPortrait
-                Markdown {
-                    bgColor: "#1A1A2E"
-                    borderColor: "#4A90D9"
-                    borderWidth: 1
-                    borderRadius: 4
-                    text: "# Portrait Preview"
-                }
-            }
-
-            VBoxContainer {
-                id: profiler
-                rightDock.title: @Strings.tabLandscape
-                Label { text: "Landscape Preview" }
+            Label {
+                text: @Strings.statusOnline
+                fontSize: 11
             }
         }
     }

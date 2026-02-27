@@ -37,6 +37,9 @@ public static class SmlSchemaFactory
         schema.RegisterKnownNode("Toggle");
         schema.RegisterKnownNode("data");
 
+        // ForgeRunner element aliases (not standard Godot classes).
+        schema.RegisterKnownNode("MarkdownLabel");
+
         schema.RegisterIdProperty("id");
         schema.RegisterIdentifierProperty("clicked");
         schema.RegisterEnumValue("action", "closeQuery", 1);

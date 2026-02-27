@@ -83,10 +83,47 @@ public sealed class NodeFactoryRegistry
         Register("TabContainer", () => new TabContainer());
         Register("MenuBar", () => new MenuBar());
         Register("HSlider", () => new HSlider());
+        Register("VSlider", () => new VSlider());
         Register("ProgressBar", () => new ProgressBar());
+        Register("TextureProgressBar", () => new TextureProgressBar());
+        Register("SpinBox", () => new SpinBox());
+        Register("HScrollBar", () => new HScrollBar());
+        Register("VScrollBar", () => new VScrollBar());
         Register("Tree", () => new Tree());
+        Register("ItemList", () => new ItemList());
         Register("Slider", () => new HSlider());
         Register("Video", () => new VideoStreamPlayer());
+        Register("VideoStreamPlayer", () => new VideoStreamPlayer());
         Register("Viewport3D", () => new Viewport3DControl());
+
+        // Buttons & interactive
+        Register("LineEdit", () => new LineEdit());
+        Register("LinkButton", () => new LinkButton());
+        Register("CheckBox", () => new CheckBox());
+        Register("CheckButton", () => new CheckButton());
+        Register("OptionButton", () => new OptionButton());
+        Register("MenuButton", () => new MenuButton());
+        Register("TextureButton", () => new TextureButton());
+        Register("ColorPickerButton", () => new ColorPickerButton());
+
+        // Visual / display
+        Register("ColorRect", () => new ColorRect());
+        Register("NinePatchRect", () => new NinePatchRect());
+        Register("RichTextLabel", () => new RichTextLabel());
+
+        // Separators
+        Register("HSeparator", () => new HSeparator());
+        Register("VSeparator", () => new VSeparator());
+
+        // Containers
+        Register("MarginContainer", () => new MarginContainer());
+        Register("ScrollContainer", () => new ScrollContainer());
+        Register("GridContainer", () => new GridContainer());
+        Register("AspectRatioContainer", () => new AspectRatioContainer());
+        Register("HFlowContainer", () => new HFlowContainer());
+        Register("VFlowContainer", () => new VFlowContainer());
+        Register("HSplitContainer", () => new HSplitContainer());
+        Register("VSplitContainer", () => new VSplitContainer());
+        Register("FoldableContainer", () => new FoldableContainer());
     }
 }
