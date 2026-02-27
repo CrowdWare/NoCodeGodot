@@ -24,6 +24,7 @@ using Runtime.Sml;
 using Runtime.ThreeD;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -61,22 +62,43 @@ public sealed class SmlUiLoader
 
         IdRuntimeScope.Reset();
 
+        var total = Stopwatch.StartNew();
+        var sw    = Stopwatch.StartNew();
+
         var normalizedUri = _uriResolver.ResolveReference(uri);
         var content = await _uriResolver.LoadTextAsync(normalizedUri, cancellationToken: cancellationToken);
+        var tFetch = sw.ElapsedMilliseconds; sw.Restart();
 
         var schema = SmlSchemaFactory.CreateDefault();
         var parser = new SmlParser(content, schema);
         var document = parser.ParseDocument();
+        var tParse = sw.ElapsedMilliseconds; sw.Restart();
+
         var localization = await LocalizationStore.LoadAsync(_uriResolver, normalizedUri, cancellationToken: cancellationToken);
+        var tL10n = sw.ElapsedMilliseconds; sw.Restart();
+
         var themeStore = await ThemeStore.LoadAsync(_uriResolver, normalizedUri, cancellationToken);
         themeStore.InjectIntoResources(document.Resources);
-        await PreprocessMarkdownNodesAsync(document, normalizedUri, localization, cancellationToken);
-        await PreloadExternalComponentsAsync(document, normalizedUri, cancellationToken);
-        var assetPathResolver = CreateAssetPathResolver(normalizedUri);
+        var tTheme = sw.ElapsedMilliseconds; sw.Restart();
 
+        await PreprocessMarkdownNodesAsync(document, normalizedUri, localization, cancellationToken);
+        var tMarkdown = sw.ElapsedMilliseconds; sw.Restart();
+
+        await PreloadExternalComponentsAsync(document, normalizedUri, cancellationToken);
+        var tComponents = sw.ElapsedMilliseconds; sw.Restart();
+
+        var assetPathResolver = CreateAssetPathResolver(normalizedUri);
         var builder = new SmlUiBuilder(_registry, _propertyMapper, _animationApi, localization, assetPathResolver);
         _configureActions?.Invoke(builder.Actions);
-        return builder.Build(document);
+        var result = builder.Build(document);
+        var tBuild = sw.ElapsedMilliseconds;
+
+        RunnerLogger.Info("UI", $"LoadFromUri '{System.IO.Path.GetFileName(normalizedUri)}': " +
+            $"fetch={tFetch}ms, parse={tParse}ms, l10n={tL10n}ms, theme={tTheme}ms, " +
+            $"markdown={tMarkdown}ms, components={tComponents}ms, build={tBuild}ms, " +
+            $"total={total.ElapsedMilliseconds}ms");
+
+        return result;
     }
 
     private Func<string, string> CreateAssetPathResolver(string baseUri)
