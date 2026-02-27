@@ -62,7 +62,7 @@ Window {
 
     VBoxContainer {
         anchors: left | top | right | bottom
-        offsetTop: 55
+        offsetTop: 60
         spacing: 0
 
         // ── Navigation Tabs ───────────────────────────────────────
@@ -71,10 +71,9 @@ Window {
             spacing: 0
             padding: 0,0,0,20
             borderColor: "#242736"
-            //bgColor: "#FF0000"
             borderTop: 1
             borderBottom: 1
-            height: 44
+            height: 59
 
             Control {
                 shrinkH: true
@@ -85,6 +84,7 @@ Window {
                     id: tabStart
                     textureNormal: "res://assets/images/button_normal.png"
                     texturePressed: "res://assets/images/button_focused.png"
+                    textureHover: "res://assets/images/button_focused.png"
                     width: 120
                     height: 44
                     ignoreTextureSize: true
@@ -114,6 +114,7 @@ Window {
                     id: tabLearn
                     textureNormal: "res://assets/images/button_normal.png"
                     texturePressed: "res://assets/images/button_focused.png"
+                    textureHover: "res://assets/images/button_focused.png"
                     width: 120
                     height: 44
                     ignoreTextureSize: true
@@ -143,6 +144,7 @@ Window {
                     id: tabDiscover
                     textureNormal: "res://assets/images/button_normal.png"
                     texturePressed: "res://assets/images/button_focused.png"
+                    textureHover: "res://assets/images/button_focused.png"
                     width: 120
                     height: 44
                     ignoreTextureSize: true
@@ -172,6 +174,7 @@ Window {
                     id: tabUpdates
                     textureNormal: "res://assets/images/button_normal.png"
                     texturePressed: "res://assets/images/button_focused.png"
+                    textureHover: "res://assets/images/button_focused.png"
                     width: 120
                     height: 44
                     ignoreTextureSize: true
@@ -199,23 +202,19 @@ Window {
         // ── Content Area ──────────────────────────────────────────
         HBoxContainer {
             id: contentArea
-            sizeFlagsVertical: expandFill
+            padding: 20,20,20,20
             spacing: 0
 
-            // Left column
             VBoxContainer {
-                id: leftCol
+                id: createSection
                 sizeFlagsHorizontal: expandFill
                 sizeFlagsVertical: expandFill
                 spacing: 24
                 padding: 24, 24, 24, 16
+                elevation: raised
 
                 // Create new project
-                VBoxContainer {
-                    id: createSection
-                    spacing: 12
-                    padding: 16
-                    elevation: raised
+         
 
                     Label {
                         text: @Strings.headCreateProject
@@ -232,7 +231,25 @@ Window {
                         Button { id: btnOpen       text: @Strings.btnOpenProject  shrinkH: true }
                         Button { id: btnExplore    text: @Strings.btnExplore     shrinkH: true }
                     }
-                }
+                
+            }
+        }
+
+        HBoxContainer {
+            id: contentArea2
+            padding: 20,20,20,20
+            sizeFlagsVertical: expandFill
+            spacing: 0
+            
+
+            // Left column
+            VBoxContainer {
+                id: leftCol2
+                sizeFlagsHorizontal: expandFill
+                sizeFlagsVertical: expandFill
+                spacing: 24
+                padding: 24, 24, 24, 24
+                elevation: raised
 
                 // Recommended templates
                 VBoxContainer {
@@ -320,11 +337,10 @@ Window {
             // Right column: News & Tips
             VBoxContainer {
                 id: rightCol
-                width: 280
                 sizeFlagsVertical: expandFill
                 spacing: 0
                 elevation: raised
-                padding: 16, 16, 16, 12
+                padding: 24, 24, 24, 24
 
                 Label {
                     text: @Strings.headNews
