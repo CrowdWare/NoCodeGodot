@@ -53,6 +53,83 @@ func get_spec() -> Dictionary:
                     "type": "int",
                     "default": "—",
                     "description": "Corner radius in pixels (all corners)."
+                },
+                {
+                    "sml": "borderTop",
+                    "godot": "StyleBoxFlat.border_width_top",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Top border width in pixels. Can be combined with other border side properties."
+                },
+                {
+                    "sml": "borderBottom",
+                    "godot": "StyleBoxFlat.border_width_bottom",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Bottom border width in pixels."
+                },
+                {
+                    "sml": "borderLeft",
+                    "godot": "StyleBoxFlat.border_width_left",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Left border width in pixels."
+                },
+                {
+                    "sml": "borderRight",
+                    "godot": "StyleBoxFlat.border_width_right",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Right border width in pixels."
+                },
+                {
+                    "sml": "shadowColor",
+                    "godot": "StyleBoxFlat.shadow_color",
+                    "type": "color",
+                    "default": "—",
+                    "description": "Outer drop shadow color. Quoted string: \"#AARRGGBB\"."
+                },
+                {
+                    "sml": "shadowSize",
+                    "godot": "StyleBoxFlat.shadow_size",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Outer drop shadow blur radius in pixels."
+                },
+                {
+                    "sml": "shadowOffsetX",
+                    "godot": "StyleBoxFlat.shadow_offset.x",
+                    "type": "int",
+                    "default": "0",
+                    "description": "Horizontal shadow offset in pixels."
+                },
+                {
+                    "sml": "shadowOffsetY",
+                    "godot": "StyleBoxFlat.shadow_offset.y",
+                    "type": "int",
+                    "default": "0",
+                    "description": "Vertical shadow offset in pixels."
+                },
+                {
+                    "sml": "highlightColor",
+                    "godot": "— (drawn via BgControl._Draw)",
+                    "type": "color",
+                    "default": "—",
+                    "description": "Inner bevel highlight — thin lines drawn along top and left edges. Quoted string: \"#AARRGGBB\"."
+                },
+                {
+                    "sml": "elevation",
+                    "godot": "— (expands to profile properties before build)",
+                    "type": "identifier",
+                    "default": "—",
+                    "description": "Named elevation profile from the Elevations theme block (e.g. raised, card, inset, flat). Expands to bgColor, borderColor, shadowColor, etc. Individual properties override the profile."
+                },
+                {
+                    "sml": "padding",
+                    "godot": "— (inner MarginContainer injected at build time)",
+                    "type": "padding",
+                    "default": "0",
+                    "description": "Inner padding — space between the container border and its children. Use 1 (all sides), 2 (top/bottom left/right), or 4 (top right bottom left) integer values. On VBoxContainer/HBoxContainer, an inner layout container preserves child stacking order."
                 }
             ],
             "Label": [
@@ -410,6 +487,41 @@ func get_spec() -> Dictionary:
                     "type": "int",
                     "default": "—",
                     "description": "Corner radius in pixels (all corners)."
+                },
+                {
+                    "sml": "shadowColor",
+                    "godot": "StyleBoxFlat.shadow_color",
+                    "type": "color",
+                    "default": "—",
+                    "description": "Outer drop shadow color. Quoted string: \"#AARRGGBB\"."
+                },
+                {
+                    "sml": "shadowSize",
+                    "godot": "StyleBoxFlat.shadow_size",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Outer drop shadow blur radius in pixels."
+                },
+                {
+                    "sml": "shadowOffsetX",
+                    "godot": "StyleBoxFlat.shadow_offset.x",
+                    "type": "int",
+                    "default": "0",
+                    "description": "Horizontal shadow offset in pixels."
+                },
+                {
+                    "sml": "shadowOffsetY",
+                    "godot": "StyleBoxFlat.shadow_offset.y",
+                    "type": "int",
+                    "default": "0",
+                    "description": "Vertical shadow offset in pixels."
+                },
+                {
+                    "sml": "elevation",
+                    "godot": "— (expands to profile properties before build)",
+                    "type": "identifier",
+                    "default": "—",
+                    "description": "Named elevation profile from the Elevations theme block (e.g. raised, card, inset, flat). Note: highlightColor is not supported on PanelContainer."
                 }
             ],
             "VBoxContainer": [
@@ -447,6 +559,48 @@ func get_spec() -> Dictionary:
                     "type": "int",
                     "default": "—",
                     "description": "Corner radius in pixels (all corners)."
+                },
+                {
+                    "sml": "shadowColor",
+                    "godot": "StyleBoxFlat.shadow_color",
+                    "type": "color",
+                    "default": "—",
+                    "description": "Outer drop shadow color. Quoted string: \"#AARRGGBB\"."
+                },
+                {
+                    "sml": "shadowSize",
+                    "godot": "StyleBoxFlat.shadow_size",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Outer drop shadow blur radius in pixels."
+                },
+                {
+                    "sml": "shadowOffsetX",
+                    "godot": "StyleBoxFlat.shadow_offset.x",
+                    "type": "int",
+                    "default": "0",
+                    "description": "Horizontal shadow offset in pixels."
+                },
+                {
+                    "sml": "shadowOffsetY",
+                    "godot": "StyleBoxFlat.shadow_offset.y",
+                    "type": "int",
+                    "default": "0",
+                    "description": "Vertical shadow offset in pixels."
+                },
+                {
+                    "sml": "highlightColor",
+                    "godot": "— (drawn via BgVBoxContainer._Draw)",
+                    "type": "color",
+                    "default": "—",
+                    "description": "Inner bevel highlight — thin lines drawn along top and left edges. Quoted string: \"#AARRGGBB\"."
+                },
+                {
+                    "sml": "elevation",
+                    "godot": "— (expands to profile properties before build)",
+                    "type": "identifier",
+                    "default": "—",
+                    "description": "Named elevation profile from the Elevations theme block (e.g. raised, card, inset, flat). Expands to bgColor, borderColor, shadowColor, etc. Individual properties override the profile."
                 }
             ],
             "HBoxContainer": [
@@ -484,6 +638,48 @@ func get_spec() -> Dictionary:
                     "type": "int",
                     "default": "—",
                     "description": "Corner radius in pixels (all corners)."
+                },
+                {
+                    "sml": "shadowColor",
+                    "godot": "StyleBoxFlat.shadow_color",
+                    "type": "color",
+                    "default": "—",
+                    "description": "Outer drop shadow color. Quoted string: \"#AARRGGBB\"."
+                },
+                {
+                    "sml": "shadowSize",
+                    "godot": "StyleBoxFlat.shadow_size",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Outer drop shadow blur radius in pixels."
+                },
+                {
+                    "sml": "shadowOffsetX",
+                    "godot": "StyleBoxFlat.shadow_offset.x",
+                    "type": "int",
+                    "default": "0",
+                    "description": "Horizontal shadow offset in pixels."
+                },
+                {
+                    "sml": "shadowOffsetY",
+                    "godot": "StyleBoxFlat.shadow_offset.y",
+                    "type": "int",
+                    "default": "0",
+                    "description": "Vertical shadow offset in pixels."
+                },
+                {
+                    "sml": "highlightColor",
+                    "godot": "— (drawn via BgHBoxContainer._Draw)",
+                    "type": "color",
+                    "default": "—",
+                    "description": "Inner bevel highlight — thin lines drawn along top and left edges. Quoted string: \"#AARRGGBB\"."
+                },
+                {
+                    "sml": "elevation",
+                    "godot": "— (expands to profile properties before build)",
+                    "type": "identifier",
+                    "default": "—",
+                    "description": "Named elevation profile from the Elevations theme block (e.g. raised, card, inset, flat). Expands to bgColor, borderColor, shadowColor, etc. Individual properties override the profile."
                 }
             ],
             "Markdown": [

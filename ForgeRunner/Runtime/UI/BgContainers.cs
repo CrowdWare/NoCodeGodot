@@ -28,6 +28,7 @@ namespace Runtime.UI;
 public partial class BgVBoxContainer : VBoxContainer
 {
     private StyleBoxFlat? _bgStyle;
+    private Color? _highlightColor;
 
     public void SetBgStyle(StyleBoxFlat style)
     {
@@ -35,10 +36,22 @@ public partial class BgVBoxContainer : VBoxContainer
         QueueRedraw();
     }
 
+    public void SetHighlightColor(Color color)
+    {
+        _highlightColor = color;
+        QueueRedraw();
+    }
+
     public override void _Draw()
     {
         if (_bgStyle != null)
             DrawStyleBox(_bgStyle, new Rect2(Vector2.Zero, Size));
+        if (_highlightColor.HasValue)
+        {
+            var r = _bgStyle?.CornerRadiusTopLeft ?? 0;
+            DrawLine(new Vector2(r, 0.5f), new Vector2(Size.X - r, 0.5f), _highlightColor.Value);
+            DrawLine(new Vector2(0.5f, r), new Vector2(0.5f, Size.Y - r), _highlightColor.Value);
+        }
     }
 }
 
@@ -49,6 +62,7 @@ public partial class BgVBoxContainer : VBoxContainer
 public partial class BgHBoxContainer : HBoxContainer
 {
     private StyleBoxFlat? _bgStyle;
+    private Color? _highlightColor;
 
     public void SetBgStyle(StyleBoxFlat style)
     {
@@ -56,10 +70,22 @@ public partial class BgHBoxContainer : HBoxContainer
         QueueRedraw();
     }
 
+    public void SetHighlightColor(Color color)
+    {
+        _highlightColor = color;
+        QueueRedraw();
+    }
+
     public override void _Draw()
     {
         if (_bgStyle != null)
             DrawStyleBox(_bgStyle, new Rect2(Vector2.Zero, Size));
+        if (_highlightColor.HasValue)
+        {
+            var r = _bgStyle?.CornerRadiusTopLeft ?? 0;
+            DrawLine(new Vector2(r, 0.5f), new Vector2(Size.X - r, 0.5f), _highlightColor.Value);
+            DrawLine(new Vector2(0.5f, r), new Vector2(0.5f, Size.Y - r), _highlightColor.Value);
+        }
     }
 }
 
@@ -70,6 +96,7 @@ public partial class BgHBoxContainer : HBoxContainer
 public partial class BgControl : Control
 {
     private StyleBoxFlat? _bgStyle;
+    private Color? _highlightColor;
 
     public void SetBgStyle(StyleBoxFlat style)
     {
@@ -77,9 +104,21 @@ public partial class BgControl : Control
         QueueRedraw();
     }
 
+    public void SetHighlightColor(Color color)
+    {
+        _highlightColor = color;
+        QueueRedraw();
+    }
+
     public override void _Draw()
     {
         if (_bgStyle != null)
             DrawStyleBox(_bgStyle, new Rect2(Vector2.Zero, Size));
+        if (_highlightColor.HasValue)
+        {
+            var r = _bgStyle?.CornerRadiusTopLeft ?? 0;
+            DrawLine(new Vector2(r, 0.5f), new Vector2(Size.X - r, 0.5f), _highlightColor.Value);
+            DrawLine(new Vector2(0.5f, r), new Vector2(0.5f, Size.Y - r), _highlightColor.Value);
+        }
     }
 }

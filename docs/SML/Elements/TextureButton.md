@@ -24,6 +24,7 @@ Inherited properties are documented in: [BaseButton](BaseButton.md)
 | — | textureDisabled | string(url) | "" |
 | — | textureFocused | string(url) | "" |
 | — | disabled | bool | false |
+| — | ignoreTextureSize | bool | false |
 
 > A button that displays textures for each interaction state instead of a text label.
 > All texture properties accept the same path formats as TextureRect: res://, user://, appRes://, file://, or absolute paths.

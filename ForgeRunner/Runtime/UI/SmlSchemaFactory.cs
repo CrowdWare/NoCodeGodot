@@ -95,6 +95,7 @@ public static class SmlSchemaFactory
         schema.RegisterEnumValue("alignment", "end", 2);
 
         schema.RegisterIdentifierProperty("fontWeight");
+        schema.RegisterIdentifierProperty("elevation");
 
         return schema;
     }

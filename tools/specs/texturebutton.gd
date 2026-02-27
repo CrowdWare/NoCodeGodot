@@ -20,7 +20,9 @@ func get_spec() -> Dictionary:
              "notes":"Texture shown when the button is disabled."},
             {"sml":"textureFocused",   "type":"string(url)",  "default":"\"\"",
              "notes":"Texture shown when the button has keyboard focus."},
-            {"sml":"disabled",         "type":"bool",         "default":"false"},
+            {"sml":"disabled",            "type":"bool", "default":"false"},
+            {"sml":"ignoreTextureSize",  "type":"bool", "default":"false",
+             "notes":"If true, the texture size is not used for minimum size calculation. Required when using anchors or explicit width/height to constrain the button to a fixed size."},
         ],
         "examples_sml": [
             "TextureButton {",

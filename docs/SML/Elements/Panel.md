@@ -22,6 +22,11 @@ Inherited properties are documented in: [Control](Control.md)
 | panel StyleBoxFlat (theme override) | borderColor | color | — |
 | panel StyleBoxFlat (theme override) | borderWidth | int | — |
 | panel StyleBoxFlat (theme override) | borderRadius | int | — |
+| StyleBoxFlat.shadow_color | shadowColor | color | — |
+| StyleBoxFlat.shadow_size | shadowSize | int | — |
+| StyleBoxFlat.shadow_offset.x | shadowOffsetX | int | 0 |
+| StyleBoxFlat.shadow_offset.y | shadowOffsetY | int | 0 |
+| — (expands to profile properties before build) | elevation | identifier | — |
 
 ## Events
 

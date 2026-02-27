@@ -77,10 +77,12 @@ public sealed class SmlUiBuilder
 
         var rootNode = document.Roots[0];
         ApplyLocalizationRecursively(rootNode, document.Resources);
+        ExpandElevationsRecursively(rootNode, document.Resources);
         var ui = BuildNodeRecursive(rootNode, parentNodeName: null);
         var built = ui ?? BuildFallback($"Could not build root node '{rootNode.Name}'.");
         ApplyAnchorsFromMetaRecursively(built);
         ApplyOffsetsFromMetaRecursively(built);
+        ApplyShadowOffsetsFromMetaRecursively(built);
         document.Resources.TryGetValue("Fonts", out var fontsNode);
         _propertyMapper.ResolvePendingFontFaceWeights(built, fontsNode, _resolveAssetPath);
 
@@ -234,6 +236,48 @@ public sealed class SmlUiBuilder
             if (control.GetChild(i) is Control childControl)
                 ApplyOffsetsFromMetaRecursively(childControl);
         }
+    }
+
+    private void ApplyShadowOffsetsFromMetaRecursively(Control control)
+    {
+        _propertyMapper.ApplyShadowOffsetFromMeta(control);
+        for (var i = 0; i < control.GetChildCount(); i++)
+        {
+            if (control.GetChild(i) is Control childControl)
+                ApplyShadowOffsetsFromMetaRecursively(childControl);
+        }
+    }
+
+    private static void ExpandElevationsRecursively(SmlNode node, Dictionary<string, SmlNode> resources)
+    {
+        if (node.Properties.TryGetValue("elevation", out var elevValue))
+        {
+            var profileName = elevValue.AsStringOrThrow("elevation");
+            node.Properties.Remove("elevation");
+
+            if (resources.TryGetValue("Elevations", out var elevationsNode))
+            {
+                var profile = elevationsNode.Children.FirstOrDefault(c =>
+                    string.Equals(c.Name, profileName, StringComparison.OrdinalIgnoreCase));
+                if (profile != null)
+                {
+                    foreach (var (k, v) in profile.Properties)
+                        if (!node.Properties.ContainsKey(k))
+                            node.Properties[k] = v;
+                }
+                else
+                {
+                    RunnerLogger.Warn("UI", $"Elevation profile '{profileName}' not found in Elevations block.");
+                }
+            }
+            else
+            {
+                RunnerLogger.Warn("UI", $"'elevation' property used but no Elevations block found in theme.");
+            }
+        }
+
+        foreach (var child in node.Children)
+            ExpandElevationsRecursively(child, resources);
     }
 
     private Control? BuildNodeRecursive(SmlNode node, string? parentNodeName)
@@ -919,45 +963,57 @@ public sealed class SmlUiBuilder
 
     private static Control WrapWithPaddingContainer(Control content, string nodeName)
     {
-        var top = content.HasMeta(NodePropertyMapper.MetaPaddingTop)
-            ? content.GetMeta(NodePropertyMapper.MetaPaddingTop).AsInt32()
-            : 0;
-        var right = content.HasMeta(NodePropertyMapper.MetaPaddingRight)
-            ? content.GetMeta(NodePropertyMapper.MetaPaddingRight).AsInt32()
-            : 0;
-        var bottom = content.HasMeta(NodePropertyMapper.MetaPaddingBottom)
-            ? content.GetMeta(NodePropertyMapper.MetaPaddingBottom).AsInt32()
-            : 0;
-        var left = content.HasMeta(NodePropertyMapper.MetaPaddingLeft)
-            ? content.GetMeta(NodePropertyMapper.MetaPaddingLeft).AsInt32()
-            : 0;
+        var top    = content.HasMeta(NodePropertyMapper.MetaPaddingTop)    ? content.GetMeta(NodePropertyMapper.MetaPaddingTop).AsInt32()    : 0;
+        var right  = content.HasMeta(NodePropertyMapper.MetaPaddingRight)  ? content.GetMeta(NodePropertyMapper.MetaPaddingRight).AsInt32()  : 0;
+        var bottom = content.HasMeta(NodePropertyMapper.MetaPaddingBottom) ? content.GetMeta(NodePropertyMapper.MetaPaddingBottom).AsInt32() : 0;
+        var left   = content.HasMeta(NodePropertyMapper.MetaPaddingLeft)   ? content.GetMeta(NodePropertyMapper.MetaPaddingLeft).AsInt32()   : 0;
 
-        var margin = new MarginContainer
+        var margin = new MarginContainer { Name = $"{nodeName}Padding" };
+        margin.AddThemeConstantOverride("margin_top",    top);
+        margin.AddThemeConstantOverride("margin_right",  right);
+        margin.AddThemeConstantOverride("margin_bottom", bottom);
+        margin.AddThemeConstantOverride("margin_left",   left);
+        margin.SetMeta(NodePropertyMapper.MetaNodeName, Variant.From("PaddingContainer"));
+        margin.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        margin.SizeFlagsVertical   = Control.SizeFlags.ExpandFill;
+
+        // Collect all existing children of content
+        var children = new System.Collections.Generic.List<Node>();
+        for (var i = 0; i < content.GetChildCount(); i++)
+            children.Add(content.GetChild(i));
+        foreach (var child in children)
+            content.RemoveChild(child);
+
+        // For BgVBox/BgHBox: wrap children in an inner layout container so stacking is preserved
+        Container? innerLayout = content switch
         {
-            Name = $"{nodeName}Padding"
+            BgVBoxContainer => new VBoxContainer(),
+            BgHBoxContainer => new HBoxContainer(),
+            _               => null
         };
 
-        margin.AddThemeConstantOverride("margin_top", top);
-        margin.AddThemeConstantOverride("margin_right", right);
-        margin.AddThemeConstantOverride("margin_bottom", bottom);
-        margin.AddThemeConstantOverride("margin_left", left);
-
-        margin.SetMeta(NodePropertyMapper.MetaNodeName, Variant.From("PaddingContainer"));
-
-        if (content.GetParent() is not null)
+        if (innerLayout != null)
         {
-            content.GetParent()?.RemoveChild(content);
+            if (content.HasMeta(NodePropertyMapper.MetaSpacing))
+                innerLayout.AddThemeConstantOverride("separation",
+                    content.GetMeta(NodePropertyMapper.MetaSpacing).AsInt32());
+
+            innerLayout.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+            innerLayout.SizeFlagsVertical   = Control.SizeFlags.ExpandFill;
+
+            foreach (var child in children)
+                innerLayout.AddChild(child);
+
+            margin.AddChild(innerLayout);
+        }
+        else
+        {
+            foreach (var child in children)
+                margin.AddChild(child);
         }
 
-        margin.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        margin.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-        margin.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-
-        content.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        content.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-
-        margin.AddChild(content);
-        return margin;
+        content.AddChild(margin);
+        return content;  // original control stays in its parent position
     }
 
     private static Control WrapWithScrollContainer(Control content, string nodeName)

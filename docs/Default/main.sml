@@ -69,18 +69,24 @@ Window {
         HBoxContainer {
             id: navBar
             spacing: 0
-            padding: 8
+            padding: 0,0,0,20
+            borderColor: "#242736"
+            //bgColor: "#FF0000"
+            borderTop: 1
+            borderBottom: 1
 
             Control {
                 shrinkH: true
                 width: 120
                 height: 44
 
-                TextureButton { 
-                    id: tabStart 
-                    textureNormal: "res://assets/images/button_normal.png" 
+                TextureButton {
+                    id: tabStart
+                    textureNormal: "res://assets/images/button_normal.png"
                     texturePressed: "res://assets/images/button_focused.png"
-                    shrinkH: true 
+                    width: 120
+                    height: 44
+                    ignoreTextureSize: true
                     toggleMode: true
                 }
                 TextureRect {
@@ -89,11 +95,13 @@ Window {
                     left: 10
                     width: 30
                     height: 30
+                    mouseFilter: ignore
                 }
                 Label {
                     top: 15
                     left: 45
                     text: "Start"
+                    mouseFilter: ignore
                 }
             }
             Control {
@@ -101,11 +109,13 @@ Window {
                 width: 120
                 height: 44
 
-                TextureButton { 
+                TextureButton {
                     id: tabLearn
-                    textureNormal: "res://assets/images/button_normal.png" 
+                    textureNormal: "res://assets/images/button_normal.png"
                     texturePressed: "res://assets/images/button_focused.png"
-                    shrinkH: true 
+                    width: 120
+                    height: 44
+                    ignoreTextureSize: true
                     toggleMode: true
                 }
                 TextureRect {
@@ -114,11 +124,13 @@ Window {
                     left: 10
                     width: 30
                     height: 30
+                    mouseFilter: ignore
                 }
                 Label {
                     top: 15
                     left: 45
                     text: "Learn"
+                    mouseFilter: ignore
                 }
             }
             Control {
@@ -126,11 +138,13 @@ Window {
                 width: 120
                 height: 44
                 
-                TextureButton { 
+                TextureButton {
                     id: tabDiscover
-                    textureNormal: "res://assets/images/button_normal.png" 
+                    textureNormal: "res://assets/images/button_normal.png"
                     texturePressed: "res://assets/images/button_focused.png"
-                    shrinkH: true 
+                    width: 120
+                    height: 44
+                    ignoreTextureSize: true
                     toggleMode: true
                 }
                 TextureRect {
@@ -139,11 +153,13 @@ Window {
                     left: 10
                     width: 30
                     height: 30
+                    mouseFilter: ignore
                 }
                 Label {
                     top: 15
                     left: 45
                     text: "Discover"
+                    mouseFilter: ignore
                 }
             }
             Control {
@@ -151,11 +167,13 @@ Window {
                 width: 120
                 height: 44
                 
-                TextureButton { 
+                TextureButton {
                     id: tabUpdates
-                    textureNormal: "res://assets/images/button_normal.png" 
+                    textureNormal: "res://assets/images/button_normal.png"
                     texturePressed: "res://assets/images/button_focused.png"
-                    shrinkH: true 
+                    width: 120
+                    height: 44
+                    ignoreTextureSize: true
                     toggleMode: true
                 }
                 TextureRect {
@@ -164,11 +182,13 @@ Window {
                     left: 10
                     width: 30
                     height: 30
+                    mouseFilter: ignore
                 }
                 Label {
                     top: 15
                     left: 45
                     text: "Updates"
+                    mouseFilter: ignore
                 }
             }
             
@@ -193,6 +213,8 @@ Window {
                 VBoxContainer {
                     id: createSection
                     spacing: 12
+                    padding: 16
+                    elevation: raised
 
                     Label {
                         text: @Strings.headCreateProject
@@ -293,7 +315,6 @@ Window {
                 }
             }
 
-            VSeparator {}
 
             // Right column: News & Tips
             VBoxContainer {
@@ -301,6 +322,7 @@ Window {
                 width: 280
                 sizeFlagsVertical: expandFill
                 spacing: 0
+                elevation: raised
                 padding: 16, 16, 16, 12
 
                 Label {

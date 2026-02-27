@@ -6,6 +6,7 @@ Here I will list things we need in general, like demos, tech previews-
 - [ ] Compiler that compiles SMS and SML to create native apps. Two phases convert to C# or create LLVM, depends on performance
 - [ ] Packaging system (mac, win, linux) 
 - [ ] Plugin Engine
+- [ ] UserDefined Controls
 
 ## Designer App
 - [ ] Edit SML/SMS/MD

@@ -41,16 +41,22 @@ public sealed class ThemeStore
 {
     private readonly Dictionary<string, SmlValue> _colors;
     private readonly Dictionary<string, SmlValue> _layouts;
+    private readonly Dictionary<string, SmlNode> _elevations;
 
-    private ThemeStore(Dictionary<string, SmlValue> colors, Dictionary<string, SmlValue> layouts)
+    private ThemeStore(
+        Dictionary<string, SmlValue> colors,
+        Dictionary<string, SmlValue> layouts,
+        Dictionary<string, SmlNode> elevations)
     {
         _colors = colors;
         _layouts = layouts;
+        _elevations = elevations;
     }
 
     public static ThemeStore Empty { get; } = new(
         new Dictionary<string, SmlValue>(StringComparer.OrdinalIgnoreCase),
-        new Dictionary<string, SmlValue>(StringComparer.OrdinalIgnoreCase));
+        new Dictionary<string, SmlValue>(StringComparer.OrdinalIgnoreCase),
+        new Dictionary<string, SmlNode>(StringComparer.OrdinalIgnoreCase));
 
     public static async Task<ThemeStore> LoadAsync(
         RunnerUriResolver resolver,
@@ -60,18 +66,21 @@ public sealed class ThemeStore
         // 1. Load default theme from the ForgeRunner project (res://theme.sml)
         var defaultColors = new Dictionary<string, SmlValue>(StringComparer.OrdinalIgnoreCase);
         var defaultLayouts = new Dictionary<string, SmlValue>(StringComparer.OrdinalIgnoreCase);
-        await TryLoadAndExtractAsync(resolver, "res://theme.sml", null, defaultColors, defaultLayouts, cancellationToken);
+        var defaultElevations = new Dictionary<string, SmlNode>(StringComparer.OrdinalIgnoreCase);
+        await TryLoadAndExtractAsync(resolver, "res://theme.sml", null, defaultColors, defaultLayouts, defaultElevations, cancellationToken);
 
         // 2. Load optional app-level override (theme.sml next to app.sml)
         var appColors = new Dictionary<string, SmlValue>(StringComparer.OrdinalIgnoreCase);
         var appLayouts = new Dictionary<string, SmlValue>(StringComparer.OrdinalIgnoreCase);
-        await TryLoadAndExtractAsync(resolver, "theme.sml", uiSmlUri, appColors, appLayouts, cancellationToken);
+        var appElevations = new Dictionary<string, SmlNode>(StringComparer.OrdinalIgnoreCase);
+        await TryLoadAndExtractAsync(resolver, "theme.sml", uiSmlUri, appColors, appLayouts, appElevations, cancellationToken);
 
         // 3. Merge: app override wins over default
         var mergedColors = Merge(defaultColors, appColors);
         var mergedLayouts = Merge(defaultLayouts, appLayouts);
+        var mergedElevations = MergeElevations(defaultElevations, appElevations);
 
-        return new ThemeStore(mergedColors, mergedLayouts);
+        return new ThemeStore(mergedColors, mergedLayouts, mergedElevations);
     }
 
     /// <summary>
@@ -82,6 +91,7 @@ public sealed class ThemeStore
     {
         InjectNamespace(resources, "Colors", _colors);
         InjectNamespace(resources, "Layouts", _layouts);
+        InjectElevations(resources, _elevations);
     }
 
     private static void InjectNamespace(
@@ -104,11 +114,38 @@ public sealed class ThemeStore
         }
     }
 
+    private static void InjectElevations(Dictionary<string, SmlNode> resources, Dictionary<string, SmlNode> profiles)
+    {
+        if (profiles.Count == 0) return;
+
+        if (!resources.TryGetValue("Elevations", out var elevNode))
+        {
+            elevNode = new SmlNode { Name = "Elevations", Line = 0 };
+            resources["Elevations"] = elevNode;
+        }
+
+        foreach (var (name, profile) in profiles)
+        {
+            if (!elevNode.Children.Any(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase)))
+                elevNode.Children.Add(profile);
+        }
+    }
+
     private static Dictionary<string, SmlValue> Merge(
         Dictionary<string, SmlValue> defaults,
         Dictionary<string, SmlValue> overrides)
     {
         var result = new Dictionary<string, SmlValue>(defaults, StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in overrides)
+            result[key] = value;
+        return result;
+    }
+
+    private static Dictionary<string, SmlNode> MergeElevations(
+        Dictionary<string, SmlNode> defaults,
+        Dictionary<string, SmlNode> overrides)
+    {
+        var result = new Dictionary<string, SmlNode>(defaults, StringComparer.OrdinalIgnoreCase);
         foreach (var (key, value) in overrides)
             result[key] = value;
         return result;
@@ -120,6 +157,7 @@ public sealed class ThemeStore
         string? baseUri,
         Dictionary<string, SmlValue> colors,
         Dictionary<string, SmlValue> layouts,
+        Dictionary<string, SmlNode> elevations,
         CancellationToken cancellationToken)
     {
         try
@@ -135,6 +173,10 @@ public sealed class ThemeStore
             if (doc.Resources.TryGetValue("Layouts", out var layoutsNode))
                 foreach (var (key, value) in layoutsNode.Properties)
                     layouts[key] = value;
+
+            if (doc.Resources.TryGetValue("Elevations", out var elevationsNode))
+                foreach (var child in elevationsNode.Children)
+                    elevations[child.Name] = child;
         }
         catch (FileNotFoundException)
         {

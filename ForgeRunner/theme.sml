@@ -54,3 +54,38 @@ Layouts {
     fontSize: 13
     fontSizeTree: 12
 }
+
+Elevations {
+    raised {
+        bgColor: "#252935"
+        borderColor: "#3a4156"
+        borderWidth: 1
+        borderRadius: 6
+        shadowColor: "#70000000"
+        shadowSize: 8
+        shadowOffsetX: 4
+        shadowOffsetY: 4
+        highlightColor: "#14ffffff"
+    }
+    inset {
+        bgColor: "#181B22"
+        borderColor: "#2a2e3a"
+        borderWidth: 1
+        borderRadius: 6
+    }
+    card {
+        bgColor: "#1E2129"
+        borderColor: "#353C49"
+        borderWidth: 1
+        borderRadius: 8
+        shadowColor: "#60000000"
+        shadowSize: 6
+        highlightColor: "#0fffffff"
+    }
+    flat {
+        bgColor: "#21242D"
+        borderColor: "#303946"
+        borderWidth: 1
+        borderRadius: 6
+    }
+}

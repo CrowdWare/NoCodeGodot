@@ -28,6 +28,12 @@ Inherited properties are documented in: [BoxContainer](BoxContainer.md)
 | — (drawn via BgHBoxContainer._Draw) | borderColor | color | — |
 | — (drawn via BgHBoxContainer._Draw) | borderWidth | int | — |
 | — (drawn via BgHBoxContainer._Draw) | borderRadius | int | — |
+| StyleBoxFlat.shadow_color | shadowColor | color | — |
+| StyleBoxFlat.shadow_size | shadowSize | int | — |
+| StyleBoxFlat.shadow_offset.x | shadowOffsetX | int | 0 |
+| StyleBoxFlat.shadow_offset.y | shadowOffsetY | int | 0 |
+| — (drawn via BgHBoxContainer._Draw) | highlightColor | color | — |
+| — (expands to profile properties before build) | elevation | identifier | — |
 ### Examples
 
 ```sml

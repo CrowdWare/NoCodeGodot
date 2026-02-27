@@ -92,6 +92,9 @@ public sealed class NodePropertyMapper
     public const string MetaOffsetBottom = "sml_offsetBottom";
     public const string MetaOffsetLeft = "sml_offsetLeft";
     public const string MetaOffsetRight = "sml_offsetRight";
+    public const string MetaShadowOffsetX = "sml_shadowOffsetX";
+    public const string MetaShadowOffsetY = "sml_shadowOffsetY";
+    public const string MetaSpacing = "sml_spacing";
 
     private static readonly IReadOnlyDictionary<string, Action<Control, SmlValue, string>> SimplePropertyHandlers
         = BuildSimplePropertyHandlers();
@@ -177,8 +180,45 @@ public sealed class NodePropertyMapper
                 ApplyBorderRadius(control, value.AsIntOrThrow(propertyName));
                 return;
 
+            case "bordertop":
+                ApplyBorderWidthSide(control, value.AsIntOrThrow(propertyName), Side.Top);
+                return;
+
+            case "borderbottom":
+                ApplyBorderWidthSide(control, value.AsIntOrThrow(propertyName), Side.Bottom);
+                return;
+
+            case "borderleft":
+                ApplyBorderWidthSide(control, value.AsIntOrThrow(propertyName), Side.Left);
+                return;
+
+            case "borderright":
+                ApplyBorderWidthSide(control, value.AsIntOrThrow(propertyName), Side.Right);
+                return;
+
+            case "shadowcolor":
+                ApplyShadowColor(control, value.AsStringOrThrow(propertyName), propertyName);
+                return;
+
+            case "shadowsize":
+                ApplyShadowSize(control, value.AsIntOrThrow(propertyName));
+                return;
+
+            case "shadowoffsetx":
+                control.SetMeta(MetaShadowOffsetX, Variant.From(value.AsIntOrThrow(propertyName)));
+                return;
+
+            case "shadowoffsety":
+                control.SetMeta(MetaShadowOffsetY, Variant.From(value.AsIntOrThrow(propertyName)));
+                return;
+
+            case "highlightcolor":
+                ApplyHighlightColor(control, value.AsStringOrThrow(propertyName), propertyName);
+                return;
+
             case "spacing":
                 ApplySpacing(control, value.AsIntOrThrow(propertyName));
+                control.SetMeta(MetaSpacing, Variant.From(value.AsIntOrThrow(propertyName)));
                 return;
 
             case "padding":
@@ -347,6 +387,14 @@ public sealed class NodePropertyMapper
                 {
                     var raw = value.AsStringOrThrow(propertyName);
                     tbFocused.TextureFocused = LoadTexture2D(ResolveAssetPath(raw, resolveAssetPath), raw);
+                    return;
+                }
+                break;
+
+            case "ignoretexturesize":
+                if (control is TextureButton tbIgnore)
+                {
+                    tbIgnore.IgnoreTextureSize = ToBoolOrThrow(value, propertyName);
                     return;
                 }
                 break;
@@ -1425,6 +1473,71 @@ public sealed class NodePropertyMapper
         style.CornerRadiusBottomLeft = radius;
         style.CornerRadiusBottomRight = radius;
         EnsureBgStyleApplied(control, style);
+    }
+
+    private static void ApplyBorderWidthSide(Control control, int width, Side side)
+    {
+        var style = GetOrCreateBgStyle(control);
+        switch (side)
+        {
+            case Side.Top:    style.BorderWidthTop    = width; break;
+            case Side.Bottom: style.BorderWidthBottom = width; break;
+            case Side.Left:   style.BorderWidthLeft   = width; break;
+            case Side.Right:  style.BorderWidthRight  = width; break;
+        }
+        EnsureBgStyleApplied(control, style);
+    }
+
+    private static void ApplyShadowColor(Control control, string rawColor, string propertyName)
+    {
+        if (!TryParseColor(rawColor, out var color))
+            throw new SmlParseException($"Property '{propertyName}' must be a color in #RRGGBB or #AARRGGBB format.");
+        var style = GetOrCreateBgStyle(control);
+        style.ShadowColor = color;
+        EnsureBgStyleApplied(control, style);
+    }
+
+    private static void ApplyShadowSize(Control control, int size)
+    {
+        var style = GetOrCreateBgStyle(control);
+        style.ShadowSize = size;
+        EnsureBgStyleApplied(control, style);
+    }
+
+    public void ApplyShadowOffsetFromMeta(Control control)
+    {
+        var hasX = control.HasMeta(MetaShadowOffsetX);
+        var hasY = control.HasMeta(MetaShadowOffsetY);
+        if (!hasX && !hasY) return;
+
+        var style = GetOrCreateBgStyle(control);
+        style.ShadowOffset = new Vector2(
+            hasX ? control.GetMeta(MetaShadowOffsetX).AsInt32() : 0,
+            hasY ? control.GetMeta(MetaShadowOffsetY).AsInt32() : 0
+        );
+        EnsureBgStyleApplied(control, style);
+    }
+
+    private static void ApplyHighlightColor(Control control, string rawColor, string propertyName)
+    {
+        if (!TryParseColor(rawColor, out var color))
+            throw new SmlParseException($"Property '{propertyName}' must be a color in #RRGGBB or #AARRGGBB format.");
+
+        switch (control)
+        {
+            case BgVBoxContainer bgVBox:
+                bgVBox.SetHighlightColor(color);
+                break;
+            case BgHBoxContainer bgHBox:
+                bgHBox.SetHighlightColor(color);
+                break;
+            case BgControl bgControl:
+                bgControl.SetHighlightColor(color);
+                break;
+            default:
+                RunnerLogger.Warn("UI", $"'highlightColor' is only supported on VBoxContainer, HBoxContainer, and Control — ignored for '{control.GetType().Name}'.");
+                break;
+        }
     }
 
     private static bool ToBoolOrThrow(SmlValue value, string propertyName)

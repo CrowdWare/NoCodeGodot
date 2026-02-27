@@ -132,6 +132,17 @@ Inherited properties are documented in: [CanvasItem](CanvasItem.md)
 | — (drawn via BgControl._Draw) | borderColor | color | — |
 | — (drawn via BgControl._Draw) | borderWidth | int | — |
 | — (drawn via BgControl._Draw) | borderRadius | int | — |
+| StyleBoxFlat.border_width_top | borderTop | int | — |
+| StyleBoxFlat.border_width_bottom | borderBottom | int | — |
+| StyleBoxFlat.border_width_left | borderLeft | int | — |
+| StyleBoxFlat.border_width_right | borderRight | int | — |
+| StyleBoxFlat.shadow_color | shadowColor | color | — |
+| StyleBoxFlat.shadow_size | shadowSize | int | — |
+| StyleBoxFlat.shadow_offset.x | shadowOffsetX | int | 0 |
+| StyleBoxFlat.shadow_offset.y | shadowOffsetY | int | 0 |
+| — (drawn via BgControl._Draw) | highlightColor | color | — |
+| — (expands to profile properties before build) | elevation | identifier | — |
+| — (inner MarginContainer injected at build time) | padding | padding | 0 |
 
 ## Events
 
