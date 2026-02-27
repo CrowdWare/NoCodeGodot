@@ -14,7 +14,6 @@ fun ready() {
     tabDiscover = ui.getObject("tabDiscover")
     tabUpdates  = ui.getObject("tabUpdates")
 
-    tabStart.buttonPressed = true
     //pageStart = ui.getObject("pageStart")
     //pageLearn = ui.getObject("pageLearn")
     //pageDiscover = ui.getObject("pageDiscover")
