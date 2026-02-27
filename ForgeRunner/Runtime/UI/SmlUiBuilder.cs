@@ -1045,8 +1045,6 @@ public sealed class SmlUiBuilder
                     return;
                 }
 
-                RunnerLogger.Info("UI", $"Button pressed: id='{id}', action='{action}', target='{target}'");
-
                 var resolvedAction = !string.IsNullOrWhiteSpace(action) ? action
                     : string.IsNullOrWhiteSpace(target) ? "buttonClicked"
                     : action;

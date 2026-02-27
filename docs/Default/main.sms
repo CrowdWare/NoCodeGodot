@@ -23,7 +23,6 @@ fun ready() {
 }
 
 fun activateTab(index) {
-    log.info("activateTab($index)")
     tabStart.buttonPressed = false
     tabLearn.buttonPressed = false
     tabDiscover.buttonPressed = false

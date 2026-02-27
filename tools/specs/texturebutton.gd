@@ -21,7 +21,6 @@ func get_spec() -> Dictionary:
             {"sml":"textureFocused",   "type":"string(url)",  "default":"\"\"",
              "notes":"Texture shown when the button has keyboard focus."},
             {"sml":"disabled",         "type":"bool",         "default":"false"},
-            {"sml":"toggleMode",       "type":"bool",         "default":"false"},
         ],
         "examples_sml": [
             "TextureButton {",

@@ -1150,7 +1150,8 @@ func _generate_schema_types_cs(names: Array) -> void:
         var c_name := String(n)
         var parent := ""
         if SPECS.has(c_name):
-            parent = String(SPECS[c_name].get("backing", "Control"))
+            var backing := String(SPECS[c_name].get("backing", "Control"))
+            parent = String(ClassDB.get_parent_class(backing)) if ClassDB.class_exists(backing) else backing
         elif ClassDB.class_exists(c_name):
             parent = String(ClassDB.get_parent_class(c_name))
 

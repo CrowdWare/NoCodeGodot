@@ -546,7 +546,6 @@ public static class SchemaProperties
         new PropDef("TextureButton", "textureDisabled", "textureDisabled", "string(url)"),
         new PropDef("TextureButton", "textureFocused", "textureFocused", "string(url)"),
         new PropDef("TextureButton", "disabled", "disabled", "bool"),
-        new PropDef("TextureButton", "toggleMode", "toggleMode", "bool"),
         new PropDef("TextureProgressBar", "fillMode", "fill_mode", "int"),
         new PropDef("TextureProgressBar", "ninePatchStretch", "nine_patch_stretch", "bool"),
         new PropDef("TextureProgressBar", "radialCenterOffset", "radial_center_offset", "Vector2"),
