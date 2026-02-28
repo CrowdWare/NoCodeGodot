@@ -273,6 +273,29 @@ Touch input must work for: bone picking, gizmo handle dragging, timeline scrubbi
 
 ## 9. TestEnvironment
 We will create a new Forge-app in the folder /ForgePoser.
-There we will use these new controls in an animation creation tools. 
+There we will use these new controls in an animation creation tools.
 The export output will be a .glb with an animation.
 And maybe a scene (phase 2) as .glb.
+
+---
+
+## 10. Implementierungsstand & offene Punkte
+
+### Fertig implementiert
+- RotationGizmo3D (Torus-Ringe, Handles, World-Space-Rotation, Limits, Orange-Feedback, Winkel-Label)
+- PosingEditorControl (Orbit-Kamera, Joint-Spheres, Picking, BoneTree als collapsible Tree, Constraints)
+- TimelineControl (Ruler, Bone-Tracks, Keyframe-Diamonds, Playhead, Play/Stop, lineare Interpolation)
+- SMS-Verdrahtung: `poseChanged → setKeyframe`, `frameChanged → loadPose`
+- ForgePoser App: `main.sml` + `main.sms`
+
+### Noch offen (Phase 2)
+
+| Feature | Aufwand | Hinweis |
+|---|---|---|
+| `btnOpen` — Datei-Dialog um GLB zu laden | mittel | Godot `FileDialog`, dann `editor.setModelSource(path)` |
+| Keyframe löschen (UI-Geste) | klein | Rechtsklick auf Diamond oder Del-Taste; `RemoveKeyframe()` existiert bereits |
+| SMS-Events `keyframeAdded` / `keyframeRemoved` | klein | In `SetKeyframe`/`RemoveKeyframe` feuern + Dispatcher + SmsUiRuntime-Handler |
+| Touch-Input (Tablet) | mittel | Poll-Drag nutzt Maus; `InputEventScreenTouch` / `InputEventScreenDrag` ergänzen |
+| `exportPoseAsGLB(path)` | groß | Godot `GltfDocument` mit gesetzten Bone-Poses exportieren |
+| `exportAnimationAsGLB(path)` | groß | Keyframes → `AnimationLibrary` → `GltfDocument` exportieren |
+| IK-Support (`SkeletonIK3D`) | groß | Godot `SkeletonIK3D` als Kind von Skeleton3D; Hand/Fuß-Knochen triggern IK-Solve |
