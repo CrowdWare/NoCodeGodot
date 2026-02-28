@@ -79,6 +79,10 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     private bool    _isRotating;
     private bool    _isPanning;
 
+    // ── Rotation gizmo ────────────────────────────────────────────────────────
+    private readonly RotationGizmo3D _gizmo;
+    private bool _gizmoDragging;
+
     // ── Bone selection ────────────────────────────────────────────────────────
     private int _selectedBoneIdx = -1;
 
@@ -122,8 +126,11 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             LightEnergy = 1.2f
         };
 
+        _gizmo = new RotationGizmo3D();
+
         _worldRoot.AddChild(_camera);
         _worldRoot.AddChild(_light);
+        _worldRoot.AddChild(_gizmo);
         _viewport.AddChild(_worldRoot);
         AddChild(_viewport);
 
@@ -149,8 +156,30 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     {
         if (mb.ButtonIndex == MouseButton.Left && mb.Pressed)
         {
-            TryPickBone(mb.Position);
+            var (rayOrigin, rayDir) = BuildRay(mb.Position);
+            var hitHandle = _gizmo.TryPickHandle(rayOrigin, rayDir);
+            if (hitHandle >= 0)
+            {
+                _gizmo.BeginDrag(hitHandle);
+                _gizmoDragging = true;
+                GrabFocus();
+            }
+            else
+            {
+                TryPickBone(mb.Position);
+            }
             AcceptEvent();
+            return;
+        }
+
+        if (mb.ButtonIndex == MouseButton.Left && !mb.Pressed)
+        {
+            if (_gizmoDragging)
+            {
+                _gizmo.EndDrag();
+                _gizmoDragging = false;
+                AcceptEvent();
+            }
             return;
         }
 
@@ -188,6 +217,14 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
     private void HandleMouseMotion(InputEventMouseMotion mm)
     {
+        if (_gizmoDragging)
+        {
+            _gizmo.UpdateDrag(mm.Relative);
+            FirePoseChangedForSelectedBone();
+            AcceptEvent();
+            return;
+        }
+
         if (_isRotating)
         {
             _yaw   -= mm.Relative.X * 0.01f;
@@ -207,6 +244,15 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             ApplyCameraOrbit();
             AcceptEvent();
         }
+    }
+
+    private void FirePoseChangedForSelectedBone()
+    {
+        if (_skeleton is null || _selectedBoneIdx < 0) return;
+        var boneName = _skeleton.GetBoneName(_selectedBoneIdx);
+        var rot      = _skeleton.GetBonePoseRotation(_selectedBoneIdx);
+        PoseData[boneName] = rot;
+        PoseChanged?.Invoke(boneName, rot);
     }
 
     // ── Frame update ──────────────────────────────────────────────────────────
@@ -384,21 +430,26 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         _jointSpheres.Clear();
     }
 
+    // ── Ray helpers ───────────────────────────────────────────────────────────
+
+    /// <summary>Convert a SubViewportContainer mouse position to a world-space ray.</summary>
+    private (Vector3 origin, Vector3 dir) BuildRay(Vector2 mousePos)
+    {
+        var vpSize   = (Vector2)_viewport.Size;
+        var ctrlSize = Size;
+        var vp       = new Vector2(
+            mousePos.X * vpSize.X / ctrlSize.X,
+            mousePos.Y * vpSize.Y / ctrlSize.Y);
+        return (_camera.ProjectRayOrigin(vp), _camera.ProjectRayNormal(vp));
+    }
+
     // ── Bone picking ──────────────────────────────────────────────────────────
 
     private void TryPickBone(Vector2 mousePos)
     {
         if (_skeleton is null || _jointSpheres.Count == 0) return;
 
-        // Map mouse position from SubViewportContainer to SubViewport coordinates.
-        var vpSize   = (Vector2)_viewport.Size;
-        var ctrlSize = Size;
-        var vp       = new Vector2(
-            mousePos.X * vpSize.X / ctrlSize.X,
-            mousePos.Y * vpSize.Y / ctrlSize.Y);
-
-        var rayOrigin = _camera.ProjectRayOrigin(vp);
-        var rayDir    = _camera.ProjectRayNormal(vp);
+        var (rayOrigin, rayDir) = BuildRay(mousePos);
 
         var bestBone = -1;
         var bestT    = float.MaxValue;
@@ -442,7 +493,23 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             SyncBoneListSelection(_selectedBoneIdx);
             BoneSelected?.Invoke(boneName);
             RunnerLogger.Info("PosingEditor", $"Bone selected: '{boneName}' (idx {_selectedBoneIdx}).");
+
+            // Show gizmo on selected bone.
+            _gizmo.AttachToBone(_skeleton, _selectedBoneIdx);
+            ApplyConstraintsToGizmo(boneName);
         }
+        else
+        {
+            _gizmo.Detach();
+        }
+    }
+
+    private void ApplyConstraintsToGizmo(string boneName)
+    {
+        if (_constraints.TryGetValue(boneName, out var c))
+            _gizmo.SetConstraints(c.MinX, c.MaxX, c.MinY, c.MaxY, c.MinZ, c.MaxZ);
+        else
+            _gizmo.SetConstraints(-180f, 180f, -180f, 180f, -180f, 180f);
     }
 
     private void SetSphereColor(int idx, Color color)
