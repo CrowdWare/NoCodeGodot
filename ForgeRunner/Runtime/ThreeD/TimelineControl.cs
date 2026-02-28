@@ -133,11 +133,24 @@ public sealed partial class TimelineTrackArea : Control
     {
         if (Owner is null) return;
 
-        if (@event is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Left)
+        if (@event is InputEventMouseButton mb)
         {
-            _dragging = mb.Pressed;
-            if (mb.Pressed) Seek(mb.Position.X);
-            AcceptEvent();
+            if (mb.ButtonIndex == MouseButton.Left)
+            {
+                _dragging = mb.Pressed;
+                if (mb.Pressed) Seek(mb.Position.X);
+                AcceptEvent();
+            }
+            else if (mb.ButtonIndex == MouseButton.Right && mb.Pressed)
+            {
+                // Right-click on a keyframe diamond → delete it.
+                var frame = Mathf.RoundToInt((mb.Position.X - BoneNameWidth + ScrollOffset) / PixPerFrame);
+                if (frame >= 0 && Owner.HasKeyframeAt(frame))
+                {
+                    Owner.RemoveKeyframe(frame);
+                    AcceptEvent();
+                }
+            }
         }
         else if (@event is InputEventMouseMotion mm
                  && _dragging
@@ -145,6 +158,15 @@ public sealed partial class TimelineTrackArea : Control
         {
             Seek(mm.Position.X);
             AcceptEvent();
+        }
+        else if (@event is InputEventKey key && key.Pressed && !key.Echo)
+        {
+            // Del key → remove keyframe at the current playhead position.
+            if (key.Keycode == Key.Delete && Owner.HasKeyframeAt(Owner.CurrentFrame))
+            {
+                Owner.RemoveKeyframe(Owner.CurrentFrame);
+                AcceptEvent();
+            }
         }
     }
 
@@ -234,9 +256,11 @@ public sealed partial class TimelineControl : Control
     private float _playAccumulated;
 
     // ── Events ────────────────────────────────────────────────────────────
-    public event Action<int>? FrameChanged;
-    public event Action?      PlaybackStarted;
-    public event Action?      PlaybackStopped;
+    public event Action<int>?         FrameChanged;
+    public event Action<int, string>? KeyframeAdded;
+    public event Action<int>?         KeyframeRemoved;
+    public event Action?              PlaybackStarted;
+    public event Action?              PlaybackStopped;
 
     // ─────────────────────────────────────────────────────────────────────
     public TimelineControl()
@@ -333,6 +357,7 @@ public sealed partial class TimelineControl : Control
                 _trackedBones.Add(name);
                 _trackedBones.Sort(StringComparer.OrdinalIgnoreCase);
             }
+            KeyframeAdded?.Invoke(frame, name);
         }
 
         RefreshScrollRange();
@@ -344,6 +369,54 @@ public sealed partial class TimelineControl : Control
     {
         if (!_keyframes.Remove(frame)) return;
         RebuildTrackedBones();
+        RefreshScrollRange();
+        _trackArea.QueueRedraw();
+        KeyframeRemoved?.Invoke(frame);
+    }
+
+    /// <summary>Returns true when a keyframe exists at the given frame.</summary>
+    public bool HasKeyframeAt(int frame) => _keyframes.ContainsKey(frame);
+
+    // ── Keyframe inspector API (SMS-friendly: only primitive return types) ─────
+
+    /// <summary>Total number of frames that have at least one keyframe.</summary>
+    public int GetKeyframeCount() => _keyframes.Count;
+
+    /// <summary>Returns the frame number of the keyframe at sorted position <paramref name="index"/>.</summary>
+    public int GetKeyframeFrameAt(int index)
+    {
+        var i = 0;
+        foreach (var frame in _keyframes.Keys)
+        {
+            if (i == index) return frame;
+            i++;
+        }
+        return -1;
+    }
+
+    /// <summary>Returns the number of bones stored in the keyframe at <paramref name="frame"/>.</summary>
+    public int GetKeyframeBoneCount(int frame) =>
+        _keyframes.TryGetValue(frame, out var bones) ? bones.Count : 0;
+
+    /// <summary>Returns the bone name at position <paramref name="boneIndex"/> in keyframe <paramref name="frame"/>.</summary>
+    public string GetKeyframeBoneName(int frame, int boneIndex)
+    {
+        if (!_keyframes.TryGetValue(frame, out var bones)) return string.Empty;
+        var i = 0;
+        foreach (var name in bones.Keys)
+        {
+            if (i == boneIndex) return name;
+            i++;
+        }
+        return string.Empty;
+    }
+
+    /// <summary>Remove all keyframes and reset the tracked-bone list.</summary>
+    public void ClearAllKeyframes()
+    {
+        _keyframes.Clear();
+        _trackedBones.Clear();
+        SetCurrentFrame(0);
         RefreshScrollRange();
         _trackArea.QueueRedraw();
     }

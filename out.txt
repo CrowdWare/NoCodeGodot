@@ -1,0 +1,49 @@
+Bitte Modus wählen:
+  1) default   -> docs/Default/app.sml
+  2) designer  -> docs/ForgeDesigner/app.sml
+  3) docking   -> samples/docking_demo.sml
+  4) none      -> ohne URL-Override
+  5) docs      -> SML/SMS Docs generieren (headless)
+  6) build     -> App bauen
+  7) theme     -> theme.tres aus theme.sml generieren (headless)
+  8) manifest  -> manifest.sml für alle Docs generieren
+  9) publish   -> manifest + git commit + git push
+ 10) export    -> macOS Release bauen (Godot export)
+ 11) app       -> ForgeRunner.app starten (Release)
+ 12) release   -> version setzen + export + tag + GitHub Release (default: pre)
+ 13) poser     -> ForgePoser/app.sml
+Starting ForgePoser...
+Godot Engine v4.6.stable.mono.official.89cea1439 - https://godotengine.org
+Metal 3.2 - Forward+ - Using Device #0: Apple - Apple M2 (Apple8)
+
+[Log] Logger configured: includeStackTraces=False, showParserWarnings=True
+[Perf] [Ready] settings=37ms
+[Startup] Theme loaded <Theme#-9223372003099015727>
+[Startup] Window.Theme now = <Theme#-9223372003099015727>
+[Perf] [Ready] theme=5ms
+[Startup] Local entry URL resolved directly: 'file:///Users/art/SourceCode/Forge/ForgePoser/app.sml'
+[Perf] [Ready] resolveEntryUrl=8ms url='file:///Users/art/SourceCode/Forge/ForgePoser/app.sml'
+[SMS] No companion SMS script found for 'file:///Users/art/SourceCode/Forge/ForgePoser/app.sml' (expected 'file:///Users/art/SourceCode/Forge/ForgePoser/app.sms').
+[UI] Docking activation check: explicit=False, host=False, legacyTabs=0.
+[UI] LoadFromUri 'app.sml': fetch=0ms, parse=9ms, l10n=4ms, theme=1ms, markdown=0ms, components=0ms, build=28ms, total=45ms
+[UI] Window size applied: 800x600
+[UI] Applied window theme directly to RuntimeUiHost and SmlRoot.
+[UI] UI loaded from 'file:///Users/art/SourceCode/Forge/ForgePoser/app.sml'.
+[Perf] [Ready] runUiStartup=144ms
+[Perf] [SplashFlow] timer+sync=803ms (duration=800ms)
+[SMS] Exposed 16 window flag symbols as SMS globals.
+[SMS] Exposed 3 UI id symbols as SMS globals.
+[SMS] Loaded companion SMS script: 'file:///Users/art/SourceCode/Forge/ForgePoser/main.sms'.
+[Perf] [SwapToUi] runtimeInit=44ms
+[38;2;255;209;102mWARNING: [SML] Unknown node 'Timeline' at line 86. Node will be kept in AST.[39m[0m
+[PosingEditor] Loaded 4 joint constraint(s).
+[UI] Docking activation check: explicit=False, host=False, legacyTabs=0.
+[UI] LoadFromUri 'main.sml': fetch=0ms, parse=0ms, l10n=3ms, theme=10ms, markdown=0ms, components=0ms, build=88ms, total=103ms
+[Perf] [SwapToUi] loadFromUri=103ms
+[UI] Window flags reset to normal (resizable, all buttons, not borderless, not always-on-top)
+[UI] Window title applied: 'ForgePoser'
+[UI] Window size applied: 1440x900
+[UI] Window minSize applied: 1024x680
+[UI] Applied window theme directly to RuntimeUiHost and SmlRoot.
+[Perf] [SwapToUi] attachUi=39ms
+[UI] UI loaded from 'file:///Users/art/SourceCode/Forge/ForgePoser/main.sml'.

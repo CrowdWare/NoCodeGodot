@@ -99,13 +99,33 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     private readonly Dictionary<string, JointConstraintData> _constraints
         = new(StringComparer.OrdinalIgnoreCase);
 
-    // ── Pose data (bone name → local rotation quaternion) ────────────────────
+    // ── Pose data (normalized bone name → local rotation quaternion) ──────────
     public Dictionary<string, Quaternion> PoseData { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    // ── Bone-name normalization ────────────────────────────────────────────────
+    /// <summary>
+    /// When true, well-known rig prefixes (mixamorig:, mixamo1:, CC_Base_, …)
+    /// are stripped from bone names before they appear in PoseData, the bone
+    /// tree, and any saved files.  Default: true.
+    /// </summary>
+    public bool NormalizeNames { get; set; } = true;
+
+    private string NormBone(string raw) =>
+        NormalizeNames ? BoneNameNormalizer.Normalize(raw) : raw;
+
+    // ── Scene props (additional static models in the viewport) ────────────────
+    public sealed record ScenePropData(string Path, float PosX, float PosY, float PosZ, float RotY, float Scale);
+    private readonly List<(Node3D Node, ScenePropData Data)> _sceneProps = [];
+
+    public IReadOnlyList<ScenePropData> SceneProps =>
+        _sceneProps.ConvertAll(p => p.Data);
 
     // ── Events ────────────────────────────────────────────────────────────────
     public event Action<string>?             BoneSelected;
     public event Action<string, Quaternion>? PoseChanged;
     public event Action?                     PoseReset;
+    public event Action<int, string>?        ScenePropAdded;    // (index, path)
+    public event Action<int>?                ScenePropRemoved;  // (index)
 
     // ─────────────────────────────────────────────────────────────────────────
     public PosingEditorControl()
@@ -150,6 +170,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         _worldRoot.AddChild(_light);
         _worldRoot.AddChild(_gizmo);
         _worldRoot.AddChild(worldEnv);
+        _worldRoot.AddChild(CreateFloorGrid());
         _viewport.AddChild(_worldRoot);
         AddChild(_viewport);
 
@@ -233,16 +254,18 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
         if (!mb.Pressed) return;
 
-        if (mb.ButtonIndex == MouseButton.WheelUp)
+        if (mb.ButtonIndex == MouseButton.WheelUp || mb.ButtonIndex == MouseButton.WheelDown)
         {
-            AdjustCameraDistance(-0.3f);
-            AcceptEvent();
-            return;
-        }
+            // Only zoom when the mouse is NOT hovering over the bone-tree panel.
+            // If it is, the scroll event leaked up from the Tree hitting its scroll
+            // limit — don't hijack it for camera zoom.
+            if (_bonePanel is not null && _bonePanel.Visible
+                && _bonePanel.GetRect().HasPoint(mb.Position))
+            {
+                return;
+            }
 
-        if (mb.ButtonIndex == MouseButton.WheelDown)
-        {
-            AdjustCameraDistance(0.3f);
+            AdjustCameraDistance(mb.ButtonIndex == MouseButton.WheelUp ? -0.3f : 0.3f);
             AcceptEvent();
         }
     }
@@ -250,7 +273,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     private void FirePoseChangedForSelectedBone()
     {
         if (_skeleton is null || _selectedBoneIdx < 0) return;
-        var boneName = _skeleton.GetBoneName(_selectedBoneIdx);
+        var boneName = NormBone(_skeleton.GetBoneName(_selectedBoneIdx));
         var rot      = _skeleton.GetBonePoseRotation(_selectedBoneIdx);
         PoseData[boneName] = rot;
         PoseChanged?.Invoke(boneName, rot);
@@ -357,6 +380,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         if (!TryLoadNode3D(source, out var loaded, out var label))
             return;
 
+        _lastLoadedSource = source;
         AttachModel(loaded, label);
     }
 
@@ -449,11 +473,21 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         {
             RunnerLogger.Info("PosingEditor", $"Model loaded from '{label}'. Skeleton: '{_skeleton.Name}', bones: {_skeleton.GetBoneCount()}.");
             BuildJointSpheres();
-            if (_showBoneTree) PopulateBoneList();
+            if (_showBoneTree || _isExternalBoneTree) PopulateBoneList();
         }
     }
 
     // ── Joint spheres ─────────────────────────────────────────────────────────
+
+    private bool _jointSpheresVisible = true;
+
+    /// <summary>Show or hide all joint spheres in the 3D viewport.</summary>
+    public void SetJointSpheresVisible(bool visible)
+    {
+        _jointSpheresVisible = visible;
+        foreach (var sphere in _jointSpheres)
+            sphere.Visible = visible;
+    }
 
     private void BuildJointSpheres()
     {
@@ -477,8 +511,9 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         {
             var sphere = new MeshInstance3D
             {
-                Name = $"JointSphere_{i}",
-                Mesh = mesh
+                Name    = $"JointSphere_{i}",
+                Mesh    = mesh,
+                Visible = _jointSpheresVisible
             };
             _worldRoot.AddChild(sphere);
             _jointSpheres.Add(sphere);
@@ -555,7 +590,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         if (_selectedBoneIdx >= 0 && _selectedBoneIdx < _jointSpheres.Count)
         {
             SetSphereColor(_selectedBoneIdx, SphereColorSelected);
-            var boneName = _skeleton.GetBoneName(_selectedBoneIdx);
+            var boneName = NormBone(_skeleton.GetBoneName(_selectedBoneIdx));
             SyncBoneListSelection(_selectedBoneIdx);
             BoneSelected?.Invoke(boneName);
             RunnerLogger.Info("PosingEditor", $"Bone selected: '{boneName}' (idx {_selectedBoneIdx}).");
@@ -589,9 +624,41 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
     // ── Bone tree overlay ─────────────────────────────────────────────────────
 
+    // When true the bone-tree lives in an external Dock panel, not inside the
+    // viewport overlay.  The internal Panel is not created in this case.
+    private bool _isExternalBoneTree;
+
+    /// <summary>
+    /// Attach a <see cref="Tree"/> that lives outside this control (e.g. in a
+    /// DockingContainer) as the bone-list.  The PosingEditor will not create
+    /// its own internal overlay panel; the supplied tree is used instead.
+    /// Call this before or after model loading — the tree is (re-)populated
+    /// whenever a skeleton is available.
+    /// </summary>
+    public void SetExternalBoneTree(Tree tree)
+    {
+        // Detach from any previous tree to avoid duplicate event subscriptions.
+        if (_boneTree is not null)
+            _boneTree.ItemSelected -= OnBoneTreeSelected;
+
+        _isExternalBoneTree = true;
+        _boneTree            = tree;
+        _boneTree.ItemSelected += OnBoneTreeSelected;
+
+        if (_skeleton is not null) PopulateBoneList();
+    }
+
     public void SetShowBoneTree(bool show)
     {
         _showBoneTree = show;
+
+        if (_isExternalBoneTree)
+        {
+            // External dock tree: nothing to show/hide here.
+            // If the skeleton is already loaded, make sure the tree is populated.
+            if (show && _skeleton is not null) PopulateBoneList();
+            return;
+        }
 
         if (show)
         {
@@ -606,6 +673,8 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
     private void EnsureBonePanel()
     {
+        if (_isExternalBoneTree) return;   // external dock handles the tree
+
         if (_bonePanel is not null)
         {
             _bonePanel.Visible = true;
@@ -666,7 +735,12 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             var parentIdx  = _skeleton.GetBoneParent(i);
             var parentItem = parentIdx >= 0 ? _boneTreeItems[parentIdx] : root;
             var item       = _boneTree.CreateItem(parentItem);
-            item.SetText(0, _skeleton.GetBoneName(i));
+            item.SetText(0, NormBone(_skeleton.GetBoneName(i)));
+            // Collapse everything except top-level bones (parentIdx < 0 = direct children
+            // of the invisible root, e.g. Hips).  This keeps the tree readable on load:
+            // only Hips and its immediate children (Spine, LeftLegUp, RightLegUp, …) are
+            // visible; the user expands further levels manually.
+            item.Collapsed = parentIdx >= 0;
             _boneTreeItems[i] = item;
         }
     }
@@ -761,10 +835,26 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         if (_skeleton is null) return;
         foreach (var (boneName, rot) in pose)
         {
+            // 1. Exact match (most common: pose was saved with same skeleton)
             var idx = _skeleton.FindBone(boneName);
+
+            // 2. Normalised-name match (pose from different rig, same naming base)
+            if (idx < 0 && NormalizeNames)
+            {
+                for (var i = 0; i < _skeleton.GetBoneCount(); i++)
+                {
+                    if (string.Equals(NormBone(_skeleton.GetBoneName(i)),
+                                      boneName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        idx = i;
+                        break;
+                    }
+                }
+            }
+
             if (idx < 0) continue;
             _skeleton.SetBonePoseRotation(idx, rot);
-            PoseData[boneName] = rot;
+            PoseData[NormBone(_skeleton.GetBoneName(idx))] = rot;
         }
     }
 
@@ -809,6 +899,42 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Build a flat grid mesh on the XZ plane (Y = 0) to serve as a visual floor.
+    /// 20 × 20 cells at 0.5 m each → total 10 m × 10 m.
+    /// </summary>
+    private static MeshInstance3D CreateFloorGrid()
+    {
+        const int   cells    = 20;
+        const float cellSize = 0.5f;
+        const float half     = cells * cellSize * 0.5f;
+
+        var tool = new SurfaceTool();
+        tool.Begin(Mesh.PrimitiveType.Lines);
+
+        for (var i = 0; i <= cells; i++)
+        {
+            var t = -half + i * cellSize;
+
+            // Line parallel to X axis
+            tool.AddVertex(new Vector3(-half, 0f, t));
+            tool.AddVertex(new Vector3( half, 0f, t));
+
+            // Line parallel to Z axis
+            tool.AddVertex(new Vector3(t, 0f, -half));
+            tool.AddVertex(new Vector3(t, 0f,  half));
+        }
+
+        var arrayMesh = tool.Commit();
+        arrayMesh.SurfaceSetMaterial(0, new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            AlbedoColor = new Color(0.45f, 0.45f, 0.45f),
+        });
+
+        return new MeshInstance3D { Name = "FloorGrid", Mesh = arrayMesh };
+    }
+
     private static void StopAllAnimationPlayers(Node root)
     {
         if (root is AnimationPlayer ap)
@@ -831,4 +957,158 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         }
         return null;
     }
+
+    // ── Scene props ───────────────────────────────────────────────────────────
+
+    /// <summary>Add a static prop model to the scene. Returns the prop index.</summary>
+    public int AddSceneProp(string path, float posX, float posY, float posZ)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return -1;
+
+        if (!TryLoadNode3D(path, out var node3D, out var label))
+            return -1;
+
+        if (node3D.GetParent() is not null)
+            node3D.GetParent().RemoveChild(node3D);
+
+        StopAllAnimationPlayers(node3D);
+        _worldRoot.AddChild(node3D);
+
+        var data = new ScenePropData(path, posX, posY, posZ, 0f, 1f);
+        ApplyPropTransform(node3D, data);
+
+        var idx = _sceneProps.Count;
+        _sceneProps.Add((node3D, data));
+
+        RunnerLogger.Info("PosingEditor", $"Scene prop added: '{label}' at ({posX},{posY},{posZ}).");
+        ScenePropAdded?.Invoke(idx, path);
+        return idx;
+    }
+
+    /// <summary>Remove a scene prop by index.</summary>
+    public void RemoveSceneProp(int index)
+    {
+        if (index < 0 || index >= _sceneProps.Count) return;
+
+        var (node, _) = _sceneProps[index];
+        _sceneProps.RemoveAt(index);
+
+        if (node.GetParent() is not null)
+            node.GetParent().RemoveChild(node);
+        node.QueueFree();
+
+        ScenePropRemoved?.Invoke(index);
+    }
+
+    public int    GetScenePropCount()                   => _sceneProps.Count;
+    public string GetScenePropPath(int index)            => index >= 0 && index < _sceneProps.Count ? _sceneProps[index].Data.Path : string.Empty;
+    public float  GetScenePropPosX(int index)            => index >= 0 && index < _sceneProps.Count ? _sceneProps[index].Data.PosX : 0f;
+    public float  GetScenePropPosY(int index)            => index >= 0 && index < _sceneProps.Count ? _sceneProps[index].Data.PosY : 0f;
+    public float  GetScenePropPosZ(int index)            => index >= 0 && index < _sceneProps.Count ? _sceneProps[index].Data.PosZ : 0f;
+
+    public void SetScenePropPos(int index, float x, float y, float z)
+    {
+        if (index < 0 || index >= _sceneProps.Count) return;
+        var old  = _sceneProps[index].Data;
+        var data = old with { PosX = x, PosY = y, PosZ = z };
+        _sceneProps[index] = (_sceneProps[index].Node, data);
+        ApplyPropTransform(_sceneProps[index].Node, data);
+    }
+
+    private static void ApplyPropTransform(Node3D node, ScenePropData data)
+    {
+        node.Position = new Vector3(data.PosX, data.PosY, data.PosZ);
+        node.RotationDegrees = new Vector3(0f, data.RotY, 0f);
+        node.Scale   = new Vector3(data.Scale, data.Scale, data.Scale);
+    }
+
+    // ── Project load/save ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Build a serializable snapshot of the current project state
+    /// (scene assets + all keyframes from the supplied timeline).
+    /// </summary>
+    public AnimationProjectData BuildProjectData(TimelineControl timeline)
+    {
+        var assets = new List<SceneAssetData>();
+
+        // Primary character
+        // We don't store the path internally yet — callers pass it via the
+        // project file.  Collect from SceneProps + a placeholder for primary.
+        // If _modelRoot exists but we have no stored path, use empty string.
+        assets.Add(new SceneAssetData(
+            Id:      "character",
+            Src:     _lastLoadedSource,
+            Primary: true,
+            PosX: 0, PosY: 0, PosZ: 0, RotY: 0, Scale: 1));
+
+        for (var i = 0; i < _sceneProps.Count; i++)
+        {
+            var d = _sceneProps[i].Data;
+            assets.Add(new SceneAssetData(
+                Id:      $"prop{i}",
+                Src:     d.Path,
+                Primary: false,
+                PosX:    d.PosX,
+                PosY:    d.PosY,
+                PosZ:    d.PosZ,
+                RotY:    d.RotY,
+                Scale:   d.Scale));
+        }
+
+        // Snapshot keyframes from timeline
+        var keyframes = new SortedDictionary<int, Dictionary<string, Quaternion>>();
+        var kfCount   = timeline.GetKeyframeCount();
+        for (var i = 0; i < kfCount; i++)
+        {
+            var frame = timeline.GetKeyframeFrameAt(i);
+            var pose  = timeline.GetPoseAt(frame);
+            if (pose is not null && pose.Count > 0)
+                keyframes[frame] = new Dictionary<string, Quaternion>(pose, StringComparer.OrdinalIgnoreCase);
+        }
+
+        return new AnimationProjectData(timeline.Fps, timeline.TotalFrames, assets, keyframes);
+    }
+
+    /// <summary>
+    /// Load a full project from an <see cref="AnimationProjectData"/> snapshot,
+    /// populating both this editor and the supplied timeline.
+    /// </summary>
+    public void LoadProjectData(AnimationProjectData data, TimelineControl timeline)
+    {
+        // Clear existing state
+        ClearSceneProps();
+        timeline.ClearAllKeyframes();
+
+        // Load assets
+        foreach (var asset in data.SceneAssets)
+        {
+            if (string.IsNullOrWhiteSpace(asset.Src)) continue;
+            if (asset.Primary)
+            {
+                SetModelSource(asset.Src);
+            }
+            else
+            {
+                AddSceneProp(asset.Src, asset.PosX, asset.PosY, asset.PosZ);
+            }
+        }
+
+        // Restore timeline settings
+        timeline.Fps         = data.Fps;
+        timeline.TotalFrames = data.TotalFrames;
+
+        // Restore keyframes
+        foreach (var (frame, bones) in data.Keyframes)
+            timeline.SetKeyframe(frame, bones);
+    }
+
+    private void ClearSceneProps()
+    {
+        for (var i = _sceneProps.Count - 1; i >= 0; i--)
+            RemoveSceneProp(i);
+    }
+
+    // Track last loaded source so BuildProjectData can persist it
+    private string _lastLoadedSource = string.Empty;
 }

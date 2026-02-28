@@ -75,7 +75,7 @@
 
 ## Tasks Forge-Runner
 - [x] tasks/markdown_layout.md
-- [ ] tasks/animation_panel.md
+- [x] tasks/animation_panel.md
 
 
 ## Future Tasks

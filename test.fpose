@@ -1,0 +1,24 @@
+﻿PoseProject {
+    fps: 24
+    totalFrames: 120
+
+    Scene {
+        Asset { id: "character" src: "/Users/art/SourceCode/Forge/docs/Default/assets/models/Opa.glb" primary: true posX: 0 posY: 0 posZ: 0 rotY: 0 scale: 1 }
+        Asset { id: "prop0" src: "/Users/art/SourceCode/Forge/docs/Default/assets/models/Idle.glb" posX: 2 posY: 0 posZ: 0 rotY: 0 scale: 1 }
+    }
+
+    Animation {
+        Keyframe { frame: 0
+            Bone { name: "Head" x: 0.187317 y: -0.0257134 z: -0.00490508 w: 0.981951 }
+            Bone { name: "LeftForeArm" x: 0.203757 y: -0.286319 z: 0.554261 w: 0.754519 }
+            Bone { name: "LeftArm" x: 0.263918 y: 0.000433639 z: -0.016206 w: 0.964409 }
+            Bone { name: "RightArm" x: 0.444904 y: 0.000967647 z: 0.0137014 w: 0.895473 }
+        }
+        Keyframe { frame: 10
+            Bone { name: "LeftForeArm" x: 0.292009 y: -0.405733 z: 0.865405 w: -0.0344294 }
+            Bone { name: "Head" x: 0.328754 y: -0.024721 z: -0.00860875 w: 0.944053 }
+            Bone { name: "LeftArm" x: 0.263918 y: 0.000433639 z: -0.016206 w: 0.964409 }
+            Bone { name: "RightArm" x: 0.444904 y: 0.000967647 z: 0.0137014 w: 0.895473 }
+        }
+    }
+}

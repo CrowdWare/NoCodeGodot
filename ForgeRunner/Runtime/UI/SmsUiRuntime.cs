@@ -224,6 +224,34 @@ public sealed class SmsUiRuntime
             if (!string.IsNullOrWhiteSpace(srcId))
                 TryInvokeEvent(srcId, "playbackStopped", false);
         });
+
+        dispatcher.RegisterActionHandler("keyframeAdded", ctx =>
+        {
+            var srcId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(srcId))
+                TryInvokeEvent(srcId, "keyframeAdded", false, (int)(ctx.NumericValue ?? 0), ctx.Clicked);
+        });
+
+        dispatcher.RegisterActionHandler("keyframeRemoved", ctx =>
+        {
+            var srcId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(srcId))
+                TryInvokeEvent(srcId, "keyframeRemoved", false, (int)(ctx.NumericValue ?? 0));
+        });
+
+        dispatcher.RegisterActionHandler("scenePropAdded", ctx =>
+        {
+            var srcId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(srcId))
+                TryInvokeEvent(srcId, "scenePropAdded", false, (int)(ctx.NumericValue ?? 0), ctx.Clicked);
+        });
+
+        dispatcher.RegisterActionHandler("scenePropRemoved", ctx =>
+        {
+            var srcId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(srcId))
+                TryInvokeEvent(srcId, "scenePropRemoved", false, (int)(ctx.NumericValue ?? 0));
+        });
     }
 
     public void InvokeReady()
@@ -530,7 +558,45 @@ public sealed class SmsUiRuntime
             ["isMobile"] = new NativeFunctionValue(_ => new BooleanValue(string.Equals(GetPlatform(), "android", StringComparison.Ordinal))),
             ["isDesktop"] = new NativeFunctionValue(_ => new BooleanValue(!string.Equals(GetPlatform(), "android", StringComparison.Ordinal))),
             ["now"] = new NativeFunctionValue(_ => new NumberValue(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())),
-            ["getUptime"] = new NativeFunctionValue(_ => new NumberValue(Time.GetTicksMsec() / 1000.0))
+            ["getUptime"] = new NativeFunctionValue(_ => new NumberValue(Time.GetTicksMsec() / 1000.0)),
+            // Unrestricted file I/O for desktop application scripts (bypasses ProjectFs sandbox).
+            ["readFile"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                if (string.IsNullOrWhiteSpace(path)) return new StringValue(string.Empty);
+                try
+                {
+                    return new StringValue(File.ReadAllText(path, System.Text.Encoding.UTF8));
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("SMS", $"os.readFile failed for '{path}'.", ex);
+                    return new StringValue(string.Empty);
+                }
+            }),
+            ["writeFile"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path    = ValueArgString(methodArgs, 0);
+                var content = ValueArgString(methodArgs, 1);
+                if (string.IsNullOrWhiteSpace(path)) return NullValue.Instance;
+                try
+                {
+                    var dir = Path.GetDirectoryName(path);
+                    if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir))
+                        Directory.CreateDirectory(dir);
+                    File.WriteAllText(path, content, System.Text.Encoding.UTF8);
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("SMS", $"os.writeFile failed for '{path}'.", ex);
+                }
+                return NullValue.Instance;
+            }),
+            ["fileExists"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                return new BooleanValue(!string.IsNullOrWhiteSpace(path) && File.Exists(path));
+            })
         });
     }
 
@@ -751,6 +817,90 @@ public sealed class SmsUiRuntime
                         ? window.GetMeta(NodePropertyMapper.MetaId).AsString()
                         : string.Empty,
                     window);
+            }),
+            ["openSaveFileDialog"] = new NativeFunctionValue(methodArgs =>
+            {
+                var callbackName = ValueArgString(methodArgs, 0);
+                var filterArg    = methodArgs.Count > 1 ? ValueArgString(methodArgs, 1) : string.Empty;
+
+                if (Engine.GetMainLoop() is not SceneTree saveTree || saveTree.Root is null)
+                {
+                    RunnerLogger.Warn("SMS", "openSaveFileDialog: scene tree not available.");
+                    return NullValue.Instance;
+                }
+
+                var saveDialog = new FileDialog
+                {
+                    Access   = FileDialog.AccessEnum.Filesystem,
+                    FileMode = FileDialog.FileModeEnum.SaveFile,
+                    Title    = "Save File",
+                    Size     = new Vector2I(800, 600)
+                };
+
+                saveDialog.Filters = string.IsNullOrWhiteSpace(filterArg)
+                    ? ["*.fpose"]
+                    : filterArg.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                saveTree.Root.AddChild(saveDialog);
+                saveDialog.PopupCentered();
+
+                saveDialog.FileSelected += path =>
+                {
+                    if (saveDialog.IsInsideTree()) saveTree.Root.RemoveChild(saveDialog);
+                    saveDialog.QueueFree();
+                    if (!string.IsNullOrWhiteSpace(callbackName))
+                        ExecuteCall($"{callbackName}({Quote(path)})");
+                };
+
+                saveDialog.Canceled += () =>
+                {
+                    if (saveDialog.IsInsideTree()) saveTree.Root.RemoveChild(saveDialog);
+                    saveDialog.QueueFree();
+                };
+
+                return NullValue.Instance;
+            }),
+            ["openFileDialog"] = new NativeFunctionValue(methodArgs =>
+            {
+                var callbackName = ValueArgString(methodArgs, 0);
+                var filterArg    = methodArgs.Count > 1 ? ValueArgString(methodArgs, 1) : string.Empty;
+
+                if (Engine.GetMainLoop() is not SceneTree sceneTree || sceneTree.Root is null)
+                {
+                    RunnerLogger.Warn("SMS", "openFileDialog: scene tree not available.");
+                    return NullValue.Instance;
+                }
+
+                var dialog = new FileDialog
+                {
+                    Access   = FileDialog.AccessEnum.Filesystem,
+                    FileMode = FileDialog.FileModeEnum.OpenFile,
+                    Title    = "Open File",
+                    Size     = new Vector2I(800, 600)
+                };
+
+                dialog.Filters = string.IsNullOrWhiteSpace(filterArg)
+                    ? ["*.glb", "*.gltf"]
+                    : filterArg.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                sceneTree.Root.AddChild(dialog);
+                dialog.PopupCentered();
+
+                dialog.FileSelected += path =>
+                {
+                    if (dialog.IsInsideTree()) sceneTree.Root.RemoveChild(dialog);
+                    dialog.QueueFree();
+                    if (!string.IsNullOrWhiteSpace(callbackName))
+                        ExecuteCall($"{callbackName}({Quote(path)})");
+                };
+
+                dialog.Canceled += () =>
+                {
+                    if (dialog.IsInsideTree()) sceneTree.Root.RemoveChild(dialog);
+                    dialog.QueueFree();
+                };
+
+                return NullValue.Instance;
             })
         });
     }
@@ -816,6 +966,87 @@ public sealed class SmsUiRuntime
         Dictionary<string, ObjectFieldGetter> dynamicGetters,
         Dictionary<string, ObjectFieldSetter> dynamicSetters)
     {
+        if (runtimeObject is Runtime.ThreeD.PosingEditorControl posingEditorExt)
+        {
+            // setJointSpheresVisible(bool) — show/hide the joint spheres in the 3D viewport
+            fields["setJointSpheresVisible"] = new NativeFunctionValue(methodArgs =>
+            {
+                posingEditorExt.SetJointSpheresVisible(ValueArgBool(methodArgs, 0));
+                return NullValue.Instance;
+            });
+
+            // setBoneTree(id) — wire up an external Tree control as the bone panel
+            fields["setBoneTree"] = new NativeFunctionValue(methodArgs =>
+            {
+                var treeId = ValueArgString(methodArgs, 0);
+                var tree   = UiRuntimeApi.GetObjectById(treeId) as Tree;
+                if (tree is null)
+                {
+                    RunnerLogger.Warn("SMS", $"setBoneTree: no Tree found with id '{treeId}'.");
+                    return NullValue.Instance;
+                }
+                posingEditorExt.SetExternalBoneTree(tree);
+                return NullValue.Instance;
+            });
+
+            // loadProject(path) — reads .fpose file and restores full project state
+            fields["loadProject"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                {
+                    RunnerLogger.Warn("SMS", $"loadProject: file not found '{path}'.");
+                    return NullValue.Instance;
+                }
+
+                var sml  = File.ReadAllText(path, System.Text.Encoding.UTF8);
+                var data = Runtime.ThreeD.AnimationSerializer.Deserialize(sml);
+                if (data is null) return NullValue.Instance;
+
+                // Find the sibling Timeline in the scene tree
+                var timeline = FindSiblingTimeline(posingEditorExt);
+                if (timeline is null)
+                {
+                    RunnerLogger.Warn("SMS", "loadProject: no TimelineControl found in scene.");
+                    return NullValue.Instance;
+                }
+
+                posingEditorExt.LoadProjectData(data, timeline);
+                return NullValue.Instance;
+            });
+
+            // saveProject(path) — serialises current project state to .fpose
+            fields["saveProject"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                if (string.IsNullOrWhiteSpace(path)) return NullValue.Instance;
+
+                var timeline = FindSiblingTimeline(posingEditorExt);
+                if (timeline is null)
+                {
+                    RunnerLogger.Warn("SMS", "saveProject: no TimelineControl found in scene.");
+                    return NullValue.Instance;
+                }
+
+                var data    = posingEditorExt.BuildProjectData(timeline);
+                var content = Runtime.ThreeD.AnimationSerializer.Serialize(data);
+
+                try
+                {
+                    var dir = Path.GetDirectoryName(path);
+                    if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir))
+                        Directory.CreateDirectory(dir);
+                    File.WriteAllText(path, content, System.Text.Encoding.UTF8);
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("SMS", $"saveProject failed for '{path}'.", ex);
+                }
+
+                return NullValue.Instance;
+            });
+        }
+
         if (runtimeObject is CodeEdit editor)
         {
             EnsureCodeEditSaveShortcut(id, editor);
@@ -1094,8 +1325,12 @@ public sealed class SmsUiRuntime
 
         if (getter is not null)
         {
+            // Register lazy getter — do NOT call getter() eagerly here.
+            // Eager evaluation would trigger CreateRuntimeObject for every nested
+            // Godot property, causing a stack-overflow via the ToSmsValue recursion.
+            // GetField() checks DynamicGetters first, so the lazy path is always used.
             dynamicGetters[name] = getter;
-            fields[name] = getter();
+            fields[name] = NullValue.Instance;
         }
 
         if (setter is not null)
@@ -2085,5 +2320,32 @@ public sealed class SmsUiRuntime
             NullValue => string.Empty,
             _ => value.ToString()
         };
+    }
+
+    /// <summary>
+    /// Walk the scene tree to find a <see cref="Runtime.ThreeD.TimelineControl"/>
+    /// that is a sibling or near-sibling of <paramref name="origin"/>.
+    /// Returns the first one found or null.
+    /// </summary>
+    private static Runtime.ThreeD.TimelineControl? FindSiblingTimeline(Node origin)
+    {
+        if (Engine.GetMainLoop() is not SceneTree sceneTree || sceneTree.Root is null)
+            return null;
+
+        return FindFirstInTree<Runtime.ThreeD.TimelineControl>(sceneTree.Root);
+    }
+
+    private static T? FindFirstInTree<T>(Node root) where T : Node
+    {
+        var stack = new Stack<Node>();
+        stack.Push(root);
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (node is T found) return found;
+            for (var i = node.GetChildCount() - 1; i >= 0; i--)
+                stack.Push(node.GetChild(i));
+        }
+        return null;
     }
 }

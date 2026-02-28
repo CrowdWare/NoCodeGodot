@@ -288,13 +288,18 @@ And maybe a scene (phase 2) as .glb.
 - SMS-Verdrahtung: `poseChanged → setKeyframe`, `frameChanged → loadPose`
 - ForgePoser App: `main.sml` + `main.sms`
 
-### Noch offen (Phase 2)
+### Abgeschlossen (Phase 2)
 
 | Feature | Aufwand | Hinweis |
 |---|---|---|
-| `btnOpen` — Datei-Dialog um GLB zu laden | mittel | Godot `FileDialog`, dann `editor.setModelSource(path)` |
-| Keyframe löschen (UI-Geste) | klein | Rechtsklick auf Diamond oder Del-Taste; `RemoveKeyframe()` existiert bereits |
-| SMS-Events `keyframeAdded` / `keyframeRemoved` | klein | In `SetKeyframe`/`RemoveKeyframe` feuern + Dispatcher + SmsUiRuntime-Handler |
+| `btnOpen` — Datei-Dialog um GLB zu laden | mittel | `ui.openFileDialog(callback)` in SmsUiRuntime; `main.sms` Handler |
+| Keyframe löschen (UI-Geste) | klein | Rechtsklick auf Diamond-Position oder Del-Taste in TimelineTrackArea |
+| SMS-Events `keyframeAdded` / `keyframeRemoved` | klein | In `SetKeyframe`/`RemoveKeyframe` gefeuert; Dispatcher + SmsUiRuntime-Handler |
+
+### Noch offen (Phase 3, optional)
+
+| Feature | Aufwand | Hinweis |
+|---|---|---|
 | Touch-Input (Tablet) | mittel | Poll-Drag nutzt Maus; `InputEventScreenTouch` / `InputEventScreenDrag` ergänzen |
 | `exportPoseAsGLB(path)` | groß | Godot `GltfDocument` mit gesetzten Bone-Poses exportieren |
 | `exportAnimationAsGLB(path)` | groß | Keyframes → `AnimationLibrary` → `GltfDocument` exportieren |

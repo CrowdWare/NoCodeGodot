@@ -1260,6 +1260,30 @@ public sealed class SmlUiBuilder
                     Clicked: string.Empty,
                     ClickedIdValue: default));
             };
+            posingEditor.ScenePropAdded += (index, path) =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "scenePropAdded",
+                    Clicked: path,
+                    ClickedIdValue: default,
+                    NumericValue: index));
+            };
+            posingEditor.ScenePropRemoved += index =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "scenePropRemoved",
+                    Clicked: string.Empty,
+                    ClickedIdValue: default,
+                    NumericValue: index));
+            };
         }
 
         if (control is Runtime.ThreeD.TimelineControl timeline)
@@ -1297,6 +1321,30 @@ public sealed class SmlUiBuilder
                     Action: "playbackStopped",
                     Clicked: string.Empty,
                     ClickedIdValue: default));
+            };
+            timeline.KeyframeAdded += (frame, boneName) =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "keyframeAdded",
+                    Clicked: boneName,
+                    ClickedIdValue: default,
+                    NumericValue: frame));
+            };
+            timeline.KeyframeRemoved += frame =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "keyframeRemoved",
+                    Clicked: string.Empty,
+                    ClickedIdValue: default,
+                    NumericValue: frame));
             };
         }
 

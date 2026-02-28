@@ -1,20 +1,146 @@
 // ForgePoser — main script
 
+var currentProjectPath = ""
+var kfTreeRef = null
+var sceneListRef = null
+var editor = null
+var timeline = null
+var statusLabel = null
+var jointSpheresVisible = true
+
 fun ready() {
+    kfTreeRef    = ui.getObject("keyframeTree")
+    sceneListRef = ui.getObject("sceneAssetList")
+    editor       = ui.getObject("editor")
+    timeline     = ui.getObject("timeline")
+    statusLabel  = ui.getObject("statusLabel")
+    editor.setBoneTree("boneTree")
+    updateScenePanel()
+    updateKeyframeTree()
     log.success("ForgePoser ready.")
 }
 
-// ── Toolbar ──────────────────────────────────────────────────────────────────
+// ── File menu ─────────────────────────────────────────────────────────────────
 
-on btnResetPose.clicked() {
+on menuNew.clicked() {
     editor.resetPose()
-    statusLabel.text = "Pose reset."
+    currentProjectPath = ""
+    sceneListRef.Clear()
+    sceneListRef.AddItem("★ Character (none)")
+    kfTreeRef.Clear()
+    statusLabel.text = "New project."
 }
 
-on btnSavePose.clicked() {
-    var sml = editor.savePoseAsSml()
-    log.info(sml)
-    statusLabel.text = "Pose saved to log."
+on menuOpen.clicked() {
+    ui.openFileDialog("onProjectFileSelected", "*.fpose")
+}
+
+fun onProjectFileSelected(path) {
+    editor.loadProject(path)
+    currentProjectPath = path
+    updateScenePanel()
+    updateKeyframeTree()
+    statusLabel.text = "Opened: " + path
+}
+
+on menuSave.clicked() {
+    if (currentProjectPath != "") {
+        editor.saveProject(currentProjectPath)
+        statusLabel.text = "Saved: " + currentProjectPath
+    } else {
+        ui.openSaveFileDialog("onSavePathSelected", "*.fpose")
+    }
+}
+
+on menuSaveAs.clicked() {
+    ui.openSaveFileDialog("onSavePathSelected", "*.fpose")
+}
+
+fun onSavePathSelected(path) {
+    editor.saveProject(path)
+    currentProjectPath = path
+    statusLabel.text = "Saved: " + path
+}
+
+on menuOpenGlb.clicked() {
+    ui.openFileDialog("onModelFileSelected")
+}
+
+fun onModelFileSelected(path) {
+    editor.setModelSource(path)
+    updateScenePanel()
+    statusLabel.text = "Loaded: " + path
+}
+
+// ── Scene panel ───────────────────────────────────────────────────────────────
+
+fun updateScenePanel() {
+    sceneListRef.Clear()
+    sceneListRef.AddItem("★ Character")
+    var propCount = editor.getScenePropCount()
+    var i = 0
+    while (i < propCount) {
+        var p = editor.getScenePropPath(i)
+        sceneListRef.AddItem("Prop " + i + ": " + p)
+        i = i + 1
+    }
+}
+
+on btnAddProp.clicked() {
+    ui.openFileDialog("onScenePropSelected")
+}
+
+fun onScenePropSelected(path) {
+    editor.addSceneProp(path, 2, 0, 0)
+}
+
+on btnRemoveProp.clicked() {
+    var sel = sceneListRef.GetSelectedItems()
+    if (sel != null) {
+        var idx = sel - 1
+        if (idx >= 0) {
+            editor.removeSceneProp(idx)
+        }
+    }
+}
+
+on editor.scenePropAdded(index, path) {
+    updateScenePanel()
+    statusLabel.text = "Prop added: " + path
+}
+
+on editor.scenePropRemoved(index) {
+    updateScenePanel()
+    statusLabel.text = "Prop removed."
+}
+
+// ── Keyframe inspector ────────────────────────────────────────────────────────
+
+fun updateKeyframeTree() {
+    kfTreeRef.Clear()
+    var root = kfTreeRef.CreateRoot("Keyframes", "root")
+    var count = timeline.getKeyframeCount()
+    var i = 0
+    while (i < count) {
+        var frame = timeline.getKeyframeFrameAt(i)
+        var frameNode = kfTreeRef.CreateChild(root, "Frame " + frame, frame, false)
+        var boneCount = timeline.getKeyframeBoneCount(frame)
+        var j = 0
+        while (j < boneCount) {
+            var boneName = timeline.getKeyframeBoneName(frame, j)
+            kfTreeRef.CreateChild(frameNode, boneName, boneName, false)
+            j = j + 1
+        }
+        i = i + 1
+    }
+}
+
+on timeline.keyframeAdded(frame, boneName) {
+    updateKeyframeTree()
+}
+
+on timeline.keyframeRemoved(frame) {
+    updateKeyframeTree()
 }
 
 // ── PosingEditor events ───────────────────────────────────────────────────────
@@ -24,7 +150,6 @@ on editor.boneSelected(boneName) {
 }
 
 on editor.poseChanged(boneName) {
-    // Auto-record a keyframe at the current playhead position.
     timeline.setKeyframe(timeline.currentFrame, editor.poseData)
 }
 
@@ -35,7 +160,6 @@ on editor.poseReset() {
 // ── Timeline events ───────────────────────────────────────────────────────────
 
 on timeline.frameChanged(frame) {
-    // Apply the interpolated pose for this frame to the model.
     var pose = timeline.getPoseAt(frame)
     if (pose != null) {
         editor.loadPose(pose)
@@ -43,9 +167,27 @@ on timeline.frameChanged(frame) {
 }
 
 on timeline.playbackStarted() {
-    statusLabel.text = "Playing..."
+    statusLabel.text = "Playing…"
 }
 
 on timeline.playbackStopped() {
     statusLabel.text = "Stopped."
+}
+
+on keyframeTree.itemSelected() {
+    // pass
+}
+
+// ── Viewport controls ─────────────────────────────────────────────────────────
+
+on btnToggleJoints.clicked() {
+    if (jointSpheresVisible) {
+        jointSpheresVisible = false
+        editor.setJointSpheresVisible(false)
+        statusLabel.text = "Joints hidden."
+    } else {
+        jointSpheresVisible = true
+        editor.setJointSpheresVisible(true)
+        statusLabel.text = "Joints visible."
+    }
 }

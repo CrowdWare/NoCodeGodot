@@ -576,6 +576,14 @@ public sealed class NodePropertyMapper
                 }
                 break;
 
+            case "normalizenames":
+                if (control is PosingEditorControl posingEditorNorm)
+                {
+                    posingEditorNorm.NormalizeNames = ToBoolOrThrow(value, propertyName);
+                    return;
+                }
+                break;
+
             // ── JointConstraint ─────────────────────────────────────────────
             case "bone":
                 if (control is JointConstraintNode jcBone)
