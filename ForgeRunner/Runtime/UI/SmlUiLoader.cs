@@ -103,18 +103,28 @@ public sealed class SmlUiLoader
 
     private Func<string, string> CreateAssetPathResolver(string baseUri)
     {
+        var cache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         return source =>
         {
+            if (cache.TryGetValue(source, out var cached))
+                return cached;
+
             try
             {
+                string resolved;
                 if (source.StartsWith("appres://", StringComparison.OrdinalIgnoreCase)
                     || source.StartsWith("appres:/", StringComparison.OrdinalIgnoreCase))
                 {
                     var tail = source[(source.IndexOf(':') + 1)..].TrimStart('/', '\\');
-                    return $"res://{tail}";
+                    resolved = $"res://{tail}";
+                }
+                else
+                {
+                    resolved = _uriResolver.ResolveForResourceLoadAsync(source, baseUri).GetAwaiter().GetResult();
                 }
 
-                return _uriResolver.ResolveForResourceLoadAsync(source, baseUri).GetAwaiter().GetResult();
+                cache[source] = resolved;
+                return resolved;
             }
             catch (Exception ex)
             {
