@@ -39,6 +39,8 @@ public static class SmlSchemaFactory
 
         // ForgeRunner element aliases (not standard Godot classes).
         schema.RegisterKnownNode("MarkdownLabel");
+        schema.RegisterKnownNode("PosingEditor");
+        schema.RegisterKnownNode("JointConstraint");
 
         schema.RegisterIdProperty("id");
         schema.RegisterIdentifierProperty("clicked");

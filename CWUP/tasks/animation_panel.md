@@ -269,3 +269,10 @@ Must work on:
 - Tablet (Android / iPad via Godot mobile export)
 
 Touch input must work for: bone picking, gizmo handle dragging, timeline scrubbing.
+
+
+## 9. TestEnvironment
+We will create a new Forge-app in the folder /ForgePoser.
+There we will use these new controls in an animation creation tools. 
+The export output will be a .glb with an animation.
+And maybe a scene (phase 2) as .glb.

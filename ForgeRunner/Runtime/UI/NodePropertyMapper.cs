@@ -341,6 +341,14 @@ public sealed class NodePropertyMapper
                 break;
 
             case "src":
+                if (control is PosingEditorControl posingEditorSrc)
+                {
+                    var rawSource = value.AsStringOrThrow(propertyName);
+                    var resolvedSource = ResolveAssetPath(rawSource, resolveAssetPath);
+                    if (!string.IsNullOrWhiteSpace(resolvedSource))
+                        posingEditorSrc.SetModelSource(resolvedSource);
+                    return;
+                }
                 if (control is TextureRect textureRect)
                 {
                     var rawSource = value.AsStringOrThrow(propertyName);
@@ -555,6 +563,72 @@ public sealed class NodePropertyMapper
                 if (control is Viewport3DControl viewportLight)
                 {
                     viewportLight.SetLightEnergy(value.AsIntOrThrow(propertyName));
+                    return;
+                }
+                break;
+
+            // ── PosingEditor ────────────────────────────────────────────────
+            case "showbonetree":
+                if (control is PosingEditorControl posingEditorTree)
+                {
+                    posingEditorTree.SetShowBoneTree(ToBoolOrThrow(value, propertyName));
+                    return;
+                }
+                break;
+
+            // ── JointConstraint ─────────────────────────────────────────────
+            case "bone":
+                if (control is JointConstraintNode jcBone)
+                {
+                    jcBone.BoneName = value.AsStringOrThrow(propertyName);
+                    return;
+                }
+                break;
+
+            case "minx":
+                if (control is JointConstraintNode jcMinX)
+                {
+                    jcMinX.MinX = (float)value.AsDoubleOrThrow(propertyName);
+                    return;
+                }
+                break;
+
+            case "maxx":
+                if (control is JointConstraintNode jcMaxX)
+                {
+                    jcMaxX.MaxX = (float)value.AsDoubleOrThrow(propertyName);
+                    return;
+                }
+                break;
+
+            case "miny":
+                if (control is JointConstraintNode jcMinY)
+                {
+                    jcMinY.MinY = (float)value.AsDoubleOrThrow(propertyName);
+                    return;
+                }
+                break;
+
+            case "maxy":
+                if (control is JointConstraintNode jcMaxY)
+                {
+                    jcMaxY.MaxY = (float)value.AsDoubleOrThrow(propertyName);
+                    return;
+                }
+                break;
+
+            case "minz":
+                if (control is JointConstraintNode jcMinZ)
+                {
+                    jcMinZ.MinZ = (float)value.AsDoubleOrThrow(propertyName);
+                    return;
+                }
+                break;
+
+            case "maxz":
+                if (control is JointConstraintNode jcMaxZ)
+                {
+                    jcMaxZ.MaxZ = (float)value.AsDoubleOrThrow(propertyName);
                     return;
                 }
                 break;

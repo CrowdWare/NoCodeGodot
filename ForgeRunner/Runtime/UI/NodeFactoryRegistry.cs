@@ -95,6 +95,8 @@ public sealed class NodeFactoryRegistry
         Register("Video", () => new VideoStreamPlayer());
         Register("VideoStreamPlayer", () => new VideoStreamPlayer());
         Register("Viewport3D", () => new Viewport3DControl());
+        Register("PosingEditor", () => new PosingEditorControl());
+        Register("JointConstraint", () => new JointConstraintNode());
 
         // Buttons & interactive
         Register("LineEdit", () => new LineEdit());

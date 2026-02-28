@@ -365,6 +365,13 @@ public sealed class SmlUiBuilder
 
                         dockingContainer.AddDockTab(childControl, tabTitle);
                     }
+                    else if (control is PosingEditorControl && childControl is JointConstraintNode)
+                    {
+                        // JointConstraintNode children are collected by PosingEditorControl
+                        // via FinalizeConstraints() — just add them temporarily so they
+                        // receive their properties, then let FinalizeConstraints remove them.
+                        control.AddChild(childControl);
+                    }
                     else
                     {
                         control.AddChild(childControl);
@@ -380,6 +387,12 @@ public sealed class SmlUiBuilder
                     }
                 }
             }
+        }
+
+        // Collect JointConstraint children and pass them to PosingEditorControl.
+        if (control is PosingEditorControl posingEditor)
+        {
+            posingEditor.FinalizeConstraints();
         }
 
         BindInteractions(control);

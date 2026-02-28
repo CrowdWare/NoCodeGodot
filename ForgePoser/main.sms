@@ -1,0 +1,14 @@
+// ForgePoser — main script
+// Wired up after PosingEditor + Timeline are both complete.
+
+fun ready() {
+    log.success("App startet")
+}
+
+on btnResetPose.click() {
+    editor.resetPose()
+}
+
+on editor.boneSelected(boneName) {
+    statusLabel.text = "Selected: " + boneName
+}

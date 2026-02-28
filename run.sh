@@ -24,6 +24,7 @@ RUNNER_PATH="$REPO_ROOT/ForgeRunner"
 DEFAULT_UI="file://$REPO_ROOT/docs/Default/app.sml"
 SAMPLE_UI="file://$REPO_ROOT/docs/ForgeDesigner/app.sml"
 DOCKING_SAMPLE_UI="file://$REPO_ROOT/samples/docking_demo.sml"
+POSER_UI="file://$REPO_ROOT/ForgePoser/app.sml"
 
 require_godot() {
   if [[ -z "$GODOT_BIN" ]]; then
@@ -58,7 +59,8 @@ if [[ -z "$MODE" ]]; then
   echo " 10) export    -> macOS Release bauen (Godot export)"
   echo " 11) app       -> ForgeRunner.app starten (Release)"
   echo " 12) release   -> version setzen + export + tag + GitHub Release (default: pre)"
-  read -r -p "Auswahl [1-12]: " CHOICE
+  echo " 13) poser     -> ForgePoser/app.sml"
+  read -r -p "Auswahl [1-13]: " CHOICE
 
   case "$CHOICE" in
     1) MODE="default" ;;
@@ -73,6 +75,7 @@ if [[ -z "$MODE" ]]; then
     10) MODE="export" ;;
     11) MODE="app" ;;
     12) MODE="release" ;;
+    13) MODE="poser" ;;
     *)
       echo "Ungültige Auswahl. Abbruch."
       exit 1
@@ -95,6 +98,11 @@ case "$MODE" in
     require_godot
     echo "Starting ForgeRunner with samples/docking_demo.sml"
     exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --url "$DOCKING_SAMPLE_UI"
+    ;;
+  poser)
+    require_godot
+    echo "Starting ForgePoser..."
+    exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --url "$POSER_UI"
     ;;
   none)
     require_godot
@@ -206,7 +214,7 @@ case "$MODE" in
     echo "Release $TAG [$CHANNEL] published."
     ;;
   *)
-    echo "Usage: $0 [default|designer|docking|none|docs|build|theme|manifest|publish|export|app|release]"
+    echo "Usage: $0 [default|designer|docking|poser|none|docs|build|theme|manifest|publish|export|app|release]"
     exit 1
     ;;
 esac
