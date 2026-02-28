@@ -1069,12 +1069,13 @@ public sealed class SmlUiBuilder
         foreach (var child in children)
             content.RemoveChild(child);
 
-        // For BgVBox/BgHBox: wrap children in an inner layout container so stacking is preserved
+        // For BgVBox/BgHBox/Markdown: wrap children in an inner layout container so stacking is preserved
         Container? innerLayout = content switch
         {
-            BgVBoxContainer => new VBoxContainer(),
-            BgHBoxContainer => new HBoxContainer(),
-            _               => null
+            BgVBoxContainer   => new VBoxContainer(),
+            BgHBoxContainer   => new HBoxContainer(),
+            MarkdownContainer => new VBoxContainer(),
+            _                 => null
         };
 
         if (innerLayout != null)
