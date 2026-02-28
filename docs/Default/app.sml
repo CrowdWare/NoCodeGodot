@@ -1,14 +1,21 @@
 SplashScreen {
     id: splashScreen
     size: 640, 480
-    duration: 1000
+    duration: 11000
     loadOnReady: "main.sml"
+
+    TextureRect {
+        id: logo
+        src: "appRes://splash.png"
+        width: 640
+        height: 480
+    }
 
     VBoxContainer {
         anchors: left | top | right | bottom
         padding: 40, 40, 40, 32
 
-        Control { sizeFlagsVertical: expandFill }
+        /*Control { sizeFlagsVertical: expandFill }
 
         TextureRect {
             id: logo
@@ -16,7 +23,7 @@ SplashScreen {
             width: 350
             height: 175
             sizeFlagsHorizontal: shrinkCenter
-        }
+        }*/
 
         Control { sizeFlagsVertical: expandFill }
 

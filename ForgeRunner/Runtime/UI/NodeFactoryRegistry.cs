@@ -97,6 +97,7 @@ public sealed class NodeFactoryRegistry
         Register("Viewport3D", () => new Viewport3DControl());
         Register("PosingEditor", () => new PosingEditorControl());
         Register("JointConstraint", () => new JointConstraintNode());
+        Register("Timeline", () => new TimelineControl());
 
         // Buttons & interactive
         Register("LineEdit", () => new LineEdit());

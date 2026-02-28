@@ -60,17 +60,11 @@ Window {
         HSeparator {}
 
         // ── Timeline ─────────────────────────────────────────────────────
-        // (Phase 2 — will be replaced by Timeline control)
-        HBoxContainer {
-            id: timelineBar
+        Timeline {
+            id: timeline
+            fps: 24
+            totalFrames: 120
             sizeFlagsHorizontal: expandFill
-            padding: 6, 4, 6, 4
-            spacing: 8
-
-            Button { id: btnPlay  text: "▶" }
-            Button { id: btnStop  text: "■" }
-            Label  { text: "Frame:" sizeFlagsVertical: shrinkCenter }
-            Label  { id: frameLabel text: "0" sizeFlagsVertical: shrinkCenter }
         }
     }
 }

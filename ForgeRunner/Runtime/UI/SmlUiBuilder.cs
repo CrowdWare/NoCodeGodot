@@ -1225,6 +1225,81 @@ public sealed class SmlUiBuilder
             };
         }
 
+        if (control is Runtime.ThreeD.PosingEditorControl posingEditor)
+        {
+            posingEditor.BoneSelected += boneName =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "boneSelected",
+                    Clicked: boneName,
+                    ClickedIdValue: default));
+            };
+            posingEditor.PoseChanged += (boneName, _) =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "poseChanged",
+                    Clicked: boneName,
+                    ClickedIdValue: default));
+            };
+            posingEditor.PoseReset += () =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "poseReset",
+                    Clicked: string.Empty,
+                    ClickedIdValue: default));
+            };
+        }
+
+        if (control is Runtime.ThreeD.TimelineControl timeline)
+        {
+            timeline.FrameChanged += frame =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "timelineFrameChanged",
+                    Clicked: string.Empty,
+                    ClickedIdValue: default,
+                    NumericValue: frame));
+            };
+            timeline.PlaybackStarted += () =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "playbackStarted",
+                    Clicked: string.Empty,
+                    ClickedIdValue: default));
+            };
+            timeline.PlaybackStopped += () =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "playbackStopped",
+                    Clicked: string.Empty,
+                    ClickedIdValue: default));
+            };
+        }
+
         if (control is HSlider slider)
         {
             slider.ValueChanged += value =>

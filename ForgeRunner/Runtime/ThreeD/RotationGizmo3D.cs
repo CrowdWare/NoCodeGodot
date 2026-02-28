@@ -33,27 +33,27 @@ namespace Runtime.ThreeD;
 public sealed partial class RotationGizmo3D : Node3D
 {
     // ── Geometry constants ────────────────────────────────────────────────────
-    private const float RingRadius       = 0.38f;   // centre-of-tube radius
-    private const float TubeRadius       = 0.018f;  // tube thickness
-    private const float HandleRadius     = 0.055f;  // visual sphere radius
-    private const float HandlePickRadius = 0.10f;   // ray-sphere hit tolerance
+    private const float RingRadius       = 0.30f;   // centre-of-tube radius
+    private const float TubeRadius       = 0.010f;  // tube thickness
+    private const float HandleRadius     = 0.042f;  // visual sphere radius
+    private const float HandlePickRadius = 0.14f;   // ray-sphere hit tolerance (generous for UX)
     private const float DragSensitivity  = 0.6f;    // degrees per screen pixel
     private const float D2R              = Mathf.Pi / 180f;
 
     // ── Colour palette ────────────────────────────────────────────────────────
-    private static readonly Color ColRingX   = new(0.95f, 0.20f, 0.20f, 0.75f);
-    private static readonly Color ColRingY   = new(0.20f, 0.90f, 0.20f, 0.75f);
-    private static readonly Color ColRingZ   = new(0.20f, 0.45f, 1.00f, 0.75f);
-    private static readonly Color ColHandle  = new(1.00f, 1.00f, 1.00f, 0.90f);
+    private static readonly Color ColRingX   = new(0.95f, 0.20f, 0.20f, 0.90f);
+    private static readonly Color ColRingY   = new(0.20f, 0.90f, 0.20f, 0.90f);
+    private static readonly Color ColRingZ   = new(0.20f, 0.50f, 1.00f, 0.90f);
     private static readonly Color ColClamped = new(1.00f, 0.55f, 0.00f, 0.95f);
 
-    // ── Handle local positions (on their respective rings) ────────────────────
-    // X ring lives in YZ plane; handle at top:  (0,  R, 0)
-    // Y ring lives in XZ plane; handle at right: (R,  0, 0)
-    // Z ring lives in XY plane; handle at left: (-R,  0, 0)  — distinct from Y
-    private static readonly Vector3 HandleOffsetX = new(0f,         RingRadius, 0f);
-    private static readonly Vector3 HandleOffsetY = new(RingRadius, 0f,         0f);
-    private static readonly Vector3 HandleOffsetZ = new(-RingRadius, 0f,        0f);
+    // ── Handle local positions — on their rings, spread to avoid overlap ──────
+    // Handle positions — all on the front face, clearly separated in screen space:
+    // X ring (YZ plane): front  → (0,  0, +R)   12 o'clock on that ring from the camera
+    // Y ring (XZ plane): right  → (+R, 0,  0)   3 o'clock on the ground ring
+    // Z ring (XY plane): top    → (0, +R,  0)   top of the vertical ring
+    private static readonly Vector3 HandleOffsetX = new(0f,        0f,        RingRadius);
+    private static readonly Vector3 HandleOffsetY = new(RingRadius, 0f,        0f);
+    private static readonly Vector3 HandleOffsetZ = new(0f,        RingRadius, 0f);
 
     // ── Scene nodes ───────────────────────────────────────────────────────────
     private readonly MeshInstance3D     _ringX,    _ringY,    _ringZ;
@@ -70,9 +70,10 @@ public sealed partial class RotationGizmo3D : Node3D
     private float _minZ = -180f, _maxZ = 180f;
 
     // ── Drag state ────────────────────────────────────────────────────────────
-    private int     _dragAxis         = -1;  // 0=X 1=Y 2=Z  (-1 = not dragging)
-    private Vector3 _dragStartEuler;
-    private float   _dragAccumulated;
+    private int        _dragAxis        = -1;   // 0=X 1=Y 2=Z  (-1 = not dragging)
+    private Quaternion _dragStartPose;           // bone pose at drag start
+    private Quaternion _dragPreRot;              // parentWorldRot * restRot (fixed at drag start)
+    private float      _dragAccumulated;
 
     // ── Active drag axis index → ring material (for colour feedback) ──────────
     private readonly StandardMaterial3D[] _ringMats;
@@ -98,10 +99,10 @@ public sealed partial class RotationGizmo3D : Node3D
         _ringY = MakeRing(_matRingY, Vector3.Zero);
         _ringZ = MakeRing(_matRingZ, new Vector3(90f, 0f, 0f));
 
-        // ── Handle spheres ────────────────────────────────────────────────────
-        _handleX = MakeHandle(HandleOffsetX);
-        _handleY = MakeHandle(HandleOffsetY);
-        _handleZ = MakeHandle(HandleOffsetZ);
+        // ── Handle spheres (same colour as their ring) ────────────────────────
+        _handleX = MakeHandle(HandleOffsetX, ColRingX);
+        _handleY = MakeHandle(HandleOffsetY, ColRingY);
+        _handleZ = MakeHandle(HandleOffsetZ, ColRingZ);
 
         AddChild(_ringX);
         AddChild(_ringY);
@@ -159,22 +160,21 @@ public sealed partial class RotationGizmo3D : Node3D
     /// </summary>
     public int TryPickHandle(Vector3 rayOrigin, Vector3 rayDir)
     {
-        if (!Visible || !IsInsideTree()) return -1;
+        if (!Visible) return -1;
 
-        var handleCentres = new[]
-        {
-            _handleX.GlobalPosition,
-            _handleY.GlobalPosition,
-            _handleZ.GlobalPosition,
-        };
+        var handleNodes = new[] { _handleX, _handleY, _handleZ };
 
         var best  = -1;
         var bestT = float.MaxValue;
 
         for (var i = 0; i < 3; i++)
         {
-            if (!RaySphereIntersect(rayOrigin, rayDir, handleCentres[i],
-                    HandlePickRadius, out var t)) continue;
+            var center = handleNodes[i].IsInsideTree()
+                ? handleNodes[i].GlobalPosition
+                : GlobalPosition + handleNodes[i].Position;   // fallback before tree enter
+
+            if (!RaySphereIntersect(rayOrigin, rayDir, center, HandlePickRadius, out var t))
+                continue;
             if (t < bestT)
             {
                 bestT = t;
@@ -190,64 +190,68 @@ public sealed partial class RotationGizmo3D : Node3D
     /// <summary>Begin dragging the given axis handle.</summary>
     public void BeginDrag(int axis)
     {
-        if (_skeleton is null || _boneIdx < 0) return;
-        _dragAxis       = axis;
+        if (_skeleton is null || _boneIdx < 0 || !_skeleton.IsInsideTree()) return;
+        _dragAxis        = axis;
         _dragAccumulated = 0f;
-        var q = _skeleton.GetBonePoseRotation(_boneIdx);
-        _dragStartEuler = q.GetEuler(EulerOrder.Xyz);
+        _dragStartPose   = _skeleton.GetBonePoseRotation(_boneIdx);
+
+        // _dragPreRot = parentWorldRot * restRot
+        // Derived from: boneGlobalRot = preRot * poseRot  →  preRot = boneGlobalRot * poseRot⁻¹
+        var boneGlobal = _skeleton.GlobalTransform * _skeleton.GetBoneGlobalPose(_boneIdx);
+        var boneWorldRot = boneGlobal.Basis.GetRotationQuaternion();
+        _dragPreRot = (boneWorldRot * _dragStartPose.Inverse()).Normalized();
     }
 
     /// <summary>
     /// Feed a screen-space mouse delta.
+    /// Rotates the bone around the world-space axis that the dragged ring represents,
+    /// so rings always correspond to the correct world axis regardless of bone orientation.
     /// Returns true if the drag consumed the event.
     /// </summary>
     public bool UpdateDrag(Vector2 screenDelta)
     {
         if (_dragAxis < 0 || _skeleton is null) return false;
 
-        // Axis mapping:  X → mouse Y (up = +X),  Y → mouse X,  Z → mouse X
+        // Screen-space convention per handle position:
+        //   X handle at (0,0,+R) front: drag DOWN  → positive X rotation
+        //   Y handle at (+R,0,0) right: drag RIGHT → positive Y rotation
+        //   Z handle at (0,+R,0) top:   drag LEFT  → positive Z rotation
         var raw = _dragAxis switch
         {
-            0 => -screenDelta.Y,
-            _ =>  screenDelta.X,
+            0 =>  screenDelta.Y,
+            1 =>  screenDelta.X,
+            _ => -screenDelta.X,
         };
 
         _dragAccumulated += raw * DragSensitivity * D2R;
 
-        var euler   = _dragStartEuler;
-        var clamped = false;
-
-        switch (_dragAxis)
+        // World-space axis for each ring.
+        var worldAxis = _dragAxis switch
         {
-            case 0:
-            {
-                var want     = euler.X + _dragAccumulated;
-                var limited  = Mathf.Clamp(want, _minX * D2R, _maxX * D2R);
-                clamped      = Mathf.Abs(want - limited) > 0.001f;
-                euler.X      = limited;
-                break;
-            }
-            case 1:
-            {
-                var want     = euler.Y + _dragAccumulated;
-                var limited  = Mathf.Clamp(want, _minY * D2R, _maxY * D2R);
-                clamped      = Mathf.Abs(want - limited) > 0.001f;
-                euler.Y      = limited;
-                break;
-            }
-            case 2:
-            {
-                var want     = euler.Z + _dragAccumulated;
-                var limited  = Mathf.Clamp(want, _minZ * D2R, _maxZ * D2R);
-                clamped      = Mathf.Abs(want - limited) > 0.001f;
-                euler.Z      = limited;
-                break;
-            }
-        }
+            0 => Vector3.Right,
+            1 => Vector3.Up,
+            _ => Vector3.Back,
+        };
 
-        _skeleton.SetBonePoseRotation(_boneIdx, Quaternion.FromEuler(euler));
+        // World-space delta rotation.
+        var worldDelta = new Quaternion(worldAxis, _dragAccumulated);
 
-        // Visual feedback: ring turns orange when at limit.
+        // Convert to bone-pose space:  newPose = preRot⁻¹ * worldDelta * preRot * startPose
+        var newPose = (_dragPreRot.Inverse() * worldDelta * _dragPreRot * _dragStartPose).Normalized();
+
+        // Apply per-axis constraints by clamping euler components of the result.
+        var e = newPose.GetEuler(EulerOrder.Xyz);
+        var ex = Mathf.Clamp(e.X, _minX * D2R, _maxX * D2R);
+        var ey = Mathf.Clamp(e.Y, _minY * D2R, _maxY * D2R);
+        var ez = Mathf.Clamp(e.Z, _minZ * D2R, _maxZ * D2R);
+        var clamped = Mathf.Abs(ex - e.X) > 0.001f
+                   || Mathf.Abs(ey - e.Y) > 0.001f
+                   || Mathf.Abs(ez - e.Z) > 0.001f;
+        if (clamped) newPose = Quaternion.FromEuler(new Vector3(ex, ey, ez));
+
+        _skeleton.SetBonePoseRotation(_boneIdx, newPose);
+
+        // Visual feedback: ring turns orange when clamped.
         _ringMats[_dragAxis].AlbedoColor = clamped ? ColClamped
             : _dragAxis switch { 0 => ColRingX, 1 => ColRingY, _ => ColRingZ };
 
@@ -261,7 +265,9 @@ public sealed partial class RotationGizmo3D : Node3D
         ResetRingColors();
     }
 
-    public bool IsDragging => _dragAxis >= 0;
+    public bool  IsDragging        => _dragAxis >= 0;
+    public float DragAngleDegrees  => _dragAccumulated * (180f / Mathf.Pi);
+    public int   DragAxis          => _dragAxis;
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -291,7 +297,7 @@ public sealed partial class RotationGizmo3D : Node3D
         };
     }
 
-    private static MeshInstance3D MakeHandle(Vector3 localOffset)
+    private static MeshInstance3D MakeHandle(Vector3 localOffset, Color color)
     {
         var sphere = new SphereMesh
         {
@@ -303,8 +309,8 @@ public sealed partial class RotationGizmo3D : Node3D
 
         var mat = new StandardMaterial3D
         {
-            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-            AlbedoColor  = ColHandle,
+            Transparency = BaseMaterial3D.TransparencyEnum.Disabled,
+            AlbedoColor  = color,
             NoDepthTest  = true,
             CullMode     = BaseMaterial3D.CullModeEnum.Disabled,
         };

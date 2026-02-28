@@ -1,14 +1,51 @@
 // ForgePoser — main script
-// Wired up after PosingEditor + Timeline are both complete.
 
 fun ready() {
-    log.success("App startet")
+    log.success("ForgePoser ready.")
 }
 
-on btnResetPose.click() {
+// ── Toolbar ──────────────────────────────────────────────────────────────────
+
+on btnResetPose.clicked() {
     editor.resetPose()
+    statusLabel.text = "Pose reset."
 }
+
+on btnSavePose.clicked() {
+    var sml = editor.savePoseAsSml()
+    log.info(sml)
+    statusLabel.text = "Pose saved to log."
+}
+
+// ── PosingEditor events ───────────────────────────────────────────────────────
 
 on editor.boneSelected(boneName) {
     statusLabel.text = "Selected: " + boneName
+}
+
+on editor.poseChanged(boneName) {
+    // Auto-record a keyframe at the current playhead position.
+    timeline.setKeyframe(timeline.currentFrame, editor.poseData)
+}
+
+on editor.poseReset() {
+    statusLabel.text = "Pose reset."
+}
+
+// ── Timeline events ───────────────────────────────────────────────────────────
+
+on timeline.frameChanged(frame) {
+    // Apply the interpolated pose for this frame to the model.
+    var pose = timeline.getPoseAt(frame)
+    if (pose != null) {
+        editor.loadPose(pose)
+    }
+}
+
+on timeline.playbackStarted() {
+    statusLabel.text = "Playing..."
+}
+
+on timeline.playbackStopped() {
+    statusLabel.text = "Stopped."
 }

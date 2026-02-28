@@ -633,6 +633,23 @@ public sealed class NodePropertyMapper
                 }
                 break;
 
+            // ── Timeline ────────────────────────────────────────────────────
+            case "fps":
+                if (control is TimelineControl tlFps)
+                {
+                    tlFps.Fps = (int)value.AsDoubleOrThrow(propertyName);
+                    return;
+                }
+                break;
+
+            case "totalframes":
+                if (control is TimelineControl tlFrames)
+                {
+                    tlFrames.TotalFrames = (int)value.AsDoubleOrThrow(propertyName);
+                    return;
+                }
+                break;
+
             default:
                 if (TryApplyGeneratedProperty(control, propertyName, value))
                 {

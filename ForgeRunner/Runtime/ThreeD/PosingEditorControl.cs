@@ -67,9 +67,13 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     private readonly List<MeshInstance3D> _jointSpheres = [];
 
     // ── Bone tree overlay ─────────────────────────────────────────────────────
-    private Panel?    _bonePanel;
-    private ItemList? _boneList;
-    private bool      _showBoneTree;
+    private Panel?              _bonePanel;
+    private Tree?               _boneTree;
+    private readonly List<TreeItem?> _boneTreeItems = [];
+    private bool                _showBoneTree;
+
+    // ── Angle overlay (shown while dragging a gizmo handle) ───────────────────
+    private Label? _angleLabel;
 
     // ── Camera orbit ──────────────────────────────────────────────────────────
     private float   _yaw           = DefaultYaw;
@@ -82,6 +86,11 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     // ── Rotation gizmo ────────────────────────────────────────────────────────
     private readonly RotationGizmo3D _gizmo;
     private bool _gizmoDragging;
+
+    // ── Poll-based drag tracking ──────────────────────────────────────────────
+    // Motion events on SubViewportContainer are unreliable during left-button drags.
+    // We poll GetMousePosition() every frame instead.
+    private Vector2 _pollLastMousePos;
 
     // ── Bone selection ────────────────────────────────────────────────────────
     private int _selectedBoneIdx = -1;
@@ -128,28 +137,53 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
         _gizmo = new RotationGizmo3D();
 
+        var env = new Godot.Environment
+        {
+            BackgroundMode     = Godot.Environment.BGMode.Color,
+            BackgroundColor    = new Color(0.13f, 0.13f, 0.13f),
+            AmbientLightSource = Godot.Environment.AmbientSource.Color,
+            AmbientLightColor  = new Color(0.4f, 0.4f, 0.4f),
+        };
+        var worldEnv = new WorldEnvironment { Name = "WorldEnv", Environment = env };
+
         _worldRoot.AddChild(_camera);
         _worldRoot.AddChild(_light);
         _worldRoot.AddChild(_gizmo);
+        _worldRoot.AddChild(worldEnv);
         _viewport.AddChild(_worldRoot);
         AddChild(_viewport);
+
+        // Angle label — 2D overlay shown while dragging a gizmo handle.
+        _angleLabel = new Label
+        {
+            Name             = "AngleLabel",
+            Visible          = false,
+            AnchorLeft       = 0.5f,
+            AnchorRight      = 0.5f,
+            AnchorTop        = 1.0f,
+            AnchorBottom     = 1.0f,
+            OffsetLeft       = -80f,
+            OffsetRight      = 80f,
+            OffsetTop        = -44f,
+            OffsetBottom     = -12f,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        AddChild(_angleLabel);
 
         ResetView();
     }
 
     // ── Input ─────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Button events only. Motion during drag/orbit/pan is polled in _Process
+    /// because SubViewportContainer does not reliably deliver left-button motion
+    /// events via _GuiInput or _Input.
+    /// </summary>
     public override void _GuiInput(InputEvent @event)
     {
-        switch (@event)
-        {
-            case InputEventMouseButton mouseButton:
-                HandleMouseButton(mouseButton);
-                break;
-            case InputEventMouseMotion mouseMotion:
-                HandleMouseMotion(mouseMotion);
-                break;
-        }
+        if (@event is InputEventMouseButton mb)
+            HandleMouseButton(mb);
     }
 
     private void HandleMouseButton(InputEventMouseButton mb)
@@ -161,7 +195,8 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             if (hitHandle >= 0)
             {
                 _gizmo.BeginDrag(hitHandle);
-                _gizmoDragging = true;
+                _gizmoDragging      = true;
+                _pollLastMousePos   = GetViewport().GetMousePosition();
                 GrabFocus();
             }
             else
@@ -172,21 +207,14 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             return;
         }
 
-        if (mb.ButtonIndex == MouseButton.Left && !mb.Pressed)
-        {
-            if (_gizmoDragging)
-            {
-                _gizmo.EndDrag();
-                _gizmoDragging = false;
-                AcceptEvent();
-            }
-            return;
-        }
-
         if (mb.ButtonIndex == MouseButton.Right)
         {
             _isRotating = mb.Pressed;
-            if (_isRotating) GrabFocus();
+            if (_isRotating)
+            {
+                _pollLastMousePos = GetViewport().GetMousePosition();
+                GrabFocus();
+            }
             AcceptEvent();
             return;
         }
@@ -194,7 +222,11 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         if (mb.ButtonIndex == MouseButton.Middle)
         {
             _isPanning = mb.Pressed;
-            if (_isPanning) GrabFocus();
+            if (_isPanning)
+            {
+                _pollLastMousePos = GetViewport().GetMousePosition();
+                GrabFocus();
+            }
             AcceptEvent();
             return;
         }
@@ -215,37 +247,6 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         }
     }
 
-    private void HandleMouseMotion(InputEventMouseMotion mm)
-    {
-        if (_gizmoDragging)
-        {
-            _gizmo.UpdateDrag(mm.Relative);
-            FirePoseChangedForSelectedBone();
-            AcceptEvent();
-            return;
-        }
-
-        if (_isRotating)
-        {
-            _yaw   -= mm.Relative.X * 0.01f;
-            _pitch  = Mathf.Clamp(_pitch + mm.Relative.Y * 0.01f, -1.2f, 1.2f);
-            ApplyCameraOrbit();
-            AcceptEvent();
-            return;
-        }
-
-        if (_isPanning)
-        {
-            var basis    = _camera.GlobalTransform.Basis;
-            var right    = basis.X.Normalized();
-            var up       = basis.Y.Normalized();
-            var panScale = _orbitDistance * 0.0015f;
-            _cameraTarget += (-right * mm.Relative.X + up * mm.Relative.Y) * panScale;
-            ApplyCameraOrbit();
-            AcceptEvent();
-        }
-    }
-
     private void FirePoseChangedForSelectedBone()
     {
         if (_skeleton is null || _selectedBoneIdx < 0) return;
@@ -255,11 +256,73 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         PoseChanged?.Invoke(boneName, rot);
     }
 
+    private void UpdateAngleLabel()
+    {
+        if (_angleLabel is null) return;
+        var axisName = _gizmo.DragAxis switch { 0 => "X", 1 => "Y", _ => "Z" };
+        var deg      = _gizmo.DragAngleDegrees;
+        _angleLabel.Text    = $"{axisName}  {deg:+0.0;-0.0;0.0}°";
+        _angleLabel.Visible = true;
+    }
+
     // ── Frame update ──────────────────────────────────────────────────────────
 
     public override void _Process(double delta)
     {
         UpdateJointSpherePositions();
+        PollDrag();
+    }
+
+    /// <summary>
+    /// Poll mouse position every frame to drive drag/orbit/pan.
+    /// This is more reliable than motion events on SubViewportContainer.
+    /// </summary>
+    private void PollDrag()
+    {
+        var mousePos = GetViewport().GetMousePosition();
+        var d        = mousePos - _pollLastMousePos;
+        _pollLastMousePos = mousePos;
+
+        if (d == Vector2.Zero) return;
+
+        if (_gizmoDragging)
+        {
+            if (!Input.IsMouseButtonPressed(MouseButton.Left))
+            {
+                _gizmo.EndDrag();
+                _gizmoDragging = false;
+                if (_angleLabel is not null) _angleLabel.Visible = false;
+                return;
+            }
+            _gizmo.UpdateDrag(d);
+            FirePoseChangedForSelectedBone();
+            UpdateAngleLabel();
+        }
+        else if (_isRotating)
+        {
+            if (!Input.IsMouseButtonPressed(MouseButton.Right))
+            {
+                _isRotating = false;
+                return;
+            }
+            _yaw   -= d.X * 0.01f;
+            _pitch  = Mathf.Clamp(_pitch + d.Y * 0.01f, -1.2f, 1.2f);
+            ApplyCameraOrbit();
+        }
+        else if (_isPanning)
+        {
+            if (!Input.IsMouseButtonPressed(MouseButton.Middle))
+            {
+                _isPanning = false;
+                return;
+            }
+            var basis    = _camera.GlobalTransform.Basis;
+            var right    = basis.X.Normalized();
+            var up       = basis.Y.Normalized();
+            var panScale = _orbitDistance * 0.0015f;
+            _cameraTarget += (-right * d.X + up * d.Y) * panScale;
+            ApplyCameraOrbit();
+        }
     }
 
     private void UpdateJointSpherePositions()
@@ -372,6 +435,9 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         _modelRoot = node3D;
         _modelRoot.Name = "ModelRoot";
         _worldRoot.AddChild(_modelRoot);
+
+        // Stop any embedded animations so they don't override manual bone poses.
+        StopAllAnimationPlayers(_modelRoot);
 
         _skeleton = FindSkeleton(_modelRoot);
 
@@ -560,60 +626,77 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             OffsetBottom = 0
         };
 
-        _boneList = new ItemList
+        _boneTree = new Tree
         {
-            Name = "BoneList",
-            AnchorLeft   = 0f,
-            AnchorRight  = 1.0f,
-            AnchorTop    = 0.0f,
-            AnchorBottom = 1.0f,
-            OffsetLeft   = 4,
-            OffsetRight  = -4,
-            OffsetTop    = 4,
-            OffsetBottom = -4
+            Name             = "BoneTree",
+            AnchorLeft       = 0f,
+            AnchorRight      = 1.0f,
+            AnchorTop        = 0.0f,
+            AnchorBottom     = 1.0f,
+            OffsetLeft       = 0,
+            OffsetRight      = 0,
+            OffsetTop        = 0,
+            OffsetBottom     = 0,
+            Columns          = 1,
+            HideRoot         = true,
+            SelectMode       = Tree.SelectModeEnum.Single,
         };
-        _boneList.ItemSelected += OnBoneListItemSelected;
+        _boneTree.ItemSelected += OnBoneTreeSelected;
 
-        _bonePanel.AddChild(_boneList);
+        _bonePanel.AddChild(_boneTree);
         AddChild(_bonePanel);
     }
 
     private void PopulateBoneList()
     {
-        if (_boneList is null || _skeleton is null) return;
-        _boneList.Clear();
+        if (_boneTree is null || _skeleton is null) return;
+        _boneTree.Clear();
+        _boneTreeItems.Clear();
 
-        for (var i = 0; i < _skeleton.GetBoneCount(); i++)
+        var boneCount = _skeleton.GetBoneCount();
+        var root      = _boneTree.CreateItem();   // invisible root (HideRoot = true)
+
+        // Pre-allocate slots so children can reference parents by index.
+        for (var i = 0; i < boneCount; i++)
+            _boneTreeItems.Add(null);
+
+        // Godot guarantees parents have lower indices than their children.
+        for (var i = 0; i < boneCount; i++)
         {
-            var name   = _skeleton.GetBoneName(i);
-            var parent = _skeleton.GetBoneParent(i);
-            var indent = BuildBoneIndent(i);
-            _boneList.AddItem($"{indent}{name}");
+            var parentIdx  = _skeleton.GetBoneParent(i);
+            var parentItem = parentIdx >= 0 ? _boneTreeItems[parentIdx] : root;
+            var item       = _boneTree.CreateItem(parentItem);
+            item.SetText(0, _skeleton.GetBoneName(i));
+            _boneTreeItems[i] = item;
         }
     }
 
-    private string BuildBoneIndent(int boneIdx)
+    private void OnBoneTreeSelected()
     {
-        if (_skeleton is null) return string.Empty;
-        var depth = 0;
-        var current = _skeleton.GetBoneParent(boneIdx);
-        while (current >= 0)
-        {
-            depth++;
-            current = _skeleton.GetBoneParent(current);
-        }
-        return new string(' ', depth * 2);
-    }
-
-    private void OnBoneListItemSelected(long idx)
-    {
-        SelectBone((int)idx);
+        if (_boneTree is null) return;
+        var item = _boneTree.GetSelected();
+        if (item is null) return;
+        var idx = _boneTreeItems.IndexOf(item);
+        if (idx >= 0) SelectBone(idx);
     }
 
     private void SyncBoneListSelection(int boneIdx)
     {
-        if (_boneList is null) return;
-        _boneList.Select(boneIdx);
+        if (_boneTree is null) return;
+        if (boneIdx < 0 || boneIdx >= _boneTreeItems.Count) return;
+        var item = _boneTreeItems[boneIdx];
+        if (item is null) return;
+
+        // Expand ancestor chain so the item is visible.
+        var parent = item.GetParent();
+        while (parent is not null && parent != _boneTree.GetRoot())
+        {
+            parent.Collapsed = false;
+            parent = parent.GetParent();
+        }
+
+        _boneTree.SetSelected(item, 0);
+        _boneTree.ScrollToItem(item);
     }
 
     // ── Constraints ───────────────────────────────────────────────────────────
@@ -725,6 +808,18 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static void StopAllAnimationPlayers(Node root)
+    {
+        if (root is AnimationPlayer ap)
+        {
+            RunnerLogger.Info("PosingEditor", $"Stopping AnimationPlayer '{ap.Name}'.");
+            ap.Active = false;
+            ap.Stop();
+        }
+        foreach (var child in root.GetChildren())
+            StopAllAnimationPlayers(child);
+    }
 
     private static Skeleton3D? FindSkeleton(Node root)
     {

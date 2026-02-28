@@ -180,6 +180,50 @@ public sealed class SmsUiRuntime
                 RunnerLogger.Warn("SMS", $"Save ignored for '{editorId}': no onSave callback registered.");
             }
         });
+
+        // ── PosingEditor events ───────────────────────────────────────────────
+        dispatcher.RegisterActionHandler("boneSelected", ctx =>
+        {
+            var srcId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(srcId))
+                TryInvokeEvent(srcId, "boneSelected", false, ctx.Clicked);
+        });
+
+        dispatcher.RegisterActionHandler("poseChanged", ctx =>
+        {
+            var srcId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(srcId))
+                TryInvokeEvent(srcId, "poseChanged", false, ctx.Clicked);
+        });
+
+        dispatcher.RegisterActionHandler("poseReset", ctx =>
+        {
+            var srcId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(srcId))
+                TryInvokeEvent(srcId, "poseReset", false);
+        });
+
+        // ── Timeline events ───────────────────────────────────────────────────
+        dispatcher.RegisterActionHandler("timelineFrameChanged", ctx =>
+        {
+            var srcId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(srcId))
+                TryInvokeEvent(srcId, "frameChanged", false, (int)(ctx.NumericValue ?? 0));
+        });
+
+        dispatcher.RegisterActionHandler("playbackStarted", ctx =>
+        {
+            var srcId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(srcId))
+                TryInvokeEvent(srcId, "playbackStarted", false);
+        });
+
+        dispatcher.RegisterActionHandler("playbackStopped", ctx =>
+        {
+            var srcId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(srcId))
+                TryInvokeEvent(srcId, "playbackStopped", false);
+        });
     }
 
     public void InvokeReady()
@@ -1433,7 +1477,10 @@ public sealed class SmsUiRuntime
                     : string.Empty,
                 node),
             GodotObject godotObject => CreateRuntimeObject(string.Empty, godotObject),
-            _ => ValueUtils.FromDotNet(value)
+            // Wrap any remaining .NET objects with a native-ID slot so they can be
+            // passed back to C# methods (e.g. editor.poseData → timeline.setKeyframe(frame, poseData)).
+            _ when value.GetType().IsValueType => ValueUtils.FromDotNet(value),
+            _ => CreateRuntimeObject(string.Empty, value)
         };
     }
 
