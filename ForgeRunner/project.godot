@@ -31,6 +31,7 @@ window/size/extend_to_title=true
 window/size/minimize_disabled=true
 window/size/maximize_disabled=true
 window/stretch/aspect="ignore"
+window/subwindows/embed_subwindows=false
 
 [dotnet]
 

@@ -84,6 +84,13 @@ public partial class Main : Node
 	private Label? _startupProgressLabel;
 	private bool _viewportSizeChangedConnected;
 	private CanvasLayer? _runtimeUiLayer;
+	private Window? _mainAppWindow; // separate OS window created after splash; null until first SwapToUiAsync
+
+	/// <summary>Window that hosts the main app UI. Null during splash → root Godot window.</summary>
+	private Window ActiveAppWindow => _mainAppWindow ?? GetWindow();
+
+	/// <summary>Viewport of the active app window (root viewport during splash, main-window viewport after swap).</summary>
+	private Viewport ActiveAppViewport => _mainAppWindow is not null ? (Viewport)_mainAppWindow : GetViewport();
 	private Runtime.Manifest.ManifestDocument? _startupManifest;
 
 	public override void _EnterTree()
@@ -206,12 +213,18 @@ public partial class Main : Node
 	{
 		if (_viewportSizeChangedConnected)
 		{
-			GetViewport().SizeChanged -= OnViewportSizeChanged;
+			ActiveAppViewport.SizeChanged -= OnViewportSizeChanged;
 			_viewportSizeChangedConnected = false;
 		}
 
-		_runtimeUiLayer?.QueueFree();
-		_runtimeUiLayer  = null;
+		if (_runtimeUiLayer is not null)
+		{
+			// RemoveChild is synchronous — node leaves the scene tree immediately and is no longer rendered.
+			// QueueFree handles memory cleanup asynchronously at end of frame.
+			RemoveChild(_runtimeUiLayer);
+			_runtimeUiLayer.QueueFree();
+			_runtimeUiLayer = null;
+		}
 		_runtimeUiHost   = null;
 		_runtimeUiRoot   = null;
 		_fixedUiViewport = null;
@@ -410,21 +423,57 @@ public partial class Main : Node
 		}
 		RunnerLogger.Info("Perf", $"[SwapToUi] loadFromUri={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
-		// Splash is still visible here. Swap in one synchronous block.
 		_resolvedStartupUiUrl = url;
 		_smsUiRuntime = newRuntime;
 		// ConfigureProjectActions was called during LoadFromUriAsync while _smsUiRuntime
 		// still pointed to the old runtime — rebind the dispatcher to the new runtime now.
 		if (_uiDispatcher != null)
 			_smsUiRuntime?.BindDispatcher(_uiDispatcher);
+
+		// Detect whether we're leaving a splash screen (first-ever swap).
+		var isFromSplash = _runtimeUiRoot is not null && IsSplashScreenRoot(_runtimeUiRoot);
+
+		// Before detaching, strip the splash window flags so it no longer sits on top
+		// of other windows while we build the main UI.
+		if (isFromSplash)
+		{
+			GetWindow().SetFlag(Window.Flags.AlwaysOnTop, false);
+		}
+
+		// DetachUi BEFORE creating _mainAppWindow: ActiveAppViewport still points to the
+		// splash (root-window) viewport here, so SizeChanged is disconnected correctly.
 		DetachUi();
-		AttachUi(rootControl);
+
+		// On first splash→main transition, create a dedicated native OS window.
+		// project.godot: window/subwindows/embed_subwindows=false makes this a real OS window.
+		if (isFromSplash && _mainAppWindow is null)
+		{
+			var mainWin = new Window { Visible = false, Name = "MainAppWindow" };
+			mainWin.CloseRequested += () => GetTree().Quit();
+			AddChild(mainWin); // add to scene tree before AttachUi uses it
+			_mainAppWindow = mainWin;
+		}
+
+		// After the first swap, always target _mainAppWindow (null → root window for apps without splash).
+		AttachUi(rootControl, _mainAppWindow);
 		RunnerLogger.Info("Perf", $"[SwapToUi] attachUi={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		await EnsureRuntimeUiReadyStateAsync();
 		RunnerLogger.Info("UI", $"UI loaded from '{url}'.");
 		await InvokeUiReadyHandlersAsync();
 		_smsUiRuntime?.InvokeReady();
+
+		// Reveal the main window only after it is fully ready, then banish the splash
+		// (root) window. Godot forbids Visible=false on the root OS window, so we shrink
+		// it to 1×1 and move it far off-screen — effectively invisible.
+		if (isFromSplash && _mainAppWindow is not null)
+		{
+			_mainAppWindow.Visible = true;
+			var splashWin = GetWindow();
+			splashWin.Size      = new Vector2I(1, 1);
+			splashWin.Position  = new Vector2I(-32000, -32000);
+			RunnerLogger.Info("UI", "Main app window revealed; splash window banished.");
+		}
 	}
 
 	private async Task<string> ResolveStartupUiUrlAsync()
@@ -1328,9 +1377,12 @@ public partial class Main : Node
 		return new Uri(legacySamplePath).AbsoluteUri;
 	}
 
-	private void AttachUi(Control rootControl)
+	private void AttachUi(Control rootControl, Window? targetWindow = null)
 	{
-		ApplyWindowProperties(rootControl);
+		// targetWindow = separate OS window (main app after splash swap)
+		// null           = root Godot window (used for splash or non-splash first load)
+		var appWindow = targetWindow ?? GetWindow();
+		ApplyWindowProperties(appWindow, rootControl);
 		_uiScalingConfig = ResolveScalingConfig(rootControl);
 		ConfigureWindowContentScale(_uiScalingConfig.Mode);
 
@@ -1347,6 +1399,8 @@ public partial class Main : Node
 		var inheritedTheme = GetWindow()?.Theme;
 		if (inheritedTheme is not null)
 		{
+			if (targetWindow is not null)
+				targetWindow.Theme = inheritedTheme;
 			host.Theme = inheritedTheme;
 			rootControl.Theme = inheritedTheme;
 			RunnerLogger.Info("UI", "Applied window theme directly to RuntimeUiHost and SmlRoot.");
@@ -1373,22 +1427,27 @@ public partial class Main : Node
 		}
 
 		layer.AddChild(host);
-		AddChild(layer);
+		// Add CanvasLayer to the target window node (or to this Main node for root-window rendering)
+		if (targetWindow is not null)
+			targetWindow.AddChild(layer);
+		else
+			AddChild(layer);
 
 		_runtimeUiLayer = layer;
 		_runtimeUiHost = host;
 		_runtimeUiRoot = rootControl;
 
-		if (GetViewport() is { } viewport && !_viewportSizeChangedConnected)
+		var viewportToWatch = targetWindow is not null ? (Viewport)targetWindow : GetViewport();
+		if (viewportToWatch is not null && !_viewportSizeChangedConnected)
 		{
-			viewport.SizeChanged += OnViewportSizeChanged;
+			viewportToWatch.SizeChanged += OnViewportSizeChanged;
 			_viewportSizeChangedConnected = true;
 		}
 
 		OnViewportSizeChanged();
 		TryRestoreSessionState();
 		LayoutRuntime.Apply(rootControl);
-		LogUiScalingState(GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero);
+		LogUiScalingState(ActiveAppViewport?.GetVisibleRect().Size ?? Vector2.Zero);
 	}
 
 	private void TryRestoreSessionState()
@@ -1438,7 +1497,7 @@ public partial class Main : Node
 
 	private UiWindowState? CaptureWindowState()
 	{
-		var window = GetWindow();
+		var window = ActiveAppWindow;
 		if (window is null)
 		{
 			return null;
@@ -1457,7 +1516,7 @@ public partial class Main : Node
 
 	private void ApplyWindowState(UiWindowState windowState)
 	{
-		var window = GetWindow();
+		var window = ActiveAppWindow;
 		if (window is null)
 		{
 			return;
@@ -1722,7 +1781,7 @@ public partial class Main : Node
 			LayoutRuntime.Apply(_runtimeUiRoot);
 		}
 
-		LogUiScalingState(GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero);
+		LogUiScalingState(ActiveAppViewport?.GetVisibleRect().Size ?? Vector2.Zero);
 	}
 
 	private sealed class UiSessionState
@@ -1756,12 +1815,8 @@ public partial class Main : Node
 		public string CurrentTitle { get; set; } = string.Empty;
 	}
 
-	private void ApplyWindowProperties(Control rootControl)
+	private void ApplyWindowProperties(Window window, Control rootControl)
 	{
-		if (GetWindow() is not { } window)
-		{
-			return;
-		}
 
 		// When transitioning to a Window node, reset the project-default flags that were
 		// configured for the SplashScreen (non-resizable, borderless, always-on-top).
@@ -1829,7 +1884,7 @@ public partial class Main : Node
 			return;
 		}
 
-		var viewport = GetViewport();
+		var viewport = ActiveAppViewport;
 		if (viewport is null)
 		{
 			return;
@@ -1867,7 +1922,7 @@ public partial class Main : Node
 
 	private void ConfigureWindowContentScale(UiScalingMode mode)
 	{
-		var window = GetWindow();
+		var window = ActiveAppWindow;
 		if (window is null)
 		{
 			return;

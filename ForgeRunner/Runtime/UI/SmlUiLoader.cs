@@ -123,6 +123,9 @@ public sealed class SmlUiLoader
                     resolved = _uriResolver.ResolveForResourceLoadAsync(source, baseUri).GetAwaiter().GetResult();
                 }
 
+                if (!string.Equals(resolved, source, StringComparison.Ordinal))
+                    RunnerLogger.Info("UI", $"Resolved asset path '{source}' -> '{resolved}'.");
+
                 cache[source] = resolved;
                 return resolved;
             }

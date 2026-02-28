@@ -99,6 +99,11 @@ public sealed class NodePropertyMapper
     private static readonly IReadOnlyDictionary<string, Action<Control, SmlValue, string>> SimplePropertyHandlers
         = BuildSimplePropertyHandlers();
 
+    // Session-scoped texture cache: same resolved path → same ImageTexture instance.
+    // Eliminates repeated Image.Load() + ImageTexture.CreateFromImage() for shared assets (e.g. component icons).
+    private static readonly Dictionary<string, Texture2D?> _textureCache
+        = new(StringComparer.OrdinalIgnoreCase);
+
     public void Apply(Control control, string propertyName, SmlValue value, Func<string, string>? resolveAssetPath = null)
     {
         if (TryApplyGeneratedLayoutAlias(control, propertyName, value))
@@ -1095,13 +1100,7 @@ public sealed class NodePropertyMapper
 
         try
         {
-            var resolved = resolveAssetPath(source);
-            if (!string.Equals(resolved, source, StringComparison.Ordinal))
-            {
-                RunnerLogger.Info("UI", $"Resolved asset path '{source}' -> '{resolved}'.");
-            }
-
-            return resolved;
+            return resolveAssetPath(source);
         }
         catch (Exception ex)
         {
@@ -1131,32 +1130,52 @@ public sealed class NodePropertyMapper
 
     private static void ApplyImageSource(TextureRect image, string source, string originalSource)
     {
-        var localPath = ToLocalImagePath(source);
-        if (string.IsNullOrWhiteSpace(localPath))
+        Texture2D? texture;
+        if (_textureCache.TryGetValue(source, out var cachedTexture))
         {
-            RunnerLogger.Warn("UI", $"Image source '{originalSource}' could not be resolved to a loadable path.");
-            return;
+            texture = cachedTexture;
+        }
+        else
+        {
+            var localPath = ToLocalImagePath(source);
+            if (string.IsNullOrWhiteSpace(localPath))
+            {
+                RunnerLogger.Warn("UI", $"Image source '{originalSource}' could not be resolved to a loadable path.");
+                _textureCache[source] = null;
+                return;
+            }
+
+            var img = new Image();
+            var err = img.Load(localPath);
+            if (err != Error.Ok)
+            {
+                RunnerLogger.Warn("UI", $"Could not load image '{originalSource}' (path: '{localPath}'): {err}");
+                _textureCache[source] = null;
+                return;
+            }
+
+            texture = ImageTexture.CreateFromImage(img);
+            _textureCache[source] = texture;
         }
 
-        var img = new Image();
-        var err = img.Load(localPath);
-        if (err != Error.Ok)
-        {
-            RunnerLogger.Warn("UI", $"Could not load image '{originalSource}' (path: '{localPath}'): {err}");
+        if (texture is null)
             return;
-        }
 
-        image.Texture = ImageTexture.CreateFromImage(img);
+        image.Texture = texture;
         image.ExpandMode = TextureRect.ExpandModeEnum.FitWidthProportional;
         image.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
     }
 
     private static Texture2D? LoadTexture2D(string source, string originalSource)
     {
+        if (_textureCache.TryGetValue(source, out var cached))
+            return cached;
+
         var localPath = ToLocalImagePath(source);
         if (string.IsNullOrWhiteSpace(localPath))
         {
             RunnerLogger.Warn("UI", $"Texture source '{originalSource}' could not be resolved to a loadable path.");
+            _textureCache[source] = null;
             return null;
         }
 
@@ -1165,10 +1184,13 @@ public sealed class NodePropertyMapper
         if (err != Error.Ok)
         {
             RunnerLogger.Warn("UI", $"Could not load texture '{originalSource}' (path: '{localPath}'): {err}");
+            _textureCache[source] = null;
             return null;
         }
 
-        return ImageTexture.CreateFromImage(img);
+        var texture = ImageTexture.CreateFromImage(img);
+        _textureCache[source] = texture;
+        return texture;
     }
 
     private static string? ToLocalImagePath(string source)
