@@ -98,11 +98,15 @@ public partial class Main : Node
 
 	public override async void _Ready()
 	{
+		var totalSw = Stopwatch.StartNew();
+		var sw = Stopwatch.StartNew();
+
 		DiscoverUiActionModules();
 		ConfigureWindowContentScale(UiScalingMode.Layout);
 
 		var startupSettings = await LoadStartupSettingsAsync();
 		RunnerLogger.Configure(startupSettings.IncludeStackTraces, startupSettings.ShowParserWarnings);
+		RunnerLogger.Info("Perf", $"[Ready] settings={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		var theme = GD.Load<Theme>("res://theme.tres");
 		if (theme is null)
@@ -115,6 +119,7 @@ public partial class Main : Node
 			RunnerLogger.Info("Startup", $"Theme loaded {theme}");
 			RunnerLogger.Info("Startup", $"Window.Theme now = {GetWindow().Theme}");
 		}
+		RunnerLogger.Info("Perf", $"[Ready] theme={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		if (!LoadUiOnStartup)
 		{
@@ -122,18 +127,25 @@ public partial class Main : Node
 		}
 
 		_resolvedStartupUiUrl = await ResolveEntryFileUrlAsync();
+		RunnerLogger.Info("Perf", $"[Ready] resolveEntryUrl={sw.ElapsedMilliseconds}ms url='{_resolvedStartupUiUrl}'"); sw.Restart();
+
 		await RunUiStartup();
+		RunnerLogger.Info("Perf", $"[Ready] runUiStartup={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		// Phase 2: Restliche Assets laden (parallel zum SplashScreen-Timer)
 		if (_runtimeUiRoot is not null && IsSplashScreenRoot(_runtimeUiRoot))
 		{
 			await RunSplashFlowAsync(_runtimeUiRoot);
+			RunnerLogger.Info("Perf", $"[Ready] splashFlow={sw.ElapsedMilliseconds}ms");
 		}
 		else if (_startupManifest is not null)
 		{
 			// Kein SplashScreen → restliche Assets mit bestehendem Overlay nachladen
 			await SyncRemainingAssetsAsync(progressBar: null);
+			RunnerLogger.Info("Perf", $"[Ready] syncRemaining={sw.ElapsedMilliseconds}ms");
 		}
+
+		RunnerLogger.Info("Perf", $"[Ready] TOTAL={totalSw.ElapsedMilliseconds}ms");
 	}
 
 	public override void _Notification(int what)
@@ -334,6 +346,8 @@ public partial class Main : Node
 
 	private async Task RunSplashFlowAsync(Control splashRoot)
 	{
+		var sw = Stopwatch.StartNew();
+
 		var durationMs = splashRoot.HasMeta(NodePropertyMapper.MetaSplashDuration)
 			? splashRoot.GetMeta(NodePropertyMapper.MetaSplashDuration).AsInt32()
 			: 0;
@@ -353,12 +367,14 @@ public partial class Main : Node
 		var syncTask  = SyncRemainingAssetsAsync(progressBar);
 
 		await Task.WhenAll(timerTask, syncTask);
+		RunnerLogger.Info("Perf", $"[SplashFlow] timer+sync={sw.ElapsedMilliseconds}ms (duration={durationMs}ms)"); sw.Restart();
 
 		if (!string.IsNullOrEmpty(loadOnReady))
 		{
 			// Load the next document while the splash is still visible, then swap
 			// atomically — this avoids any black-screen gap between the two UIs.
 			await SwapToUiAsync(loadOnReady);
+			RunnerLogger.Info("Perf", $"[SplashFlow] swapToUi='{System.IO.Path.GetFileName(loadOnReady)}' {sw.ElapsedMilliseconds}ms");
 		}
 	}
 
@@ -368,8 +384,11 @@ public partial class Main : Node
 	/// </summary>
 	private async Task SwapToUiAsync(string url)
 	{
+		var sw = Stopwatch.StartNew();
+
 		var newRuntime = new SmsUiRuntime(_uriResolver, url);
 		await newRuntime.InitializeAsync();
+		RunnerLogger.Info("Perf", $"[SwapToUi] runtimeInit={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		var loader = new SmlUiLoader(
 			_nodeFactoryRegistry,
@@ -388,6 +407,7 @@ public partial class Main : Node
 			RunnerLogger.Error("UI", $"Failed to load UI from '{url}'", ex);
 			return;
 		}
+		RunnerLogger.Info("Perf", $"[SwapToUi] loadFromUri={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		// Splash is still visible here. Swap in one synchronous block.
 		_resolvedStartupUiUrl = url;
@@ -398,6 +418,8 @@ public partial class Main : Node
 			_smsUiRuntime?.BindDispatcher(_uiDispatcher);
 		DetachUi();
 		AttachUi(rootControl);
+		RunnerLogger.Info("Perf", $"[SwapToUi] attachUi={sw.ElapsedMilliseconds}ms"); sw.Restart();
+
 		await EnsureRuntimeUiReadyStateAsync();
 		RunnerLogger.Info("UI", $"UI loaded from '{url}'.");
 		await InvokeUiReadyHandlersAsync();
