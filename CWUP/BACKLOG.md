@@ -76,7 +76,8 @@
 ## Tasks Forge-Runner
 - [x] tasks/markdown_layout.md
 - [x] tasks/animation_panel.md
-- [x] tasks/animation_panel.md / phase 3 (Gruppe 1: .scene Format + MoveGizmo + Objekte platzieren)
+- [ ] tasks/animation_panel.md / phase 3 bugfixes
+- [ ] tasks/animation_panel.md / phase 4
 
 
 ## Future Tasks

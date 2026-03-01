@@ -279,16 +279,16 @@ And maybe a scene (phase 2) as .glb.
 
 ---
 
-## 10. Implementierungsstand & offene Punkte
+## 10. Requirements & completetd and open 
 
-### Fertig implementiert
+### Completed
 - RotationGizmo3D (Torus-Ringe, Handles, World-Space-Rotation, Limits, Orange-Feedback, Winkel-Label)
 - PosingEditorControl (Orbit-Kamera, Joint-Spheres, Picking, BoneTree als collapsible Tree, Constraints)
 - TimelineControl (Ruler, Bone-Tracks, Keyframe-Diamonds, Playhead, Play/Stop, lineare Interpolation)
 - SMS-Verdrahtung: `poseChanged → setKeyframe`, `frameChanged → loadPose`
 - ForgePoser App: `main.sml` + `main.sms`
 
-### Abgeschlossen (Phase 2)
+### Completed (Phase 2)
 
 | Feature | Aufwand | Hinweis |
 |---|---|---|
@@ -297,13 +297,27 @@ And maybe a scene (phase 2) as .glb.
 | SMS-Events `keyframeAdded` / `keyframeRemoved` | klein | In `SetKeyframe`/`RemoveKeyframe` gefeuert; Dispatcher + SmsUiRuntime-Handler |
 
 
-### Still open (Phase 3)
+### Completed (Phase 3)
 
 | Feature | Aufwand | Hinweis |
 |---|---|---|
 | Instead of save as *.fpose save all as a *.scene | mittel | This allows us to use *.scene instead of *.tscn (see sample below)|
 | Move Gizmo | gross | Should look like in Blockbench, 3 colors, 3 directions |
 | Place objects in scene| mittel | all objects in scene should be movable and rotatable |
+
+# Bugfixes for Phase 3
+- Timeline Control renders outside its box.
+- Scene does not support float vectors for pos, rot and scale
+```sml
+pos: 2.0, 2.0, 0.0 
+rot: 0.0, 0.0, 0.0 
+scale: 1.0, 1.0, 1.0
+```
+- Assets are positioned at 0,0,0 regardless of their pos in the scene. This might also be true for rotation and scale, because these values are defined as integer atm. 
+- When I select an asset in the scene list, it is not selected and no gizmo is displayed. Fix: draw a border around the asset in the viewport and display the desired gizmo, based on the mode (move, rotatet or scale).
+  
+  
+### Still open (Phase 4)
 | Touch-Input (Tablet) | mittel | Poll-Drag nutzt Maus; `InputEventScreenTouch` / `InputEventScreenDrag` ergänzen |
 | `exportPoseAsGLB(path)` | groß | Godot `GltfDocument` mit gesetzten Bone-Poses exportieren |
 | `exportAnimationAsGLB(path)` | groß | Keyframes → `AnimationLibrary` → `GltfDocument` exportieren |

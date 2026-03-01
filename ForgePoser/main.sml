@@ -103,8 +103,11 @@ Window {
                         Button { id: btnModeMove   text: "Move"   toggleMode: true  buttonPressed: true   disabled: true }
                         Button { id: btnModeScale  text: "Scale"  toggleMode: true  buttonPressed: false  disabled: true }
                         Button { id: btnModeRotate text: "Rotate" toggleMode: true  buttonPressed: false  disabled: true }
-                    }
 
+                        VSeparator { }
+                        
+                        Button { id: btnToggleJoints text: "Joints ●" customMinimumSize: 80, 0 }
+                    }
                     VSplitContainer {
                         sizeFlagsHorizontal: expandFill
                         sizeFlagsVertical: expandFill
@@ -164,11 +167,6 @@ Window {
             padding: 4, 2, 4, 2
             spacing: 6
             
-            /*Button {
-                    id: btnToggleJoints
-                    text: "Joints ●"
-                    customMinimumSize: 80, 0
-            }*/
             Label {
                 id: statusLabel
                 text: "No model loaded."
