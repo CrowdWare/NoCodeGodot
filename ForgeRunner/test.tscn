@@ -1,0 +1,31 @@
+[gd_scene format=3 uid="uid://2dcbfbnnat1r"]
+
+[ext_resource type="PackedScene" uid="uid://xv531yqmjt48" path="res://assets/models/Opa.glb" id="1_37kl0"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_mf4mk"]
+sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+ground_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+
+[sub_resource type="Sky" id="Sky_37kl0"]
+sky_material = SubResource("ProceduralSkyMaterial_mf4mk")
+
+[sub_resource type="Environment" id="Environment_8uh7m"]
+background_mode = 2
+sky = SubResource("Sky_37kl0")
+tonemap_mode = 2
+glow_enabled = true
+
+[node name="Node3D" type="Node3D" unique_id=464523586]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=856945356]
+environment = SubResource("Environment_8uh7m")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=198843798]
+transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545, -0.50000006, 0.75, -0.43301266, 0, 0, 0)
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=886374973]
+transform = Transform3D(0.9804433, -0.06382228, 0.18616572, 0, 0.9459553, 0.32429716, -0.19680183, -0.317955, 0.9274555, 0, 0.36045963, 1.553236)
+
+[node name="Opa" parent="." unique_id=221473899 instance=ExtResource("1_37kl0")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.62800956, 0, -1.6517639)

@@ -296,11 +296,86 @@ And maybe a scene (phase 2) as .glb.
 | Keyframe löschen (UI-Geste) | klein | Rechtsklick auf Diamond-Position oder Del-Taste in TimelineTrackArea |
 | SMS-Events `keyframeAdded` / `keyframeRemoved` | klein | In `SetKeyframe`/`RemoveKeyframe` gefeuert; Dispatcher + SmsUiRuntime-Handler |
 
-### Noch offen (Phase 3, optional)
+
+### Still open (Phase 3)
 
 | Feature | Aufwand | Hinweis |
 |---|---|---|
+| Instead of save as *.fpose save all as a *.scene | mittel | This allows us to use *.scene instead of *.tscn (see sample below)|
+| Move Gizmo | gross | Should look like in Blockbench, 3 colors, 3 directions |
+| Place objects in scene| mittel | all objects in scene should be movable and rotatable |
 | Touch-Input (Tablet) | mittel | Poll-Drag nutzt Maus; `InputEventScreenTouch` / `InputEventScreenDrag` ergänzen |
 | `exportPoseAsGLB(path)` | groß | Godot `GltfDocument` mit gesetzten Bone-Poses exportieren |
 | `exportAnimationAsGLB(path)` | groß | Keyframes → `AnimationLibrary` → `GltfDocument` exportieren |
+| Import animation / retarget animation | mittel | Load an animation from a .glb and use it on a character, animation will then be used and saved in the scene |
 | IK-Support (`SkeletonIK3D`) | groß | Godot `SkeletonIK3D` als Kind von Skeleton3D; Hand/Fuß-Knochen triggern IK-Solve |
+
+
+### Scene sample
+Instead of Asset and Character we might use the Godot type instead.
+Node3D or whatever that is. Or PackedScene makes also sense, so that we later can include subscenes.
+
+```sms
+Scene {
+    id: scene
+
+    WorldEnvironment {
+        backgroundMode = 2
+        tonemapMode = 2
+        glowEnabled = true
+
+        Sky {
+            ProceduralSkyMaterial {
+                skyHorizonColor: "#0000FF"
+                groundHorizonColor: "#BBBBFF"
+            }
+        }
+    }
+
+    DirectionalLight3D {
+        pos: 0.0, 0.0, 0.0
+        rot: 0.0, 0.0, 0.0
+        scale: 1.0, 1.0, 1.0
+        mode: euler // default
+        shadowEnabled = true
+    }
+
+    Camera3D {
+        id: camera
+    }
+
+    Asset {
+        id: wall
+        name: "hero"
+        src: "res://assets/models/wall.glb"
+        pos: 2.0, 2.0, 0.0 
+        rot: 0.0, 0.0, 0.0 
+        scale: 1.0, 1.0, 1.0
+    }
+
+    Character {
+        id: hero
+        name: "hero"
+        src: "res://assets/models/Opa.glb"
+        pos: 0.0, 0.0, 0.0 
+        rot: 0.0, 0.0, 0.0 
+        scale: 1.0, 1.0, 1.0
+       
+        Animation {
+            target: hero
+            Key { frame: 0
+                Bone { name: "Head" x: 0.187317 y: -0.0257134 z: -0.00490508 w: 0.981951 }
+                Bone { name: "LeftForeArm" x: 0.203757 y: -0.286319 z: 0.554261 w: 0.754519 }
+                Bone { name: "LeftArm" x: 0.263918 y: 0.000433639 z: -0.016206 w: 0.964409 }
+                Bone { name: "RightArm" x: 0.444904 y: 0.000967647 z: 0.0137014 w: 0.895473 }
+            }
+            Key { frame: 10
+                Bone { name: "LeftForeArm" x: 0.292009 y: -0.405733 z: 0.865405 w: -0.0344294 }
+                Bone { name: "Head" x: 0.328754 y: -0.024721 z: -0.00860875 w: 0.944053 }
+                Bone { name: "LeftArm" x: 0.263918 y: 0.000433639 z: -0.016206 w: 0.964409 }
+                Bone { name: "RightArm" x: 0.444904 y: 0.000967647 z: 0.0137014 w: 0.895473 }
+            }
+        }
+    }
+}
+```
