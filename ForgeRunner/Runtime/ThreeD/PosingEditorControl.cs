@@ -1621,4 +1621,68 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
     // Track last loaded source so BuildProjectData can persist it
     private string _lastLoadedSource = string.Empty;
+
+    // ── GLB Export ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Opens a native Godot export-options dialog (checkboxes for animation + props),
+    /// then a file-save dialog, and finally exports to GLB.
+    /// </summary>
+    public void ShowExportDialog(TimelineControl timeline)
+    {
+        if (_modelRoot is null || _skeleton is null)
+        {
+            RunnerLogger.Warn("PosingEditor", "No model loaded — cannot export.");
+            return;
+        }
+
+        // Options dialog
+        var dlg     = new AcceptDialog { Title = "Export as GLB", Size = new Vector2I(300, 140) };
+        var vbox    = new VBoxContainer { LayoutMode = 1 };
+        var cbAnim  = new CheckBox { Text = "Include Animation", ButtonPressed = true };
+        var cbProps = new CheckBox { Text = "Include Props",     ButtonPressed = true };
+        vbox.AddChild(cbAnim);
+        vbox.AddChild(cbProps);
+        dlg.AddChild(vbox);
+        AddChild(dlg);
+        dlg.Popup();
+
+        dlg.Confirmed += () =>
+        {
+            var inclAnim  = cbAnim.ButtonPressed;
+            var inclProps = cbProps.ButtonPressed;
+            dlg.QueueFree();
+
+            var saveDlg = new FileDialog
+            {
+                FileMode = FileDialog.FileModeEnum.SaveFile,
+                Access   = FileDialog.AccessEnum.Filesystem,
+                Filters  = ["*.glb"],
+                Title    = "Export as GLB",
+            };
+            AddChild(saveDlg);
+            saveDlg.Popup();
+            saveDlg.FileSelected += (string savePath) =>
+            {
+                saveDlg.QueueFree();
+                DoExportAsGlb(new GlbExporter.ExportOptions(inclAnim, inclProps), savePath, timeline);
+            };
+            saveDlg.Canceled += () => saveDlg.QueueFree();
+        };
+        dlg.Canceled += () => dlg.QueueFree();
+    }
+
+    private void DoExportAsGlb(GlbExporter.ExportOptions options, string path, TimelineControl timeline)
+    {
+        var keyframes = timeline.GetAllKeyframes();
+        var props     = _sceneProps.Select(p => (p.Node, p.Data.Name));
+
+        GlbExporter.Export(_modelRoot!, _skeleton!, keyframes,
+            timeline.Fps, timeline.TotalFrames, props, options, path,
+            out var restoreParent);
+
+        // Re-attach modelRoot to _worldRoot if GlbExporter detached it
+        if (restoreParent is not null && _modelRoot!.GetParent() is null)
+            _worldRoot.AddChild(_modelRoot);
+    }
 }

@@ -98,6 +98,10 @@ on menuOpenGlb.clicked() {
     ui.openFileDialog("onModelFileSelected")
 }
 
+on menuExport.clicked() {
+    editor.showExportDialog()
+}
+
 fun onModelFileSelected(path) {
     editor.setModelSource(path)
     hasCharacter = true

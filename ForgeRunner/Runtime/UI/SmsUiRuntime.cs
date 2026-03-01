@@ -1160,6 +1160,15 @@ public sealed class SmsUiRuntime
                 posingEditorExt.SetArrangeEditMode(ValueArgString(methodArgs, 0));
                 return NullValue.Instance;
             });
+
+            // showExportDialog() — opens export options dialog then saves GLB
+            fields["showExportDialog"] = new NativeFunctionValue(_ =>
+            {
+                var timeline = FindSiblingTimeline(posingEditorExt);
+                if (timeline is not null)
+                    posingEditorExt.ShowExportDialog(timeline);
+                return NullValue.Instance;
+            });
         }
 
         if (runtimeObject is CodeEdit editor)

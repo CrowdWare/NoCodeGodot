@@ -383,6 +383,15 @@ public sealed partial class TimelineControl : Control
     /// <summary>Total number of frames that have at least one keyframe.</summary>
     public int GetKeyframeCount() => _keyframes.Count;
 
+    /// <summary>Returns a deep copy of all keyframes for use by the GLB exporter.</summary>
+    public SortedDictionary<int, Dictionary<string, Quaternion>> GetAllKeyframes()
+    {
+        var copy = new SortedDictionary<int, Dictionary<string, Quaternion>>();
+        foreach (var (frame, pose) in _keyframes)
+            copy[frame] = new Dictionary<string, Quaternion>(pose, StringComparer.OrdinalIgnoreCase);
+        return copy;
+    }
+
     /// <summary>Returns the frame number of the keyframe at sorted position <paramref name="index"/>.</summary>
     public int GetKeyframeFrameAt(int index)
     {

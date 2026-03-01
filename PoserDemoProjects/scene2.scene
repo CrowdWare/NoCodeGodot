@@ -1,0 +1,19 @@
+﻿Scene {
+    Character {
+        id: "hero"  name: ""  src: ""
+        pos: 0.0, 0.0, 0.0
+        rot: 0.0, 0.0, 0.0
+        scale: 1.0, 1.0, 1.0
+
+        Animation {
+            fps: 24
+            totalFrames: 120
+        }
+    }
+    Asset {
+        id: "prop0"  name: "Opa"  src: "/Users/art/SourceCode/Forge/PoserDemoProjects/assets/models/Opa.glb"
+        pos: -0.632914, 0.0, 0.0
+        rot: -0.0, 90.0, 0.0
+        scale: 1.0, 1.0, 1.0
+    }
+}
