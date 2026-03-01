@@ -1133,6 +1133,20 @@ public sealed class SmsUiRuntime
                 return NullValue.Instance;
             });
 
+            // selectSceneProp(propIdx) — select a prop by index and show the gizmo
+            fields["selectSceneProp"] = new NativeFunctionValue(methodArgs =>
+            {
+                posingEditorExt.SelectSceneProp(ValueArgInt(methodArgs, 0));
+                return NullValue.Instance;
+            });
+
+            // selectCharacter() — select the character (primary model) for transform in Arrange mode
+            fields["selectCharacter"] = new NativeFunctionValue(_ =>
+            {
+                posingEditorExt.SelectCharacter();
+                return NullValue.Instance;
+            });
+
             // setMode("pose"|"arrange") — switch main editor mode
             fields["setMode"] = new NativeFunctionValue(methodArgs =>
             {

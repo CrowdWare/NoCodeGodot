@@ -96,7 +96,8 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     private bool _moveGizmoDragging;
     private bool _scaleGizmoDragging;
     private bool _rotateGizmoDraggingFreeNode;
-    private int  _selectedPropIdx = -1;
+    private int  _selectedPropIdx    = -1;
+    private bool _characterSelected;
 
     // ── Editor modes ──────────────────────────────────────────────────────────
     private EditorMode      _editorMode      = EditorMode.Pose;
@@ -160,8 +161,9 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         _gizmo.Detach();
         _moveGizmo.Detach();
         _scaleGizmo.Detach();
-        _selectedBoneIdx = -1;
-        _selectedPropIdx = -1;
+        _selectedBoneIdx   = -1;
+        _selectedPropIdx   = -1;
+        _characterSelected = false;
         _gizmoDragging = _moveGizmoDragging = _scaleGizmoDragging = _rotateGizmoDraggingFreeNode = false;
     }
 
@@ -174,8 +176,10 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             "rotate" => ArrangeEditMode.Rotate,
             _        => ArrangeEditMode.Move,
         };
-        // Re-attach gizmo to currently selected prop (swaps gizmo type)
-        if (_selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
+        // Re-attach gizmo to currently selected object (swaps gizmo type)
+        if (_characterSelected && _modelRoot is not null)
+            AttachArrangeGizmoToNode(_modelRoot);
+        else if (_selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
             AttachArrangeGizmo(_selectedPropIdx);
     }
 
@@ -398,11 +402,100 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         _angleLabel.Visible = true;
     }
 
+    private void UpdateArrangeLabel()
+    {
+        if (_angleLabel is null) return;
+        string text;
+        if (_moveGizmoDragging && _moveGizmo.IsDragging)
+        {
+            var disp = _moveGizmo.DragTotalDisplacement;
+            text = $"{_moveGizmo.DragAxisLabel}  {disp:+0.00;-0.00;0.00}";
+        }
+        else if (_scaleGizmoDragging && _scaleGizmo.IsDragging)
+        {
+            var s = _scaleGizmo.DragCurrentScale;
+            text = $"{_scaleGizmo.DragAxisLabel}  {s:0.000}×";
+        }
+        else if (_rotateGizmoDraggingFreeNode && _gizmo.IsDragging)
+        {
+            var axisName = _gizmo.DragAxis switch { 0 => "X", 1 => "Y", _ => "Z" };
+            text = $"{axisName}  {_gizmo.DragAngleDegrees:+0.0;-0.0;0.0}°";
+        }
+        else return;
+        _angleLabel.Text    = text;
+        _angleLabel.Visible = true;
+    }
+
+    // ── 2D selection overlay ──────────────────────────────────────────────────
+
+    private static readonly Color SelectionBorderColor = new(1f, 0.8f, 0.1f, 0.9f);
+
+    /// <summary>
+    /// Draws a yellow 2D bounding-box outline around the currently selected object
+    /// (scene prop or character) by projecting its world-space AABB corners onto screen space.
+    /// </summary>
+    public override void _Draw()
+    {
+        Node3D? target = null;
+        if (_characterSelected && _modelRoot is not null && _modelRoot.IsInsideTree())
+            target = _modelRoot;
+        else if (_selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
+        {
+            var (node, _) = _sceneProps[_selectedPropIdx];
+            if (node.IsInsideTree()) target = node;
+        }
+        if (target is null) return;
+
+        var aabb = GetNodeWorldAabb(target);
+        if (aabb.Size == Vector3.Zero) return;
+
+        var vpSize   = (Vector2)_viewport.Size;
+        var ctrlSize = Size;
+        if (vpSize.X <= 0f || vpSize.Y <= 0f) return;
+
+        var scaleX = ctrlSize.X / vpSize.X;
+        var scaleY = ctrlSize.Y / vpSize.Y;
+
+        // 8 corners of the AABB
+        var p  = aabb.Position;
+        var e  = aabb.End;
+        Span<Vector3> corners = stackalloc Vector3[8]
+        {
+            new(p.X, p.Y, p.Z), new(e.X, p.Y, p.Z),
+            new(e.X, e.Y, p.Z), new(p.X, e.Y, p.Z),
+            new(p.X, p.Y, e.Z), new(e.X, p.Y, e.Z),
+            new(e.X, e.Y, e.Z), new(p.X, e.Y, e.Z),
+        };
+
+        // Project to 2D screen coords; skip if any corner is behind the camera
+        Span<Vector2> sc = stackalloc Vector2[8];
+        var camForward = -_camera.GlobalTransform.Basis.Z;
+        for (var i = 0; i < 8; i++)
+        {
+            var toCorner = corners[i] - _camera.GlobalPosition;
+            if (toCorner.Dot(camForward) <= 0f) return; // corner behind camera
+            var vp2d = _camera.UnprojectPosition(corners[i]);
+            sc[i] = new Vector2(vp2d.X * scaleX, vp2d.Y * scaleY);
+        }
+
+        // 12 edges of the box (indices into corners[])
+        ReadOnlySpan<(int, int)> edges = stackalloc (int, int)[12]
+        {
+            (0,1),(1,2),(2,3),(3,0),  // back face
+            (4,5),(5,6),(6,7),(7,4),  // front face
+            (0,4),(1,5),(2,6),(3,7),  // connecting edges
+        };
+
+        foreach (var (a, b) in edges)
+            DrawLine(sc[a], sc[b], SelectionBorderColor, 2f);
+    }
+
     // ── Frame update ──────────────────────────────────────────────────────────
 
     public override void _Process(double delta)
     {
         UpdateJointSpherePositions();
+        if (_selectedPropIdx >= 0 || _characterSelected) QueueRedraw();
         PollDrag();
     }
 
@@ -437,13 +530,14 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             {
                 _moveGizmo.EndDrag();
                 _moveGizmoDragging = false;
+                if (_angleLabel is not null) _angleLabel.Visible = false;
                 return;
             }
             const float DepthScale = 0.0018f;
             _moveGizmo.UpdateDrag(_camera, mousePos, mousePos - d, DepthScale);
 
-            // Sync ScenePropData with the node's new position
-            if (_selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
+            // Sync ScenePropData with the node's new position (not needed for character)
+            if (!_characterSelected && _selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
             {
                 var (node, old) = _sceneProps[_selectedPropIdx];
                 var newPos = node.GlobalPosition;
@@ -451,6 +545,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                 _sceneProps[_selectedPropIdx] = (node, updated);
                 ObjectMoved?.Invoke(_selectedPropIdx, newPos);
             }
+            UpdateArrangeLabel();
         }
         else if (_scaleGizmoDragging)
         {
@@ -458,13 +553,14 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             {
                 _scaleGizmo.EndDrag();
                 _scaleGizmoDragging = false;
+                if (_angleLabel is not null) _angleLabel.Visible = false;
                 return;
             }
             const float DepthScale = 0.0018f;
             _scaleGizmo.UpdateDrag(_camera, mousePos, mousePos - d, DepthScale);
 
-            // Sync ScenePropData with the node's new scale
-            if (_selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
+            // Sync ScenePropData with the node's new scale (not needed for character)
+            if (!_characterSelected && _selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
             {
                 var (node, old) = _sceneProps[_selectedPropIdx];
                 var s = node.Scale;
@@ -472,6 +568,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                 _sceneProps[_selectedPropIdx] = (node, updated);
                 ObjectMoved?.Invoke(_selectedPropIdx, node.GlobalPosition);
             }
+            UpdateArrangeLabel();
         }
         else if (_rotateGizmoDraggingFreeNode)
         {
@@ -479,12 +576,13 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             {
                 _gizmo.EndDrag();
                 _rotateGizmoDraggingFreeNode = false;
+                if (_angleLabel is not null) _angleLabel.Visible = false;
                 return;
             }
             _gizmo.UpdateDrag(d);
 
-            // Sync ScenePropData with the node's new rotation
-            if (_selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
+            // Sync ScenePropData with the node's new rotation (not needed for character)
+            if (!_characterSelected && _selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
             {
                 var (node, old) = _sceneProps[_selectedPropIdx];
                 var euler = node.RotationDegrees;
@@ -492,6 +590,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                 _sceneProps[_selectedPropIdx] = (node, updated);
                 ObjectMoved?.Invoke(_selectedPropIdx, node.GlobalPosition);
             }
+            UpdateArrangeLabel();
         }
         else if (_isRotating)
         {
@@ -752,9 +851,10 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
     private void SelectProp(int propIdx)
     {
-        if (propIdx == _selectedPropIdx) return;
+        if (propIdx == _selectedPropIdx && !_characterSelected) return;
 
-        _selectedPropIdx = propIdx;
+        _characterSelected = false;
+        _selectedPropIdx   = propIdx;
 
         if (propIdx >= 0 && propIdx < _sceneProps.Count)
         {
@@ -770,12 +870,16 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             if (propIdx == -1)
                 ObjectSelected?.Invoke(-1);
         }
+
+        QueueRedraw();
     }
 
     /// <summary>Attach the correct gizmo to the given prop based on the current ArrangeEditMode.</summary>
-    private void AttachArrangeGizmo(int propIdx)
+    private void AttachArrangeGizmo(int propIdx) =>
+        AttachArrangeGizmoToNode(_sceneProps[propIdx].Node);
+
+    private void AttachArrangeGizmoToNode(Node3D node)
     {
-        var (node, _) = _sceneProps[propIdx];
         _moveGizmo.Detach();
         _scaleGizmo.Detach();
         _gizmo.Detach();
@@ -787,11 +891,23 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         }
     }
 
-    /// <summary>Prop picking in Arrange mode — selects the prop and attaches the active gizmo.</summary>
+    /// <summary>Prop/character picking in Arrange mode — selects the hit object and attaches the active gizmo.</summary>
     private void TryPickPropArrange(Vector3 rayOrigin, Vector3 rayDir)
     {
-        var bestIdx = -1;
-        var bestT   = float.MaxValue;
+        var bestIdx  = -1;
+        var bestT    = float.MaxValue;
+        var charHit  = false;
+
+        // Test character (modelRoot) AABB
+        if (_modelRoot is not null && _modelRoot.IsInsideTree())
+        {
+            var aabb = GetNodeWorldAabb(_modelRoot);
+            if (aabb.Size != Vector3.Zero && RayAabbIntersect(rayOrigin, rayDir, aabb, out var t))
+            {
+                bestT   = t;
+                charHit = true;
+            }
+        }
 
         for (var i = 0; i < _sceneProps.Count; i++)
         {
@@ -805,10 +921,14 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             {
                 bestT   = t;
                 bestIdx = i;
+                charHit = false;
             }
         }
 
-        SelectProp(bestIdx);
+        if (charHit)
+            SelectCharacter();
+        else
+            SelectProp(bestIdx);
     }
 
     /// <summary>Compute a world-space AABB for a node by summing all MeshInstance3D children.</summary>
@@ -881,8 +1001,14 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
         if (_selectedBoneIdx >= 0 && _selectedBoneIdx < _jointSpheres.Count)
         {
-            // Selecting a bone deselects any prop.
-            if (_selectedPropIdx >= 0) { _moveGizmo.Detach(); _selectedPropIdx = -1; }
+            // Selecting a bone deselects any prop/character.
+            if (_selectedPropIdx >= 0 || _characterSelected)
+            {
+                _moveGizmo.Detach();
+                _scaleGizmo.Detach();
+                _selectedPropIdx   = -1;
+                _characterSelected = false;
+            }
 
             SetSphereColor(_selectedBoneIdx, SphereColorSelected);
             var boneName = NormBone(_skeleton.GetBoneName(_selectedBoneIdx));
@@ -1306,6 +1432,27 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         ScenePropRemoved?.Invoke(index);
     }
 
+    /// <summary>
+    /// Select a scene prop by index from external code (e.g. from the scene-asset list in SMS).
+    /// Attaches the appropriate arrange gizmo and fires ObjectSelected.
+    /// </summary>
+    public void SelectSceneProp(int propIdx) => SelectProp(propIdx);
+
+    /// <summary>
+    /// Select the character (primary model) as the active transform target in Arrange mode.
+    /// Attaches the appropriate gizmo to _modelRoot.
+    /// </summary>
+    public void SelectCharacter()
+    {
+        if (_modelRoot is null) return;
+        _characterSelected = true;
+        _selectedPropIdx   = -1;
+        AttachArrangeGizmoToNode(_modelRoot);
+        ObjectSelected?.Invoke(-1);
+        QueueRedraw();
+        RunnerLogger.Info("PosingEditor", "Character selected for transform.");
+    }
+
     public int    GetScenePropCount()       => _sceneProps.Count;
     public string GetScenePropPath(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Data.Path : string.Empty;
     public string GetScenePropName(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Data.Name : string.Empty;
@@ -1347,13 +1494,18 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     {
         var assets = new List<SceneAssetData>();
 
-        // Primary character
+        // Primary character — read actual transform from modelRoot
+        var charPos   = _modelRoot?.Position        ?? Vector3.Zero;
+        var charRot   = _modelRoot?.RotationDegrees ?? Vector3.Zero;
+        var charScale = _modelRoot?.Scale           ?? Vector3.One;
         assets.Add(new SceneAssetData(
             Id:      "hero",
             Name:    System.IO.Path.GetFileNameWithoutExtension(_lastLoadedSource),
             Src:     _lastLoadedSource,
             Primary: true,
-            PosX: 0, PosY: 0, PosZ: 0, RotX: 0, RotY: 0, RotZ: 0, ScaleX: 1, ScaleY: 1, ScaleZ: 1));
+            PosX:   charPos.X,   PosY:   charPos.Y,   PosZ:   charPos.Z,
+            RotX:   charRot.X,   RotY:   charRot.Y,   RotZ:   charRot.Z,
+            ScaleX: charScale.X, ScaleY: charScale.Y, ScaleZ: charScale.Z));
 
         for (var i = 0; i < _sceneProps.Count; i++)
         {
@@ -1414,12 +1566,28 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             if (asset.Primary)
             {
                 SetModelSource(resolvedSrc);
+                // Apply stored character transform (pos/rot/scale)
+                if (_modelRoot is not null)
+                {
+                    _modelRoot.Position        = new Vector3(asset.PosX, asset.PosY, asset.PosZ);
+                    _modelRoot.RotationDegrees = new Vector3(asset.RotX, asset.RotY, asset.RotZ);
+                    _modelRoot.Scale           = new Vector3(asset.ScaleX, asset.ScaleY, asset.ScaleZ);
+                }
             }
             else
             {
                 var idx = AddSceneProp(resolvedSrc, asset.PosX, asset.PosY, asset.PosZ);
                 if (idx >= 0)
+                {
                     SetScenePropRot(idx, asset.RotX, asset.RotY, asset.RotZ);
+                    if (asset.ScaleX != 1f || asset.ScaleY != 1f || asset.ScaleZ != 1f)
+                    {
+                        var (node, old) = _sceneProps[idx];
+                        var propData = old with { ScaleX = asset.ScaleX, ScaleY = asset.ScaleY, ScaleZ = asset.ScaleZ };
+                        _sceneProps[idx] = (node, propData);
+                        ApplyPropTransform(node, propData);
+                    }
+                }
             }
         }
 

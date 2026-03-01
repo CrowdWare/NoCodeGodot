@@ -267,6 +267,7 @@ public sealed partial class TimelineControl : Control
     {
         CustomMinimumSize   = new Vector2(400, 110);
         SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        ClipContents        = true;
 
         // ── Toolbar ───────────────────────────────────────────────────────
         _btnPlayPause = new Button { Name = "BtnPlay", Text = "▶", CustomMinimumSize = new Vector2(36, 28) };

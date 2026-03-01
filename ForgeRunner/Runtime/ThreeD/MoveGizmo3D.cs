@@ -72,15 +72,15 @@ public sealed partial class MoveGizmo3D : Node3D
         _matY = MakeArrowMat(ColAxisY);
         _matZ = MakeArrowMat(ColAxisZ);
 
-        // Shafts
-        _shaftX = MakeShaft(_matX, new Vector3(0f, 0f, 90f));   // cylinder along +X
-        _shaftY = MakeShaft(_matY, Vector3.Zero);                 // cylinder along +Y (default)
-        _shaftZ = MakeShaft(_matZ, new Vector3(90f, 0f, 0f));    // cylinder along -Z
+        // Shafts — position is the shaft centre in gizmo local space
+        _shaftX = MakeShaft(_matX, new Vector3( ShaftLength * 0.5f, 0f,               0f), new Vector3(0f, 0f, 90f));
+        _shaftY = MakeShaft(_matY, new Vector3(0f,               ShaftLength * 0.5f,  0f), Vector3.Zero);
+        _shaftZ = MakeShaft(_matZ, new Vector3(0f,               0f, -ShaftLength * 0.5f), new Vector3(-90f, 0f, 0f));
 
         // Cones (arrow heads)
         _coneX = MakeCone(_matX, TipOffsetX, new Vector3(0f, 0f, -90f));  // points +X
         _coneY = MakeCone(_matY, TipOffsetY, Vector3.Zero);                // points +Y (default)
-        _coneZ = MakeCone(_matZ, TipOffsetZ, new Vector3(90f, 0f, 0f));    // points -Z
+        _coneZ = MakeCone(_matZ, TipOffsetZ, new Vector3(-90f, 0f, 0f));   // points -Z
 
         AddChild(_shaftX); AddChild(_shaftY); AddChild(_shaftZ);
         AddChild(_coneX);  AddChild(_coneY);  AddChild(_coneZ);
@@ -201,8 +201,18 @@ public sealed partial class MoveGizmo3D : Node3D
         ResetColors();
     }
 
-    public bool IsDragging => _dragAxis >= 0;
-    public int  DragAxis   => _dragAxis;
+    public bool   IsDragging  => _dragAxis >= 0;
+    public int    DragAxis    => _dragAxis;
+    public string DragAxisLabel => _dragAxis switch { 0 => "X", 1 => "Y", _ => "Z" };
+    public float  DragTotalDisplacement
+    {
+        get
+        {
+            if (_dragAxis < 0 || _target is null) return 0f;
+            var d = _target.GlobalPosition - _dragStartPos;
+            return _dragAxis switch { 0 => d.X, 1 => d.Y, _ => -d.Z };
+        }
+    }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -220,7 +230,7 @@ public sealed partial class MoveGizmo3D : Node3D
         mat.AlbedoColor = ColHighlight;
     }
 
-    private static MeshInstance3D MakeShaft(StandardMaterial3D mat, Vector3 rotDeg)
+    private static MeshInstance3D MakeShaft(StandardMaterial3D mat, Vector3 position, Vector3 rotDeg)
     {
         var cyl = new CylinderMesh
         {
@@ -231,12 +241,10 @@ public sealed partial class MoveGizmo3D : Node3D
         };
         cyl.SurfaceSetMaterial(0, mat);
 
-        // Cylinder default is along Y. Offset by half height along Y, then rotate.
         return new MeshInstance3D
         {
             Mesh            = cyl,
-            // Centre of shaft at half shaft length along local +Y before rotation.
-            Position        = new Vector3(0f, ShaftLength * 0.5f, 0f),
+            Position        = position,
             RotationDegrees = rotDeg,
             CastShadow      = GeometryInstance3D.ShadowCastingSetting.Off,
         };

@@ -289,6 +289,11 @@ public static class AnimationSerializer
                 var vec = (SmlVec3f)v.Value;
                 return ((float)vec.X, (float)vec.Y, (float)vec.Z);
             }
+            if (v.Kind == SmlValueKind.Vec3i)
+            {
+                var vec = (SmlVec3i)v.Value;
+                return ((float)vec.X, (float)vec.Y, (float)vec.Z);
+            }
             // Scalar float/int (e.g. scale: 1.0)
             if (v.Kind == SmlValueKind.Float)
             {
@@ -305,8 +310,11 @@ public static class AnimationSerializer
         return (GetFloat(node, xKey, defaultVal), GetFloat(node, yKey, defaultVal), GetFloat(node, zKey, defaultVal));
     }
 
-    private static string F(float v) =>
-        v.ToString("G6", CultureInfo.InvariantCulture);
+    private static string F(float v)
+    {
+        var s = v.ToString("G6", CultureInfo.InvariantCulture);
+        return s.Contains('.') ? s : s + ".0";
+    }
 
     private static string Esc(string s) =>
         s.Replace("\\", "\\\\").Replace("\"", "\\\"");

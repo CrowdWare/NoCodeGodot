@@ -59,7 +59,8 @@ public sealed partial class ScaleGizmo3D : Node3D
     private Node3D? _target;
 
     // ── Drag state ────────────────────────────────────────────────────────────
-    private int     _dragAxis = -1;    // 0=X 1=Y 2=Z  (-1 = idle)
+    private int     _dragAxis       = -1;    // 0=X 1=Y 2=Z  (-1 = idle)
+    private Vector3 _dragStartScale = Vector3.One;
 
     // ─────────────────────────────────────────────────────────────────────────
     public ScaleGizmo3D()
@@ -71,10 +72,10 @@ public sealed partial class ScaleGizmo3D : Node3D
         _matY = MakeShaftMat(ColAxisY);
         _matZ = MakeShaftMat(ColAxisZ);
 
-        // Shafts
-        _shaftX = MakeShaft(_matX, new Vector3(0f, 0f, 90f));   // cylinder along +X
-        _shaftY = MakeShaft(_matY, Vector3.Zero);                 // cylinder along +Y (default)
-        _shaftZ = MakeShaft(_matZ, new Vector3(90f, 0f, 0f));    // cylinder along -Z
+        // Shafts — position is the shaft centre in gizmo local space
+        _shaftX = MakeShaft(_matX, new Vector3( ShaftLength * 0.5f, 0f,               0f), new Vector3(0f, 0f, 90f));
+        _shaftY = MakeShaft(_matY, new Vector3(0f,               ShaftLength * 0.5f,  0f), Vector3.Zero);
+        _shaftZ = MakeShaft(_matZ, new Vector3(0f,               0f, -ShaftLength * 0.5f), new Vector3(90f, 0f, 0f));
 
         // Box tips
         _boxX = MakeBox(_matX, TipOffsetX);
@@ -147,7 +148,8 @@ public sealed partial class ScaleGizmo3D : Node3D
     public void BeginDrag(int axis)
     {
         if (_target is null) return;
-        _dragAxis = axis;
+        _dragAxis       = axis;
+        _dragStartScale = _target.Scale;
         HighlightAxis(axis);
     }
 
@@ -212,8 +214,15 @@ public sealed partial class ScaleGizmo3D : Node3D
         ResetColors();
     }
 
-    public bool IsDragging => _dragAxis >= 0;
-    public int  DragAxis   => _dragAxis;
+    public bool   IsDragging     => _dragAxis >= 0;
+    public int    DragAxis       => _dragAxis;
+    public string DragAxisLabel  => _dragAxis switch { 0 => "X", 1 => "Y", _ => "Z" };
+    public float  DragCurrentScale => _dragAxis switch
+    {
+        0 => _target?.Scale.X ?? 1f,
+        1 => _target?.Scale.Y ?? 1f,
+        _ => _target?.Scale.Z ?? 1f,
+    };
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -231,7 +240,7 @@ public sealed partial class ScaleGizmo3D : Node3D
         mat.AlbedoColor = ColHighlight;
     }
 
-    private static MeshInstance3D MakeShaft(StandardMaterial3D mat, Vector3 rotDeg)
+    private static MeshInstance3D MakeShaft(StandardMaterial3D mat, Vector3 position, Vector3 rotDeg)
     {
         var cyl = new CylinderMesh
         {
@@ -245,7 +254,7 @@ public sealed partial class ScaleGizmo3D : Node3D
         return new MeshInstance3D
         {
             Mesh            = cyl,
-            Position        = new Vector3(0f, ShaftLength * 0.5f, 0f),
+            Position        = position,
             RotationDegrees = rotDeg,
             CastShadow      = GeometryInstance3D.ShadowCastingSetting.Off,
         };

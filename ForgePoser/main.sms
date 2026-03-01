@@ -8,8 +8,30 @@ var timeline = null
 var statusLabel = null
 var jointSpheresVisible = false
 var hasCharacter = false
-var currentMode = "pose"
+var currentMode = "arrange"
 var currentEditMode = "move"
+
+fun activateArrangeMove() {
+    currentMode    = "arrange"
+    currentEditMode = "move"
+    ui.getObject("btnPoseMode").buttonPressed    = false
+    ui.getObject("btnArrangeMode").buttonPressed = true
+    ui.getObject("btnModeMove").visible   = true
+    ui.getObject("btnModeMove").buttonPressed = true
+    ui.getObject("btnModeScale").visible  = true
+    ui.getObject("btnModeScale").buttonPressed = false
+    ui.getObject("btnModeRotate").visible = true
+    ui.getObject("btnModeRotate").buttonPressed = false
+    ui.getObject("btnToggleJoints").visible = false
+    editor.setMode("arrange")
+    editor.setEditMode("move")
+}
+
+fun selectFirstSceneAsset() {
+    if (hasCharacter) {
+        editor.selectCharacter()
+    }
+}
 
 fun ready() {
     kfTreeRef    = ui.getObject("keyframeTree")
@@ -19,6 +41,7 @@ fun ready() {
     statusLabel  = ui.getObject("statusLabel")
     editor.setBoneTree("boneTree")
     editor.setJointSpheresVisible(false)
+    activateArrangeMove()
     updateScenePanel()
     updateKeyframeTree()
     log.success("ForgePoser ready.")
@@ -46,6 +69,8 @@ fun onProjectFileSelected(path) {
         currentProjectPath = path
         updateScenePanel()
         updateKeyframeTree()
+        activateArrangeMove()
+        selectFirstSceneAsset()
         statusLabel.text = "Opened: " + path
     }
 }
@@ -77,6 +102,8 @@ fun onModelFileSelected(path) {
     editor.setModelSource(path)
     hasCharacter = true
     updateScenePanel()
+    activateArrangeMove()
+    selectFirstSceneAsset()
     statusLabel.text = "Loaded: " + path
 }
 
@@ -98,12 +125,23 @@ fun updateScenePanel() {
 
 on sceneAssetList.itemSelected(index) {
     if (hasCharacter && index == 0) {
-        jointSpheresVisible = true
-        editor.setJointSpheresVisible(true)
-        statusLabel.text = "Character selected."
+        // Character row — only act in Arrange mode
+        if (currentMode == "arrange") {
+            editor.setJointSpheresVisible(false)
+            editor.selectCharacter()
+            statusLabel.text = "Character selected."
+        }
     } else {
-        jointSpheresVisible = false
-        editor.setJointSpheresVisible(false)
+        // Prop row — only act in Arrange mode
+        var propIdx = index
+        if (hasCharacter) {
+            propIdx = index - 1
+        }
+        if (currentMode == "arrange") {
+            editor.setJointSpheresVisible(false)
+            editor.selectSceneProp(propIdx)
+            statusLabel.text = "Prop selected: " + propIdx
+        }
     }
 }
 
@@ -220,21 +258,29 @@ on btnPoseMode.clicked() {
     currentMode = "pose"
     ui.getObject("btnPoseMode").buttonPressed = true
     ui.getObject("btnArrangeMode").buttonPressed = false
-    ui.getObject("btnModeMove").disabled = true
-    ui.getObject("btnModeScale").disabled = true
-    ui.getObject("btnModeRotate").disabled = true
+    ui.getObject("btnModeMove").visible = false
+    ui.getObject("btnModeScale").visible = false
+    ui.getObject("btnModeRotate").visible = false
+    ui.getObject("btnToggleJoints").visible = true
     editor.setMode("pose")
     statusLabel.text = "Pose Mode"
 }
 
 on btnArrangeMode.clicked() {
-    currentMode = "arrange"
-    ui.getObject("btnPoseMode").buttonPressed = false
-    ui.getObject("btnArrangeMode").buttonPressed = true
-    ui.getObject("btnModeMove").disabled = false
-    ui.getObject("btnModeScale").disabled = false
-    ui.getObject("btnModeRotate").disabled = false
-    editor.setMode("arrange")
+    activateArrangeMove()
+    // Re-attach gizmo to already-selected scene asset (if any)
+    var sel = sceneListRef.GetSelectedItems()
+    if (sel != null) {
+        if (hasCharacter && sel == 0) {
+            editor.selectCharacter()
+        } else {
+            var propIdx = sel
+            if (hasCharacter) { propIdx = sel - 1 }
+            if (propIdx >= 0) {
+                editor.selectSceneProp(propIdx)
+            }
+        }
+    }
     statusLabel.text = "Arrange Mode"
 }
 

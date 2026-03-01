@@ -95,18 +95,16 @@ Window {
                         padding: 4, 2, 4, 2
                         spacing: 4
 
-                        Button { id: btnPoseMode    text: "Pose"    toggleMode: true  buttonPressed: true  }
-                        Button { id: btnArrangeMode text: "Arrange" toggleMode: true  buttonPressed: false }
+                        Button { id: btnPoseMode    text: "Pose"    toggleMode: true  buttonPressed: false }
+                        Button { id: btnArrangeMode text: "Arrange" toggleMode: true  buttonPressed: true  }
 
                         VSeparator { }
 
-                        Button { id: btnModeMove   text: "Move"   toggleMode: true  buttonPressed: true   disabled: true }
-                        Button { id: btnModeScale  text: "Scale"  toggleMode: true  buttonPressed: false  disabled: true }
-                        Button { id: btnModeRotate text: "Rotate" toggleMode: true  buttonPressed: false  disabled: true }
+                        Button { id: btnModeMove   text: "Move"   toggleMode: true  buttonPressed: true  }
+                        Button { id: btnModeScale  text: "Scale"  toggleMode: true  buttonPressed: false }
+                        Button { id: btnModeRotate text: "Rotate" toggleMode: true  buttonPressed: false }
 
-                        VSeparator { }
-                        
-                        Button { id: btnToggleJoints text: "Joints ●" customMinimumSize: 80, 0 }
+                        Button { id: btnToggleJoints text: "Joints ●" customMinimumSize: 80, 0  visible: false }
                     }
                     VSplitContainer {
                         sizeFlagsHorizontal: expandFill
