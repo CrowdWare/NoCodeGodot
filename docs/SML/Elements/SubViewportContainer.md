@@ -8,6 +8,7 @@
 
 ### Direct subclasses
 
+- [PosingEditor](PosingEditor.md)
 - [Viewport3D](Viewport3D.md)
 
 ## Properties

@@ -62,7 +62,10 @@ public sealed partial class RotationGizmo3D : Node3D
 
     // ── Bone binding ──────────────────────────────────────────────────────────
     private Skeleton3D? _skeleton;
-    private int         _boneIdx = -1;
+    private int         _boneIdx  = -1;
+
+    // ── Free-node binding (Arrange/Rotate mode) ───────────────────────────────
+    private Node3D?     _freeNode = null;
 
     // ── Constraints (degrees) ─────────────────────────────────────────────────
     private float _minX = -180f, _maxX = 180f;
@@ -116,6 +119,11 @@ public sealed partial class RotationGizmo3D : Node3D
 
     public override void _Process(double delta)
     {
+        if (_freeNode is not null && _freeNode.IsInsideTree())
+        {
+            GlobalPosition = _freeNode.GlobalPosition;
+            return;
+        }
         if (_skeleton is null || _boneIdx < 0 || !_skeleton.IsInsideTree()) return;
         var globalBone = _skeleton.GlobalTransform * _skeleton.GetBoneGlobalPose(_boneIdx);
         GlobalPosition = globalBone.Origin;
@@ -126,9 +134,23 @@ public sealed partial class RotationGizmo3D : Node3D
     /// <summary>Attach the gizmo to a specific bone and show it.</summary>
     public void AttachToBone(Skeleton3D skeleton, int boneIdx)
     {
+        _freeNode = null;
         _skeleton = skeleton;
         _boneIdx  = boneIdx;
         Visible   = true;
+        ResetRingColors();
+    }
+
+    /// <summary>Attach the gizmo to a free <see cref="Node3D"/> (Arrange/Rotate mode) and show it.</summary>
+    public void AttachToFreeNode(Node3D node)
+    {
+        _skeleton = null;
+        _boneIdx  = -1;
+        _freeNode = node;
+        // No joint constraints on scene objects
+        _minX = _minY = _minZ = -360f;
+        _maxX = _maxY = _maxZ =  360f;
+        Visible = true;
         ResetRingColors();
     }
 
@@ -137,6 +159,7 @@ public sealed partial class RotationGizmo3D : Node3D
     {
         _skeleton = null;
         _boneIdx  = -1;
+        _freeNode = null;
         _dragAxis = -1;
         Visible   = false;
     }
@@ -190,14 +213,23 @@ public sealed partial class RotationGizmo3D : Node3D
     /// <summary>Begin dragging the given axis handle.</summary>
     public void BeginDrag(int axis)
     {
-        if (_skeleton is null || _boneIdx < 0 || !_skeleton.IsInsideTree()) return;
         _dragAxis        = axis;
         _dragAccumulated = 0f;
+
+        if (_freeNode is not null)
+        {
+            // Free-node mode: world = local (top-level node in worldRoot)
+            _dragStartPose = _freeNode.Quaternion;
+            _dragPreRot    = Quaternion.Identity;
+            return;
+        }
+
+        if (_skeleton is null || _boneIdx < 0 || !_skeleton.IsInsideTree()) return;
         _dragStartPose   = _skeleton.GetBonePoseRotation(_boneIdx);
 
         // _dragPreRot = parentWorldRot * restRot
         // Derived from: boneGlobalRot = preRot * poseRot  →  preRot = boneGlobalRot * poseRot⁻¹
-        var boneGlobal = _skeleton.GlobalTransform * _skeleton.GetBoneGlobalPose(_boneIdx);
+        var boneGlobal   = _skeleton.GlobalTransform * _skeleton.GetBoneGlobalPose(_boneIdx);
         var boneWorldRot = boneGlobal.Basis.GetRotationQuaternion();
         _dragPreRot = (boneWorldRot * _dragStartPose.Inverse()).Normalized();
     }
@@ -210,7 +242,8 @@ public sealed partial class RotationGizmo3D : Node3D
     /// </summary>
     public bool UpdateDrag(Vector2 screenDelta)
     {
-        if (_dragAxis < 0 || _skeleton is null) return false;
+        if (_dragAxis < 0) return false;
+        if (_skeleton is null && _freeNode is null) return false;
 
         // Screen-space convention per handle position:
         //   X handle at (0,0,+R) front: drag DOWN  → positive X rotation
@@ -249,7 +282,10 @@ public sealed partial class RotationGizmo3D : Node3D
                    || Mathf.Abs(ez - e.Z) > 0.001f;
         if (clamped) newPose = Quaternion.FromEuler(new Vector3(ex, ey, ez));
 
-        _skeleton.SetBonePoseRotation(_boneIdx, newPose);
+        if (_freeNode is not null)
+            _freeNode.Quaternion = newPose.Normalized();
+        else
+            _skeleton!.SetBonePoseRotation(_boneIdx, newPose);
 
         // Visual feedback: ring turns orange when clamped.
         _ringMats[_dragAxis].AlbedoColor = clamped ? ColClamped

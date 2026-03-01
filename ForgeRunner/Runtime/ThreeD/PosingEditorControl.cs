@@ -25,6 +25,9 @@ using System.IO;
 
 namespace Runtime.ThreeD;
 
+public enum EditorMode      { Pose, Arrange }
+public enum ArrangeEditMode { Move, Scale, Rotate }
+
 /// <summary>
 /// A self-contained posing tool that combines:
 /// - A 3D viewport with orbit camera
@@ -87,6 +90,18 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     private readonly RotationGizmo3D _gizmo;
     private bool _gizmoDragging;
 
+    // ── Translation gizmo (for scene props) ───────────────────────────────────
+    private readonly MoveGizmo3D   _moveGizmo;
+    private readonly ScaleGizmo3D  _scaleGizmo;
+    private bool _moveGizmoDragging;
+    private bool _scaleGizmoDragging;
+    private bool _rotateGizmoDraggingFreeNode;
+    private int  _selectedPropIdx = -1;
+
+    // ── Editor modes ──────────────────────────────────────────────────────────
+    private EditorMode      _editorMode      = EditorMode.Pose;
+    private ArrangeEditMode _arrangeEditMode = ArrangeEditMode.Move;
+
     // ── Poll-based drag tracking ──────────────────────────────────────────────
     // Motion events on SubViewportContainer are unreliable during left-button drags.
     // We poll GetMousePosition() every frame instead.
@@ -114,7 +129,12 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         NormalizeNames ? BoneNameNormalizer.Normalize(raw) : raw;
 
     // ── Scene props (additional static models in the viewport) ────────────────
-    public sealed record ScenePropData(string Path, float PosX, float PosY, float PosZ, float RotY, float Scale);
+    public sealed record ScenePropData(
+        string Path,
+        string Name,
+        float PosX, float PosY, float PosZ,
+        float RotX, float RotY, float RotZ,
+        float ScaleX, float ScaleY, float ScaleZ);
     private readonly List<(Node3D Node, ScenePropData Data)> _sceneProps = [];
 
     public IReadOnlyList<ScenePropData> SceneProps =>
@@ -126,6 +146,38 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     public event Action?                     PoseReset;
     public event Action<int, string>?        ScenePropAdded;    // (index, path)
     public event Action<int>?                ScenePropRemoved;  // (index)
+    public event Action<int>?                ObjectSelected;    // (propIdx, -1 = deselect)
+    public event Action<int, Vector3>?       ObjectMoved;       // (propIdx, newWorldPos)
+
+    // ── Editor mode control ───────────────────────────────────────────────────
+
+    /// <summary>Switch between "pose" (bone editing) and "arrange" (prop transform) modes.</summary>
+    public void SetEditorMode(string mode)
+    {
+        _editorMode = mode.Equals("arrange", StringComparison.OrdinalIgnoreCase)
+            ? EditorMode.Arrange : EditorMode.Pose;
+        // Clear all gizmos and selections on mode change
+        _gizmo.Detach();
+        _moveGizmo.Detach();
+        _scaleGizmo.Detach();
+        _selectedBoneIdx = -1;
+        _selectedPropIdx = -1;
+        _gizmoDragging = _moveGizmoDragging = _scaleGizmoDragging = _rotateGizmoDraggingFreeNode = false;
+    }
+
+    /// <summary>Set the edit sub-mode used in Arrange mode: "move", "scale", or "rotate".</summary>
+    public void SetArrangeEditMode(string mode)
+    {
+        _arrangeEditMode = mode.ToLowerInvariant() switch
+        {
+            "scale"  => ArrangeEditMode.Scale,
+            "rotate" => ArrangeEditMode.Rotate,
+            _        => ArrangeEditMode.Move,
+        };
+        // Re-attach gizmo to currently selected prop (swaps gizmo type)
+        if (_selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
+            AttachArrangeGizmo(_selectedPropIdx);
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     public PosingEditorControl()
@@ -139,7 +191,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         {
             Name = "Viewport",
             Size = new Vector2I(1280, 720),
-            HandleInputLocally = false,
+            HandleInputLocally = true,   // prevents unhandled events from leaking to parent viewport
             RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
             TransparentBg = false
         };
@@ -155,7 +207,9 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             LightEnergy = 1.2f
         };
 
-        _gizmo = new RotationGizmo3D();
+        _gizmo      = new RotationGizmo3D();
+        _moveGizmo  = new MoveGizmo3D();
+        _scaleGizmo = new ScaleGizmo3D();
 
         var env = new Godot.Environment
         {
@@ -169,6 +223,8 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         _worldRoot.AddChild(_camera);
         _worldRoot.AddChild(_light);
         _worldRoot.AddChild(_gizmo);
+        _worldRoot.AddChild(_moveGizmo);
+        _worldRoot.AddChild(_scaleGizmo);
         _worldRoot.AddChild(worldEnv);
         _worldRoot.AddChild(CreateFloorGrid());
         _viewport.AddChild(_worldRoot);
@@ -200,11 +256,18 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     /// Button events only. Motion during drag/orbit/pan is polled in _Process
     /// because SubViewportContainer does not reliably deliver left-button motion
     /// events via _GuiInput or _Input.
+    ///
+    /// AcceptEvent() is called unconditionally so that unhandled motion events
+    /// are not forwarded into the SubViewport via _push_unhandled_input_internal,
+    /// which would cause the "!is_inside_tree()" error after scene loading.
     /// </summary>
     public override void _GuiInput(InputEvent @event)
     {
         if (@event is InputEventMouseButton mb)
             HandleMouseButton(mb);
+
+        // Consume all GUI input to prevent events from leaking into the SubViewport.
+        AcceptEvent();
     }
 
     private void HandleMouseButton(InputEventMouseButton mb)
@@ -212,18 +275,65 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         if (mb.ButtonIndex == MouseButton.Left && mb.Pressed)
         {
             var (rayOrigin, rayDir) = BuildRay(mb.Position);
-            var hitHandle = _gizmo.TryPickHandle(rayOrigin, rayDir);
-            if (hitHandle >= 0)
+
+            if (_editorMode == EditorMode.Pose)
             {
-                _gizmo.BeginDrag(hitHandle);
-                _gizmoDragging      = true;
-                _pollLastMousePos   = GetViewport().GetMousePosition();
-                GrabFocus();
+                // Pose mode — Priority 1: rotation gizmo handle (bone)
+                var hitRotHandle = _gizmo.TryPickHandle(rayOrigin, rayDir);
+                if (hitRotHandle >= 0)
+                {
+                    _gizmo.BeginDrag(hitRotHandle);
+                    _gizmoDragging    = true;
+                    _pollLastMousePos = GetViewport().GetMousePosition();
+                    GrabFocus();
+                    AcceptEvent();
+                    return;
+                }
+
+                // Pose mode — Priority 2: bone picking
+                if (TryPickBoneRay(rayOrigin, rayDir))
+                {
+                    AcceptEvent();
+                    return;
+                }
             }
             else
             {
-                TryPickBone(mb.Position);
+                // Arrange mode — Priority 1: active gizmo handle
+                int hitHandle = _arrangeEditMode switch
+                {
+                    ArrangeEditMode.Move   => _moveGizmo.TryPickHandle(rayOrigin, rayDir),
+                    ArrangeEditMode.Scale  => _scaleGizmo.TryPickHandle(rayOrigin, rayDir),
+                    ArrangeEditMode.Rotate => _gizmo.TryPickHandle(rayOrigin, rayDir),
+                    _                      => -1,
+                };
+                if (hitHandle >= 0)
+                {
+                    switch (_arrangeEditMode)
+                    {
+                        case ArrangeEditMode.Move:
+                            _moveGizmo.BeginDrag(hitHandle);
+                            _moveGizmoDragging = true;
+                            break;
+                        case ArrangeEditMode.Scale:
+                            _scaleGizmo.BeginDrag(hitHandle);
+                            _scaleGizmoDragging = true;
+                            break;
+                        case ArrangeEditMode.Rotate:
+                            _gizmo.BeginDrag(hitHandle);
+                            _rotateGizmoDraggingFreeNode = true;
+                            break;
+                    }
+                    _pollLastMousePos = GetViewport().GetMousePosition();
+                    GrabFocus();
+                    AcceptEvent();
+                    return;
+                }
+
+                // Arrange mode — Priority 2: prop picking
+                TryPickPropArrange(rayOrigin, rayDir);
             }
+
             AcceptEvent();
             return;
         }
@@ -320,6 +430,68 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             _gizmo.UpdateDrag(d);
             FirePoseChangedForSelectedBone();
             UpdateAngleLabel();
+        }
+        else if (_moveGizmoDragging)
+        {
+            if (!Input.IsMouseButtonPressed(MouseButton.Left))
+            {
+                _moveGizmo.EndDrag();
+                _moveGizmoDragging = false;
+                return;
+            }
+            const float DepthScale = 0.0018f;
+            _moveGizmo.UpdateDrag(_camera, mousePos, mousePos - d, DepthScale);
+
+            // Sync ScenePropData with the node's new position
+            if (_selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
+            {
+                var (node, old) = _sceneProps[_selectedPropIdx];
+                var newPos = node.GlobalPosition;
+                var updated = old with { PosX = newPos.X, PosY = newPos.Y, PosZ = newPos.Z };
+                _sceneProps[_selectedPropIdx] = (node, updated);
+                ObjectMoved?.Invoke(_selectedPropIdx, newPos);
+            }
+        }
+        else if (_scaleGizmoDragging)
+        {
+            if (!Input.IsMouseButtonPressed(MouseButton.Left))
+            {
+                _scaleGizmo.EndDrag();
+                _scaleGizmoDragging = false;
+                return;
+            }
+            const float DepthScale = 0.0018f;
+            _scaleGizmo.UpdateDrag(_camera, mousePos, mousePos - d, DepthScale);
+
+            // Sync ScenePropData with the node's new scale
+            if (_selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
+            {
+                var (node, old) = _sceneProps[_selectedPropIdx];
+                var s = node.Scale;
+                var updated = old with { ScaleX = s.X, ScaleY = s.Y, ScaleZ = s.Z };
+                _sceneProps[_selectedPropIdx] = (node, updated);
+                ObjectMoved?.Invoke(_selectedPropIdx, node.GlobalPosition);
+            }
+        }
+        else if (_rotateGizmoDraggingFreeNode)
+        {
+            if (!Input.IsMouseButtonPressed(MouseButton.Left))
+            {
+                _gizmo.EndDrag();
+                _rotateGizmoDraggingFreeNode = false;
+                return;
+            }
+            _gizmo.UpdateDrag(d);
+
+            // Sync ScenePropData with the node's new rotation
+            if (_selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
+            {
+                var (node, old) = _sceneProps[_selectedPropIdx];
+                var euler = node.RotationDegrees;
+                var updated = old with { RotX = euler.X, RotY = euler.Y, RotZ = euler.Z };
+                _sceneProps[_selectedPropIdx] = (node, updated);
+                ObjectMoved?.Invoke(_selectedPropIdx, node.GlobalPosition);
+            }
         }
         else if (_isRotating)
         {
@@ -479,7 +651,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
     // ── Joint spheres ─────────────────────────────────────────────────────────
 
-    private bool _jointSpheresVisible = true;
+    private bool _jointSpheresVisible = false;
 
     /// <summary>Show or hide all joint spheres in the 3D viewport.</summary>
     public void SetJointSpheresVisible(bool visible)
@@ -546,11 +718,9 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
     // ── Bone picking ──────────────────────────────────────────────────────────
 
-    private void TryPickBone(Vector2 mousePos)
+    private bool TryPickBoneRay(Vector3 rayOrigin, Vector3 rayDir)
     {
-        if (_skeleton is null || _jointSpheres.Count == 0) return;
-
-        var (rayOrigin, rayDir) = BuildRay(mousePos);
+        if (_skeleton is null || _jointSpheres.Count == 0) return false;
 
         var bestBone = -1;
         var bestT    = float.MaxValue;
@@ -573,7 +743,129 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             }
         }
 
+        if (bestBone < 0) return false;
         SelectBone(bestBone);
+        return true;
+    }
+
+    // ── Prop picking ──────────────────────────────────────────────────────────
+
+    private void SelectProp(int propIdx)
+    {
+        if (propIdx == _selectedPropIdx) return;
+
+        _selectedPropIdx = propIdx;
+
+        if (propIdx >= 0 && propIdx < _sceneProps.Count)
+        {
+            AttachArrangeGizmo(propIdx);
+            ObjectSelected?.Invoke(propIdx);
+            RunnerLogger.Info("PosingEditor", $"Prop selected: idx={propIdx}.");
+        }
+        else
+        {
+            _moveGizmo.Detach();
+            _scaleGizmo.Detach();
+            _gizmo.Detach();
+            if (propIdx == -1)
+                ObjectSelected?.Invoke(-1);
+        }
+    }
+
+    /// <summary>Attach the correct gizmo to the given prop based on the current ArrangeEditMode.</summary>
+    private void AttachArrangeGizmo(int propIdx)
+    {
+        var (node, _) = _sceneProps[propIdx];
+        _moveGizmo.Detach();
+        _scaleGizmo.Detach();
+        _gizmo.Detach();
+        switch (_arrangeEditMode)
+        {
+            case ArrangeEditMode.Move:   _moveGizmo.AttachToNode(node);  break;
+            case ArrangeEditMode.Scale:  _scaleGizmo.AttachToNode(node); break;
+            case ArrangeEditMode.Rotate: _gizmo.AttachToFreeNode(node);  break;
+        }
+    }
+
+    /// <summary>Prop picking in Arrange mode — selects the prop and attaches the active gizmo.</summary>
+    private void TryPickPropArrange(Vector3 rayOrigin, Vector3 rayDir)
+    {
+        var bestIdx = -1;
+        var bestT   = float.MaxValue;
+
+        for (var i = 0; i < _sceneProps.Count; i++)
+        {
+            var (node, _) = _sceneProps[i];
+            if (!node.IsInsideTree()) continue;
+
+            var aabb = GetNodeWorldAabb(node);
+            if (aabb.Size == Vector3.Zero) continue;
+
+            if (RayAabbIntersect(rayOrigin, rayDir, aabb, out var t) && t < bestT)
+            {
+                bestT   = t;
+                bestIdx = i;
+            }
+        }
+
+        SelectProp(bestIdx);
+    }
+
+    /// <summary>Compute a world-space AABB for a node by summing all MeshInstance3D children.</summary>
+    private static Aabb GetNodeWorldAabb(Node3D node)
+    {
+        var result = new Aabb();
+        var first  = true;
+
+        CollectMeshAabb(node, ref result, ref first);
+        return result;
+    }
+
+    private static void CollectMeshAabb(Node node, ref Aabb result, ref bool first)
+    {
+        if (node is MeshInstance3D mi && mi.Mesh is not null)
+        {
+            var localAabb  = mi.Mesh.GetAabb();
+            var worldAabb  = mi.GlobalTransform * localAabb;
+            if (first) { result = worldAabb; first = false; }
+            else        result = result.Merge(worldAabb);
+        }
+
+        foreach (var child in node.GetChildren())
+            CollectMeshAabb(child, ref result, ref first);
+    }
+
+    /// <summary>Slab-based ray vs. AABB intersection test. Returns true if hit, with distance t.</summary>
+    private static bool RayAabbIntersect(Vector3 origin, Vector3 dir, Aabb aabb, out float t)
+    {
+        t = float.MaxValue;
+        var tMin = float.MinValue;
+        var tMax = float.MaxValue;
+        var end  = aabb.Position + aabb.Size;
+
+        for (var axis = 0; axis < 3; axis++)
+        {
+            var o  = axis == 0 ? origin.X : axis == 1 ? origin.Y : origin.Z;
+            var d  = axis == 0 ? dir.X    : axis == 1 ? dir.Y    : dir.Z;
+            var lo = axis == 0 ? aabb.Position.X : axis == 1 ? aabb.Position.Y : aabb.Position.Z;
+            var hi = axis == 0 ? end.X  : axis == 1 ? end.Y  : end.Z;
+
+            if (Mathf.Abs(d) < 1e-8f)
+            {
+                if (o < lo || o > hi) return false;
+                continue;
+            }
+
+            var t1 = (lo - o) / d;
+            var t2 = (hi - o) / d;
+            if (t1 > t2) { (t1, t2) = (t2, t1); }
+            tMin = Mathf.Max(tMin, t1);
+            tMax = Mathf.Min(tMax, t2);
+            if (tMin > tMax) return false;
+        }
+
+        t = tMin > 0f ? tMin : tMax;
+        return t > 0f;
     }
 
     private void SelectBone(int boneIdx)
@@ -589,13 +881,16 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
         if (_selectedBoneIdx >= 0 && _selectedBoneIdx < _jointSpheres.Count)
         {
+            // Selecting a bone deselects any prop.
+            if (_selectedPropIdx >= 0) { _moveGizmo.Detach(); _selectedPropIdx = -1; }
+
             SetSphereColor(_selectedBoneIdx, SphereColorSelected);
             var boneName = NormBone(_skeleton.GetBoneName(_selectedBoneIdx));
             SyncBoneListSelection(_selectedBoneIdx);
             BoneSelected?.Invoke(boneName);
             RunnerLogger.Info("PosingEditor", $"Bone selected: '{boneName}' (idx {_selectedBoneIdx}).");
 
-            // Show gizmo on selected bone.
+            // Show rotation gizmo on selected bone.
             _gizmo.AttachToBone(_skeleton, _selectedBoneIdx);
             ApplyConstraintsToGizmo(boneName);
         }
@@ -974,7 +1269,8 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         StopAllAnimationPlayers(node3D);
         _worldRoot.AddChild(node3D);
 
-        var data = new ScenePropData(path, posX, posY, posZ, 0f, 1f);
+        var name = System.IO.Path.GetFileNameWithoutExtension(path);
+        var data = new ScenePropData(path, name, posX, posY, posZ, 0f, 0f, 0f, 1f, 1f, 1f);
         ApplyPropTransform(node3D, data);
 
         var idx = _sceneProps.Count;
@@ -990,8 +1286,18 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     {
         if (index < 0 || index >= _sceneProps.Count) return;
 
+        // Deselect move gizmo if it was on the removed prop.
+        if (_selectedPropIdx == index)
+        {
+            _moveGizmo.Detach();
+            _selectedPropIdx = -1;
+        }
+
         var (node, _) = _sceneProps[index];
         _sceneProps.RemoveAt(index);
+
+        // Keep _selectedPropIdx valid after removal.
+        if (_selectedPropIdx > index) _selectedPropIdx--;
 
         if (node.GetParent() is not null)
             node.GetParent().RemoveChild(node);
@@ -1000,26 +1306,35 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         ScenePropRemoved?.Invoke(index);
     }
 
-    public int    GetScenePropCount()                   => _sceneProps.Count;
-    public string GetScenePropPath(int index)            => index >= 0 && index < _sceneProps.Count ? _sceneProps[index].Data.Path : string.Empty;
-    public float  GetScenePropPosX(int index)            => index >= 0 && index < _sceneProps.Count ? _sceneProps[index].Data.PosX : 0f;
-    public float  GetScenePropPosY(int index)            => index >= 0 && index < _sceneProps.Count ? _sceneProps[index].Data.PosY : 0f;
-    public float  GetScenePropPosZ(int index)            => index >= 0 && index < _sceneProps.Count ? _sceneProps[index].Data.PosZ : 0f;
+    public int    GetScenePropCount()       => _sceneProps.Count;
+    public string GetScenePropPath(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Data.Path : string.Empty;
+    public string GetScenePropName(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Data.Name : string.Empty;
+    public Vector3 GetScenePropPos(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Node.GlobalPosition : Vector3.Zero;
+    public Vector3 GetScenePropRot(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Node.RotationDegrees : Vector3.Zero;
 
     public void SetScenePropPos(int index, float x, float y, float z)
     {
         if (index < 0 || index >= _sceneProps.Count) return;
-        var old  = _sceneProps[index].Data;
+        var (node, old) = _sceneProps[index];
         var data = old with { PosX = x, PosY = y, PosZ = z };
-        _sceneProps[index] = (_sceneProps[index].Node, data);
-        ApplyPropTransform(_sceneProps[index].Node, data);
+        _sceneProps[index] = (node, data);
+        ApplyPropTransform(node, data);
+    }
+
+    public void SetScenePropRot(int index, float x, float y, float z)
+    {
+        if (index < 0 || index >= _sceneProps.Count) return;
+        var (node, old) = _sceneProps[index];
+        var data = old with { RotX = x, RotY = y, RotZ = z };
+        _sceneProps[index] = (node, data);
+        ApplyPropTransform(node, data);
     }
 
     private static void ApplyPropTransform(Node3D node, ScenePropData data)
     {
-        node.Position = new Vector3(data.PosX, data.PosY, data.PosZ);
-        node.RotationDegrees = new Vector3(0f, data.RotY, 0f);
-        node.Scale   = new Vector3(data.Scale, data.Scale, data.Scale);
+        node.Position        = new Vector3(data.PosX, data.PosY, data.PosZ);
+        node.RotationDegrees = new Vector3(data.RotX, data.RotY, data.RotZ);
+        node.Scale           = new Vector3(data.ScaleX, data.ScaleY, data.ScaleZ);
     }
 
     // ── Project load/save ─────────────────────────────────────────────────────
@@ -1033,27 +1348,32 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         var assets = new List<SceneAssetData>();
 
         // Primary character
-        // We don't store the path internally yet — callers pass it via the
-        // project file.  Collect from SceneProps + a placeholder for primary.
-        // If _modelRoot exists but we have no stored path, use empty string.
         assets.Add(new SceneAssetData(
-            Id:      "character",
+            Id:      "hero",
+            Name:    System.IO.Path.GetFileNameWithoutExtension(_lastLoadedSource),
             Src:     _lastLoadedSource,
             Primary: true,
-            PosX: 0, PosY: 0, PosZ: 0, RotY: 0, Scale: 1));
+            PosX: 0, PosY: 0, PosZ: 0, RotX: 0, RotY: 0, RotZ: 0, ScaleX: 1, ScaleY: 1, ScaleZ: 1));
 
         for (var i = 0; i < _sceneProps.Count; i++)
         {
-            var d = _sceneProps[i].Data;
+            var d   = _sceneProps[i].Data;
+            var pos = _sceneProps[i].Node.GlobalPosition;
+            var rot = _sceneProps[i].Node.RotationDegrees;
             assets.Add(new SceneAssetData(
                 Id:      $"prop{i}",
+                Name:    d.Name,
                 Src:     d.Path,
                 Primary: false,
-                PosX:    d.PosX,
-                PosY:    d.PosY,
-                PosZ:    d.PosZ,
-                RotY:    d.RotY,
-                Scale:   d.Scale));
+                PosX:    pos.X,
+                PosY:    pos.Y,
+                PosZ:    pos.Z,
+                RotX:    rot.X,
+                RotY:    rot.Y,
+                RotZ:    rot.Z,
+                ScaleX:  d.ScaleX,
+                ScaleY:  d.ScaleY,
+                ScaleZ:  d.ScaleZ));
         }
 
         // Snapshot keyframes from timeline
@@ -1074,7 +1394,13 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     /// Load a full project from an <see cref="AnimationProjectData"/> snapshot,
     /// populating both this editor and the supplied timeline.
     /// </summary>
-    public void LoadProjectData(AnimationProjectData data, TimelineControl timeline)
+    /// <param name="data">Project data to restore.</param>
+    /// <param name="timeline">Timeline to populate with keyframes.</param>
+    /// <param name="projectDirectory">
+    /// Filesystem directory of the .scene file. When set, <c>res://</c> paths in
+    /// the file are resolved relative to this directory instead of Godot's resource system.
+    /// </param>
+    public void LoadProjectData(AnimationProjectData data, TimelineControl timeline, string projectDirectory = "")
     {
         // Clear existing state
         ClearSceneProps();
@@ -1084,13 +1410,16 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         foreach (var asset in data.SceneAssets)
         {
             if (string.IsNullOrWhiteSpace(asset.Src)) continue;
+            var resolvedSrc = ResolveProjectPath(asset.Src, projectDirectory);
             if (asset.Primary)
             {
-                SetModelSource(asset.Src);
+                SetModelSource(resolvedSrc);
             }
             else
             {
-                AddSceneProp(asset.Src, asset.PosX, asset.PosY, asset.PosZ);
+                var idx = AddSceneProp(resolvedSrc, asset.PosX, asset.PosY, asset.PosZ);
+                if (idx >= 0)
+                    SetScenePropRot(idx, asset.RotX, asset.RotY, asset.RotZ);
             }
         }
 
@@ -1101,6 +1430,19 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         // Restore keyframes
         foreach (var (frame, bones) in data.Keyframes)
             timeline.SetKeyframe(frame, bones);
+    }
+
+    /// <summary>
+    /// Resolves a source path from a .scene file.
+    /// <c>res://relative/path</c> is mapped to <c>{projectDirectory}/relative/path</c>
+    /// when a project directory is known; otherwise returned unchanged.
+    /// </summary>
+    private static string ResolveProjectPath(string src, string projectDirectory)
+    {
+        if (string.IsNullOrEmpty(projectDirectory)) return src;
+        if (!src.StartsWith("res://", StringComparison.OrdinalIgnoreCase)) return src;
+        var relative = src["res://".Length..];
+        return Path.Combine(projectDirectory, relative);
     }
 
     private void ClearSceneProps()

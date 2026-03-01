@@ -28,6 +28,7 @@ All classes listed below inherit from `Control`.
 - [TabBar](TabBar.md)
 - [TextEdit](TextEdit.md)
 - [TextureRect](TextureRect.md)
+- [Timeline](Timeline.md)
 - [Tree](Tree.md)
 - [VideoStreamPlayer](VideoStreamPlayer.md)
 
@@ -84,6 +85,7 @@ All classes listed below inherit from `Control`.
 - [OptionButton](OptionButton.md)
 - [Panel](Panel.md)
 - [PanelContainer](PanelContainer.md)
+- [PosingEditor](PosingEditor.md)
 - [ProgressBar](ProgressBar.md)
 - [Range](Range.md)
 - [ReferenceRect](ReferenceRect.md)
@@ -106,6 +108,7 @@ All classes listed below inherit from `Control`.
 - [TextureProgressBar](TextureProgressBar.md)
 - [TextureRect](TextureRect.md)
 - [TextureRect](TextureRect.md)
+- [Timeline](Timeline.md)
 - [Tree](Tree.md)
 - [VBoxContainer](VBoxContainer.md)
 - [VBoxContainer](VBoxContainer.md)

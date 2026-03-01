@@ -130,6 +130,14 @@ public sealed class SmsUiRuntime
             TryInvokeEvent(treeId, "itemSelected");
         });
 
+        dispatcher.RegisterActionHandler("listItemSelected", ctx =>
+        {
+            var listId = ResolveSourceId(ctx);
+            if (string.IsNullOrWhiteSpace(listId)) return;
+            var index = (int)(ctx.NumericValue ?? 0);
+            TryInvokeEvent(listId, "itemSelected", false, (double)index);
+        });
+
         dispatcher.RegisterActionHandler("treeItemToggled", ctx =>
         {
             var treeId = ResolveSourceId(ctx);
@@ -251,6 +259,20 @@ public sealed class SmsUiRuntime
             var srcId = ResolveSourceId(ctx);
             if (!string.IsNullOrWhiteSpace(srcId))
                 TryInvokeEvent(srcId, "scenePropRemoved", false, (int)(ctx.NumericValue ?? 0));
+        });
+
+        dispatcher.RegisterActionHandler("objectSelected", ctx =>
+        {
+            var srcId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(srcId))
+                TryInvokeEvent(srcId, "objectSelected", false, (int)(ctx.NumericValue ?? -1));
+        });
+
+        dispatcher.RegisterActionHandler("objectMoved", ctx =>
+        {
+            var srcId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(srcId))
+                TryInvokeEvent(srcId, "objectMoved", false, (int)(ctx.NumericValue ?? 0), ctx.Clicked ?? string.Empty);
         });
     }
 
@@ -846,7 +868,6 @@ public sealed class SmsUiRuntime
 
                 saveDialog.FileSelected += path =>
                 {
-                    if (saveDialog.IsInsideTree()) saveTree.Root.RemoveChild(saveDialog);
                     saveDialog.QueueFree();
                     if (!string.IsNullOrWhiteSpace(callbackName))
                         ExecuteCall($"{callbackName}({Quote(path)})");
@@ -854,7 +875,6 @@ public sealed class SmsUiRuntime
 
                 saveDialog.Canceled += () =>
                 {
-                    if (saveDialog.IsInsideTree()) saveTree.Root.RemoveChild(saveDialog);
                     saveDialog.QueueFree();
                 };
 
@@ -888,7 +908,6 @@ public sealed class SmsUiRuntime
 
                 dialog.FileSelected += path =>
                 {
-                    if (dialog.IsInsideTree()) sceneTree.Root.RemoveChild(dialog);
                     dialog.QueueFree();
                     if (!string.IsNullOrWhiteSpace(callbackName))
                         ExecuteCall($"{callbackName}({Quote(path)})");
@@ -896,13 +915,36 @@ public sealed class SmsUiRuntime
 
                 dialog.Canceled += () =>
                 {
-                    if (dialog.IsInsideTree()) sceneTree.Root.RemoveChild(dialog);
                     dialog.QueueFree();
                 };
 
                 return NullValue.Instance;
+            }),
+            ["showMessage"] = new NativeFunctionValue(methodArgs =>
+            {
+                var title   = ValueArgString(methodArgs, 0);
+                var message = methodArgs.Count > 1 ? ValueArgString(methodArgs, 1) : string.Empty;
+                ShowMessageDialog(title, message);
+                return NullValue.Instance;
             })
         });
+    }
+
+    private static void ShowMessageDialog(string title, string message)
+    {
+        if (Engine.GetMainLoop() is not SceneTree tree || tree.Root is null) return;
+        var dialog = new AcceptDialog
+        {
+            Title      = title,
+            DialogText = message,
+            Size       = new Vector2I(480, 160)
+        };
+        tree.Root.AddChild(dialog);
+        dialog.PopupCentered();
+        dialog.Confirmed += () =>
+        {
+            dialog.QueueFree();
+        };
     }
 
     private ObjectValue CreateRuntimeObject(string id, object runtimeObject)
@@ -989,7 +1031,7 @@ public sealed class SmsUiRuntime
                 return NullValue.Instance;
             });
 
-            // loadProject(path) — reads .fpose file and restores full project state
+            // loadProject(path) — reads .scene file and restores full project state
             fields["loadProject"] = new NativeFunctionValue(methodArgs =>
             {
                 var path = ValueArgString(methodArgs, 0);
@@ -1001,18 +1043,25 @@ public sealed class SmsUiRuntime
 
                 var sml  = File.ReadAllText(path, System.Text.Encoding.UTF8);
                 var data = Runtime.ThreeD.AnimationSerializer.Deserialize(sml);
-                if (data is null) return NullValue.Instance;
+                if (data is null)
+                {
+                    ShowMessageDialog(
+                        "Format nicht unterstützt",
+                        $"'{Path.GetFileName(path)}' konnte nicht geladen werden.\nNur .scene Dateien werden unterstützt.");
+                    return new BooleanValue(false);
+                }
 
                 // Find the sibling Timeline in the scene tree
                 var timeline = FindSiblingTimeline(posingEditorExt);
                 if (timeline is null)
                 {
                     RunnerLogger.Warn("SMS", "loadProject: no TimelineControl found in scene.");
-                    return NullValue.Instance;
+                    return new BooleanValue(false);
                 }
 
-                posingEditorExt.LoadProjectData(data, timeline);
-                return NullValue.Instance;
+                var projectDirectory = Path.GetDirectoryName(path) ?? string.Empty;
+                posingEditorExt.LoadProjectData(data, timeline, projectDirectory);
+                return new BooleanValue(true);
             });
 
             // saveProject(path) — serialises current project state to .fpose
@@ -1043,6 +1092,58 @@ public sealed class SmsUiRuntime
                     RunnerLogger.Warn("SMS", $"saveProject failed for '{path}'.", ex);
                 }
 
+                return NullValue.Instance;
+            });
+
+            // getScenePropPos(idx) → "x,y,z" string
+            fields["getScenePropPos"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var pos = posingEditorExt.GetScenePropPos(idx);
+                return new StringValue(global::System.FormattableString.Invariant($"{pos.X:G6},{pos.Y:G6},{pos.Z:G6}"));
+            });
+
+            // setScenePropPos(idx, x, y, z)
+            fields["setScenePropPos"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var x   = ValueArgFloat(methodArgs, 1);
+                var y   = ValueArgFloat(methodArgs, 2);
+                var z   = ValueArgFloat(methodArgs, 3);
+                posingEditorExt.SetScenePropPos(idx, x, y, z);
+                return NullValue.Instance;
+            });
+
+            // getScenePropRot(idx) → "x,y,z" string (Euler degrees)
+            fields["getScenePropRot"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var rot = posingEditorExt.GetScenePropRot(idx);
+                return new StringValue(global::System.FormattableString.Invariant($"{rot.X:G6},{rot.Y:G6},{rot.Z:G6}"));
+            });
+
+            // setScenePropRot(idx, x, y, z) — Euler degrees
+            fields["setScenePropRot"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var x   = ValueArgFloat(methodArgs, 1);
+                var y   = ValueArgFloat(methodArgs, 2);
+                var z   = ValueArgFloat(methodArgs, 3);
+                posingEditorExt.SetScenePropRot(idx, x, y, z);
+                return NullValue.Instance;
+            });
+
+            // setMode("pose"|"arrange") — switch main editor mode
+            fields["setMode"] = new NativeFunctionValue(methodArgs =>
+            {
+                posingEditorExt.SetEditorMode(ValueArgString(methodArgs, 0));
+                return NullValue.Instance;
+            });
+
+            // setEditMode("move"|"scale"|"rotate") — switch arrange sub-mode
+            fields["setEditMode"] = new NativeFunctionValue(methodArgs =>
+            {
+                posingEditorExt.SetArrangeEditMode(ValueArgString(methodArgs, 0));
                 return NullValue.Instance;
             });
         }
@@ -2275,6 +2376,18 @@ public sealed class SmsUiRuntime
         {
             BooleanValue b => b.Value,
             _ => string.Equals(ValueArgString(args, index), "true", StringComparison.OrdinalIgnoreCase)
+        };
+    }
+
+    private static float ValueArgFloat(IReadOnlyList<Value> args, int index)
+    {
+        if (index >= args.Count) return 0f;
+        return args[index] switch
+        {
+            NumberValue n => (float)n.Value,
+            _ => float.TryParse(ValueArgString(args, index),
+                     System.Globalization.NumberStyles.Float,
+                     System.Globalization.CultureInfo.InvariantCulture, out var f) ? f : 0f
         };
     }
 

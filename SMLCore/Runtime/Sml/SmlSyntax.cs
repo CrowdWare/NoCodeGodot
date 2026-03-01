@@ -32,6 +32,7 @@ public enum SmlValueKind
     Enum,
     Vec2i,
     Vec3i,
+    Vec3f,
     Padding,
     ResourceRef,
     /// <summary>A reference to a declared component property, e.g. <c>{text}</c>.</summary>
@@ -40,6 +41,7 @@ public enum SmlValueKind
 
 public readonly record struct SmlVec2i(int X, int Y);
 public readonly record struct SmlVec3i(int X, int Y, int Z);
+public readonly record struct SmlVec3f(double X, double Y, double Z);
 public readonly record struct SmlEnumValue(string Name, int? Value);
 public readonly record struct SmlPadding(int Top, int Right, int Bottom, int Left);
 
@@ -70,6 +72,7 @@ public sealed class SmlValue
     public static SmlValue FromEnum(string enumName, int? enumValue) => new(SmlValueKind.Enum, new SmlEnumValue(enumName, enumValue));
     public static SmlValue FromVec2i(int x, int y) => new(SmlValueKind.Vec2i, new SmlVec2i(x, y));
     public static SmlValue FromVec3i(int x, int y, int z) => new(SmlValueKind.Vec3i, new SmlVec3i(x, y, z));
+    public static SmlValue FromVec3f(double x, double y, double z) => new(SmlValueKind.Vec3f, new SmlVec3f(x, y, z));
     public static SmlValue FromPadding(int top, int right, int bottom, int left) => new(SmlValueKind.Padding, new SmlPadding(top, right, bottom, left));
     public static SmlValue FromResourceRef(string ns, string path, SmlValue? fallback) => new(SmlValueKind.ResourceRef, new SmlResourceRef(ns, path, fallback));
     public static SmlValue FromPropRef(string propName) => new(SmlValueKind.PropRef, propName);
@@ -144,6 +147,13 @@ public sealed class SmlValue
         return Kind == SmlValueKind.Padding
             ? (SmlPadding)Value
             : throw new SmlParseException($"Property '{propertyName}' must be padding with 1, 2, or 4 integer values.");
+    }
+
+    public SmlVec3f AsVec3fOrThrow(string propertyName)
+    {
+        return Kind == SmlValueKind.Vec3f
+            ? (SmlVec3f)Value
+            : throw new SmlParseException($"Property '{propertyName}' must be a 3D float vector (x, y, z).");
     }
 }
 

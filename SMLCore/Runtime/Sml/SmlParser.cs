@@ -336,13 +336,34 @@ public sealed class SmlParser
 
             if (firstNumberToken.Kind == SmlTokenKind.Float)
             {
-                if (_lookahead.Kind == SmlTokenKind.Comma)
-                {
-                    throw new SmlParseException(
-                        $"Property '{propertyName}' does not support float tuple values. Use integer tuple values (line {_lookahead.Line}, col {_lookahead.Column}).");
-                }
+                var x = ParseFloatLiteral(firstNumberToken, propertyName);
+                SkipIgnorables();
+                if (_lookahead.Kind != SmlTokenKind.Comma)
+                    return SmlValue.FromFloat(x);
 
-                return SmlValue.FromFloat(ParseFloatLiteral(firstNumberToken, propertyName));
+                // Vec3f: x, y, z
+                Consume(); // first comma
+                SkipIgnorables();
+                if (_lookahead.Kind != SmlTokenKind.Float && _lookahead.Kind != SmlTokenKind.Int)
+                    throw Error($"Expected numeric value after ',' for property '{propertyName}'.");
+                var yToken = Consume();
+                var y = yToken.Kind == SmlTokenKind.Float
+                    ? ParseFloatLiteral(yToken, propertyName)
+                    : (double)ParseIntLiteral(yToken, propertyName);
+                SkipIgnorables();
+
+                if (_lookahead.Kind != SmlTokenKind.Comma)
+                    throw Error($"Expected ',' before third component of property '{propertyName}'.");
+                Consume(); // second comma
+                SkipIgnorables();
+                if (_lookahead.Kind != SmlTokenKind.Float && _lookahead.Kind != SmlTokenKind.Int)
+                    throw Error($"Expected numeric value after ',' for property '{propertyName}'.");
+                var zToken = Consume();
+                var z = zToken.Kind == SmlTokenKind.Float
+                    ? ParseFloatLiteral(zToken, propertyName)
+                    : (double)ParseIntLiteral(zToken, propertyName);
+
+                return SmlValue.FromVec3f(x, y, z);
             }
 
             var values = new List<int> { ParseIntLiteral(firstNumberToken, propertyName) };

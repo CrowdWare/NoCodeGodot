@@ -76,7 +76,7 @@ Window {
 
             }
 
-            // ── Center: PosingEditor (top) + Timeline (bottom), resizable ─────
+            // ── Center: Toolbar + PosingEditor (top) + Timeline (bottom) ─────
             DockingContainer {
                 id: centerDock
                 dockSide: center
@@ -84,31 +84,52 @@ Window {
                 closeable: false
                 dragToRearrangeEnabled: false
 
-                VSplitContainer {
+                VBoxContainer {
                     centerDock.title: "Viewport"
                     sizeFlagsHorizontal: expandFill
                     sizeFlagsVertical: expandFill
+                    spacing: 0
 
-                    PosingEditor {
-                        id: editor
-                        src: ""
-                        showBoneTree: false
-                        normalizeNames: true
+                    HBoxContainer {
+                        id: modeToolbar
+                        padding: 4, 2, 4, 2
+                        spacing: 4
+
+                        Button { id: btnPoseMode    text: "Pose"    toggleMode: true  buttonPressed: true  }
+                        Button { id: btnArrangeMode text: "Arrange" toggleMode: true  buttonPressed: false }
+
+                        VSeparator { }
+
+                        Button { id: btnModeMove   text: "Move"   toggleMode: true  buttonPressed: true   disabled: true }
+                        Button { id: btnModeScale  text: "Scale"  toggleMode: true  buttonPressed: false  disabled: true }
+                        Button { id: btnModeRotate text: "Rotate" toggleMode: true  buttonPressed: false  disabled: true }
+                    }
+
+                    VSplitContainer {
                         sizeFlagsHorizontal: expandFill
                         sizeFlagsVertical: expandFill
 
-                        JointConstraint { bone: "RightKnee"  minX: -140 maxX: 0 minY: -20 maxY: 20 }
-                        JointConstraint { bone: "LeftKnee"   minX: -140 maxX: 0 minY: -20 maxY: 20 }
-                        JointConstraint { bone: "RightElbow" minX: -145 maxX: 0 }
-                        JointConstraint { bone: "LeftElbow"  minX: -145 maxX: 0 }
-                    }
+                        PosingEditor {
+                            id: editor
+                            src: ""
+                            showBoneTree: false
+                            normalizeNames: true
+                            sizeFlagsHorizontal: expandFill
+                            sizeFlagsVertical: expandFill
 
-                    Timeline {
-                        id: timeline
-                        fps: 24
-                        totalFrames: 120
-                        sizeFlagsHorizontal: expandFill
-                        customMinimumSize: 0, 160
+                            JointConstraint { bone: "RightKnee"  minX: -140 maxX: 0 minY: -20 maxY: 20 }
+                            JointConstraint { bone: "LeftKnee"   minX: -140 maxX: 0 minY: -20 maxY: 20 }
+                            JointConstraint { bone: "RightElbow" minX: -145 maxX: 0 }
+                            JointConstraint { bone: "LeftElbow"  minX: -145 maxX: 0 }
+                        }
+
+                        Timeline {
+                            id: timeline
+                            fps: 24
+                            totalFrames: 120
+                            sizeFlagsHorizontal: expandFill
+                            customMinimumSize: 0, 160
+                        }
                     }
                 }
             }
@@ -142,11 +163,12 @@ Window {
         HBoxContainer {
             padding: 4, 2, 4, 2
             spacing: 6
-            Button {
-                id: btnToggleJoints
-                text: "Joints ●"
-                customMinimumSize: 80, 0
-            }
+            
+            /*Button {
+                    id: btnToggleJoints
+                    text: "Joints ●"
+                    customMinimumSize: 80, 0
+            }*/
             Label {
                 id: statusLabel
                 text: "No model loaded."

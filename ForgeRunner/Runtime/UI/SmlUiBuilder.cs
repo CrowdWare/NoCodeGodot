@@ -1284,6 +1284,30 @@ public sealed class SmlUiBuilder
                     ClickedIdValue: default,
                     NumericValue: index));
             };
+            posingEditor.ObjectSelected += propIdx =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "objectSelected",
+                    Clicked: string.Empty,
+                    ClickedIdValue: default,
+                    NumericValue: propIdx));
+            };
+            posingEditor.ObjectMoved += (propIdx, pos) =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "objectMoved",
+                    Clicked: global::System.FormattableString.Invariant($"{pos.X:G6},{pos.Y:G6},{pos.Z:G6}"),
+                    ClickedIdValue: default,
+                    NumericValue: propIdx));
+            };
         }
 
         if (control is Runtime.ThreeD.TimelineControl timeline)
@@ -1346,6 +1370,26 @@ public sealed class SmlUiBuilder
                     ClickedIdValue: default,
                     NumericValue: frame));
             };
+        }
+
+        if (control is ItemList itemList)
+        {
+            var listId = GetMetaString(control, NodePropertyMapper.MetaId);
+            if (!string.IsNullOrWhiteSpace(listId))
+            {
+                itemList.ItemSelected += index =>
+                {
+                    _actionDispatcher.Dispatch(new UiActionContext(
+                        Source: control,
+                        SourceId: listId,
+                        SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                        Action: "listItemSelected",
+                        Clicked: string.Empty,
+                        ClickedIdValue: default,
+                        NumericValue: index
+                    ));
+                };
+            }
         }
 
         if (control is HSlider slider)
