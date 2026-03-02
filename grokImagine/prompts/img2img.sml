@@ -1,29 +1,35 @@
 Img2Img{
     model: "grok-imagine-image"
- prompt: "The reference graybox image shows TWO GENDER-NEUTRAL POSE DUMMIES with zero age or gender information.
-    FIRST reference (pose1.png) = MAXIMUM FIDELITY POSE REFERENCE with ZERO DEVIATION:
-    - Supine dummy lies EXACTLY SUPINE on its BACK on a completely flat floor mat (NO pillow, NO cushion, NO raised surface whatsoever), head on left side of frame, face relaxed upward, legs straight and relaxed pointing right, left arm relaxed beside body, right arm relaxed beside body.
-    - Kneeling dummy is KNEELING DEEP in lotus-style position on the RIGHT side of the supine dummy on the SAME flat floor mat, leaning far forward.
-    - EXACT hand positions: kneeling dummy's LEFT hand on upper shoulder/chest area of supine dummy, RIGHT hand on upper thigh/hip area of supine dummy.
-    - Keep 100% identical body proportions, joint angles, limb positions, hand contact points, spatial relationship and camera angle.
+    /*prompt: "Precisely keep the exact pose, anatomy, proportions and composition from the first reference image. 
+    Render the entire scene using ONLY the artistic style, colors, lighting, shading, texture and aesthetic from the second reference image. 
+    Do not change or mix anything from the pose."*/
 
-    Render:
-    - The supine dummy as a woman in tasteful classical artistic nude style (elegant, serene, non-sexual fine-art nude, no explicit details).
-    - The kneeling dummy as a man wearing only simple tight black athletic underwear (modest, non-sexual).
+    /*prompt: "STRICTLY preserve the exact pose, anatomy, proportions, hand placements, leg positions and full spatial composition from the first reference image ONLY. 
+Render the human figures as HIGHLY REALISTIC photorealistic people with detailed natural skin texture, realistic faces, natural hair, lifelike facial expressions, subtle skin details and realistic human anatomy. 
+Render the entire scene using ONLY the artistic style, colors, lighting, shading, texture and aesthetic from the second reference image. 
+Do not change or mix anything from the pose." */
 
-    SECOND reference (Gi2Yd.jpg) = EXACT ART STYLE: classical pencil sketch, intricate graphite & charcoal cross-hatching, dramatic chiaroscuro, deep shadows, bright highlights, visible paper grain, slight sepia tone on aged textured paper.
+    prompt: "STRICTLY preserve the EXACT pose, anatomy, proportions, hand placements, leg positions and full spatial composition from the 
+        FIRST reference image ONLY. Do not change or reinterpret anything from the pose.
+        Use the SECOND reference image EXCLUSIVELY for artistic style, colors, dramatic candle lighting, blue energy smoke, atmosphere and mood 
+        of the entire scene.
 
-    Add powerful ethereal glowing white energy beam streaming from the kneeling man's fingertips into the woman's shoulder and chest, luminous rays and sparkling particles.
-    Tasteful artistic masterpiece fine-art drawing, high contrast, no color, serene spiritual healing atmosphere, emotional."
+        Use the THIRD reference image EXCLUSIVELY and precisely for clothing ONLY:
+        - The male figure has short hair is completely shirtless with bare torso and wears ONLY small, tight white massage shorts / brief-style shorts that fully cover the genitals exactly as shown in the third image.
+        - The female figure has long blond curly hair is topless with both breasts fully visible and uncovered. She wears ONLY a small white towel neatly draped over her hips and pubic area exactly as shown in the third image, covering nothing above the hips.
 
-    negativePrompt: "pillow, cushion, raised mat, both hands on chest, wrong hand placement, standing, extra fabric, shorts on woman, shirt, young woman with wrong pose, deformed anatomy, bad hands, explicit sexual, photorealistic, color, modern clothing, low detail"
+    Render both figures as HIGHLY REALISTIC photorealistic people with natural skin texture, realistic faces, natural hair and lifelike details. Do not add any extra clothing on upper body or lower body beyond what is shown in the third reference."
+
+    negativePrompt: "tank top, singlet, t-shirt, shirt, sports bra, bra, top on female, clothing on upper body, covered breasts, shorts on female, long shorts, excessive clothing, too much clothing, clothed torso, mannequin, doll, plastic skin"
     inputPose: "pose1.png"
-    inputStick: "stick.png"
-    inputStyle: "style.jpg"
+    inputStyle: "sacred.jpg"
+    inputExtra: "clothing.jpg"
     output: "pose1_<version>.png"
-    image_strength: 0.99
-    style_strength: 0.86
+    image_strength: 0.88
+    style_strength: 0.78
     guidance_scale: 9.8
     steps: 75
+    aspect_ratio: "16:9"
+    resolution:"2k"
 }
 

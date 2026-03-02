@@ -35,8 +35,8 @@ class Program
             return;
         }
 
-        string? model = null, outputfile = null, prompt = null, negative = null, inputPose = null, inputStick = null, inputStyle = null;
-        double? imageStrength = null, guidanceScale = null;
+        string? model = null, outputfile = null, prompt = null, negative = null, inputPose = null, inputStyle = null, inputExtra = null, aspect_ratio = null, resolution = null;
+        double? imageStrength = null, guidanceScale = null, styleStrength = null;
         int? steps = null;
 
         if (!string.IsNullOrEmpty(smlFile))
@@ -52,11 +52,14 @@ class Program
             prompt = ExtractValue(smlContent, "prompt");
             negative = ExtractValue(smlContent, "negativePrompt");
             inputPose = ExtractValue(smlContent, "inputPose");
-            inputStick = ExtractValue(smlContent, "inputStick");
             inputStyle = ExtractValue(smlContent, "inputStyle");
+            inputExtra = ExtractValue(smlContent, "inputExtra");
             outputfile = ExtractValue(smlContent, "output");
             imageStrength = ExtractDouble(smlContent, "image_strength");
             guidanceScale = ExtractDouble(smlContent, "guidance_scale");
+            styleStrength = ExtractDouble(smlContent, "style_strength");
+            aspect_ratio = ExtractValue(smlContent, "aspect_ratio");
+            resolution = ExtractValue(smlContent, "resolution");
             steps = ExtractInt(smlContent, "steps");
 
             if (string.IsNullOrEmpty(model) || string.IsNullOrEmpty(inputPose) || string.IsNullOrEmpty(outputfile) || string.IsNullOrEmpty(prompt))
@@ -94,14 +97,14 @@ class Program
         }
 
         var sourcePose = Path.Combine("input", inputPose);
-        var sourceStick = !string.IsNullOrEmpty(inputStick) ? Path.Combine("input", inputStick) : null;
         var sourceStyle = !string.IsNullOrEmpty(inputStyle) ? Path.Combine("input", inputStyle) : null;
+        var sourceExtra = !string.IsNullOrEmpty(inputExtra) ? Path.Combine("input", inputExtra) : null;
         var output = Path.Combine("output", outputfile);
 
         var client = new GrokImagineClient();
         try
         {
-            await client.GenerateImageAsync(apiKey, model, sourcePose, sourceStick, sourceStyle, output, prompt, negative, imageStrength, guidanceScale, steps);
+            await client.GenerateImageAsync(apiKey, model, sourcePose, sourceStyle, sourceExtra, output, prompt, negative, imageStrength, guidanceScale, steps, aspect_ratio, resolution, styleStrength);
             Console.WriteLine("Image generated successfully.");
         }
         catch (Exception ex)
