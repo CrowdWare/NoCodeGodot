@@ -325,6 +325,26 @@ scale: 1.0, 1.0, 1.0
 | IK-Support (`SkeletonIK3D`) | groß | Godot `SkeletonIK3D` als Kind von Skeleton3D; Hand/Fuß-Knochen triggern IK-Solve |
 
 
+### Last words from Claude
+Ah danke — das ändert die Diagnose komplett.
+
+Die Scale 10 kommt also von Dir in Blender, um den Mesh sichtbar zu machen. Das bedeutet der exportierte Mesh ist ~10× zu klein verglichen mit dem Skeleton. Das ist eine Bind-Matrix-Mismatch: in Godot's GLTF-Roundtrip (AppendFromScene) werden die Bone-Positionen und die Mesh-Vertex-Positionen in unterschiedlichen Koordinatenräumen exportiert.
+
+Dazu sehe ich im Outliner zwei weitere Probleme:
+
+_PhysicalBoneSimulator3D wird mitexportiert (Godot-interner Node, gehört nicht ins GLB)
+Animation / Pose — das sind AnimationPlayer-Nodes aus dem original Opa.glb, die auch unnötig mitgehen
+Bevor ich weiter daran arbeite: Woher stammt Opa.glb? Mixamo, ReadyPlayerMaker, selbst in Blender erstellt? Und was ist die scale im .scene-File — du hast scale: 1.0, 1.0, 1.0, aber hat der importierte Node in Godot vielleicht intern eine andere Scale? Das würde helfen, den genauen Skalierungsfaktor zu verstehen.
+
+Den _PhysicalBoneSimulator3D und original-AnimationPlayer kann ich sofort rausfiltern — das ist eindeutig falsch. Soll ich das schon machen?
+---
+User: Opa ist von Mixamo.
+Übrigens sehen die Objekte von Meshy genau so aus mit dem Golfball
+---
+Jetzt wird's klarer. Der Golfball kommt vermutlich von _PhysicalBoneSimulator3D — Mixamo-Charaktere haben Physics-Bones, und Godot erstellt dafür Sphere-Collision-Shapes. Diese werden beim Export mitgenommen und erscheinen in Blender als überlappende Kugeln → Golfball-Blob. Das erklärt auch warum Meshy-Objekte ähnlich aussehen könnten, wenn deren GLBs ebenfalls Physics-Nodes triggern.
+
+Fix: Vor dem Export alle Physics-Nodes und Original-AnimationPlayers (von der GLB-Importierung) aus dem Export-Tree entfernen. Soll ich das implementieren?
+
 ### Scene sample
 Instead of Asset and Character we might use the Godot type instead.
 Node3D or whatever that is. Or PackedScene makes also sense, so that we later can include subscenes.
