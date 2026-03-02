@@ -16,8 +16,7 @@ Do not change or mix anything from the pose." */
 
         Use the THIRD reference image EXCLUSIVELY and precisely for clothing ONLY:
         - The male figure has short hair is completely shirtless with bare torso and wears ONLY small, tight white massage shorts / brief-style shorts that fully cover the genitals exactly as shown in the third image.
-        - The female figure has long blond curly hair is topless with both breasts fully visible and uncovered. She wears ONLY a small white towel neatly draped over her hips and pubic area exactly as shown in the third image, covering nothing above the hips.
-
+        - The female figure has long blond curly hair is topless with both breasts fully visible and uncovered. ONLY a small white towel neatly draped over her hips and pubic area EXACTLY as shown in the third image.
     Render both figures as HIGHLY REALISTIC photorealistic people with natural skin texture, realistic faces, natural hair and lifelike details. Do not add any extra clothing on upper body or lower body beyond what is shown in the third reference."
 
     negativePrompt: "tank top, singlet, t-shirt, shirt, sports bra, bra, top on female, clothing on upper body, covered breasts, shorts on female, long shorts, excessive clothing, too much clothing, clothed torso, mannequin, doll, plastic skin"
