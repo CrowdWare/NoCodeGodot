@@ -149,6 +149,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     public event Action<int>?                ScenePropRemoved;  // (index)
     public event Action<int>?                ObjectSelected;    // (propIdx, -1 = deselect)
     public event Action<int, Vector3>?       ObjectMoved;       // (propIdx, newWorldPos)
+    public event Action<string, int>?        ExportProgress;    // (filename, percent 0‥100)
 
     // ── Editor mode control ───────────────────────────────────────────────────
 
@@ -1662,10 +1663,24 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             };
             AddChild(saveDlg);
             saveDlg.Popup();
-            saveDlg.FileSelected += (string savePath) =>
+            saveDlg.FileSelected += async (string savePath) =>
             {
+                // Hide immediately (property change is instant; rendering catches up
+                // after we await the process frame below).
+                saveDlg.Hide();
                 saveDlg.QueueFree();
-                DoExportAsGlb(new GlbExporter.ExportOptions(inclAnim, inclProps), savePath, timeline);
+
+                var filename = System.IO.Path.GetFileName(savePath);
+                ExportProgress?.Invoke(filename, 0);
+
+                // CallDeferred runs BEFORE rendering, so we must await at least one
+                // rendered frame; otherwise the dialog stays visually open while the
+                // main thread is blocked by the export.
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+                var opts = new GlbExporter.ExportOptions(inclAnim, inclProps);
+                DoExportAsGlb(opts, savePath, timeline);
             };
             saveDlg.Canceled += () => saveDlg.QueueFree();
         };
@@ -1674,15 +1689,26 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
     private void DoExportAsGlb(GlbExporter.ExportOptions options, string path, TimelineControl timeline)
     {
+        var filename  = System.IO.Path.GetFileName(path);
         var keyframes = timeline.GetAllKeyframes();
         var props     = _sceneProps.Select(p => (p.Node, p.Data.Name));
 
-        GlbExporter.Export(_modelRoot!, _skeleton!, keyframes,
-            timeline.Fps, timeline.TotalFrames, props, options, path,
-            out var restoreParent);
+        var ctx = GlbExporter.Prepare(_modelRoot!, _skeleton!, keyframes,
+            timeline.Fps, timeline.TotalFrames, props, options);
 
-        // Re-attach modelRoot to _worldRoot if GlbExporter detached it
-        if (restoreParent is not null && _modelRoot!.GetParent() is null)
+        if (ctx is null)
+        {
+            if (_modelRoot!.GetParent() is null)
+                _worldRoot.AddChild(_modelRoot);
+            return;
+        }
+
+        GlbExporter.Write(ctx, path);
+
+        // Re-attach modelRoot — Prepare always detaches it.
+        if (_modelRoot!.GetParent() is null)
             _worldRoot.AddChild(_modelRoot);
+
+        ExportProgress?.Invoke(filename, 100);
     }
 }

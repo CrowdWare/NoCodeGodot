@@ -1308,6 +1308,18 @@ public sealed class SmlUiBuilder
                     ClickedIdValue: default,
                     NumericValue: propIdx));
             };
+            posingEditor.ExportProgress += (filename, percent) =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "exportProgress",
+                    Clicked: filename,
+                    ClickedIdValue: default,
+                    NumericValue: percent));
+            };
         }
 
         if (control is Runtime.ThreeD.TimelineControl timeline)

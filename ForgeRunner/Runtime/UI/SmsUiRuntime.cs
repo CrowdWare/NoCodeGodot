@@ -274,6 +274,13 @@ public sealed class SmsUiRuntime
             if (!string.IsNullOrWhiteSpace(srcId))
                 TryInvokeEvent(srcId, "objectMoved", false, (int)(ctx.NumericValue ?? 0), ctx.Clicked ?? string.Empty);
         });
+
+        dispatcher.RegisterActionHandler("exportProgress", ctx =>
+        {
+            var srcId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(srcId))
+                TryInvokeEvent(srcId, "exportProgress", false, ctx.Clicked ?? string.Empty, (int)(ctx.NumericValue ?? 0));
+        });
     }
 
     public void InvokeReady()

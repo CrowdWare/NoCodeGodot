@@ -31,43 +31,51 @@ public static class GlbExporter
 {
     public sealed record ExportOptions(bool IncludeAnimation, bool IncludeProps);
 
-    // ── Public entry point ────────────────────────────────────────────────────
+    // ── Two-phase context ─────────────────────────────────────────────────────
 
     /// <summary>
-    /// Export the character (and optionally props + animation) to <paramref name="path"/>.
-    /// When <see cref="ExportOptions.IncludeProps"/> is true the model is temporarily
-    /// re-parented into a throw-away scene root; the caller must restore it afterwards.
+    /// Intermediate state returned by <see cref="Prepare"/> and consumed by
+    /// <see cref="Write"/>.  modelRoot is detached from the scene tree for the
+    /// lifetime of this context.
     /// </summary>
-    /// <param name="restoreParent">
-    /// Out: the node to which <paramref name="modelRoot"/> should be re-added after this call
-    /// returns (only non-null when IncludeProps=true and modelRoot was detached).
-    /// </param>
-    public static void Export(
+    public sealed class GltfWriteContext
+    {
+        internal GltfState        State      { get; init; } = null!;
+        internal GltfDocument     Doc        { get; init; } = null!;
+        internal Node3D           ModelRoot  { get; init; } = null!;
+        internal AnimationPlayer? AnimPlayer { get; init; }
+        internal Node3D?          TempRoot   { get; init; }
+    }
+
+    // ── Public API ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Phase 1: detach modelRoot, bake animation, call AppendFromScene.
+    /// Returns null on failure; modelRoot is re-attached to its original parent
+    /// in that case.
+    /// </summary>
+    public static GltfWriteContext? Prepare(
         Node3D     modelRoot,
         Skeleton3D skeleton,
         SortedDictionary<int, Dictionary<string, Quaternion>> keyframes,
         int        fps,
         int        totalFrames,
         IEnumerable<(Node3D Node, string Name)> props,
-        ExportOptions options,
-        string     path,
-        out Node?  restoreParent)
+        ExportOptions options)
     {
-        restoreParent = null;
-
         // ── 0. Capture skeleton path BEFORE any re-parenting ──────────────────
-        // GetPathTo requires both nodes to share a common scene-tree ancestor.
         var skelPath = modelRoot.GetPathTo(skeleton);
+
+        // ── 1. Detach modelRoot so AppendFromScene sees only its subtree ───────
+        var originalParent = modelRoot.GetParent();
+        originalParent?.RemoveChild(modelRoot);
 
         Node3D exportRoot = modelRoot;
         Node3D? tempRoot  = null;
 
-        // ── 1. Build export root (wrap model + props if needed) ───────────────
+        // ── 2. Wrap model + props when requested ──────────────────────────────
         if (options.IncludeProps)
         {
-            restoreParent = modelRoot.GetParent();
-            restoreParent?.RemoveChild(modelRoot);
-
             tempRoot = new Node3D { Name = "Scene" };
             tempRoot.AddChild(modelRoot);
             foreach (var (node, name) in props)
@@ -79,7 +87,7 @@ public static class GlbExporter
             exportRoot = tempRoot;
         }
 
-        // ── 2. Bake animation tracks (if requested) ───────────────────────────
+        // ── 3. Bake animation tracks ──────────────────────────────────────────
         AnimationPlayer? animPlayer = null;
         if (options.IncludeAnimation && keyframes.Count > 0)
         {
@@ -111,17 +119,57 @@ public static class GlbExporter
             lib.AddAnimation("animation", anim);
 
             animPlayer = new AnimationPlayer { Name = "AnimationPlayer" };
-            // Always attach to modelRoot so RootNode=".." always resolves to modelRoot,
-            // regardless of whether IncludeProps wraps everything in a tempRoot.
             modelRoot.AddChild(animPlayer);
             animPlayer.RootNode = new NodePath("..");
             animPlayer.AddAnimationLibrary("", lib);
         }
 
-        // ── 3. Write GLB ──────────────────────────────────────────────────────
-        WriteGlb(exportRoot, path);
+        // ── 4. Build GLTF state ───────────────────────────────────────────────
+        var state = new GltfState();
+        var doc   = new GltfDocument();
+        var err   = doc.AppendFromScene(exportRoot, state);
+        if (err != Error.Ok)
+        {
+            RunnerLogger.Error("GlbExporter", $"AppendFromScene failed: {err}");
+            Cleanup(modelRoot, animPlayer, tempRoot);
+            originalParent?.AddChild(modelRoot);   // restore on failure
+            return null;
+        }
 
-        // ── 4. Cleanup (remove what we added) ────────────────────────────────
+        return new GltfWriteContext
+        {
+            State     = state,
+            Doc       = doc,
+            ModelRoot = modelRoot,
+            AnimPlayer = animPlayer,
+            TempRoot  = tempRoot,
+        };
+    }
+
+    /// <summary>
+    /// Phase 2: write GLTF state to disk and clean up temporary nodes.
+    /// After this call modelRoot has no parent — the caller must re-attach it.
+    /// </summary>
+    /// <returns>true on success.</returns>
+    public static bool Write(GltfWriteContext ctx, string path)
+    {
+        var err = ctx.Doc.WriteToFilesystem(ctx.State, path);
+        Cleanup(ctx.ModelRoot, ctx.AnimPlayer, ctx.TempRoot);
+
+        if (err != Error.Ok)
+        {
+            RunnerLogger.Error("GlbExporter", $"WriteToFilesystem failed: {err}");
+            return false;
+        }
+
+        RunnerLogger.Info("GlbExporter", $"Exported GLB: {path}");
+        return true;
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static void Cleanup(Node3D modelRoot, AnimationPlayer? animPlayer, Node3D? tempRoot)
+    {
         if (animPlayer is not null)
         {
             modelRoot.RemoveChild(animPlayer);
@@ -129,30 +177,9 @@ public static class GlbExporter
         }
         if (tempRoot is not null)
         {
-            // Detach modelRoot so the caller can re-add it to _worldRoot
             tempRoot.RemoveChild(modelRoot);
             tempRoot.QueueFree();
         }
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private static void WriteGlb(Node root, string path)
-    {
-        var state = new GltfState();
-        var doc   = new GltfDocument();
-
-        var err = doc.AppendFromScene(root, state);
-        if (err != Error.Ok)
-        {
-            RunnerLogger.Error("GlbExporter", $"AppendFromScene failed: {err}");
-            return;
-        }
-        err = doc.WriteToFilesystem(state, path);
-        if (err != Error.Ok)
-            RunnerLogger.Error("GlbExporter", $"WriteToFilesystem failed: {err}");
-        else
-            RunnerLogger.Info("GlbExporter", $"Exported GLB: {path}");
     }
 
     private static Dictionary<string, string> BuildNormToOrigMap(Skeleton3D skeleton)
