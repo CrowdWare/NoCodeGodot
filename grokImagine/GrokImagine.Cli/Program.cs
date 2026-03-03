@@ -10,6 +10,7 @@ class Program
         if (args.Length == 1 && !args[0].StartsWith("--"))
         {
             smlFile = args[0];
+            smlFile = "prompts/" + smlFile;
         }
         else
         {

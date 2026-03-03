@@ -1,7 +1,7 @@
 Img2Img{
     model: "grok-imagine-image"
     /*prompt: "Precisely keep the exact pose, anatomy, proportions and composition from the first reference image. 
-    Render the entire scene using ONLY the artistic style, colors, lighting, shading, texture and aesthetic from the second reference image. 
+    Render the entire scene using ONLY the artistic style, colors, lighting, shading, texture and aesthetic from the third reference image. 
     Do not change or mix anything from the pose."*/
 
     /*prompt: "STRICTLY preserve the exact pose, anatomy, proportions, hand placements, leg positions and full spatial composition from the first reference image ONLY. 
@@ -9,7 +9,7 @@ Render the human figures as HIGHLY REALISTIC photorealistic people with detailed
 Render the entire scene using ONLY the artistic style, colors, lighting, shading, texture and aesthetic from the second reference image. 
 Do not change or mix anything from the pose." */
 
-    prompt: "STRICTLY preserve the EXACT pose, anatomy, proportions, hand placements, leg positions and full spatial composition from the 
+    /*prompt: "STRICTLY preserve the EXACT pose, anatomy, proportions, hand placements, leg positions and full spatial composition from the 
         FIRST reference image ONLY. Do not change or reinterpret anything from the pose.
         Use the SECOND reference image EXCLUSIVELY for artistic style, colors, dramatic candle lighting, blue energy smoke, atmosphere and mood 
         of the entire scene.
@@ -19,10 +19,15 @@ Do not change or mix anything from the pose." */
         - The female figure has long blond curly hair is topless with both breasts fully visible and uncovered. ONLY a small white towel neatly draped over her hips and pubic area EXACTLY as shown in the third image.
     Render both figures as HIGHLY REALISTIC photorealistic people with natural skin texture, realistic faces, natural hair and lifelike details. Do not add any extra clothing on upper body or lower body beyond what is shown in the third reference."
 
-    negativePrompt: "tank top, singlet, t-shirt, shirt, sports bra, bra, top on female, clothing on upper body, covered breasts, shorts on female, long shorts, excessive clothing, too much clothing, clothed torso, mannequin, doll, plastic skin"
+    negativePrompt: "tank top, singlet, t-shirt, shirt, sports bra, bra, top on female, clothing on upper body, covered breasts, shorts on female, long shorts, excessive clothing, too much clothing, clothed torso, mannequin, doll, plastic skin"*/
+    prompt: "STRICTLY preserve the EXACT pose, anatomy, proportions, hand placements, leg positions and full spatial composition from the 
+        FIRST reference image ONLY. Do not change or reinterpret anything from the pose.
+        Use the SECOND reference image EXCLUSIVELY and precisely for texturing and styling ONLY
+        Render both figures as HIGHLY REALISTIC photorealistic people"
+    negativePrompt: "no genitals"
     inputPose: "pose1.png"
-    inputStyle: "sacred.jpg"
-    inputExtra: "clothing.jpg"
+    //inputStyle: "sacred.jpg"
+    inputExtra: "muscles_body.jpg"
     output: "pose1_<version>.png"
     image_strength: 0.88
     style_strength: 0.78
