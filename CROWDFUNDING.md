@@ -147,6 +147,7 @@ The pledge amounts have been intentionally chosen with numerological meaning in 
 | Tier          | Pledge Amount | Rewards |
 |---------------|---------------|---------|
 | Supporter     | €13+          | Thank you + credits + early updates |
-| Creator       | €310          | 6 months commercial Subscription + Priority Support + Beta |
-| Studio        | €580          | 13 months commercial Subscription + Priority Support + Beta + "Special Thanks" Credit |
-| Patron        | €1,300+       | Lifetime commercial Subscription + Co-Creator-Credit in Showcases |
+| Creator       | €130          | 6 months commercial Subscription + Priority Support + Beta |
+| Studio        | €247          | 13 months commercial Subscription + Priority Support + Beta + "Special Thanks" Credit |
+| Patron        | €1.300        | Lifetime commercial Subscription + Co-Creator-Credit in Showcases |
+| GrokPlugin    | €184          | 6 months commercial Abo per month incl. 10 renders/day + BYOK for more |

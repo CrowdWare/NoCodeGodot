@@ -318,11 +318,14 @@ scale: 1.0, 1.0, 1.0
   
   
 ### Still open (Phase 4)
-| Touch-Input (Tablet) | mittel | Poll-Drag nutzt Maus; `InputEventScreenTouch` / `InputEventScreenDrag` ergänzen |
-| `exportPoseAsGLB(path)` | groß | Godot `GltfDocument` mit gesetzten Bone-Poses exportieren |
-| `exportAnimationAsGLB(path)` | groß | Keyframes → `AnimationLibrary` → `GltfDocument` exportieren |
+| Feature | Aufwand | Hinweis |
+|---|---|---|
+| Export Dialog Centered|small| Display the dialog centered on the screen and also make it a big bigger - Take Save As Dialog as reference |
+| Change Export Dialog| small | User shall be able to choose between, the whole scene incl. animation, only the character and with or without animation - He might also choose character animation only for retargeting - Greybox assets might only be useful to as preview only depends on the use case |
+| `exportPoseAsGLB(path)` | huge | Godot `GltfDocument` mit gesetzten Bone-Poses exportieren, still not good enough, because loading it in blender show Armature as a golf ball like mesh which hides the real mesh. See (### Last words from Claude) below|
+| `exportAnimationAsGLB(path)` | huge | Keyframes → `AnimationLibrary` → `GltfDocument` exportieren |
 | Import animation / retarget animation | mittel | Load an animation from a .glb and use it on a character, animation will then be used and saved in the scene |
-| IK-Support (`SkeletonIK3D`) | groß | Godot `SkeletonIK3D` als Kind von Skeleton3D; Hand/Fuß-Knochen triggern IK-Solve |
+| IK-Support (`SkeletonIK3D`) | huge | Godot `SkeletonIK3D` als Kind von Skeleton3D; Hand/Fuß-Knochen triggern IK-Solve |
 
 
 ### Last words from Claude
@@ -337,13 +340,20 @@ Animation / Pose — das sind AnimationPlayer-Nodes aus dem original Opa.glb, di
 Bevor ich weiter daran arbeite: Woher stammt Opa.glb? Mixamo, ReadyPlayerMaker, selbst in Blender erstellt? Und was ist die scale im .scene-File — du hast scale: 1.0, 1.0, 1.0, aber hat der importierte Node in Godot vielleicht intern eine andere Scale? Das würde helfen, den genauen Skalierungsfaktor zu verstehen.
 
 Den _PhysicalBoneSimulator3D und original-AnimationPlayer kann ich sofort rausfiltern — das ist eindeutig falsch. Soll ich das schon machen?
+
 ---
+
 User: Opa ist von Mixamo.
 Übrigens sehen die Objekte von Meshy genau so aus mit dem Golfball
+
 ---
+
 Jetzt wird's klarer. Der Golfball kommt vermutlich von _PhysicalBoneSimulator3D — Mixamo-Charaktere haben Physics-Bones, und Godot erstellt dafür Sphere-Collision-Shapes. Diese werden beim Export mitgenommen und erscheinen in Blender als überlappende Kugeln → Golfball-Blob. Das erklärt auch warum Meshy-Objekte ähnlich aussehen könnten, wenn deren GLBs ebenfalls Physics-Nodes triggern.
 
 Fix: Vor dem Export alle Physics-Nodes und Original-AnimationPlayers (von der GLB-Importierung) aus dem Export-Tree entfernen. Soll ich das implementieren?
+
+
+
 
 ### Scene sample
 Instead of Asset and Character we might use the Godot type instead.

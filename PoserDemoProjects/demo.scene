@@ -1,8 +1,8 @@
 ﻿Scene {
     Character {
         id: "hero"  name: "Opa"  src: "/Users/art/SourceCode/Forge/PoserDemoProjects/assets/models/Opa.glb"
-        pos: 0.0, 0.0, 0.0
-        rot: 0.0, 0.0, 0.0
+        pos: 0.656241, 0.0, 0.0
+        rot: -0.0, 0.0, 0.0
         scale: 1.0, 1.0, 1.0
 
         Animation {
@@ -30,8 +30,8 @@
     }
     Asset {
         id: "prop0"  name: "Idle"  src: "/Users/art/SourceCode/Forge/PoserDemoProjects/assets/models/Idle.glb"
-        pos: 2.27777, 0.24695, -0.671721
-        rot: -13.8428, -70.2459, 11.4883
+        pos: 2.27777, 0.24695, 0.395714
+        rot: -3.20465, -12.6187, 9.26368
         scale: 1.0, 1.0, 1.0
     }
 }
