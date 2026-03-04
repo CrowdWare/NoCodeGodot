@@ -1,5 +1,7 @@
 var pluginPromptRef = null
 var pluginNegativePromptRef = null
+var pluginApiKeyRef = null
+var pluginKeychainConsentRef = null
 var pluginStylePathRef = null
 var pluginExtraPathRef = null
 var pluginEditorRef = null
@@ -21,6 +23,55 @@ var pluginStyleImagePath = "res:/input/style.jpg"
 var pluginExtraImagePath = "res:/input/clothing.jpg"
 var pluginImageModel = "grok-imagine-image"
 var pluginVideoModel = "grok-imagine-video"
+var promptPluginAssemblyPath = ""
+
+fun getPromptPluginAssemblyPath() {
+    var c0 = os.resolvePath("res:/ForgePoser/plugins/prompt/net8.0/PromptPlugin.dll")
+    if (os.fileExists(c0)) {
+        return c0
+    }
+
+    var c0b = os.resolvePath("res:/ForgePoser/plugins/prompt/PromptPlugin.dll")
+    if (os.fileExists(c0b)) {
+        return c0b
+    }
+
+    var c1 = os.resolvePath("plugins/prompt/net8.0/PromptPlugin.dll")
+    if (os.fileExists(c1)) {
+        return c1
+    }
+
+    var c2 = os.resolvePath("plugins/prompt/PromptPlugin.dll")
+    if (os.fileExists(c2)) {
+        return c2
+    }
+
+    var c3 = os.resolvePath("plugins/prompt/PromptPlugin/bin/Debug/net8.0/PromptPlugin.dll")
+    if (os.fileExists(c3)) {
+        return c3
+    }
+
+    var c4 = os.resolvePath("plugins/prompt/PromptPlugin/obj/Debug/net8.0/PromptPlugin.dll")
+    if (os.fileExists(c4)) {
+        return c4
+    }
+
+    var c5 = os.resolvePath("res:/plugins/prompt/net8.0/PromptPlugin.dll")
+    if (os.fileExists(c5)) {
+        return c5
+    }
+
+    return ""
+}
+
+fun refreshPromptPluginAssemblyPath() {
+    promptPluginAssemblyPath = getPromptPluginAssemblyPath()
+}
+
+fun hasPromptPluginAssembly() {
+    refreshPromptPluginAssemblyPath()
+    return promptPluginAssemblyPath != ""
+}
 
 fun ensurePluginExportMenuItems() {
     var menuExport = ui.getObject("menuExport")
@@ -75,6 +126,159 @@ fun savePromptConfig() {
     os.savePromptConfig(pluginProjectPath, pluginPrompt, pluginNegativePrompt, pluginStyleImagePath, pluginExtraImagePath, pluginImageModel, pluginVideoModel)
 }
 
+fun showAiConfigDialog() {
+    var status = "PromptPlugin.dll not found."
+    if (hasPromptPluginAssembly()) {
+        var detected = os.callStatic(promptPluginAssemblyPath, "PromptPlugin.EntryPoints", "GetApiKeyStatus")
+        if (detected != null && detected != "") {
+            status = detected
+        }
+    }
+    var message = "AI key missing.\n\nWay 1 (recommended): set GROK_API_KEY or XAI_API_KEY in your shell/launch environment and restart ForgeRunner.\n\nWay 2: set the key in the app launch script/environment file used to start ForgeRunner.\n\nCurrent detection: " + status
+    ui.showMessage("AI Configuration", message)
+}
+
+fun getPromptPluginLastError() {
+    if (!hasPromptPluginAssembly()) {
+        return "PromptPlugin.dll not found."
+    }
+    var err = os.callStatic(promptPluginAssemblyPath, "PromptPlugin.EntryPoints", "GetLastError")
+    if (err == null || err == "") {
+        return "Unknown plugin error."
+    }
+    return err.substr(0, 180)
+}
+
+fun isAiConfigured() {
+    var grok = os.getEnv("GROK_API_KEY")
+    if (grok != null && grok != "") {
+        return true
+    }
+    var xai = os.getEnv("XAI_API_KEY")
+    return xai != null && xai != ""
+}
+
+fun applyApiKeyFromInput() {
+    if (pluginApiKeyRef == null) {
+        return
+    }
+    var key = pluginApiKeyRef.text
+    var sessionOk = false
+    if (hasPromptPluginAssembly()) {
+        var applied = os.callStatic(promptPluginAssemblyPath, "PromptPlugin.EntryPoints", "SetApiKeyForSession", key)
+        sessionOk = applied != null && applied
+    }
+
+    if (pluginStatusLabelRef != null) {
+        if (key == null || key == "") {
+            pluginStatusLabelRef.text = "Session API key cleared. Using environment key again."
+        } else {
+            var masked = "***"
+            if (sessionOk) {
+                pluginStatusLabelRef.text = "Session API key applied (" + masked + ")."
+            } else {
+                pluginStatusLabelRef.text = "Could not apply session API key."
+            }
+        }
+    }
+}
+
+fun saveApiKeyToKeychain() {
+    if (pluginApiKeyRef == null) {
+        return
+    }
+    if (!hasPromptPluginAssembly()) {
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "PromptPlugin.dll not found. Build PromptPlugin first."
+        }
+        return
+    }
+
+    var hasConsent = false
+    if (pluginKeychainConsentRef != null) {
+        hasConsent = pluginKeychainConsentRef.buttonPressed
+    }
+    if (!hasConsent) {
+        ui.showMessage("Consent Required", "Please enable 'Store API key in macOS Keychain' before saving.")
+        return
+    }
+
+    var key = pluginApiKeyRef.text
+    if (key == null || key == "") {
+        ui.showMessage("Missing Key", "Enter an API key first, then click Save Keychain.")
+        return
+    }
+
+    var saved = os.callStatic(promptPluginAssemblyPath, "PromptPlugin.EntryPoints", "SaveApiKeyToKeychain", key)
+    if (saved != null && saved) {
+        var applied = os.callStatic(promptPluginAssemblyPath, "PromptPlugin.EntryPoints", "SetApiKeyForSession", key)
+        if (pluginStatusLabelRef != null) {
+            if (applied != null && applied) {
+                pluginStatusLabelRef.text = "API key saved to Keychain and applied for this session."
+            } else {
+                pluginStatusLabelRef.text = "API key saved to Keychain."
+            }
+        }
+    } else {
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "Keychain save failed: " + getPromptPluginLastError()
+        }
+    }
+}
+
+fun loadApiKeyFromKeychain() {
+    if (!hasPromptPluginAssembly()) {
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "PromptPlugin.dll not found. Build PromptPlugin first."
+        }
+        return
+    }
+
+    var key = os.callStatic(promptPluginAssemblyPath, "PromptPlugin.EntryPoints", "LoadApiKeyFromKeychain")
+    if (key == null || key == "") {
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "Keychain load failed: " + getPromptPluginLastError()
+        }
+        return
+    }
+
+    if (pluginApiKeyRef != null) {
+        pluginApiKeyRef.text = key
+    }
+    var applied = os.callStatic(promptPluginAssemblyPath, "PromptPlugin.EntryPoints", "SetApiKeyForSession", key)
+    if (pluginStatusLabelRef != null) {
+        if (applied != null && applied) {
+            pluginStatusLabelRef.text = "API key loaded from Keychain and applied for this session."
+        } else {
+            pluginStatusLabelRef.text = "API key loaded from Keychain."
+        }
+    }
+}
+
+fun deleteApiKeyFromKeychain() {
+    if (!hasPromptPluginAssembly()) {
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "PromptPlugin.dll not found. Build PromptPlugin first."
+        }
+        return
+    }
+
+    var deleted = os.callStatic(promptPluginAssemblyPath, "PromptPlugin.EntryPoints", "DeleteApiKeyFromKeychain")
+    if (deleted != null && deleted) {
+        os.callStatic(promptPluginAssemblyPath, "PromptPlugin.EntryPoints", "SetApiKeyForSession", "")
+        if (pluginApiKeyRef != null) {
+            pluginApiKeyRef.text = ""
+        }
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "API key deleted from Keychain. Session key cleared."
+        }
+    } else {
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "Keychain delete failed: " + getPromptPluginLastError()
+        }
+    }
+}
+
 fun refreshPanel() {
     if (pluginPromptRef == null || pluginNegativePromptRef == null || pluginStylePathRef == null || pluginExtraPathRef == null) {
         return
@@ -92,6 +296,8 @@ fun pluginPromptInit() {
     ensurePluginExportMenuItems()
     pluginPromptRef = ui.getObject("pluginPromptEditor")
     pluginNegativePromptRef = ui.getObject("pluginNegativePromptEdit")
+    pluginApiKeyRef = ui.getObject("pluginApiKeyEdit")
+    pluginKeychainConsentRef = ui.getObject("pluginKeychainConsent")
     pluginStylePathRef = ui.getObject("pluginStyleImagePathEdit")
     pluginExtraPathRef = ui.getObject("pluginExtraImagePathEdit")
     pluginEditorRef = ui.getObject("editor")
@@ -132,6 +338,36 @@ on pluginExtraImagePathEdit.textChanged(newText) {
     }
 }
 
+on pluginBtnApplyApiKey.clicked() {
+    applyApiKeyFromInput()
+}
+
+on pluginApiKeyEdit.textSubmitted(newText) {
+    applyApiKeyFromInput()
+}
+
+on pluginBtnSaveApiKey.clicked() {
+    saveApiKeyToKeychain()
+}
+
+on pluginBtnLoadApiKey.clicked() {
+    loadApiKeyFromKeychain()
+}
+
+on pluginBtnDeleteApiKey.clicked() {
+    deleteApiKeyFromKeychain()
+}
+
+on pluginKeychainConsent.clicked() {
+    if (pluginStatusLabelRef != null && pluginKeychainConsentRef != null) {
+        if (pluginKeychainConsentRef.buttonPressed) {
+            pluginStatusLabelRef.text = "Keychain consent enabled."
+        } else {
+            pluginStatusLabelRef.text = "Keychain consent disabled."
+        }
+    }
+}
+
 on pluginBtnPickStyleImage.clicked() {
     ui.openFileDialog("onPluginStyleImageSelected", "*.png,*.jpg,*.jpeg,*.webp")
 }
@@ -158,49 +394,66 @@ fun onPluginExtraImageSelected(path) {
 
 on pluginBtnAssemblyCall.clicked() {
     resolveProjectPath()
-    var result = os.callStatic("res:/plugins/prompt/PromptPlugin.dll", "PromptPlugin.EntryPoints", "OnPromptChanged", pluginProjectPath, pluginPrompt)
-    if (result != null) {
-        log.info("Plugin assembly returned: " + result)
+    if (hasPromptPluginAssembly()) {
+        var result = os.callStatic(promptPluginAssemblyPath, "PromptPlugin.EntryPoints", "OnPromptChanged", pluginProjectPath, pluginPrompt)
+        if (result != null) {
+            log.info("Plugin assembly returned: " + result)
+        }
+    } else {
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "PromptPlugin.dll not found. Build PromptPlugin first."
+        }
     }
 }
 
 on menuExportCurrentFrame.clicked() {
     loadPromptConfig()
-    if (!ai.isConfigured()) {
+    if (!isAiConfigured()) {
         if (pluginStatusLabelRef != null) {
             pluginStatusLabelRef.text = "AI not configured. Set GROK_API_KEY."
         }
-        return
-    }
+        showAiConfigDialog()
+    } else {
+        var capturedPath = "exports/frame_capture.png"
+        var styledPath = "exports/frame_styled_<version>.png"
 
-    var capturedPath = "exports/frame_capture.png"
-    var styledPath = "exports/frame_styled_<version>.png"
-
-    if (pluginStatusLabelRef != null) {
-        pluginStatusLabelRef.text = "Capturing current frame..."
-    }
-
-    if (pluginEditorRef == null) {
-        return
-    }
-    var ok = pluginEditorRef.exportCurrentFramePng(capturedPath)
-    if (!ok) {
         if (pluginStatusLabelRef != null) {
-            pluginStatusLabelRef.text = "Capture failed."
+            pluginStatusLabelRef.text = "Capturing current frame..."
         }
-        return
-    }
 
-    if (pluginStatusLabelRef != null) {
-        pluginStatusLabelRef.text = "Captured. Sending to Grok..."
-    }
-    var resultPath = ai.stylizeImage(capturedPath, styledPath, pluginPrompt, pluginStyleImagePath, pluginExtraImagePath, pluginNegativePrompt, pluginImageModel)
-
-    if (pluginStatusLabelRef != null) {
-        if (resultPath != "") {
-            pluginStatusLabelRef.text = "Stylized frame: " + resultPath
+        if (pluginEditorRef == null) {
+            if (pluginStatusLabelRef != null) {
+                pluginStatusLabelRef.text = "Editor not available."
+            }
         } else {
-            pluginStatusLabelRef.text = "Stylize failed."
+            var ok = pluginEditorRef.exportCurrentFramePng(capturedPath)
+            if (!ok) {
+                if (pluginStatusLabelRef != null) {
+                    pluginStatusLabelRef.text = "Capture failed."
+                }
+            } else {
+                if (pluginStatusLabelRef != null) {
+                    pluginStatusLabelRef.text = "Captured. Sending to Grok..."
+                }
+                var resolvedCaptured = os.resolvePath(capturedPath)
+                var resolvedStyled = os.resolvePath(styledPath)
+                var resolvedStyle = os.resolvePath(pluginStyleImagePath)
+                var resolvedExtra = os.resolvePath(pluginExtraImagePath)
+                if (hasPromptPluginAssembly()) {
+                    var resultPath = os.callStatic(promptPluginAssemblyPath, "PromptPlugin.EntryPoints", "StylizeImage", resolvedCaptured, resolvedStyled, pluginPrompt, resolvedStyle, resolvedExtra, pluginNegativePrompt, pluginImageModel)
+                    if (pluginStatusLabelRef != null) {
+                        if (resultPath != null && resultPath != "") {
+                            pluginStatusLabelRef.text = "Stylized frame: " + resultPath
+                        } else {
+                            pluginStatusLabelRef.text = "Stylize failed: " + getPromptPluginLastError()
+                        }
+                    }
+                } else {
+                    if (pluginStatusLabelRef != null) {
+                        pluginStatusLabelRef.text = "PromptPlugin.dll not found. Build PromptPlugin first."
+                    }
+                }
+            }
         }
     }
 }
@@ -211,111 +464,116 @@ on menuExportStylizedClip.clicked() {
         if (pluginStatusLabelRef != null) {
             pluginStatusLabelRef.text = "Stylized clip export already running."
         }
-        return
-    }
+    } else {
+        if (!isAiConfigured()) {
+            if (pluginStatusLabelRef != null) {
+                pluginStatusLabelRef.text = "AI not configured. Set GROK_API_KEY."
+            }
+            showAiConfigDialog()
+        } else if (pluginEditorRef == null || pluginTimelineRef == null) {
+            if (pluginStatusLabelRef != null) {
+                pluginStatusLabelRef.text = "Editor/timeline not available."
+            }
+        } else {
+            var frameFrom = 0
+            var frameTo = pluginTimelineRef.totalFrames
 
-    if (!ai.isConfigured()) {
-        if (pluginStatusLabelRef != null) {
-            pluginStatusLabelRef.text = "AI not configured. Set GROK_API_KEY."
+            var maxFrameTo = frameFrom + 239
+            if (frameTo > maxFrameTo) {
+                frameTo = maxFrameTo
+            }
+
+            var framesDir = "exports/frames_" + frameFrom + "_" + frameTo
+            pluginClipFrameFrom = frameFrom
+            pluginClipFrameTo = frameTo
+            pluginClipExpectedFrames = (frameTo - frameFrom) + 1
+            pluginClipFps = 24
+            pluginClipSourceVideoPath = "exports/source_clip.mp4"
+            pluginClipStyledVideoPath = "exports/styled_clip_<version>.mp4"
+
+            if (pluginStatusLabelRef != null) {
+                pluginStatusLabelRef.text = "Rendering frames " + frameFrom + "..." + frameTo
+            }
+            var started = pluginEditorRef.startExportFrameRangePng(frameFrom, frameTo, framesDir)
+            if (!started) {
+                if (pluginStatusLabelRef != null) {
+                    pluginStatusLabelRef.text = "Frame sequence render start failed."
+                }
+            } else {
+                pluginClipExportPending = true
+            }
         }
-        return
     }
-    if (pluginEditorRef == null || pluginTimelineRef == null) {
-        return
-    }
-
-    var frameFrom = 0
-    var frameTo = pluginTimelineRef.totalFrames
-
-    var maxFrameTo = frameFrom + 239
-    if (frameTo > maxFrameTo) {
-        frameTo = maxFrameTo
-    }
-
-    var framesDir = "exports/frames_" + frameFrom + "_" + frameTo
-    pluginClipFrameFrom = frameFrom
-    pluginClipFrameTo = frameTo
-    pluginClipExpectedFrames = (frameTo - frameFrom) + 1
-    pluginClipFps = 24
-    pluginClipSourceVideoPath = "exports/source_clip.mp4"
-    pluginClipStyledVideoPath = "exports/styled_clip_<version>.mp4"
-
-    if (pluginStatusLabelRef != null) {
-        pluginStatusLabelRef.text = "Rendering frames " + frameFrom + "..." + frameTo
-    }
-    var started = pluginEditorRef.startExportFrameRangePng(frameFrom, frameTo, framesDir)
-    if (!started) {
-        if (pluginStatusLabelRef != null) {
-            pluginStatusLabelRef.text = "Frame sequence render start failed."
-        }
-        return
-    }
-    pluginClipExportPending = true
 }
 
 on editor.frameRangeExportFinished(written, outputDirectory) {
-    if (!pluginClipExportPending) {
-        return
-    }
-    pluginClipExportPending = false
+    if (pluginClipExportPending) {
+        pluginClipExportPending = false
 
-    if (written <= 1) {
-        if (pluginStatusLabelRef != null) {
-            pluginStatusLabelRef.text = "Frame sequence render failed."
-        }
-        pluginClipExpectedFrames = 0
-        return
-    }
-
-    if (pluginStatusLabelRef != null) {
-        pluginStatusLabelRef.text = "Encoding source clip..."
-    }
-    var encodedPath = ai.createVideoFromFrames(outputDirectory, pluginClipFps, pluginClipSourceVideoPath, "frame_%04d.png")
-    if (encodedPath == "") {
-        if (pluginStatusLabelRef != null) {
-            pluginStatusLabelRef.text = "Video encoding failed (ffmpeg missing?)."
-        }
-        pluginClipExpectedFrames = 0
-        return
-    }
-
-    if (pluginStatusLabelRef != null) {
-        pluginStatusLabelRef.text = "Sending clip to Grok..."
-    }
-    var styledPath = ai.stylizeVideo(encodedPath, pluginClipStyledVideoPath, pluginPrompt, pluginNegativePrompt, pluginVideoModel)
-    if (pluginStatusLabelRef != null) {
-        if (styledPath != "") {
-            pluginStatusLabelRef.text = "Stylized clip: " + styledPath
+        if (written <= 1) {
+            if (pluginStatusLabelRef != null) {
+                pluginStatusLabelRef.text = "Frame sequence render failed."
+            }
+            pluginClipExpectedFrames = 0
         } else {
-            pluginStatusLabelRef.text = "Stylized clip failed."
+            if (pluginStatusLabelRef != null) {
+                pluginStatusLabelRef.text = "Encoding source clip..."
+            }
+            var resolvedOutputDir = os.resolvePath(outputDirectory)
+            var resolvedSourceVideo = os.resolvePath(pluginClipSourceVideoPath)
+            if (!hasPromptPluginAssembly()) {
+                if (pluginStatusLabelRef != null) {
+                    pluginStatusLabelRef.text = "PromptPlugin.dll not found. Build PromptPlugin first."
+                }
+                pluginClipExpectedFrames = 0
+            } else {
+                var encodedPath = os.callStatic(promptPluginAssemblyPath, "PromptPlugin.EntryPoints", "CreateVideoFromFrames", resolvedOutputDir, pluginClipFps, resolvedSourceVideo, "frame_%04d.png")
+                if (encodedPath == null || encodedPath == "") {
+                    if (pluginStatusLabelRef != null) {
+                        pluginStatusLabelRef.text = "Video encoding failed: " + getPromptPluginLastError()
+                    }
+                    pluginClipExpectedFrames = 0
+                } else {
+                    if (pluginStatusLabelRef != null) {
+                        pluginStatusLabelRef.text = "Sending clip to Grok..."
+                    }
+                    var resolvedStyledVideo = os.resolvePath(pluginClipStyledVideoPath)
+                    var styledPath = os.callStatic(promptPluginAssemblyPath, "PromptPlugin.EntryPoints", "StylizeVideo", encodedPath, resolvedStyledVideo, pluginPrompt, pluginNegativePrompt, pluginVideoModel)
+                    if (pluginStatusLabelRef != null) {
+                        if (styledPath != null && styledPath != "") {
+                            pluginStatusLabelRef.text = "Stylized clip: " + styledPath
+                        } else {
+                            pluginStatusLabelRef.text = "Stylized clip failed: " + getPromptPluginLastError()
+                        }
+                    }
+                    pluginClipExpectedFrames = 0
+                }
+            }
         }
     }
-    pluginClipExpectedFrames = 0
 }
 
 on editor.exportProgress(filename, percent) {
-    if (pluginStatusLabelRef == null) {
-        return
-    }
-
-    if (pluginClipExportPending && pluginClipExpectedFrames > 0) {
-        var current = percent * pluginClipExpectedFrames / 100
-        if (percent > 0 && current < 1) {
-            current = 1
-        }
-        if (current > pluginClipExpectedFrames) {
-            current = pluginClipExpectedFrames
-        }
-        var sourceFrame = pluginClipFrameFrom + current - 1
-        if (sourceFrame < pluginClipFrameFrom) {
-            sourceFrame = pluginClipFrameFrom
-        }
-        pluginStatusLabelRef.text = "Rendering frame " + sourceFrame + "/" + pluginClipFrameTo + " (" + percent + "%)"
-    } else {
-        if (percent == 100) {
-            pluginStatusLabelRef.text = "Exported: " + filename
+    if (pluginStatusLabelRef != null) {
+        if (pluginClipExportPending && pluginClipExpectedFrames > 0) {
+            var current = percent * pluginClipExpectedFrames / 100
+            if (percent > 0 && current < 1) {
+                current = 1
+            }
+            if (current > pluginClipExpectedFrames) {
+                current = pluginClipExpectedFrames
+            }
+            var sourceFrame = pluginClipFrameFrom + current - 1
+            if (sourceFrame < pluginClipFrameFrom) {
+                sourceFrame = pluginClipFrameFrom
+            }
+            pluginStatusLabelRef.text = "Rendering frame " + sourceFrame + "/" + pluginClipFrameTo + " (" + percent + "%)"
         } else {
-            pluginStatusLabelRef.text = "Export " + filename + " (" + percent + "%)"
+            if (percent == 100) {
+                pluginStatusLabelRef.text = "Exported: " + filename
+            } else {
+                pluginStatusLabelRef.text = "Export " + filename + " (" + percent + "%)"
+            }
         }
     }
 }

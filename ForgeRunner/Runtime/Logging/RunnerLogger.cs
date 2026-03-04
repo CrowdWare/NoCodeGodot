@@ -41,7 +41,7 @@ public static class RunnerLogger
 
     public static void Warn(string subsystem, string message)
     {
-        GD.PushWarning($"[{subsystem}] {message}");
+        PrintRichColored($"WARNING: [{subsystem}] {message}", "#f1c40f");
     }
 
     public static void Warn(string subsystem, string message, Exception ex)

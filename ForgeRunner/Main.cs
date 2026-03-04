@@ -674,6 +674,16 @@ public partial class Main : Node
 			return;
 		}
 
+		// Plugins rely on the runtime editor UI (DockingHost + known control ids).
+		// Skip loading during splash/minimal UIs (e.g. app.sml) and load on the next
+		// UI swap once the full docking layout is active.
+		var dockingContainers = CollectDockingContainers(_runtimeUiRoot).ToList();
+		if (dockingContainers.Count == 0)
+		{
+			RunnerLogger.Info("Plugin", $"Skipping plugin load for '{uiUrl}' (no docking containers in active UI root).");
+			return;
+		}
+
 		_loadedRuntimePluginIds.Clear();
 		var descriptors = DiscoverRuntimePlugins(uiUrl);
 		foreach (var descriptor in descriptors)

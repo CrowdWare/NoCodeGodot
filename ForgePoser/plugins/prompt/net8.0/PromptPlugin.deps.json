@@ -1,0 +1,36 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "PromptPlugin/1.0.0": {
+        "dependencies": {
+          "ForgeAiLib": "1.0.0"
+        },
+        "runtime": {
+          "PromptPlugin.dll": {}
+        }
+      },
+      "ForgeAiLib/1.0.0": {
+        "runtime": {
+          "ForgeAiLib.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "PromptPlugin/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "ForgeAiLib/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

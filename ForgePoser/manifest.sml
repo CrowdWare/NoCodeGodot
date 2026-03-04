@@ -9,6 +9,9 @@ Manifest {
         File { path: "plugins/prompt/plugin.sml" hash: "" size: 0 }
         File { path: "plugins/prompt/panel.sml"  hash: "" size: 0 }
         File { path: "plugins/prompt/panel.sms"  hash: "" size: 0 }
+        File { path: "plugins/prompt/PromptPlugin/PromptPlugin.csproj" hash: "" size: 0 }
+        File { path: "plugins/prompt/PromptPlugin/EntryPoints.cs" hash: "" size: 0 }
+        File { path: "plugins/prompt/PromptPlugin/README.md" hash: "" size: 0 }
         File { path: "plugins/export_glb/plugin.sml" hash: "" size: 0 }
         File { path: "plugins/export_glb/panel.sms"  hash: "" size: 0 }
         File { path: "plugins/export_glb/README.md"  hash: "" size: 0 }

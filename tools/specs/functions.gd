@@ -206,6 +206,30 @@ const FUNCTIONS := {
         "category": "OS",
         "signature": "os.getUptime()",
         "description": "Returns seconds since SMS runtime initialization."
+    },
+
+    "os.getEnv": {
+        "category": "OS",
+        "signature": "os.getEnv(name: String)",
+        "description": "Returns the process environment variable value or empty string if unset."
+    },
+
+    "os.setEnv": {
+        "category": "OS",
+        "signature": "os.setEnv(name: String, value: String)",
+        "description": "Sets a process-level environment variable for the running app session. Not persisted system-wide."
+    },
+
+    "os.resolvePath": {
+        "category": "OS",
+        "signature": "os.resolvePath(path: String)",
+        "description": "Resolves res:/, user:/ and relative paths to an absolute filesystem path."
+    },
+
+    "os.callStatic": {
+        "category": "OS",
+        "signature": "os.callStatic(assemblyPath: String, typeName: String, methodName: String, ...args)",
+        "description": "Loads a .NET assembly and invokes a static method by reflection. Returns the method result converted to an SMS value."
     }
 }
 

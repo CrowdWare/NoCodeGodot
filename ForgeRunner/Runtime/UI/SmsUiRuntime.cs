@@ -698,6 +698,37 @@ public sealed class SmsUiRuntime
             ["isDesktop"] = new NativeFunctionValue(_ => new BooleanValue(!string.Equals(GetPlatform(), "android", StringComparison.Ordinal))),
             ["now"] = new NativeFunctionValue(_ => new IntegerValue(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())),
             ["getUptime"] = new NativeFunctionValue(_ => new NumberValue(Time.GetTicksMsec() / 1000.0)),
+            ["getEnv"] = new NativeFunctionValue(methodArgs =>
+            {
+                var name = ValueArgString(methodArgs, 0);
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    return new StringValue(string.Empty);
+                }
+
+                return new StringValue(System.Environment.GetEnvironmentVariable(name) ?? string.Empty);
+            }),
+            ["setEnv"] = new NativeFunctionValue(methodArgs =>
+            {
+                var name = ValueArgString(methodArgs, 0);
+                var value = methodArgs.Count > 1 ? ValueArgString(methodArgs, 1) : string.Empty;
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    return new BooleanValue(false);
+                }
+
+                try
+                {
+                    // Process-level only; use launcher shell/profile for persistent env setup.
+                    System.Environment.SetEnvironmentVariable(name, value, EnvironmentVariableTarget.Process);
+                    return new BooleanValue(true);
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("SMS", $"os.setEnv failed for '{name}'.", ex);
+                    return new BooleanValue(false);
+                }
+            }),
             // Unrestricted file I/O for desktop application scripts (bypasses ProjectFs sandbox).
             ["readFile"] = new NativeFunctionValue(methodArgs =>
             {
@@ -774,6 +805,11 @@ public sealed class SmsUiRuntime
             {
                 var path = ValueArgString(methodArgs, 0);
                 return new StringValue(ToResPath(path));
+            }),
+            ["resolvePath"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                return new StringValue(ResolveAiPath(path));
             }),
             ["callStatic"] = new NativeFunctionValue(methodArgs =>
             {
@@ -1599,7 +1635,7 @@ $"}}\n";
 
                     var inputPattern = Path.Combine(framesDirectory, pattern);
                     var ok = RunFfmpeg(
-                        $"-y -framerate {fps} -i \"{inputPattern}\" -c:v libx264 -pix_fmt yuv420p \"{outputPath}\"",
+                        $"-hide_banner -loglevel error -nostats -y -framerate {fps} -i \"{inputPattern}\" -c:v libx264 -pix_fmt yuv420p \"{outputPath}\"",
                         out var errorText);
 
                     if (!ok)
@@ -1632,6 +1668,11 @@ $"}}\n";
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            psi.EnvironmentVariables.Remove("DYLD_LIBRARY_PATH");
+            psi.EnvironmentVariables.Remove("DYLD_FALLBACK_LIBRARY_PATH");
+            psi.EnvironmentVariables.Remove("DYLD_INSERT_LIBRARIES");
+            psi.EnvironmentVariables.Remove("DYLD_PRINT_LIBRARIES");
+            psi.EnvironmentVariables.Remove("DYLD_PRINT_TO_FILE");
 
             using var process = Process.Start(psi);
             if (process is null)
