@@ -20,9 +20,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Text;
 using Runtime.Logging;
 
 namespace Runtime.ThreeD;
@@ -67,8 +65,10 @@ public static class GlbExporter
         int        fps,
         int        totalFrames,
         IEnumerable<(Node3D Node, string Name)> props,
-        ExportOptions options)
+        ExportOptions options,
+        Action<int, string>? progress = null)
     {
+        progress?.Invoke(5, "Clone model");
         var exportCharacter = CloneNode3D(modelRoot);
         if (exportCharacter is null)
         {
@@ -76,6 +76,7 @@ public static class GlbExporter
             return null;
         }
 
+        progress?.Invoke(12, "Sanitize model");
         SanitizeForExport(exportCharacter, removeCharacterMeshes: options.AnimationOnlyCharacter);
 
         var exportSkeleton = FindSkeleton(exportCharacter);
@@ -89,6 +90,7 @@ public static class GlbExporter
         // ── Bake animation tracks ────────────────────────────────────────────
         if (options.IncludeAnimation && keyframes.Count > 0)
         {
+            progress?.Invoke(26, "Build animation tracks");
             var skelPath   = exportCharacter.GetPathTo(exportSkeleton);
             var normToOrig = BuildNormToOrigMap(exportSkeleton);
             var anim       = new Animation
@@ -124,10 +126,12 @@ public static class GlbExporter
         }
         else if (!options.WithRig)
         {
+            progress?.Invoke(26, "Apply static pose");
             // Workaround for Godot GLTF skin/bind roundtrip issues in DCC tools:
             // for static exports, detach meshes from skeleton and remove armature nodes.
             ApplyStaticPose(exportSkeleton, currentPose, keyframes);
             AttachForBakeIfPossible(modelRoot, exportCharacter);
+            progress?.Invoke(36, "Bake static mesh");
             var staticOk = ConvertCharacterToStaticMesh(exportCharacter);
             DetachIfParented(exportCharacter);
             if (!staticOk)
@@ -141,6 +145,7 @@ public static class GlbExporter
 
         if (options.IncludeProps)
         {
+            progress?.Invoke(45, "Clone scene props");
             var sceneRoot = new Node3D { Name = "Scene" };
             sceneRoot.AddChild(exportCharacter);
             foreach (var (node, name) in props)
@@ -160,9 +165,8 @@ public static class GlbExporter
             rootToFree = sceneRoot;
         }
 
-        LogExportTree(exportRoot);
-
         // ── Build GLTF state ─────────────────────────────────────────────────
+        progress?.Invoke(62, "Build GLTF scene");
         var state = new GltfState();
         var doc   = new GltfDocument();
         var err   = doc.AppendFromScene(exportRoot, state);
@@ -186,8 +190,9 @@ public static class GlbExporter
     /// After this call modelRoot has no parent — the caller must re-attach it.
     /// </summary>
     /// <returns>true on success.</returns>
-    public static bool Write(GltfWriteContext ctx, string path)
+    public static bool Write(GltfWriteContext ctx, string path, Action<int, string>? progress = null)
     {
+        progress?.Invoke(82, "Write GLB file");
         var err = ctx.Doc.WriteToFilesystem(ctx.State, path);
         ctx.RootToFree.QueueFree();
 
@@ -197,6 +202,7 @@ public static class GlbExporter
             return false;
         }
 
+        progress?.Invoke(98, "Finalize export");
         RunnerLogger.Info("GlbExporter", $"Exported GLB: {path}");
         return true;
     }
@@ -594,55 +600,6 @@ public static class GlbExporter
     {
         var parent = node.GetParent();
         parent?.RemoveChild(node);
-    }
-
-    private static void LogExportTree(Node root)
-    {
-        var lines = new List<string>(512);
-        CollectTreeLines(root, 0, lines);
-
-        var suspicious = lines
-            .Where(l => l.Contains("icosphere", StringComparison.OrdinalIgnoreCase)
-                     || l.Contains("physical", StringComparison.OrdinalIgnoreCase)
-                     || l.Contains("collision", StringComparison.OrdinalIgnoreCase)
-                     || l.Contains("GLTF_not_exported", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"Export tree node count: {lines.Count}");
-        if (suspicious.Count > 0)
-        {
-            sb.AppendLine("Suspicious nodes:");
-            foreach (var line in suspicious.Take(40))
-            {
-                sb.AppendLine(line);
-            }
-        }
-
-        sb.AppendLine("Export tree (first 220 nodes):");
-        foreach (var line in lines.Take(220))
-        {
-            sb.AppendLine(line);
-        }
-
-        RunnerLogger.Info("GlbExporter", sb.ToString());
-    }
-
-    private static void CollectTreeLines(Node node, int depth, List<string> lines)
-    {
-        var indent = new string(' ', depth * 2);
-        var meshHint = string.Empty;
-        if (node is MeshInstance3D mi && mi.Mesh is not null)
-        {
-            var meshName = string.IsNullOrWhiteSpace(mi.Mesh.ResourceName) ? "<unnamed-mesh>" : mi.Mesh.ResourceName;
-            meshHint = $" mesh={mi.Mesh.GetType().Name}:{meshName}";
-        }
-
-        lines.Add($"{indent}- {node.GetType().Name} '{node.Name}'{meshHint}");
-        foreach (Node child in node.GetChildren())
-        {
-            CollectTreeLines(child, depth + 1, lines);
-        }
     }
 
     private static Dictionary<string, string> BuildNormToOrigMap(Skeleton3D skeleton)

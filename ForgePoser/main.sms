@@ -379,12 +379,12 @@ on editor.exportProgress(filename, percent) {
         if (sourceFrame < clipFrameFrom) {
             sourceFrame = clipFrameFrom
         }
-        statusLabel.text = "Rendering frame " + sourceFrame + "/" + clipFrameTo
+        statusLabel.text = "Rendering frame " + sourceFrame + "/" + clipFrameTo + " (" + percent + "%)"
     } else {
         if (percent == 100) {
             statusLabel.text = "Exported: " + filename
         } else {
-            statusLabel.text = "Write " + filename + "..."
+            statusLabel.text = "Export " + filename + " (" + percent + "%)"
         }
     }
 }
@@ -594,8 +594,8 @@ fun updateKeyframeTree() {
         i = i + 1
     }
 
-    // Debug dump: prints every stored bone key with its character id marker.
-    timeline.debugLogKeyframesForCharacter(selectedCharId)
+    // Enable this only when debugging keyframe scoping issues:
+    // timeline.debugLogKeyframesForCharacter(selectedCharId)
 }
 
 on timeline.keyframeAdded(frame, boneName) {

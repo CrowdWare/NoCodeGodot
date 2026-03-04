@@ -23,6 +23,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace Runtime.ThreeD;
 
@@ -2637,29 +2638,51 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                     IncludeProps: includeProps,
                     AnimationOnlyCharacter: animationOnly,
                     WithRig: true);
-                DoExportAsGlb(opts, savePath, timeline);
+                await DoExportAsGlbAsync(opts, savePath, timeline);
             };
             saveDlg.Canceled += () => saveDlg.QueueFree();
         };
         dlg.Canceled += () => dlg.QueueFree();
     }
 
-    private void DoExportAsGlb(GlbExporter.ExportOptions options, string path, TimelineControl timeline)
+    private async Task DoExportAsGlbAsync(GlbExporter.ExportOptions options, string path, TimelineControl timeline)
     {
         var filename  = System.IO.Path.GetFileName(path);
         var keyframes = timeline.GetAllKeyframes();
         var props     = _sceneProps.Select(p => (p.Node, p.Data.Name));
+        var lastPercent = -1;
+        void Report(int percent, string _)
+        {
+            var clamped = Math.Clamp(percent, 0, 100);
+            if (clamped == lastPercent) return;
+            lastPercent = clamped;
+            ExportProgress?.Invoke(filename, clamped);
+            // Best-effort repaint so long blocking phases still show intermediate progress.
+            RenderingServer.ForceDraw();
+        }
+
+        Report(3, "Prepare export");
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
         var currentPose = new Dictionary<string, Quaternion>(PoseData, StringComparer.OrdinalIgnoreCase);
         var ctx = GlbExporter.Prepare(_modelRoot!, currentPose, keyframes,
-            timeline.Fps, timeline.TotalFrames, props, options);
+            timeline.Fps, timeline.TotalFrames, props, options, Report);
 
         if (ctx is null)
         {
             return;
         }
 
+        Report(78, "Prepare file write");
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        Report(84, "Write file");
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
         if (GlbExporter.Write(ctx, path))
+        {
+            Report(96, "Finalize export");
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             ExportProgress?.Invoke(filename, 100);
+        }
     }
 }
