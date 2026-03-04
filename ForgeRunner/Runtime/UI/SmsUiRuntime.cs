@@ -287,6 +287,13 @@ public sealed class SmsUiRuntime
             if (!string.IsNullOrWhiteSpace(srcId))
                 TryInvokeEvent(srcId, "exportProgress", false, ctx.Clicked ?? string.Empty, (int)(ctx.NumericValue ?? 0));
         });
+
+        dispatcher.RegisterActionHandler("frameRangeExportFinished", ctx =>
+        {
+            var srcId = ResolveSourceId(ctx);
+            if (!string.IsNullOrWhiteSpace(srcId))
+                TryInvokeEvent(srcId, "frameRangeExportFinished", false, (int)(ctx.NumericValue ?? 0), ctx.Clicked ?? string.Empty);
+        });
     }
 
     public void InvokeReady()
@@ -1410,6 +1417,23 @@ public sealed class SmsUiRuntime
 
                 var count = posingEditorExt.ExportFrameRangePng(timeline, frameFrom, frameTo, outputDir);
                 return new NumberValue(count);
+            });
+
+            // startExportFrameRangePng(frameFrom, frameTo, outputDirectory) — async frame-by-frame sequence export
+            fields["startExportFrameRangePng"] = new NativeFunctionValue(methodArgs =>
+            {
+                var frameFrom = ValueArgInt(methodArgs, 0);
+                var frameTo = ValueArgInt(methodArgs, 1);
+                var outputDir = ResolveAiPath(ValueArgString(methodArgs, 2));
+                var timeline = FindSiblingTimeline(posingEditorExt);
+                if (timeline is null)
+                {
+                    RunnerLogger.Warn("SMS", "startExportFrameRangePng: no TimelineControl found in scene.");
+                    return new BooleanValue(false);
+                }
+
+                var ok = posingEditorExt.StartExportFrameRangePng(timeline, frameFrom, frameTo, outputDir);
+                return new BooleanValue(ok);
             });
         }
 

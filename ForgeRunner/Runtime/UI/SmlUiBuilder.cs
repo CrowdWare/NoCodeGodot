@@ -1320,6 +1320,18 @@ public sealed class SmlUiBuilder
                     ClickedIdValue: default,
                     NumericValue: percent));
             };
+            posingEditor.FrameRangeExportFinished += (written, outputDirectory) =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "frameRangeExportFinished",
+                    Clicked: outputDirectory,
+                    ClickedIdValue: default,
+                    NumericValue: written));
+            };
         }
 
         if (control is Runtime.ThreeD.TimelineControl timeline)

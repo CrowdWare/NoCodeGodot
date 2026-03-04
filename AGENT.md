@@ -43,6 +43,16 @@ Repository guidance for coding agents working in Forge.
 - Generate theme resource: `./run.sh theme`
 - Run default UI: `./run.sh default`
 - Run poser UI: `./run.sh poser`
+- Run full tests: `./run.sh test`
+
+## Current Delivery Status (2026-03-04)
+- `ForgeAiLib` exists and is integrated into `ForgeRunner` SMS runtime via global `ai` object.
+- ForgePoser proof path is wired:
+  - `menuExportCurrentFrame` -> capture + `ai.stylizeImage(...)`
+  - `menuExportStylizedClip` -> frame sequence export -> ffmpeg encode -> `ai.stylizeVideo(...)`
+- Frame range export was switched to async frame-by-frame capture so timeline pose updates are visible before each screenshot.
+- `tools/specs/` and runtime surface were updated for new AI and poser APIs; regenerate docs with `./run.sh docs` after interface changes.
+- Known open point: xAI video endpoint/protocol and model availability can change; keep `ForgeAiLib` request/response mapping aligned with current xAI docs before production rollout.
 
 ## Code Style
 - Match existing project conventions.

@@ -151,6 +151,17 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     public event Action<int>?                ObjectSelected;    // (propIdx, -1 = deselect)
     public event Action<int, Vector3>?       ObjectMoved;       // (propIdx, newWorldPos)
     public event Action<string, int>?        ExportProgress;    // (filename, percent 0‥100)
+    public event Action<int, string>?        FrameRangeExportFinished; // (written, outputDirectory)
+
+    // ── Async frame-range export state ───────────────────────────────────────
+    private bool _frameExportRunning;
+    private TimelineControl? _frameExportTimeline;
+    private int _frameExportCurrent;
+    private int _frameExportEnd;
+    private int _frameExportTotal;
+    private int _frameExportWritten;
+    private string _frameExportOutputDir = string.Empty;
+    private bool _frameExportAwaitingCapture;
 
     // ── Editor mode control ───────────────────────────────────────────────────
 
@@ -496,9 +507,78 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
     public override void _Process(double delta)
     {
+        TickFrameRangeExport();
         UpdateJointSpherePositions();
         if (_selectedPropIdx >= 0 || _characterSelected) QueueRedraw();
         PollDrag();
+    }
+
+    private void TickFrameRangeExport()
+    {
+        if (!_frameExportRunning || _frameExportTimeline is null)
+        {
+            return;
+        }
+
+        if (_frameExportCurrent > _frameExportEnd)
+        {
+            FinishFrameRangeExport();
+            return;
+        }
+
+        if (!_frameExportAwaitingCapture)
+        {
+            _frameExportTimeline.SetCurrentFrame(_frameExportCurrent);
+            var pose = _frameExportTimeline.GetPoseAt(_frameExportCurrent);
+            if (pose is not null)
+            {
+                LoadPose(pose);
+            }
+
+            _skeleton?.ForceUpdateAllBoneTransforms();
+            _modelRoot?.ForceUpdateTransform();
+            _worldRoot.ForceUpdateTransform();
+
+            // Defer capture to next process tick to ensure this frame is visibly rendered.
+            _frameExportAwaitingCapture = true;
+            return;
+        }
+
+        RenderingServer.ForceDraw();
+        RenderingServer.ForceDraw();
+
+        var fileName = "frame_" + _frameExportWritten.ToString("D4", CultureInfo.InvariantCulture) + ".png";
+        var outputPath = Path.Combine(_frameExportOutputDir, fileName);
+        if (!ExportCurrentFramePng(outputPath))
+        {
+            RunnerLogger.Warn("PosingEditor", $"Frame range export stopped at frame {_frameExportCurrent}.");
+            FinishFrameRangeExport();
+            return;
+        }
+
+        _frameExportWritten++;
+        var percent = (int)Math.Round((_frameExportWritten / (double)Math.Max(1, _frameExportTotal)) * 100.0);
+        ExportProgress?.Invoke(fileName, Math.Clamp(percent, 0, 100));
+
+        _frameExportCurrent++;
+        _frameExportAwaitingCapture = false;
+    }
+
+    private void FinishFrameRangeExport()
+    {
+        var written = _frameExportWritten;
+        var outputDir = _frameExportOutputDir;
+
+        _frameExportRunning = false;
+        _frameExportTimeline = null;
+        _frameExportCurrent = 0;
+        _frameExportEnd = 0;
+        _frameExportTotal = 0;
+        _frameExportWritten = 0;
+        _frameExportAwaitingCapture = false;
+        _frameExportOutputDir = string.Empty;
+
+        FrameRangeExportFinished?.Invoke(written, outputDir);
     }
 
     /// <summary>
@@ -1693,6 +1773,41 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     /// Exports an inclusive frame range to PNG files (`frame_0000.png`, ...) by
     /// applying timeline poses frame-by-frame and forcing a render before capture.
     /// Returns the number of written frames.
+    /// </summary>
+    public bool StartExportFrameRangePng(TimelineControl timeline, int frameFrom, int frameTo, string outputDirectory)
+    {
+        if (_frameExportRunning || timeline is null || string.IsNullOrWhiteSpace(outputDirectory))
+        {
+            return false;
+        }
+
+        var start = Math.Min(frameFrom, frameTo);
+        var end = Math.Max(frameFrom, frameTo);
+        if (end < start)
+        {
+            return false;
+        }
+
+        Directory.CreateDirectory(outputDirectory);
+        foreach (var file in Directory.EnumerateFiles(outputDirectory, "frame_*.png"))
+        {
+            try { File.Delete(file); } catch { /* best-effort cleanup */ }
+        }
+
+        _frameExportTimeline = timeline;
+        _frameExportCurrent = start;
+        _frameExportEnd = end;
+        _frameExportTotal = (end - start) + 1;
+        _frameExportWritten = 0;
+        _frameExportOutputDir = outputDirectory;
+        _frameExportAwaitingCapture = false;
+        _frameExportRunning = true;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Legacy synchronous export; kept for compatibility.
     /// </summary>
     public int ExportFrameRangePng(TimelineControl timeline, int frameFrom, int frameTo, string outputDirectory)
     {

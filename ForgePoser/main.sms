@@ -16,6 +16,14 @@ var aiStyleImagePath = ""
 var aiExtraImagePath = ""
 var aiImageModel = "grok-imagine-image"
 var aiVideoModel = "grok-imagine-video"
+var clipExportPending = false
+var clipFrameFrom = 0
+var clipFrameTo = 0
+var clipExpectedFrames = 0
+var clipFramesDir = ""
+var clipFps = 24
+var clipSourceVideoPath = ""
+var clipStyledVideoPath = ""
 
 fun activateArrangeMove() {
     currentMode    = "arrange"
@@ -153,6 +161,11 @@ on menuExportCurrentFrame.clicked() {
 }
 
 on menuExportStylizedClip.clicked() {
+    if (clipExportPending) {
+        statusLabel.text = "Stylized clip export already running."
+        return
+    }
+
     if (!ai.isConfigured()) {
         statusLabel.text = "AI not configured. Set GROK_API_KEY."
         return
@@ -177,39 +190,73 @@ on menuExportStylizedClip.clicked() {
         frameTo = maxFrameTo
     }
 
-    var framesDir = "exports/frames_" + frameFrom + "_" + frameTo
-    var fps = 24
-    var sourceVideoPath = "exports/source_clip.mp4"
-    var styledVideoPath = "exports/styled_clip_<version>.mp4"
+    clipFramesDir = "exports/frames_" + frameFrom + "_" + frameTo
+    clipFrameFrom = frameFrom
+    clipFrameTo = frameTo
+    clipExpectedFrames = (frameTo - frameFrom) + 1
+    clipFps = 24
+    clipSourceVideoPath = "exports/source_clip.mp4"
+    clipStyledVideoPath = "exports/styled_clip_<version>.mp4"
 
     statusLabel.text = "Rendering frames " + frameFrom + "..." + frameTo
-    var written = editor.exportFrameRangePng(frameFrom, frameTo, framesDir)
+    var started = editor.startExportFrameRangePng(frameFrom, frameTo, clipFramesDir)
+    if (!started) {
+        statusLabel.text = "Frame sequence render start failed."
+        return
+    }
+    clipExportPending = true
+}
+
+on editor.frameRangeExportFinished(written, outputDirectory) {
+    if (!clipExportPending) {
+        return
+    }
+    clipExportPending = false
+
     if (written <= 1) {
         statusLabel.text = "Frame sequence render failed."
+        clipExpectedFrames = 0
         return
     }
 
     statusLabel.text = "Encoding source clip..."
-    var encodedPath = ai.createVideoFromFrames(framesDir, fps, sourceVideoPath, "frame_%04d.png")
+    var encodedPath = ai.createVideoFromFrames(outputDirectory, clipFps, clipSourceVideoPath, "frame_%04d.png")
     if (encodedPath == "") {
         statusLabel.text = "Video encoding failed (ffmpeg missing?)."
+        clipExpectedFrames = 0
         return
     }
 
     statusLabel.text = "Sending clip to Grok..."
-    var styledPath = ai.stylizeVideo(encodedPath, styledVideoPath, aiPrompt, aiNegativePrompt, aiVideoModel)
+    var styledPath = ai.stylizeVideo(encodedPath, clipStyledVideoPath, aiPrompt, aiNegativePrompt, aiVideoModel)
     if (styledPath != "") {
         statusLabel.text = "Stylized clip: " + styledPath
     } else {
         statusLabel.text = "Stylized clip failed."
     }
+    clipExpectedFrames = 0
 }
 
 on editor.exportProgress(filename, percent) {
-    if (percent == 100) {
-        statusLabel.text = "Exported: " + filename
+    if (clipExportPending && clipExpectedFrames > 0) {
+        var current = percent * clipExpectedFrames / 100
+        if (percent > 0 && current < 1) {
+            current = 1
+        }
+        if (current > clipExpectedFrames) {
+            current = clipExpectedFrames
+        }
+        var sourceFrame = clipFrameFrom + current - 1
+        if (sourceFrame < clipFrameFrom) {
+            sourceFrame = clipFrameFrom
+        }
+        statusLabel.text = "Rendering frame " + current + "/" + clipExpectedFrames + " (src " + sourceFrame + ")"
     } else {
-        statusLabel.text = "Write " + filename + "..."
+        if (percent == 100) {
+            statusLabel.text = "Exported: " + filename
+        } else {
+            statusLabel.text = "Write " + filename + "..."
+        }
     }
 }
 

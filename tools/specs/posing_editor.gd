@@ -44,6 +44,7 @@ func get_spec() -> Dictionary:
             {"sms":"setEditMode",         "params":[{"name":"mode","type":"string"}], "returns":"void", "note":"Values: 'move' | 'scale' | 'rotate'. Only effective in Arrange mode."},
             {"sms":"exportCurrentFramePng","params":[{"name":"path","type":"string"}], "returns":"bool", "note":"Captures current viewport frame and writes a PNG."},
             {"sms":"exportFrameRangePng", "params":[{"name":"frameFrom","type":"int"},{"name":"frameTo","type":"int"},{"name":"outputDirectory","type":"string"}], "returns":"int", "note":"Exports a PNG sequence frame-by-frame from the timeline and returns written frame count."},
+            {"sms":"startExportFrameRangePng", "params":[{"name":"frameFrom","type":"int"},{"name":"frameTo","type":"int"},{"name":"outputDirectory","type":"string"}], "returns":"bool", "note":"Starts async frame-by-frame PNG sequence export. Completion is signaled via frameRangeExportFinished."},
         ],
         "events": [
             {"sms":"boneSelected",    "params":[{"name":"boneName","type":"string"}]},
@@ -53,6 +54,7 @@ func get_spec() -> Dictionary:
             {"sms":"scenePropRemoved","params":[{"name":"index","type":"int"}]},
             {"sms":"objectSelected",  "params":[{"name":"propIdx","type":"int"}], "note":"-1 = deselect"},
             {"sms":"objectMoved",     "params":[{"name":"propIdx","type":"int"},{"name":"pos","type":"string"}], "note":"pos = 'x,y,z'"},
+            {"sms":"frameRangeExportFinished", "params":[{"name":"written","type":"int"},{"name":"outputDirectory","type":"string"}]},
         ],
         "dynamic_properties": [
             {"sms":"poseData", "type":"object", "note":"Dictionary<boneName, Quaternion> — use with setKeyframe/loadPose"},
