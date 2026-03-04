@@ -146,6 +146,20 @@ public sealed class SmsUiRuntime
             TryInvokeEvent(listId, "itemSelected", false, (double)index);
         });
 
+        dispatcher.RegisterActionHandler("lineEditTextChanged", ctx =>
+        {
+            var sourceId = ResolveSourceId(ctx);
+            if (string.IsNullOrWhiteSpace(sourceId)) return;
+            TryInvokeEvent(sourceId, "textChanged", false, ctx.Clicked ?? string.Empty);
+        });
+
+        dispatcher.RegisterActionHandler("lineEditTextSubmitted", ctx =>
+        {
+            var sourceId = ResolveSourceId(ctx);
+            if (string.IsNullOrWhiteSpace(sourceId)) return;
+            TryInvokeEvent(sourceId, "textSubmitted", false, ctx.Clicked ?? string.Empty);
+        });
+
         dispatcher.RegisterActionHandler("treeItemToggled", ctx =>
         {
             var treeId = ResolveSourceId(ctx);
@@ -1690,6 +1704,17 @@ public sealed class SmsUiRuntime
                 var z = ValueArgFloat(methodArgs, 3);
                 posingEditorExt.SetSceneCharacterScale(idx, x, y, z);
                 return NullValue.Instance;
+            });
+
+            // placeSelectedOnGround(groundY) — align selected character/prop bottom to world Y
+            fields["placeSelectedOnGround"] = new NativeFunctionValue(methodArgs =>
+            {
+                var groundY = methodArgs.Count > 0 ? ValueArgFloat(methodArgs, 0) : 0f;
+                return new BooleanValue(posingEditorExt.PlaceSelectedOnGround(groundY));
+            });
+            fields["rebaseSelectedPivotBottom"] = new NativeFunctionValue(_ =>
+            {
+                return new BooleanValue(posingEditorExt.RebaseSelectedPivotBottom());
             });
 
             // setSceneCharacterName(idx, name)

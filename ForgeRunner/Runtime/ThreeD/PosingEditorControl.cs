@@ -1198,12 +1198,15 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         var name = string.IsNullOrWhiteSpace(characterName)
             ? System.IO.Path.GetFileNameWithoutExtension(path)
             : characterName!;
+        var characterRoot = TryRebaseNodePivotBottom(node3D, out var rebasedCharacterRoot)
+            ? rebasedCharacterRoot
+            : node3D;
         _sceneCharacters.Add(new SceneCharacterEntry
         {
             Id = id,
             Path = path,
             Name = name,
-            Node = node3D,
+            Node = characterRoot,
             Skeleton = skeleton
         });
 
@@ -1225,8 +1228,27 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         var data = new ScenePropData(path, name, posX, posY, posZ, 0f, 0f, 0f, 1f, 1f, 1f);
         ApplyPropTransform(node3D, data);
 
+        var propRoot = TryRebaseNodePivotBottom(node3D, out var rebasedPropRoot)
+            ? rebasedPropRoot
+            : node3D;
+        var p = propRoot.Position;
+        var r = propRoot.RotationDegrees;
+        var s = propRoot.Scale;
+        data = data with
+        {
+            PosX = p.X,
+            PosY = p.Y,
+            PosZ = p.Z,
+            RotX = r.X,
+            RotY = r.Y,
+            RotZ = r.Z,
+            ScaleX = s.X,
+            ScaleY = s.Y,
+            ScaleZ = s.Z
+        };
+
         var idx = _sceneProps.Count;
-        _sceneProps.Add((node3D, data));
+        _sceneProps.Add((propRoot, data));
         ScenePropAdded?.Invoke(idx, path);
         return idx;
     }
@@ -2241,7 +2263,6 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         AttachArrangeGizmoToNode(_sceneCharacters[characterIdx].Node);
         ObjectSelected?.Invoke(-1);
         QueueRedraw();
-        RunnerLogger.Info("PosingEditor", $"Character selected for transform: idx={characterIdx} id='{_sceneCharacters[characterIdx].Id}'.");
     }
 
     public int GetSceneCharacterCount() => _sceneCharacters.Count;
@@ -2336,6 +2357,138 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         var data = old with { ScaleX = x, ScaleY = y, ScaleZ = z };
         _sceneProps[index] = (node, data);
         ApplyPropTransform(node, data);
+    }
+
+    public bool PlaceSelectedOnGround(float groundY = 0f)
+    {
+        if (!TryGetSelectedTransformTarget(out var target, out var isCharacter, out var selectedIdx))
+            return false;
+
+        var aabb = GetNodeWorldAabb(target);
+        if (aabb.Size == Vector3.Zero)
+            return false;
+
+        var deltaY = groundY - aabb.Position.Y;
+        if (Mathf.Abs(deltaY) <= 0.0001f)
+            return true;
+
+        target.GlobalPosition += new Vector3(0f, deltaY, 0f);
+
+        if (!isCharacter && selectedIdx >= 0 && selectedIdx < _sceneProps.Count)
+        {
+            var (node, old) = _sceneProps[selectedIdx];
+            var pos = node.GlobalPosition;
+            _sceneProps[selectedIdx] = (node, old with { PosX = pos.X, PosY = pos.Y, PosZ = pos.Z });
+            ObjectMoved?.Invoke(selectedIdx, pos);
+        }
+
+        QueueRedraw();
+        return true;
+    }
+
+    public bool RebaseSelectedPivotBottom()
+    {
+        if (!TryGetSelectedTransformTarget(out var target, out var isCharacter, out var selectedIdx))
+            return false;
+        if (!TryRebaseNodePivotBottom(target, out var pivot))
+            return false;
+
+        if (isCharacter && selectedIdx >= 0 && selectedIdx < _sceneCharacters.Count)
+        {
+            _sceneCharacters[selectedIdx].Node = pivot;
+            if (_activeCharacterIdx == selectedIdx)
+                _modelRoot = pivot;
+            _characterSelected = true;
+            _selectedCharacterIdx = selectedIdx;
+            if (_activeCharacterIdx < 0)
+                _activeCharacterIdx = selectedIdx;
+        }
+        else if (!isCharacter && selectedIdx >= 0 && selectedIdx < _sceneProps.Count)
+        {
+            var (_, old) = _sceneProps[selectedIdx];
+            var pos = pivot.GlobalPosition;
+            var rot = pivot.RotationDegrees;
+            var scale = pivot.Scale;
+            var updated = old with
+            {
+                PosX = pos.X,
+                PosY = pos.Y,
+                PosZ = pos.Z,
+                RotX = rot.X,
+                RotY = rot.Y,
+                RotZ = rot.Z,
+                ScaleX = scale.X,
+                ScaleY = scale.Y,
+                ScaleZ = scale.Z
+            };
+            _sceneProps[selectedIdx] = (pivot, updated);
+            _selectedPropIdx = selectedIdx;
+            _characterSelected = false;
+            ObjectMoved?.Invoke(selectedIdx, pos);
+        }
+
+        if (_editorMode == EditorMode.Arrange)
+            AttachArrangeGizmoToNode(pivot);
+
+        QueueRedraw();
+        return true;
+    }
+
+    private bool TryGetSelectedTransformTarget(out Node3D target, out bool isCharacter, out int selectedIdx)
+    {
+        target = null!;
+        isCharacter = false;
+        selectedIdx = -1;
+
+        if (_characterSelected
+            && _selectedCharacterIdx >= 0
+            && _selectedCharacterIdx < _sceneCharacters.Count
+            && _sceneCharacters[_selectedCharacterIdx].Node.IsInsideTree())
+        {
+            target = _sceneCharacters[_selectedCharacterIdx].Node;
+            isCharacter = true;
+            selectedIdx = _selectedCharacterIdx;
+            return true;
+        }
+
+        if (_selectedPropIdx >= 0
+            && _selectedPropIdx < _sceneProps.Count
+            && _sceneProps[_selectedPropIdx].Node.IsInsideTree())
+        {
+            target = _sceneProps[_selectedPropIdx].Node;
+            isCharacter = false;
+            selectedIdx = _selectedPropIdx;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryRebaseNodePivotBottom(Node3D target, out Node3D pivot)
+    {
+        pivot = null!;
+        if (target.GetParent() is not Node3D parent)
+            return false;
+
+        var aabb = GetNodeWorldAabb(target);
+        if (aabb.Size == Vector3.Zero)
+            return false;
+
+        var desiredPivot = new Vector3(
+            (aabb.Position.X + aabb.End.X) * 0.5f,
+            aabb.Position.Y,
+            (aabb.Position.Z + aabb.End.Z) * 0.5f);
+
+        pivot = new Node3D
+        {
+            Name = string.IsNullOrWhiteSpace(target.Name)
+                ? "Pivot"
+                : $"{target.Name}_Pivot"
+        };
+        parent.AddChild(pivot);
+        pivot.GlobalPosition = desiredPivot;
+        target.Reparent(pivot, true);
+        return true;
     }
 
     private static void ApplyPropTransform(Node3D node, ScenePropData data)

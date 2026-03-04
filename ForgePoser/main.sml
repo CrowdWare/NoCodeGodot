@@ -224,7 +224,7 @@ Window {
 
                     HBoxContainer {
                         spacing: 4
-                        Button { id: btnCenterPivot text: "Center Pivot" sizeFlagsHorizontal: expandFill tooltipText: "Center Pivot" }
+                        Button { id: btnPlaceOnGround text: "Place On Ground" sizeFlagsHorizontal: expandFill tooltipText: "Set selected object bottom to Y=0" }
                     }
                 }
             }

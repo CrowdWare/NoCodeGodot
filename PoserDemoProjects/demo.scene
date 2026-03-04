@@ -12,7 +12,7 @@
 
     Character {
         id: char1  name: "man"  src: "res:/assets/models/man.glb"
-        pos: 2.0, 0.0, 0.0
+        pos: 2.0, -0.001682712, 0.008866384
         rot: 0.0, 0.0, 0.0
         scale: 1.0, 1.0, 1.0
 
@@ -25,7 +25,7 @@
     }
     Character {
         id: char2  name: "man"  src: "res:/assets/models/man.glb"
-        pos: -0.2283004, 0.0, 0.0
+        pos: 0.3116996, 0.0, 0.7588664
         rot: 0.0, 0.0, 0.0
         scale: 1.0, 1.0, 1.0
 
@@ -33,17 +33,19 @@
             Key { frame: 0
                 Bone { name: "mixamorig1_LeftArm" x: 0.3852519 y: -0.107668 z: 0.02392929 w: 0.9161965 }
                 Bone { name: "mixamorig1_RightArm" x: 0.4723653 y: -0.01924433 z: 0.08728699 w: 0.876859 }
+                Bone { name: "mixamorig1_LeftUpLeg" x: 0.001582741 y: -0.03159526 z: 0.9899918 w: -0.1375334 }
             }
             Key { frame: 10
-                Bone { name: "mixamorig1_LeftArm" x: 0.3798333 y: -0.3334376 z: 0.2013067 w: 0.8390601 }
+                Bone { name: "mixamorig1_LeftArm" x: 0.3798333 y: -0.3334376 z: 0.2013067 w: 0.83906 }
                 Bone { name: "mixamorig1_RightArm" x: 0.4723653 y: -0.01924433 z: 0.08728699 w: 0.876859 }
             }
             Key { frame: 20
-                Bone { name: "mixamorig1_LeftArm" x: 0.3220147 y: -0.5827034 z: 0.4052517 w: 0.6265256 }
+                Bone { name: "mixamorig1_LeftArm" x: 0.3220147 y: -0.5827035 z: 0.4052518 w: 0.6265256 }
                 Bone { name: "mixamorig1_RightArm" x: 0.4723653 y: -0.01924433 z: 0.08728699 w: 0.876859 }
+                Bone { name: "mixamorig1_LeftUpLeg" x: -0.1635391 y: -0.008216539 z: 0.976392 w: -0.1408764 }
             }
             Key { frame: 30
-                Bone { name: "mixamorig1_LeftArm" x: 0.2151723 y: -0.743258 z: 0.5475009 w: 0.3186081 }
+                Bone { name: "mixamorig1_LeftArm" x: 0.2151723 y: -0.7432581 z: 0.547501 w: 0.3186081 }
                 Bone { name: "mixamorig1_RightArm" x: 0.4723653 y: -0.01924433 z: 0.08728699 w: 0.876859 }
             }
         }

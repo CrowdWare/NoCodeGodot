@@ -6,6 +6,7 @@ var sceneListRef = null
 var editor = null
 var timeline = null
 var statusLabel = null
+var rightDockRef = null
 var bonesPanelRef = null
 var inspectorPanelRef = null
 var inspectorTargetLabel = null
@@ -153,6 +154,7 @@ fun ready() {
     editor       = ui.getObject("editor")
     timeline     = ui.getObject("timeline")
     statusLabel  = ui.getObject("statusLabel")
+    rightDockRef = ui.getObject("rightDock")
     bonesPanelRef = ui.getObject("bonesPanel")
     inspectorPanelRef = ui.getObject("inspectorPanel")
     inspectorTargetLabel = ui.getObject("inspectorTargetLabel")
@@ -197,6 +199,9 @@ fun configureInspectorNumericFields() {
 
 fun setRightPanels(selectionKind) {
     // selectionKind: "none" | "character" | "prop"
+    if (rightDockRef != null) {
+        rightDockRef.visible = selectionKind == "character"
+    }
     if (bonesPanelRef != null) {
         bonesPanelRef.visible = selectionKind == "character"
     }
@@ -570,6 +575,7 @@ on sceneAssetList.itemSelected(index) {
     if (index < charCount) {
         // Character row — active in both Arrange and Pose modes
         editor.setJointSpheresVisible(false)
+        editor.setBoneTree("boneTree")
         editor.selectSceneCharacter(index)
         updateKeyframeTree()
         updateInspectorFromSelection()
@@ -689,9 +695,17 @@ on editor.objectSelected(propIdx) {
         updateInspectorFromSelection()
         statusLabel.text = "Object selected: prop " + propIdx
     } else {
-        selectedSceneAssetIndex = -1
-        updateInspectorFromSelection()
-        statusLabel.text = "Object deselected."
+        // Character selection may emit objectSelected(-1) as part of gizmo switching.
+        // Keep current character selection instead of clearing inspector/bone panels.
+        var charCount = editor.getSceneCharacterCount()
+        if (selectedSceneAssetIndex >= 0 && selectedSceneAssetIndex < charCount) {
+            updateInspectorFromSelection()
+            statusLabel.text = "Character remains selected."
+        } else {
+            selectedSceneAssetIndex = -1
+            updateInspectorFromSelection()
+            statusLabel.text = "Object deselected."
+        }
     }
 }
 
@@ -728,8 +742,14 @@ on inspScaleZ.textChanged(newText) {
     applyInspectorTransformLive()
 }
 
-on btnCenterPivot.clicked() {
-    statusLabel.text = "Center Pivot is not implemented yet."
+on btnPlaceOnGround.clicked() {
+    var ok = editor.placeSelectedOnGround(0)
+    if (ok) {
+        updateInspectorFromSelection()
+        statusLabel.text = "Placed on ground (Y=0)."
+    } else {
+        statusLabel.text = "No valid selection for Place On Ground."
+    }
 }
 
 // ── Keyframe inspector ────────────────────────────────────────────────────────

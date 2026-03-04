@@ -31,6 +31,14 @@ The following must parse and execute:
 - Trailing spaces/newlines between `(`, arguments, commas, and `)`
 - Nested calls split across multiple lines
 
+
+## Numbers
+Because we are changing the parser/interpeter anyways. We should implement flaoting number, because we now work in a 3D environment. And need floats and Vec3D().
+But instead of implementing Float I would prefer Double (64 bit) for future.
+And when we alredy got Double we should make Integer also (64 bit) for future,
+
+Add unit tests for all possible cases with number. Only accept simple syntax 1.0, .5, 3.14 and no exponential versions. 
+
 ## Acceptance Criteria
 - Multiline argument list parses without error.
 - Existing SMS tests remain green.

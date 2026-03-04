@@ -99,9 +99,6 @@ internal sealed class NumericLineEditBehavior
 
     private void OnGuiInput(InputEvent @event)
     {
-        if (_editing)
-            return;
-
         if (@event is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Left)
         {
             if (mb.Pressed)
@@ -109,8 +106,11 @@ internal sealed class NumericLineEditBehavior
                 _pressed = true;
                 _dragging = false;
                 _dragStartPos = mb.Position;
-                _dragStartValue = _value;
-                _lineEdit.AcceptEvent();
+                _dragStartValue = GetValue();
+                // In preview mode we fully own the click/drag interaction.
+                // In edit mode we defer consumption unless the user actually drags.
+                if (!_editing)
+                    _lineEdit.AcceptEvent();
                 return;
             }
 
@@ -119,9 +119,13 @@ internal sealed class NumericLineEditBehavior
                 var wasDragging = _dragging;
                 _pressed = false;
                 _dragging = false;
-                _lineEdit.AcceptEvent();
-                if (!wasDragging)
+                if (wasDragging)
                 {
+                    _lineEdit.AcceptEvent();
+                }
+                else if (!_editing)
+                {
+                    _lineEdit.AcceptEvent();
                     EnterEditMode();
                 }
                 return;
@@ -130,9 +134,21 @@ internal sealed class NumericLineEditBehavior
 
         if (_pressed && @event is InputEventMouseMotion mm)
         {
+            if (!Input.IsMouseButtonPressed(MouseButton.Left))
+            {
+                _pressed = false;
+                _dragging = false;
+                return;
+            }
+
             var deltaX = mm.Position.X - _dragStartPos.X;
             if (!_dragging && Math.Abs(deltaX) >= 2.0f)
             {
+                if (_editing)
+                {
+                    CommitEditAndShowPreview();
+                    _lineEdit.ReleaseFocus();
+                }
                 _dragging = true;
             }
             if (_dragging)
@@ -140,6 +156,7 @@ internal sealed class NumericLineEditBehavior
                 var scaled = deltaX * _dragSensitivity;
                 var next = _dragStartValue + (scaled * _step);
                 SetValue(next);
+                _lineEdit.EmitSignal(LineEdit.SignalName.TextChanged, _lineEdit.Text);
                 _lineEdit.AcceptEvent();
             }
         }

@@ -1416,6 +1416,37 @@ public sealed class SmlUiBuilder
             }
         }
 
+        if (control is LineEdit lineEdit)
+        {
+            var sourceId = GetMetaString(control, NodePropertyMapper.MetaId);
+            if (!string.IsNullOrWhiteSpace(sourceId))
+            {
+                lineEdit.TextChanged += newText =>
+                {
+                    _actionDispatcher.Dispatch(new UiActionContext(
+                        Source: control,
+                        SourceId: sourceId,
+                        SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                        Action: "lineEditTextChanged",
+                        Clicked: newText,
+                        ClickedIdValue: default
+                    ));
+                };
+
+                lineEdit.TextSubmitted += newText =>
+                {
+                    _actionDispatcher.Dispatch(new UiActionContext(
+                        Source: control,
+                        SourceId: sourceId,
+                        SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                        Action: "lineEditTextSubmitted",
+                        Clicked: newText,
+                        ClickedIdValue: default
+                    ));
+                };
+            }
+        }
+
         if (control is HSlider slider)
         {
             slider.ValueChanged += value =>

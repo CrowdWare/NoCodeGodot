@@ -51,6 +51,8 @@ func get_spec() -> Dictionary:
             {"sms":"setScenePropPos",     "params":[{"name":"index","type":"int"},{"name":"x","type":"float"},{"name":"y","type":"float"},{"name":"z","type":"float"}], "returns":"void"},
             {"sms":"getScenePropRot",     "params":[{"name":"index","type":"int"}], "returns":"string", "note":"Returns 'x,y,z' Euler degrees"},
             {"sms":"setScenePropRot",     "params":[{"name":"index","type":"int"},{"name":"x","type":"float"},{"name":"y","type":"float"},{"name":"z","type":"float"}], "returns":"void"},
+            {"sms":"placeSelectedOnGround","params":[{"name":"groundY","type":"float"}], "returns":"bool", "note":"Moves selected character/prop so its world-space AABB bottom sits on groundY (use 0 for default floor)."},
+            {"sms":"rebaseSelectedPivotBottom","params":[], "returns":"bool", "note":"Wraps selected character/prop in a pivot helper placed at world-space bottom-center; keeps visual transform unchanged."},
             {"sms":"getPoseDataForCharacter", "params":[{"name":"characterId","type":"string"}], "returns":"object", "note":"Returns scoped poseData dictionary for one character only."},
             {"sms":"getPoseDataForActiveCharacter", "params":[], "returns":"object", "note":"Returns scoped poseData dictionary for the currently active character."},
             {"sms":"setMode",             "params":[{"name":"mode","type":"string"}], "returns":"void", "note":"Values: 'pose' | 'arrange'. Clears all gizmos and selections."},
