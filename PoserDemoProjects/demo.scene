@@ -1,6 +1,6 @@
 ﻿Scene {
     Character {
-        id: "hero"  name: "Opa"  src: "/Users/art/SourceCode/Forge/ForgePoser/assets/models/man.glb"
+        id: "hero"  name: "man"  src: "/Users/art/SourceCode/Forge/ForgePoser/assets/models/man.glb"
         pos: 0.656241, 0.0, 0.0
         rot: -0.0, 0.0, 0.0
         scale: 1.0, 1.0, 1.0
@@ -32,6 +32,12 @@
         id: "prop0"  name: "Idle"  src: "/Users/art/SourceCode/Forge/PoserDemoProjects/assets/models/Idle.glb"
         pos: 2.27777, 0.24695, 0.395714
         rot: -3.20465, -12.6187, 9.26368
+        scale: 1.0, 1.0, 1.0
+    }
+    Asset {
+        id: "prop1"  name: "woman"  src: "/Users/art/SourceCode/Forge/PoserDemoProjects/assets/models/woman.glb"
+        pos: -0.710561, 0.0, 0.0
+        rot: -0.0, 0.0, 0.0
         scale: 1.0, 1.0, 1.0
     }
 }

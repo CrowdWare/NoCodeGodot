@@ -11,6 +11,7 @@ public static class SchemaFunctions
 {
     public static readonly FunctionDef[] All =
     [
+        new FunctionDef("ai.createVideoFromFrames", "AI", "ai.createVideoFromFrames(framesDirectory: String, fps: int, outputPath: String, pattern: String?)", "Encodes a PNG frame sequence to MP4 via ffmpeg. Returns outputPath on success or empty string on failure. Default pattern is frame_%04d.png."),
         new FunctionDef("ai.describeImage", "AI", "ai.describeImage(imagePath: String, prompt: String?, model: String?)", "Sends a local image to Grok Vision and returns the textual analysis. imagePath may be absolute or relative to the app project root."),
         new FunctionDef("ai.isConfigured", "AI", "ai.isConfigured()", "Returns true when GROK_API_KEY is available to the runtime, otherwise false."),
         new FunctionDef("ai.stylizeImage", "AI", "ai.stylizeImage(posePath: String, outputPath: String, prompt: String, stylePath: String?, extraPath: String?, negativePrompt: String?, model: String?)", "Runs image-to-image stylization via Grok using pose/style/extra references and writes the generated image to outputPath. Returns the resolved output path (supports <version> placeholder)."),

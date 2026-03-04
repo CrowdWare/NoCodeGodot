@@ -4,6 +4,9 @@ This document lists built-in SMS runtime helper functions available in Forge.
 
 ## AI
 
+### ai.createVideoFromFrames(framesDirectory: String, fps: int, outputPath: String, pattern: String?)
+Encodes a PNG frame sequence to MP4 via ffmpeg. Returns outputPath on success or empty string on failure. Default pattern is frame_%04d.png.
+
 ### ai.describeImage(imagePath: String, prompt: String?, model: String?)
 Sends a local image to Grok Vision and returns the textual analysis. imagePath may be absolute or relative to the app project root.
 

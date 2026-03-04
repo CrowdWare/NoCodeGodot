@@ -38,6 +38,7 @@ Inherited actions are documented in: [SubViewportContainer](SubViewportContainer
 | loadProject | `<id>.loadProject(path)` | string path | void |
 | saveProject | `<id>.saveProject(path)` | string path | void |
 | addSceneProp | `<id>.addSceneProp(path, posX, posY, posZ)` | string path, float posX, float posY, float posZ | int |
+| removeCharacter | `<id>.removeCharacter()` | — | void |
 | removeSceneProp | `<id>.removeSceneProp(index)` | int index | void |
 | getScenePropCount | `<id>.getScenePropCount()` | — | int |
 | getScenePropPath | `<id>.getScenePropPath(index)` | int index | string |
@@ -48,3 +49,6 @@ Inherited actions are documented in: [SubViewportContainer](SubViewportContainer
 | setScenePropRot | `<id>.setScenePropRot(index, x, y, z)` | int index, float x, float y, float z | void |
 | setMode | `<id>.setMode(mode)` | string mode | void |
 | setEditMode | `<id>.setEditMode(mode)` | string mode | void |
+| exportCurrentFramePng | `<id>.exportCurrentFramePng(path)` | string path | bool |
+| exportFrameRangePng | `<id>.exportFrameRangePng(frameFrom, frameTo, outputDirectory)` | int frameFrom, int frameTo, string outputDirectory | int |
+| startExportFrameRangePng | `<id>.startExportFrameRangePng(frameFrom, frameTo, outputDirectory)` | int frameFrom, int frameTo, string outputDirectory | bool |

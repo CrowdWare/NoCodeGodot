@@ -8,6 +8,7 @@ var timeline = null
 var statusLabel = null
 var jointSpheresVisible = false
 var hasCharacter = false
+var selectedSceneAssetIndex = -1
 var currentMode = "arrange"
 var currentEditMode = "move"
 var aiPrompt = "Keep exact pose and composition. Render as high-quality cinematic stylized scene."
@@ -43,6 +44,7 @@ fun activateArrangeMove() {
 
 fun selectFirstSceneAsset() {
     if (hasCharacter) {
+        selectedSceneAssetIndex = 0
         editor.selectCharacter()
     }
 }
@@ -84,6 +86,7 @@ on menuNew.clicked() {
     editor.resetPose()
     currentProjectPath = ""
     hasCharacter = false
+    selectedSceneAssetIndex = -1
     sceneListRef.Clear()
     kfTreeRef.Clear()
     statusLabel.text = "New project."
@@ -284,9 +287,11 @@ fun updateScenePanel() {
         sceneListRef.AddItem("Prop " + i + ": " + p)
         i = i + 1
     }
+    selectedSceneAssetIndex = -1
 }
 
 on sceneAssetList.itemSelected(index) {
+    selectedSceneAssetIndex = index
     if (hasCharacter && index == 0) {
         // Character row — only act in Arrange mode
         if (currentMode == "arrange") {
@@ -317,14 +322,21 @@ fun onScenePropSelected(path) {
 }
 
 on btnRemoveProp.clicked() {
-    var sel = sceneListRef.GetSelectedItems()
-    if (sel != null) {
-        var idx = sel
-        if (hasCharacter) {
-            idx = sel - 1
-        }
-        if (idx >= 0) {
-            editor.removeSceneProp(idx)
+    var sel = selectedSceneAssetIndex
+    if (sel >= 0) {
+        if (hasCharacter && sel == 0) {
+            editor.removeCharacter()
+            hasCharacter = false
+            updateScenePanel()
+            statusLabel.text = "Character removed."
+        } else {
+            var idx = sel
+            if (hasCharacter) {
+                idx = sel - 1
+            }
+            if (idx >= 0) {
+                editor.removeSceneProp(idx)
+            }
         }
     }
 }
@@ -432,8 +444,8 @@ on btnPoseMode.clicked() {
 on btnArrangeMode.clicked() {
     activateArrangeMove()
     // Re-attach gizmo to already-selected scene asset (if any)
-    var sel = sceneListRef.GetSelectedItems()
-    if (sel != null) {
+    var sel = selectedSceneAssetIndex
+    if (sel >= 0) {
         if (hasCharacter && sel == 0) {
             editor.selectCharacter()
         } else {

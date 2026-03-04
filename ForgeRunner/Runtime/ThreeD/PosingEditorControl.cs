@@ -1514,6 +1514,33 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         ScenePropRemoved?.Invoke(index);
     }
 
+    /// <summary>Remove the primary character model from the scene.</summary>
+    public void RemoveCharacter()
+    {
+        if (_modelRoot is null) return;
+
+        _moveGizmo.Detach();
+        _scaleGizmo.Detach();
+        _gizmo.Detach();
+
+        _selectedPropIdx   = -1;
+        _characterSelected = false;
+        _selectedBoneIdx   = -1;
+
+        ClearJointSpheres();
+
+        if (_modelRoot.GetParent() is not null)
+            _modelRoot.GetParent().RemoveChild(_modelRoot);
+        _modelRoot.QueueFree();
+        _modelRoot = null;
+        _skeleton = null;
+        _lastLoadedSource = string.Empty;
+
+        ObjectSelected?.Invoke(-1);
+        QueueRedraw();
+        RunnerLogger.Info("PosingEditor", "Character removed from scene.");
+    }
+
     /// <summary>
     /// Select a scene prop by index from external code (e.g. from the scene-asset list in SMS).
     /// Attaches the appropriate arrange gizmo and fires ObjectSelected.

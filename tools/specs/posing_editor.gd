@@ -32,6 +32,7 @@ func get_spec() -> Dictionary:
             {"sms":"loadProject",         "params":[{"name":"path","type":"string"}], "returns":"void"},
             {"sms":"saveProject",         "params":[{"name":"path","type":"string"}], "returns":"void"},
             {"sms":"addSceneProp",        "params":[{"name":"path","type":"string"},{"name":"posX","type":"float"},{"name":"posY","type":"float"},{"name":"posZ","type":"float"}], "returns":"int"},
+            {"sms":"removeCharacter",     "params":[], "returns":"void"},
             {"sms":"removeSceneProp",     "params":[{"name":"index","type":"int"}], "returns":"void"},
             {"sms":"getScenePropCount",   "params":[], "returns":"int"},
             {"sms":"getScenePropPath",    "params":[{"name":"index","type":"int"}], "returns":"string"},
