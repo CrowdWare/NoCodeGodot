@@ -1802,6 +1802,13 @@ public sealed class SmsUiRuntime
                 return NullValue.Instance;
             });
 
+            // setTransformSpace("world"|"local") — switch arrange transform space
+            fields["setTransformSpace"] = new NativeFunctionValue(methodArgs =>
+            {
+                posingEditorExt.SetArrangeTransformSpace(ValueArgString(methodArgs, 0));
+                return NullValue.Instance;
+            });
+
             // showExportDialog() — opens export options dialog then saves GLB
             fields["showExportDialog"] = new NativeFunctionValue(_ =>
             {

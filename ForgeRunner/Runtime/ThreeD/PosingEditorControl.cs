@@ -29,6 +29,7 @@ namespace Runtime.ThreeD;
 
 public enum EditorMode      { Pose, Arrange }
 public enum ArrangeEditMode { Move, Scale, Rotate }
+public enum ArrangeTransformSpace { World, Local }
 
 /// <summary>
 /// A self-contained posing tool that combines:
@@ -105,6 +106,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     // ── Editor modes ──────────────────────────────────────────────────────────
     private EditorMode      _editorMode      = EditorMode.Pose;
     private ArrangeEditMode _arrangeEditMode = ArrangeEditMode.Move;
+    private ArrangeTransformSpace _arrangeTransformSpace = ArrangeTransformSpace.World;
 
     // ── Poll-based drag tracking ──────────────────────────────────────────────
     // Motion events on SubViewportContainer are unreliable during left-button drags.
@@ -286,6 +288,27 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             AttachArrangeGizmo(_selectedPropIdx);
     }
 
+    /// <summary>Set arrange transform space: "world" or "local".</summary>
+    public void SetArrangeTransformSpace(string space)
+    {
+        _arrangeTransformSpace = string.Equals(space, "local", StringComparison.OrdinalIgnoreCase)
+            ? ArrangeTransformSpace.Local
+            : ArrangeTransformSpace.World;
+
+        ApplyArrangeTransformSpace();
+
+        if (_characterSelected
+            && _selectedCharacterIdx >= 0
+            && _selectedCharacterIdx < _sceneCharacters.Count)
+        {
+            AttachArrangeGizmoToNode(_sceneCharacters[_selectedCharacterIdx].Node);
+        }
+        else if (_selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
+        {
+            AttachArrangeGizmo(_selectedPropIdx);
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     public PosingEditorControl()
     {
@@ -318,6 +341,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         _gizmo      = new RotationGizmo3D();
         _moveGizmo  = new MoveGizmo3D();
         _scaleGizmo = new ScaleGizmo3D();
+        ApplyArrangeTransformSpace();
 
         var env = new Godot.Environment
         {
@@ -1513,8 +1537,17 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     private void AttachArrangeGizmo(int propIdx) =>
         AttachArrangeGizmoToNode(_sceneProps[propIdx].Node);
 
+    private void ApplyArrangeTransformSpace()
+    {
+        var space = _arrangeTransformSpace == ArrangeTransformSpace.Local ? "local" : "world";
+        _moveGizmo.SetTransformSpace(space);
+        _scaleGizmo.SetTransformSpace(space);
+        _gizmo.SetTransformSpace(space);
+    }
+
     private void AttachArrangeGizmoToNode(Node3D node)
     {
+        ApplyArrangeTransformSpace();
         _moveGizmo.Detach();
         _scaleGizmo.Detach();
         _gizmo.Detach();

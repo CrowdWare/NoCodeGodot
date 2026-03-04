@@ -184,6 +184,13 @@ Window {
                             tooltipText: "Rotate Gizmo"
                         }
 
+                        OptionButton {
+                            id: transformSpaceSelect
+                            fitToLongestItem: true
+                            customMinimumSize: 110, 28
+                            tooltipText: "Transform Space"
+                        }
+
                         TextureButton {
                             id: btnToggleJoints
                             toggleMode: true

@@ -18,6 +18,7 @@
  */
 
 using Godot;
+using System;
 
 namespace Runtime.ThreeD;
 
@@ -57,6 +58,7 @@ public sealed partial class MoveGizmo3D : Node3D
 
     // ── Target binding ────────────────────────────────────────────────────────
     private Node3D? _target;
+    private bool _useLocalSpace;
 
     // ── Drag state ────────────────────────────────────────────────────────────
     private int     _dragAxis      = -1;    // 0=X 1=Y 2=Z  (-1 = idle)
@@ -92,6 +94,7 @@ public sealed partial class MoveGizmo3D : Node3D
     {
         if (_target is null || !_target.IsInsideTree()) return;
         GlobalPosition = _target.GlobalPosition;
+        GlobalBasis = _useLocalSpace ? _target.GlobalBasis.Orthonormalized() : Basis.Identity;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -102,6 +105,16 @@ public sealed partial class MoveGizmo3D : Node3D
         _target  = target;
         Visible  = true;
         ResetColors();
+    }
+
+    /// <summary>Set transform space: "world" or "local".</summary>
+    public void SetTransformSpace(string space)
+    {
+        _useLocalSpace = string.Equals(space, "local", StringComparison.OrdinalIgnoreCase);
+        if (_target is not null && _target.IsInsideTree())
+        {
+            GlobalBasis = _useLocalSpace ? _target.GlobalBasis.Orthonormalized() : Basis.Identity;
+        }
     }
 
     /// <summary>Detach and hide the gizmo.</summary>
@@ -161,13 +174,7 @@ public sealed partial class MoveGizmo3D : Node3D
     {
         if (_dragAxis < 0 || _target is null || camera is null) return Vector3.Zero;
 
-        // World-space axis direction
-        var worldAxis = _dragAxis switch
-        {
-            0 => Vector3.Right,   // +X
-            1 => Vector3.Up,      // +Y
-            _ => Vector3.Back,    // -Z  (Godot forward = -Z)
-        };
+        var worldAxis = ResolveAxisWorldDirection(_dragAxis, _target);
 
         // Project axis endpoints to screen space
         var basePos    = _target.GlobalPosition;
@@ -210,7 +217,8 @@ public sealed partial class MoveGizmo3D : Node3D
         {
             if (_dragAxis < 0 || _target is null) return 0f;
             var d = _target.GlobalPosition - _dragStartPos;
-            return _dragAxis switch { 0 => d.X, 1 => d.Y, _ => -d.Z };
+            var axis = ResolveAxisWorldDirection(_dragAxis, _target);
+            return d.Dot(axis);
         }
     }
 
@@ -228,6 +236,24 @@ public sealed partial class MoveGizmo3D : Node3D
         ResetColors();
         var mat = axis switch { 0 => _matX, 1 => _matY, _ => _matZ };
         mat.AlbedoColor = ColHighlight;
+    }
+
+    private Vector3 ResolveAxisWorldDirection(int axis, Node3D target)
+    {
+        var baseAxis = axis switch
+        {
+            0 => Vector3.Right,
+            1 => Vector3.Up,
+            _ => Vector3.Back,
+        };
+
+        if (!_useLocalSpace)
+        {
+            return baseAxis;
+        }
+
+        var transformed = target.GlobalBasis * baseAxis;
+        return transformed.LengthSquared() > 0.000001f ? transformed.Normalized() : baseAxis;
     }
 
     private static MeshInstance3D MakeShaft(StandardMaterial3D mat, Vector3 position, Vector3 rotDeg)

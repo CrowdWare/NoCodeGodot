@@ -18,13 +18,14 @@
  */
 
 using Godot;
+using System;
 
 namespace Runtime.ThreeD;
 
 /// <summary>
 /// A runtime 3D rotation gizmo rendered inside a SubViewport.
 ///
-/// Three torus rings (one per axis) plus a draggable sphere handle on each ring.
+/// Thin rotation rings (one per axis), sphere-guide rings, and draggable trapezoid handles.
 /// Drag a handle to rotate the attached bone on that axis.
 /// Rotation is clamped to per-axis min/max limits; the ring turns orange when clamped.
 ///
@@ -33,9 +34,16 @@ namespace Runtime.ThreeD;
 public sealed partial class RotationGizmo3D : Node3D
 {
     // ── Geometry constants ────────────────────────────────────────────────────
-    private const float RingRadius       = 0.30f;   // centre-of-tube radius
-    private const float TubeRadius       = 0.010f;  // tube thickness
-    private const float HandleRadius     = 0.042f;  // visual sphere radius
+    // Colored rotation arcs live on the inner (gray) guide radius,
+    // so arc endpoints visually terminate on that circle.
+    private const float RingRadius       = 0.35f;
+    private const float GuideGrayRadius  = 0.35f;
+    private const float GuideBlueRadius  = 0.50f;
+    private const float AxisLineLength   = GuideGrayRadius * 0.98f;
+    private const float PivotRadius      = 0.018f;
+    private const float HandleHeight     = 0.11f;
+    private const float HandleTopRadius  = 0.012f;
+    private const float HandleBaseRadius = 0.038f;
     private const float HandlePickRadius = 0.14f;   // ray-sphere hit tolerance (generous for UX)
     private const float DragSensitivity  = 0.6f;    // degrees per screen pixel
     private const float D2R              = Mathf.Pi / 180f;
@@ -44,6 +52,9 @@ public sealed partial class RotationGizmo3D : Node3D
     private static readonly Color ColRingX   = new(0.95f, 0.20f, 0.20f, 0.90f);
     private static readonly Color ColRingY   = new(0.20f, 0.90f, 0.20f, 0.90f);
     private static readonly Color ColRingZ   = new(0.20f, 0.50f, 1.00f, 0.90f);
+    private static readonly Color ColGuideBlue = new(0.26f, 0.62f, 1.00f, 0.48f);
+    private static readonly Color ColGuideGray = new(0.76f, 0.78f, 0.82f, 0.36f);
+    private static readonly Color ColPivot     = new(0.96f, 0.96f, 0.98f, 0.92f);
     private static readonly Color ColClamped = new(1.00f, 0.55f, 0.00f, 0.95f);
 
     // ── Handle local positions — on their rings, spread to avoid overlap ──────
@@ -57,6 +68,9 @@ public sealed partial class RotationGizmo3D : Node3D
 
     // ── Scene nodes ───────────────────────────────────────────────────────────
     private readonly MeshInstance3D     _ringX,    _ringY,    _ringZ;
+    private readonly MeshInstance3D     _guideRingBlue, _guideRingGray;
+    private readonly MeshInstance3D     _axisX, _axisY, _axisZ;
+    private readonly MeshInstance3D     _pivotMarker;
     private readonly MeshInstance3D     _handleX,  _handleY,  _handleZ;
     private readonly StandardMaterial3D _matRingX, _matRingY, _matRingZ;
 
@@ -66,6 +80,7 @@ public sealed partial class RotationGizmo3D : Node3D
 
     // ── Free-node binding (Arrange/Rotate mode) ───────────────────────────────
     private Node3D?     _freeNode = null;
+    private bool        _useLocalSpace;
 
     // ── Constraints (degrees) ─────────────────────────────────────────────────
     private float _minX = -180f, _maxX = 180f;
@@ -76,6 +91,7 @@ public sealed partial class RotationGizmo3D : Node3D
     private int        _dragAxis        = -1;   // 0=X 1=Y 2=Z  (-1 = not dragging)
     private Quaternion _dragStartPose;           // bone pose at drag start
     private Quaternion _dragPreRot;              // parentWorldRot * restRot (fixed at drag start)
+    private Vector3    _dragWorldAxis = Vector3.Right;
     private float      _dragAccumulated;
 
     // ── Active drag axis index → ring material (for colour feedback) ──────────
@@ -92,24 +108,30 @@ public sealed partial class RotationGizmo3D : Node3D
         _matRingZ = MakeRingMat(ColRingZ);
         _ringMats = [_matRingX, _matRingY, _matRingZ];
 
-        // ── Torus rings ───────────────────────────────────────────────────────
-        // Godot TorusMesh default: ring in XZ plane, normal along Y.
-        // X ring: normal along X → rotate -90° around Z.
-        // Y ring: already correct (normal along Y).
-        // Z ring: normal along Z → rotate  90° around X.
+        _ringX = MakeRingArc(_matRingX, new Vector3(0f, 0f, -90f), RingRadius, -125f, 125f, 72);
+        _ringY = MakeRingArc(_matRingY, Vector3.Zero, RingRadius, 18f, 258f, 72);
+        _ringZ = MakeRingArc(_matRingZ, new Vector3(90f, 0f, 0f), RingRadius, -38f, 202f, 72);
+        _guideRingBlue = MakeRingArcXY(MakeRingMat(ColGuideBlue), Vector3.Zero, GuideBlueRadius, 0f, 360f, 96);
+        _guideRingGray = MakeRingArcXY(MakeRingMat(ColGuideGray), Vector3.Zero, GuideGrayRadius, 0f, 360f, 96);
+        _axisX = MakeAxisLine(ColRingX, Vector3.Left * AxisLineLength, Vector3.Right * AxisLineLength);
+        _axisY = MakeAxisLine(ColRingY, Vector3.Down * AxisLineLength, Vector3.Up * AxisLineLength);
+        _axisZ = MakeAxisLine(ColRingZ, Vector3.Forward * AxisLineLength, Vector3.Back * AxisLineLength);
+        _pivotMarker = MakePivotMarker();
 
-        _ringX = MakeRing(_matRingX, new Vector3(0f, 0f, -90f));
-        _ringY = MakeRing(_matRingY, Vector3.Zero);
-        _ringZ = MakeRing(_matRingZ, new Vector3(90f, 0f, 0f));
-
-        // ── Handle spheres (same colour as their ring) ────────────────────────
-        _handleX = MakeHandle(HandleOffsetX, ColRingX);
-        _handleY = MakeHandle(HandleOffsetY, ColRingY);
-        _handleZ = MakeHandle(HandleOffsetZ, ColRingZ);
+        // ── Trapezoid handles (same axis colours) ────────────────────────────
+        _handleX = MakeHandle(HandleOffsetX, new Vector3(90f, 0f, 0f), ColRingX);
+        _handleY = MakeHandle(HandleOffsetY, new Vector3(0f, 0f, -90f), ColRingY);
+        _handleZ = MakeHandle(HandleOffsetZ, Vector3.Zero, ColRingZ);
 
         AddChild(_ringX);
         AddChild(_ringY);
         AddChild(_ringZ);
+        AddChild(_guideRingBlue);
+        AddChild(_guideRingGray);
+        AddChild(_axisX);
+        AddChild(_axisY);
+        AddChild(_axisZ);
+        AddChild(_pivotMarker);
         AddChild(_handleX);
         AddChild(_handleY);
         AddChild(_handleZ);
@@ -119,14 +141,20 @@ public sealed partial class RotationGizmo3D : Node3D
 
     public override void _Process(double delta)
     {
+        var camera = GetViewport()?.GetCamera3D();
+
         if (_freeNode is not null && _freeNode.IsInsideTree())
         {
             GlobalPosition = _freeNode.GlobalPosition;
+            GlobalBasis = _useLocalSpace ? _freeNode.GlobalBasis.Orthonormalized() : Basis.Identity;
+            UpdateCameraFacingGuideRings(camera);
             return;
         }
         if (_skeleton is null || _boneIdx < 0 || !_skeleton.IsInsideTree()) return;
         var globalBone = _skeleton.GlobalTransform * _skeleton.GetBoneGlobalPose(_boneIdx);
         GlobalPosition = globalBone.Origin;
+        GlobalBasis = Basis.Identity;
+        UpdateCameraFacingGuideRings(camera);
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -152,6 +180,16 @@ public sealed partial class RotationGizmo3D : Node3D
         _maxX = _maxY = _maxZ =  360f;
         Visible = true;
         ResetRingColors();
+    }
+
+    /// <summary>Set transform space: "world" or "local" (free-node arrange mode).</summary>
+    public void SetTransformSpace(string space)
+    {
+        _useLocalSpace = string.Equals(space, "local", StringComparison.OrdinalIgnoreCase);
+        if (_freeNode is not null && _freeNode.IsInsideTree())
+        {
+            GlobalBasis = _useLocalSpace ? _freeNode.GlobalBasis.Orthonormalized() : Basis.Identity;
+        }
     }
 
     /// <summary>Detach and hide the gizmo.</summary>
@@ -221,11 +259,13 @@ public sealed partial class RotationGizmo3D : Node3D
             // Free-node mode: world = local (top-level node in worldRoot)
             _dragStartPose = _freeNode.Quaternion;
             _dragPreRot    = Quaternion.Identity;
+            _dragWorldAxis = ResolveWorldAxis(axis, _freeNode);
             return;
         }
 
         if (_skeleton is null || _boneIdx < 0 || !_skeleton.IsInsideTree()) return;
         _dragStartPose   = _skeleton.GetBonePoseRotation(_boneIdx);
+        _dragWorldAxis = ResolveWorldAxis(axis, null);
 
         // _dragPreRot = parentWorldRot * restRot
         // Derived from: boneGlobalRot = preRot * poseRot  →  preRot = boneGlobalRot * poseRot⁻¹
@@ -258,16 +298,8 @@ public sealed partial class RotationGizmo3D : Node3D
 
         _dragAccumulated += raw * DragSensitivity * D2R;
 
-        // World-space axis for each ring.
-        var worldAxis = _dragAxis switch
-        {
-            0 => Vector3.Right,
-            1 => Vector3.Up,
-            _ => Vector3.Back,
-        };
-
         // World-space delta rotation.
-        var worldDelta = new Quaternion(worldAxis, _dragAccumulated);
+        var worldDelta = new Quaternion(_dragWorldAxis, _dragAccumulated);
 
         // Convert to bone-pose space:  newPose = preRot⁻¹ * worldDelta * preRot * startPose
         var newPose = (_dragPreRot.Inverse() * worldDelta * _dragPreRot * _dragStartPose).Normalized();
@@ -307,6 +339,36 @@ public sealed partial class RotationGizmo3D : Node3D
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    private Vector3 ResolveWorldAxis(int axis, Node3D? localNode)
+    {
+        var baseAxis = axis switch
+        {
+            0 => Vector3.Right,
+            1 => Vector3.Up,
+            _ => Vector3.Back,
+        };
+
+        if (!_useLocalSpace || localNode is null)
+        {
+            return baseAxis;
+        }
+
+        var transformed = localNode.GlobalBasis * baseAxis;
+        return transformed.LengthSquared() > 0.000001f ? transformed.Normalized() : baseAxis;
+    }
+
+    private void UpdateCameraFacingGuideRings(Camera3D? camera)
+    {
+        if (camera is null)
+        {
+            return;
+        }
+
+        var facingBasis = camera.GlobalBasis.Orthonormalized();
+        _guideRingBlue.GlobalBasis = facingBasis;
+        _guideRingGray.GlobalBasis = facingBasis;
+    }
+
     private void ResetRingColors()
     {
         _matRingX.AlbedoColor = ColRingX;
@@ -314,48 +376,121 @@ public sealed partial class RotationGizmo3D : Node3D
         _matRingZ.AlbedoColor = ColRingZ;
     }
 
-    private static MeshInstance3D MakeRing(StandardMaterial3D mat, Vector3 rotDeg)
+    private static MeshInstance3D MakeRingArc(
+        StandardMaterial3D mat,
+        Vector3 rotDeg,
+        float radius,
+        float startDeg,
+        float endDeg,
+        int steps)
     {
-        var torus = new TorusMesh
+        var mesh = new ImmediateMesh();
+        mesh.SurfaceBegin(Mesh.PrimitiveType.LineStrip, mat);
+        var start = startDeg * D2R;
+        var end = endDeg * D2R;
+        for (var i = 0; i <= steps; i++)
         {
-            InnerRadius = RingRadius - TubeRadius,
-            OuterRadius = RingRadius + TubeRadius,
-            Rings       = 32,
-            RingSegments = 12,
-        };
-        torus.SurfaceSetMaterial(0, mat);
+            var t = i / (float)steps;
+            var a = Mathf.Lerp(start, end, t);
+            mesh.SurfaceAddVertex(new Vector3(Mathf.Cos(a) * radius, 0f, Mathf.Sin(a) * radius));
+        }
+        mesh.SurfaceEnd();
 
         return new MeshInstance3D
         {
-            Mesh            = torus,
+            Mesh            = mesh,
             RotationDegrees = rotDeg,
             CastShadow      = GeometryInstance3D.ShadowCastingSetting.Off,
         };
     }
 
-    private static MeshInstance3D MakeHandle(Vector3 localOffset, Color color)
+    private static MeshInstance3D MakeRingArcXY(
+        StandardMaterial3D mat,
+        Vector3 rotDeg,
+        float radius,
+        float startDeg,
+        float endDeg,
+        int steps)
+    {
+        var mesh = new ImmediateMesh();
+        mesh.SurfaceBegin(Mesh.PrimitiveType.LineStrip, mat);
+        var start = startDeg * D2R;
+        var end = endDeg * D2R;
+        for (var i = 0; i <= steps; i++)
+        {
+            var t = i / (float)steps;
+            var a = Mathf.Lerp(start, end, t);
+            mesh.SurfaceAddVertex(new Vector3(Mathf.Cos(a) * radius, Mathf.Sin(a) * radius, 0f));
+        }
+        mesh.SurfaceEnd();
+
+        return new MeshInstance3D
+        {
+            Mesh            = mesh,
+            RotationDegrees = rotDeg,
+            CastShadow      = GeometryInstance3D.ShadowCastingSetting.Off,
+        };
+    }
+
+    private static MeshInstance3D MakeAxisLine(Color color, Vector3 from, Vector3 to)
+    {
+        var mat = MakeRingMat(color);
+        var mesh = new ImmediateMesh();
+        mesh.SurfaceBegin(Mesh.PrimitiveType.Lines, mat);
+        mesh.SurfaceAddVertex(from);
+        mesh.SurfaceAddVertex(to);
+        mesh.SurfaceEnd();
+
+        return new MeshInstance3D
+        {
+            Mesh = mesh,
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+        };
+    }
+
+    private static MeshInstance3D MakePivotMarker()
     {
         var sphere = new SphereMesh
         {
-            Radius = HandleRadius,
-            Height = HandleRadius * 2f,
-            RadialSegments = 12,
-            Rings          = 6,
+            Radius = PivotRadius,
+            Height = PivotRadius * 2f,
+            RadialSegments = 10,
+            Rings = 6,
+        };
+        sphere.SurfaceSetMaterial(0, MakeRingMat(ColPivot));
+
+        return new MeshInstance3D
+        {
+            Mesh = sphere,
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+        };
+    }
+
+    private static MeshInstance3D MakeHandle(Vector3 localOffset, Vector3 rotDeg, Color color)
+    {
+        var frustum = new CylinderMesh
+        {
+            TopRadius = HandleTopRadius,
+            BottomRadius = HandleBaseRadius,
+            Height = HandleHeight,
+            RadialSegments = 4,
         };
 
         var mat = new StandardMaterial3D
         {
-            Transparency = BaseMaterial3D.TransparencyEnum.Disabled,
+            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
             AlbedoColor  = color,
             NoDepthTest  = true,
             CullMode     = BaseMaterial3D.CullModeEnum.Disabled,
+            ShadingMode  = BaseMaterial3D.ShadingModeEnum.Unshaded,
         };
-        sphere.SurfaceSetMaterial(0, mat);
+        frustum.SurfaceSetMaterial(0, mat);
 
         return new MeshInstance3D
         {
-            Mesh       = sphere,
+            Mesh       = frustum,
             Position   = localOffset,
+            RotationDegrees = rotDeg,
             CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
         };
     }
@@ -368,6 +503,7 @@ public sealed partial class RotationGizmo3D : Node3D
             AlbedoColor  = color,
             NoDepthTest  = true,
             CullMode     = BaseMaterial3D.CullModeEnum.Disabled,
+            ShadingMode  = BaseMaterial3D.ShadingModeEnum.Unshaded,
         };
     }
 

@@ -23,6 +23,7 @@ var inspectorWriteLock = false
 var chooserOverlay = null
 var chooserStatus = null
 var chooserThemeLabel = null
+var transformSpaceSelectRef = null
 var jointSpheresVisible = false
 var selectedSceneAssetIndex = -1
 var scenePathByIndex = []
@@ -36,6 +37,7 @@ var sceneLockOpenIcon = "res:/ForgePoser/assets/images/eye_open.png"
 var sceneLockClosedIcon = "res:/ForgePoser/assets/images/eye_closed.png"
 var currentMode = "arrange"
 var currentEditMode = "move"
+var currentTransformSpace = "world"
 var aiPrompt = "Keep exact pose and composition, camera framing, body proportions, and left-right orientation. Render photorealistic humans with realistic skin pores, hair strands, and clearly defined abdominal muscles. Match clothing design, colors, and materials from the extra image while preserving visible anatomy where appropriate. Apply only scene style, lighting, mood, and color palette from the style image. Never add UI overlays, gizmos, handles, axes, bone markers, or text."
 var aiNegativePrompt = ""
 var aiStyleImagePath = "res:/input/style.jpg"
@@ -114,9 +116,11 @@ fun activateArrangeMove() {
     ui.getObject("btnModeScale").buttonPressed = false
     ui.getObject("btnModeRotate").visible = true
     ui.getObject("btnModeRotate").buttonPressed = false
+    ui.getObject("transformSpaceSelect").visible = true
     ui.getObject("btnToggleJoints").visible = false
     editor.setMode("arrange")
     editor.setEditMode("move")
+    editor.setTransformSpace(currentTransformSpace)
 }
 
 fun activatePoseMode() {
@@ -126,9 +130,19 @@ fun activatePoseMode() {
     ui.getObject("btnModeMove").visible = false
     ui.getObject("btnModeScale").visible = false
     ui.getObject("btnModeRotate").visible = false
+    ui.getObject("transformSpaceSelect").visible = false
     ui.getObject("btnToggleJoints").visible = true
     ui.getObject("btnToggleJoints").buttonPressed = jointSpheresVisible
     editor.setMode("pose")
+}
+
+fun applyTransformSpace(index) {
+    if (index == 1) {
+        currentTransformSpace = "local"
+    } else {
+        currentTransformSpace = "world"
+    }
+    editor.setTransformSpace(currentTransformSpace)
 }
 
 fun selectFirstSceneAsset() {
@@ -180,13 +194,19 @@ fun ready() {
     chooserOverlay = ui.getObject("projectChooserOverlay")
     chooserStatus  = ui.getObject("chooserStatus")
     chooserThemeLabel = ui.getObject("chooserThemeLabel")
+    transformSpaceSelectRef = ui.getObject("transformSpaceSelect")
     initThemePresets()
     applyThemePreset(0)
+    transformSpaceSelectRef.clear()
+    transformSpaceSelectRef.addItem("World", 0)
+    transformSpaceSelectRef.addItem("Local", 1)
+    transformSpaceSelectRef.select(0)
     configureInspectorNumericFields()
     sceneTreeRef.BindEvents()
     editor.setBoneTree("boneTree")
     editor.setJointSpheresVisible(false)
     activateArrangeMove()
+    applyTransformSpace(0)
     updateScenePanel()
     updateKeyframeTree()
     updateInspectorFromSelection()
@@ -1050,6 +1070,15 @@ on btnModeRotate.clicked() {
     ui.getObject("btnModeScale").buttonPressed = false
     ui.getObject("btnModeRotate").buttonPressed = true
     editor.setEditMode("rotate")
+}
+
+on transformSpaceSelect.itemSelected(index) {
+    applyTransformSpace(index)
+    statusLabel.text = "Transform Space: " + currentTransformSpace
+}
+
+on transformSpaceSelect.clicked() {
+    // OptionButton emits clicked in some runtime paths; keep handler to avoid warning spam.
 }
 
 // ── Viewport controls ─────────────────────────────────────────────────────────
