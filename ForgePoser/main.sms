@@ -6,6 +6,19 @@ var sceneListRef = null
 var editor = null
 var timeline = null
 var statusLabel = null
+var bonesPanelRef = null
+var inspectorPanelRef = null
+var inspectorTargetLabel = null
+var inspPosX = null
+var inspPosY = null
+var inspPosZ = null
+var inspRotX = null
+var inspRotY = null
+var inspRotZ = null
+var inspScaleX = null
+var inspScaleY = null
+var inspScaleZ = null
+var inspectorWriteLock = false
 var chooserOverlay = null
 var chooserStatus = null
 var chooserThemeLabel = null
@@ -111,6 +124,7 @@ fun selectFirstSceneAsset() {
     if (editor.getSceneCharacterCount() > 0) {
         selectedSceneAssetIndex = 0
         editor.selectSceneCharacter(0)
+        updateInspectorFromSelection()
     }
 }
 
@@ -139,18 +153,132 @@ fun ready() {
     editor       = ui.getObject("editor")
     timeline     = ui.getObject("timeline")
     statusLabel  = ui.getObject("statusLabel")
+    bonesPanelRef = ui.getObject("bonesPanel")
+    inspectorPanelRef = ui.getObject("inspectorPanel")
+    inspectorTargetLabel = ui.getObject("inspectorTargetLabel")
+    inspPosX = ui.getObject("inspPosX")
+    inspPosY = ui.getObject("inspPosY")
+    inspPosZ = ui.getObject("inspPosZ")
+    inspRotX = ui.getObject("inspRotX")
+    inspRotY = ui.getObject("inspRotY")
+    inspRotZ = ui.getObject("inspRotZ")
+    inspScaleX = ui.getObject("inspScaleX")
+    inspScaleY = ui.getObject("inspScaleY")
+    inspScaleZ = ui.getObject("inspScaleZ")
     chooserOverlay = ui.getObject("projectChooserOverlay")
     chooserStatus  = ui.getObject("chooserStatus")
     chooserThemeLabel = ui.getObject("chooserThemeLabel")
     initThemePresets()
     applyThemePreset(0)
+    configureInspectorNumericFields()
     editor.setBoneTree("boneTree")
     editor.setJointSpheresVisible(false)
     activateArrangeMove()
     updateScenePanel()
     updateKeyframeTree()
+    updateInspectorFromSelection()
     bootstrapProjectChooser()
     log.success("ForgePoser ready.")
+}
+
+fun configureInspectorNumericFields() {
+    ui.configureNumericLineEdit("inspPosX", "x", "m", "#d64545", 1, "0.03", 3)
+    ui.configureNumericLineEdit("inspPosY", "y", "m", "#4aa34a", 1, "0.03", 3)
+    ui.configureNumericLineEdit("inspPosZ", "z", "m", "#4b72d9", 1, "0.03", 3)
+
+    ui.configureNumericLineEdit("inspRotX", "x", "deg", "#d64545", 1, "0.15", 2)
+    ui.configureNumericLineEdit("inspRotY", "y", "deg", "#4aa34a", 1, "0.15", 2)
+    ui.configureNumericLineEdit("inspRotZ", "z", "deg", "#4b72d9", 1, "0.15", 2)
+
+    ui.configureNumericLineEdit("inspScaleX", "x", "", "#d64545", "0.01", "0.01", 3)
+    ui.configureNumericLineEdit("inspScaleY", "y", "", "#4aa34a", "0.01", "0.01", 3)
+    ui.configureNumericLineEdit("inspScaleZ", "z", "", "#4b72d9", "0.01", "0.01", 3)
+}
+
+fun setRightPanels(selectionKind) {
+    // selectionKind: "none" | "character" | "prop"
+    if (bonesPanelRef != null) {
+        bonesPanelRef.visible = selectionKind == "character"
+    }
+    if (inspectorPanelRef != null) {
+        inspectorPanelRef.visible = selectionKind != "none"
+    }
+}
+
+fun writeInspectorTransform(px, py, pz, rx, ry, rz, sx, sy, sz) {
+    inspectorWriteLock = true
+    ui.setNumericLineEditValue("inspPosX", px)
+    ui.setNumericLineEditValue("inspPosY", py)
+    ui.setNumericLineEditValue("inspPosZ", pz)
+    ui.setNumericLineEditValue("inspRotX", rx)
+    ui.setNumericLineEditValue("inspRotY", ry)
+    ui.setNumericLineEditValue("inspRotZ", rz)
+    ui.setNumericLineEditValue("inspScaleX", sx)
+    ui.setNumericLineEditValue("inspScaleY", sy)
+    ui.setNumericLineEditValue("inspScaleZ", sz)
+    inspectorWriteLock = false
+}
+
+fun applyInspectorTransformLive() {
+    if (inspectorWriteLock) {
+        return
+    }
+    var sel = selectedSceneAssetIndex
+    if (sel < 0) {
+        return
+    }
+
+    var px = ui.getNumericLineEditValue("inspPosX")
+    var py = ui.getNumericLineEditValue("inspPosY")
+    var pz = ui.getNumericLineEditValue("inspPosZ")
+    var rx = ui.getNumericLineEditValue("inspRotX")
+    var ry = ui.getNumericLineEditValue("inspRotY")
+    var rz = ui.getNumericLineEditValue("inspRotZ")
+    var sx = ui.getNumericLineEditValue("inspScaleX")
+    var sy = ui.getNumericLineEditValue("inspScaleY")
+    var sz = ui.getNumericLineEditValue("inspScaleZ")
+
+    var charCount = editor.getSceneCharacterCount()
+    if (sel < charCount) {
+        editor.setSceneCharacterPos(sel, px, py, pz)
+        editor.setSceneCharacterRot(sel, rx, ry, rz)
+        editor.setSceneCharacterScale(sel, sx, sy, sz)
+        editor.selectSceneCharacter(sel)
+    } else {
+        var propIdx = sel - charCount
+        editor.setScenePropPos(propIdx, px, py, pz)
+        editor.setScenePropRot(propIdx, rx, ry, rz)
+        editor.setScenePropScale(propIdx, sx, sy, sz)
+        editor.selectSceneProp(propIdx)
+    }
+}
+
+fun updateInspectorFromSelection() {
+    var sel = selectedSceneAssetIndex
+    var charCount = editor.getSceneCharacterCount()
+    if (sel < 0) {
+        setRightPanels("none")
+        if (inspectorTargetLabel != null) {
+            inspectorTargetLabel.text = "No selection"
+        }
+        return
+    }
+
+    if (sel < charCount) {
+        setRightPanels("character")
+        if (inspectorTargetLabel != null) {
+            inspectorTargetLabel.text = "Character: " + editor.getSceneCharacterName(sel)
+        }
+        writeInspectorTransform(editor.getSceneCharacterPosX(sel), editor.getSceneCharacterPosY(sel), editor.getSceneCharacterPosZ(sel), editor.getSceneCharacterRotX(sel), editor.getSceneCharacterRotY(sel), editor.getSceneCharacterRotZ(sel), editor.getSceneCharacterScaleX(sel), editor.getSceneCharacterScaleY(sel), editor.getSceneCharacterScaleZ(sel))
+        return
+    }
+
+    var propIdx = sel - charCount
+    setRightPanels("prop")
+    if (inspectorTargetLabel != null) {
+        inspectorTargetLabel.text = "Asset: " + editor.getScenePropName(propIdx)
+    }
+    writeInspectorTransform(editor.getScenePropPosX(propIdx), editor.getScenePropPosY(propIdx), editor.getScenePropPosZ(propIdx), editor.getScenePropRotX(propIdx), editor.getScenePropRotY(propIdx), editor.getScenePropRotZ(propIdx), editor.getScenePropScaleX(propIdx), editor.getScenePropScaleY(propIdx), editor.getScenePropScaleZ(propIdx))
 }
 
 fun saveLastProjectPath(path) {
@@ -236,6 +364,7 @@ fun onProjectCreatePathSelected(path) {
     currentProjectPath = path
     saveLastProjectPath(path)
     hideProjectChooser()
+    updateInspectorFromSelection()
     statusLabel.text = "Created: " + path
 }
 
@@ -432,6 +561,7 @@ fun updateScenePanel() {
         i = i + 1
     }
     selectedSceneAssetIndex = -1
+    updateInspectorFromSelection()
 }
 
 on sceneAssetList.itemSelected(index) {
@@ -442,6 +572,7 @@ on sceneAssetList.itemSelected(index) {
         editor.setJointSpheresVisible(false)
         editor.selectSceneCharacter(index)
         updateKeyframeTree()
+        updateInspectorFromSelection()
         statusLabel.text = "Character selected: " + index
     } else {
         // Prop row — only act in Arrange mode
@@ -449,6 +580,7 @@ on sceneAssetList.itemSelected(index) {
         if (currentMode == "arrange") {
             editor.setJointSpheresVisible(false)
             editor.selectSceneProp(propIdx)
+            updateInspectorFromSelection()
             statusLabel.text = "Prop selected: " + propIdx
         }
     }
@@ -470,6 +602,7 @@ fun onScenePropSelected(path) {
         if (c >= 0) {
             selectedSceneAssetIndex = c
             editor.selectSceneCharacter(c)
+            updateInspectorFromSelection()
         }
         statusLabel.text = "Character added: " + path
     } else if (kind == 0) {
@@ -478,6 +611,7 @@ fun onScenePropSelected(path) {
         if (p >= 0) {
             selectedSceneAssetIndex = charCount + p
             editor.selectSceneProp(p)
+            updateInspectorFromSelection()
         }
         statusLabel.text = "Prop added: " + path
     } else {
@@ -502,6 +636,7 @@ fun addGreyboxPaletteItem(kind, label) {
     var charCount = editor.getSceneCharacterCount()
     selectedSceneAssetIndex = charCount + idx
     editor.selectSceneProp(idx)
+    updateInspectorFromSelection()
     statusLabel.text = "Greybox added: " + label
 }
 
@@ -550,14 +685,51 @@ on editor.scenePropRemoved(index) {
 
 on editor.objectSelected(propIdx) {
     if (propIdx >= 0) {
+        selectedSceneAssetIndex = editor.getSceneCharacterCount() + propIdx
+        updateInspectorFromSelection()
         statusLabel.text = "Object selected: prop " + propIdx
     } else {
+        selectedSceneAssetIndex = -1
+        updateInspectorFromSelection()
         statusLabel.text = "Object deselected."
     }
 }
 
 on editor.objectMoved(propIdx, pos) {
+    updateInspectorFromSelection()
     statusLabel.text = "Prop " + propIdx + " moved to " + pos
+}
+
+on inspPosX.textChanged(newText) {
+    applyInspectorTransformLive()
+}
+on inspPosY.textChanged(newText) {
+    applyInspectorTransformLive()
+}
+on inspPosZ.textChanged(newText) {
+    applyInspectorTransformLive()
+}
+on inspRotX.textChanged(newText) {
+    applyInspectorTransformLive()
+}
+on inspRotY.textChanged(newText) {
+    applyInspectorTransformLive()
+}
+on inspRotZ.textChanged(newText) {
+    applyInspectorTransformLive()
+}
+on inspScaleX.textChanged(newText) {
+    applyInspectorTransformLive()
+}
+on inspScaleY.textChanged(newText) {
+    applyInspectorTransformLive()
+}
+on inspScaleZ.textChanged(newText) {
+    applyInspectorTransformLive()
+}
+
+on btnCenterPivot.clicked() {
+    statusLabel.text = "Center Pivot is not implemented yet."
 }
 
 // ── Keyframe inspector ────────────────────────────────────────────────────────
@@ -671,6 +843,7 @@ on btnArrangeMode.clicked() {
             }
         }
     }
+    updateInspectorFromSelection()
     statusLabel.text = "Arrange Mode"
 }
 

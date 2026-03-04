@@ -290,6 +290,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     public PosingEditorControl()
     {
         Stretch = true;
+        ClipContents = true;
         CustomMinimumSize = new Vector2(640, 480);
         SizeFlagsHorizontal = SizeFlags.ExpandFill;
         SizeFlagsVertical   = SizeFlags.ExpandFill;
@@ -574,6 +575,10 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     // ── 2D selection overlay ──────────────────────────────────────────────────
 
     private static readonly Color SelectionBorderColor = new(1f, 0.8f, 0.1f, 0.9f);
+    private const int ClipLeft = 1;
+    private const int ClipRight = 2;
+    private const int ClipBottom = 4;
+    private const int ClipTop = 8;
 
     /// <summary>
     /// Draws a yellow 2D bounding-box outline around the currently selected object
@@ -634,8 +639,82 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             (0,4),(1,5),(2,6),(3,7),  // connecting edges
         };
 
+        var clipRect = new Rect2(Vector2.Zero, Size);
         foreach (var (a, b) in edges)
-            DrawLine(sc[a], sc[b], SelectionBorderColor, 2f);
+        {
+            var p0 = sc[a];
+            var p1 = sc[b];
+            if (TryClipLineToRect(clipRect, ref p0, ref p1))
+                DrawLine(p0, p1, SelectionBorderColor, 2f);
+        }
+    }
+
+    private static int ComputeOutCode(in Rect2 rect, in Vector2 p)
+    {
+        var code = 0;
+        if (p.X < rect.Position.X) code |= ClipLeft;
+        else if (p.X > rect.End.X) code |= ClipRight;
+        if (p.Y < rect.Position.Y) code |= ClipTop;
+        else if (p.Y > rect.End.Y) code |= ClipBottom;
+        return code;
+    }
+
+    private static bool TryClipLineToRect(in Rect2 rect, ref Vector2 p0, ref Vector2 p1)
+    {
+        var xMin = rect.Position.X;
+        var yMin = rect.Position.Y;
+        var xMax = rect.End.X;
+        var yMax = rect.End.Y;
+        var out0 = ComputeOutCode(rect, p0);
+        var out1 = ComputeOutCode(rect, p1);
+
+        while (true)
+        {
+            if ((out0 | out1) == 0)
+                return true;
+            if ((out0 & out1) != 0)
+                return false;
+
+            var outCode = out0 != 0 ? out0 : out1;
+            var x = 0f;
+            var y = 0f;
+
+            if ((outCode & ClipTop) != 0)
+            {
+                if (Mathf.Abs(p1.Y - p0.Y) < 1e-6f) return false;
+                x = p0.X + (p1.X - p0.X) * (yMin - p0.Y) / (p1.Y - p0.Y);
+                y = yMin;
+            }
+            else if ((outCode & ClipBottom) != 0)
+            {
+                if (Mathf.Abs(p1.Y - p0.Y) < 1e-6f) return false;
+                x = p0.X + (p1.X - p0.X) * (yMax - p0.Y) / (p1.Y - p0.Y);
+                y = yMax;
+            }
+            else if ((outCode & ClipRight) != 0)
+            {
+                if (Mathf.Abs(p1.X - p0.X) < 1e-6f) return false;
+                y = p0.Y + (p1.Y - p0.Y) * (xMax - p0.X) / (p1.X - p0.X);
+                x = xMax;
+            }
+            else if ((outCode & ClipLeft) != 0)
+            {
+                if (Mathf.Abs(p1.X - p0.X) < 1e-6f) return false;
+                y = p0.Y + (p1.Y - p0.Y) * (xMin - p0.X) / (p1.X - p0.X);
+                x = xMin;
+            }
+
+            if (outCode == out0)
+            {
+                p0 = new Vector2(x, y);
+                out0 = ComputeOutCode(rect, p0);
+            }
+            else
+            {
+                p1 = new Vector2(x, y);
+                out1 = ComputeOutCode(rect, p1);
+            }
+        }
     }
 
     // ── Frame update ──────────────────────────────────────────────────────────
@@ -2169,12 +2248,68 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     public string GetSceneCharacterId(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Id : string.Empty;
     public string GetSceneCharacterPath(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Path : string.Empty;
     public string GetSceneCharacterName(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Name : string.Empty;
+    public Vector3 GetSceneCharacterPos(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Node.GlobalPosition : Vector3.Zero;
+    public Vector3 GetSceneCharacterRot(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Node.RotationDegrees : Vector3.Zero;
+    public Vector3 GetSceneCharacterScale(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Node.Scale : Vector3.One;
+    public float GetSceneCharacterPosX(int i) => GetSceneCharacterPos(i).X;
+    public float GetSceneCharacterPosY(int i) => GetSceneCharacterPos(i).Y;
+    public float GetSceneCharacterPosZ(int i) => GetSceneCharacterPos(i).Z;
+    public float GetSceneCharacterRotX(int i) => GetSceneCharacterRot(i).X;
+    public float GetSceneCharacterRotY(int i) => GetSceneCharacterRot(i).Y;
+    public float GetSceneCharacterRotZ(int i) => GetSceneCharacterRot(i).Z;
+    public float GetSceneCharacterScaleX(int i) => GetSceneCharacterScale(i).X;
+    public float GetSceneCharacterScaleY(int i) => GetSceneCharacterScale(i).Y;
+    public float GetSceneCharacterScaleZ(int i) => GetSceneCharacterScale(i).Z;
 
     public int    GetScenePropCount()       => _sceneProps.Count;
     public string GetScenePropPath(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Data.Path : string.Empty;
     public string GetScenePropName(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Data.Name : string.Empty;
     public Vector3 GetScenePropPos(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Node.GlobalPosition : Vector3.Zero;
     public Vector3 GetScenePropRot(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Node.RotationDegrees : Vector3.Zero;
+    public Vector3 GetScenePropScale(int i) => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Node.Scale : Vector3.One;
+    public float GetScenePropPosX(int i) => GetScenePropPos(i).X;
+    public float GetScenePropPosY(int i) => GetScenePropPos(i).Y;
+    public float GetScenePropPosZ(int i) => GetScenePropPos(i).Z;
+    public float GetScenePropRotX(int i) => GetScenePropRot(i).X;
+    public float GetScenePropRotY(int i) => GetScenePropRot(i).Y;
+    public float GetScenePropRotZ(int i) => GetScenePropRot(i).Z;
+    public float GetScenePropScaleX(int i) => GetScenePropScale(i).X;
+    public float GetScenePropScaleY(int i) => GetScenePropScale(i).Y;
+    public float GetScenePropScaleZ(int i) => GetScenePropScale(i).Z;
+
+    public void SetSceneCharacterName(int index, string name)
+    {
+        if (index < 0 || index >= _sceneCharacters.Count) return;
+        _sceneCharacters[index].Name = string.IsNullOrWhiteSpace(name)
+            ? _sceneCharacters[index].Name
+            : name.Trim();
+    }
+
+    public void SetScenePropName(int index, string name)
+    {
+        if (index < 0 || index >= _sceneProps.Count) return;
+        var (node, old) = _sceneProps[index];
+        var safeName = string.IsNullOrWhiteSpace(name) ? old.Name : name.Trim();
+        _sceneProps[index] = (node, old with { Name = safeName });
+    }
+
+    public void SetSceneCharacterPos(int index, float x, float y, float z)
+    {
+        if (index < 0 || index >= _sceneCharacters.Count) return;
+        _sceneCharacters[index].Node.GlobalPosition = new Vector3(x, y, z);
+    }
+
+    public void SetSceneCharacterRot(int index, float x, float y, float z)
+    {
+        if (index < 0 || index >= _sceneCharacters.Count) return;
+        _sceneCharacters[index].Node.RotationDegrees = new Vector3(x, y, z);
+    }
+
+    public void SetSceneCharacterScale(int index, float x, float y, float z)
+    {
+        if (index < 0 || index >= _sceneCharacters.Count) return;
+        _sceneCharacters[index].Node.Scale = new Vector3(x, y, z);
+    }
 
     public void SetScenePropPos(int index, float x, float y, float z)
     {
@@ -2190,6 +2325,15 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         if (index < 0 || index >= _sceneProps.Count) return;
         var (node, old) = _sceneProps[index];
         var data = old with { RotX = x, RotY = y, RotZ = z };
+        _sceneProps[index] = (node, data);
+        ApplyPropTransform(node, data);
+    }
+
+    public void SetScenePropScale(int index, float x, float y, float z)
+    {
+        if (index < 0 || index >= _sceneProps.Count) return;
+        var (node, old) = _sceneProps[index];
+        var data = old with { ScaleX = x, ScaleY = y, ScaleZ = z };
         _sceneProps[index] = (node, data);
         ApplyPropTransform(node, data);
     }

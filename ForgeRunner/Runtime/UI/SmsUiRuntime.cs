@@ -62,6 +62,7 @@ public sealed class SmsUiRuntime
     private readonly HashSet<ulong> _windowCloseHooked = [];
     private readonly Dictionary<Type, Dictionary<string, List<MethodInfo>>> _methodCache = [];
     private readonly Dictionary<long, object> _nativeObjects = [];
+    private readonly Dictionary<string, NumericLineEditBehavior> _numericLineEdits = new(StringComparer.Ordinal);
     private long _nextNativeObjectId = 1;
     private int _nextTreeHandle = 1;
     private string? _projectRoot;
@@ -847,6 +848,70 @@ public sealed class SmsUiRuntime
 
                 return NullValue.Instance;
             }),
+            ["configureNumericLineEdit"] = new NativeFunctionValue(methodArgs =>
+            {
+                var id = ValueArgString(methodArgs, 0).Trim();
+                var axis = methodArgs.Count > 1 ? ValueArgString(methodArgs, 1) : "x";
+                var unit = methodArgs.Count > 2 ? ValueArgString(methodArgs, 2) : string.Empty;
+                var colorRaw = methodArgs.Count > 3 ? ValueArgString(methodArgs, 3) : "#FFFFFF";
+                var step = methodArgs.Count > 4 ? ValueArgFloat(methodArgs, 4) : 0.01d;
+                var dragSensitivity = methodArgs.Count > 5 ? ValueArgFloat(methodArgs, 5) : 0.02d;
+                var decimals = methodArgs.Count > 6 ? ValueArgInt(methodArgs, 6) : 3;
+
+                if (string.IsNullOrWhiteSpace(id))
+                    return new BooleanValue(false);
+
+                if (UiRuntimeApi.GetObjectById(id) is not LineEdit lineEdit)
+                {
+                    RunnerLogger.Warn("SMS", $"configureNumericLineEdit: '{id}' is not a LineEdit.");
+                    return new BooleanValue(false);
+                }
+
+                if (!_numericLineEdits.TryGetValue(id, out var behavior))
+                {
+                    behavior = new NumericLineEditBehavior(lineEdit);
+                    _numericLineEdits[id] = behavior;
+                }
+
+                behavior.Configure(axis, unit, ParseColorOrDefault(colorRaw, Colors.White), step, dragSensitivity, decimals);
+                return new BooleanValue(true);
+            }),
+            ["setNumericLineEditValue"] = new NativeFunctionValue(methodArgs =>
+            {
+                var id = ValueArgString(methodArgs, 0).Trim();
+                var value = methodArgs.Count > 1 ? ValueArgFloat(methodArgs, 1) : 0d;
+                if (string.IsNullOrWhiteSpace(id))
+                    return NullValue.Instance;
+
+                if (!_numericLineEdits.TryGetValue(id, out var behavior))
+                {
+                    if (UiRuntimeApi.GetObjectById(id) is not LineEdit lineEdit)
+                        return NullValue.Instance;
+                    behavior = new NumericLineEditBehavior(lineEdit);
+                    _numericLineEdits[id] = behavior;
+                    behavior.Configure("x", string.Empty, Colors.White, 0.01d, 0.02d, 3);
+                }
+
+                behavior.SetValue(value);
+                return NullValue.Instance;
+            }),
+            ["getNumericLineEditValue"] = new NativeFunctionValue(methodArgs =>
+            {
+                var id = ValueArgString(methodArgs, 0).Trim();
+                if (string.IsNullOrWhiteSpace(id))
+                    return new NumberValue(0d);
+
+                if (_numericLineEdits.TryGetValue(id, out var behavior))
+                    return new NumberValue(behavior.GetValue());
+
+                if (UiRuntimeApi.GetObjectById(id) is LineEdit lineEdit
+                    && double.TryParse(lineEdit.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+                {
+                    return new NumberValue(parsed);
+                }
+
+                return new NumberValue(0d);
+            }),
             ["CreateWindow"] = new NativeFunctionValue(methodArgs =>
             {
                 var sml = ValueArgString(methodArgs, 0);
@@ -980,6 +1045,13 @@ public sealed class SmsUiRuntime
                 return new BooleanValue(copied);
             })
         });
+    }
+
+    private static Color ParseColorOrDefault(string raw, Color fallback)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return fallback;
+        return Color.FromString(raw.Trim(), fallback);
     }
 
     private static string GetLastProjectStorePath()
@@ -1496,6 +1568,17 @@ public sealed class SmsUiRuntime
                 return new StringValue(global::System.FormattableString.Invariant($"{pos.X:G6},{pos.Y:G6},{pos.Z:G6}"));
             });
 
+            // getSceneCharacterPos(idx) → "x,y,z" string
+            fields["getSceneCharacterPos"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var pos = posingEditorExt.GetSceneCharacterPos(idx);
+                return new StringValue(global::System.FormattableString.Invariant($"{pos.X:G6},{pos.Y:G6},{pos.Z:G6}"));
+            });
+            fields["getSceneCharacterPosX"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetSceneCharacterPosX(ValueArgInt(methodArgs, 0))));
+            fields["getSceneCharacterPosY"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetSceneCharacterPosY(ValueArgInt(methodArgs, 0))));
+            fields["getSceneCharacterPosZ"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetSceneCharacterPosZ(ValueArgInt(methodArgs, 0))));
+
             // setScenePropPos(idx, x, y, z)
             fields["setScenePropPos"] = new NativeFunctionValue(methodArgs =>
             {
@@ -1507,6 +1590,17 @@ public sealed class SmsUiRuntime
                 return NullValue.Instance;
             });
 
+            // setSceneCharacterPos(idx, x, y, z)
+            fields["setSceneCharacterPos"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var x = ValueArgFloat(methodArgs, 1);
+                var y = ValueArgFloat(methodArgs, 2);
+                var z = ValueArgFloat(methodArgs, 3);
+                posingEditorExt.SetSceneCharacterPos(idx, x, y, z);
+                return NullValue.Instance;
+            });
+
             // getScenePropRot(idx) → "x,y,z" string (Euler degrees)
             fields["getScenePropRot"] = new NativeFunctionValue(methodArgs =>
             {
@@ -1514,6 +1608,45 @@ public sealed class SmsUiRuntime
                 var rot = posingEditorExt.GetScenePropRot(idx);
                 return new StringValue(global::System.FormattableString.Invariant($"{rot.X:G6},{rot.Y:G6},{rot.Z:G6}"));
             });
+
+            // getSceneCharacterRot(idx) → "x,y,z" string (Euler degrees)
+            fields["getSceneCharacterRot"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var rot = posingEditorExt.GetSceneCharacterRot(idx);
+                return new StringValue(global::System.FormattableString.Invariant($"{rot.X:G6},{rot.Y:G6},{rot.Z:G6}"));
+            });
+            fields["getSceneCharacterRotX"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetSceneCharacterRotX(ValueArgInt(methodArgs, 0))));
+            fields["getSceneCharacterRotY"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetSceneCharacterRotY(ValueArgInt(methodArgs, 0))));
+            fields["getSceneCharacterRotZ"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetSceneCharacterRotZ(ValueArgInt(methodArgs, 0))));
+
+            // getScenePropScale(idx) → "x,y,z" string
+            fields["getScenePropScale"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var scale = posingEditorExt.GetScenePropScale(idx);
+                return new StringValue(global::System.FormattableString.Invariant($"{scale.X:G6},{scale.Y:G6},{scale.Z:G6}"));
+            });
+            fields["getScenePropScaleX"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetScenePropScaleX(ValueArgInt(methodArgs, 0))));
+            fields["getScenePropScaleY"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetScenePropScaleY(ValueArgInt(methodArgs, 0))));
+            fields["getScenePropScaleZ"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetScenePropScaleZ(ValueArgInt(methodArgs, 0))));
+            fields["getScenePropPosX"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetScenePropPosX(ValueArgInt(methodArgs, 0))));
+            fields["getScenePropPosY"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetScenePropPosY(ValueArgInt(methodArgs, 0))));
+            fields["getScenePropPosZ"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetScenePropPosZ(ValueArgInt(methodArgs, 0))));
+            fields["getScenePropRotX"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetScenePropRotX(ValueArgInt(methodArgs, 0))));
+            fields["getScenePropRotY"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetScenePropRotY(ValueArgInt(methodArgs, 0))));
+            fields["getScenePropRotZ"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetScenePropRotZ(ValueArgInt(methodArgs, 0))));
+
+            // getSceneCharacterScale(idx) → "x,y,z" string
+            fields["getSceneCharacterScale"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var scale = posingEditorExt.GetSceneCharacterScale(idx);
+                return new StringValue(global::System.FormattableString.Invariant($"{scale.X:G6},{scale.Y:G6},{scale.Z:G6}"));
+            });
+            fields["getSceneCharacterScaleX"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetSceneCharacterScaleX(ValueArgInt(methodArgs, 0))));
+            fields["getSceneCharacterScaleY"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetSceneCharacterScaleY(ValueArgInt(methodArgs, 0))));
+            fields["getSceneCharacterScaleZ"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetSceneCharacterScaleZ(ValueArgInt(methodArgs, 0))));
 
             // setScenePropRot(idx, x, y, z) — Euler degrees
             fields["setScenePropRot"] = new NativeFunctionValue(methodArgs =>
@@ -1523,6 +1656,57 @@ public sealed class SmsUiRuntime
                 var y   = ValueArgFloat(methodArgs, 2);
                 var z   = ValueArgFloat(methodArgs, 3);
                 posingEditorExt.SetScenePropRot(idx, x, y, z);
+                return NullValue.Instance;
+            });
+
+            // setSceneCharacterRot(idx, x, y, z) — Euler degrees
+            fields["setSceneCharacterRot"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var x = ValueArgFloat(methodArgs, 1);
+                var y = ValueArgFloat(methodArgs, 2);
+                var z = ValueArgFloat(methodArgs, 3);
+                posingEditorExt.SetSceneCharacterRot(idx, x, y, z);
+                return NullValue.Instance;
+            });
+
+            // setScenePropScale(idx, x, y, z)
+            fields["setScenePropScale"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var x = ValueArgFloat(methodArgs, 1);
+                var y = ValueArgFloat(methodArgs, 2);
+                var z = ValueArgFloat(methodArgs, 3);
+                posingEditorExt.SetScenePropScale(idx, x, y, z);
+                return NullValue.Instance;
+            });
+
+            // setSceneCharacterScale(idx, x, y, z)
+            fields["setSceneCharacterScale"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var x = ValueArgFloat(methodArgs, 1);
+                var y = ValueArgFloat(methodArgs, 2);
+                var z = ValueArgFloat(methodArgs, 3);
+                posingEditorExt.SetSceneCharacterScale(idx, x, y, z);
+                return NullValue.Instance;
+            });
+
+            // setSceneCharacterName(idx, name)
+            fields["setSceneCharacterName"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var name = ValueArgString(methodArgs, 1);
+                posingEditorExt.SetSceneCharacterName(idx, name);
+                return NullValue.Instance;
+            });
+
+            // setScenePropName(idx, name)
+            fields["setScenePropName"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var name = ValueArgString(methodArgs, 1);
+                posingEditorExt.SetScenePropName(idx, name);
                 return NullValue.Instance;
             });
 

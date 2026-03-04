@@ -22,6 +22,24 @@ const FUNCTIONS := {
         "description": "Returns a runtime object for any SML element with a matching id. Exposes callable methods dynamically from the underlying Godot object. Returns null when no matching id exists."
     },
 
+    "ui.configureNumericLineEdit": {
+        "category": "UI",
+        "signature": "ui.configureNumericLineEdit(id: String, axis: String, unit: String, color: String, step: float, dragSensitivity: float, decimals: int)",
+        "description": "Enables editor-like numeric behavior on a LineEdit: select-all on focus, drag-to-adjust while unfocused, and formatted preview text (for example: x 3.788 m)."
+    },
+
+    "ui.setNumericLineEditValue": {
+        "category": "UI",
+        "signature": "ui.setNumericLineEditValue(id: String, value: float)",
+        "description": "Sets the numeric value of a configured numeric LineEdit and refreshes its displayed preview/raw text."
+    },
+
+    "ui.getNumericLineEditValue": {
+        "category": "UI",
+        "signature": "ui.getNumericLineEditValue(id: String)",
+        "description": "Returns the current numeric value of a configured numeric LineEdit as a float."
+    },
+
     "window.flags": {
         "category": "UI",
         "signature": "Window Flag Constants",

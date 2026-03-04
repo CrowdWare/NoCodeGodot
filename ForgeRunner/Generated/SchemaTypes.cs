@@ -47,6 +47,7 @@ public static class SchemaTypes
         new TypeDef("ItemList", "Control", true),
         new TypeDef("Label", "Control", false),
         new TypeDef("LineEdit", "Control", false),
+        new TypeDef("NumberPicker", "LineEdit", false),
         new TypeDef("LinkButton", "BaseButton", false),
         new TypeDef("MarginContainer", "Container", false),
         new TypeDef("Markdown", "BoxContainer", false),

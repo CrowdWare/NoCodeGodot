@@ -78,7 +78,7 @@
 - [x] tasks/animation_panel.md
 - [x] tasks/animation_panel.md / phase 3
 - [x] tasks/animation_panel.md / phase 4 still open
-- [ ] tasks/timeline_scrubber.md
+- [x] tasks/timeline_scrubber.md
 - [ ] tasks/scene_panel.md
 - [ ] tasks/toolbar.md
 - [ ] tasks/viewport_code.md

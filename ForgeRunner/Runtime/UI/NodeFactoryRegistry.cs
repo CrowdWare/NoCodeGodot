@@ -101,6 +101,7 @@ public sealed class NodeFactoryRegistry
 
         // Buttons & interactive
         Register("LineEdit", () => new LineEdit());
+        Register("NumberPicker", () => new NumberPickerControl());
         Register("LinkButton", () => new LinkButton());
         Register("CheckBox", () => new CheckBox());
         Register("CheckButton", () => new CheckButton());

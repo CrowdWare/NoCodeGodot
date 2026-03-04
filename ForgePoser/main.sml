@@ -50,8 +50,8 @@ Window {
 
                     ItemList {
                         id: sceneAssetList
-                        customMinimumSize: 0, 110
                         sizeFlagsHorizontal: expandFill
+                        sizeFlagsVertical: expandFill
                     }
 
                     HBoxContainer {
@@ -178,6 +178,53 @@ Window {
                         sizeFlagsHorizontal: expandFill
                         sizeFlagsVertical: expandFill
                         hideRoot: true
+                    }
+                }
+            }
+
+            DockingContainer {
+                id: rightBottomDock
+                dockSide: rightBottom
+                fixedWidth: 240
+                dragToRearrangeEnabled: true
+                tabsRearrangeGroup: 1
+
+                VBoxContainer {
+                    id: inspectorPanel
+                    rightBottomDock.title: "Inspector"
+                    padding: 4, 4, 4, 4
+                    spacing: 4
+
+                    Label { text: "Inspector" fontSize: 11 fontWeight: bold }
+                    Label { id: inspectorTargetLabel text: "No selection" }
+
+                    Label { text: "Position" fontSize: 10 }
+                    HBoxContainer {
+                        spacing: 4
+                        NumberPicker { id: inspPosX sizeFlagsHorizontal: expandFill placeholderText: "X" }
+                        NumberPicker { id: inspPosY sizeFlagsHorizontal: expandFill placeholderText: "Y" }
+                        NumberPicker { id: inspPosZ sizeFlagsHorizontal: expandFill placeholderText: "Z" }
+                    }
+
+                    Label { text: "Rotation" fontSize: 10 }
+                    HBoxContainer {
+                        spacing: 4
+                        NumberPicker { id: inspRotX sizeFlagsHorizontal: expandFill placeholderText: "X" }
+                        NumberPicker { id: inspRotY sizeFlagsHorizontal: expandFill placeholderText: "Y" }
+                        NumberPicker { id: inspRotZ sizeFlagsHorizontal: expandFill placeholderText: "Z" }
+                    }
+
+                    Label { text: "Scale" fontSize: 10 }
+                    HBoxContainer {
+                        spacing: 4
+                        NumberPicker { id: inspScaleX sizeFlagsHorizontal: expandFill placeholderText: "X" }
+                        NumberPicker { id: inspScaleY sizeFlagsHorizontal: expandFill placeholderText: "Y" }
+                        NumberPicker { id: inspScaleZ sizeFlagsHorizontal: expandFill placeholderText: "Z" }
+                    }
+
+                    HBoxContainer {
+                        spacing: 4
+                        Button { id: btnCenterPivot text: "Center Pivot" sizeFlagsHorizontal: expandFill tooltipText: "Center Pivot" }
                     }
                 }
             }
