@@ -120,16 +120,83 @@ Window {
                         padding: 4, 2, 4, 2
                         spacing: 4
 
-                        Button { id: btnPoseMode    text: "Pose"    toggleMode: true  buttonPressed: false }
-                        Button { id: btnArrangeMode text: "Arrange" toggleMode: true  buttonPressed: true  }
+                        TextureButton {
+                            id: btnPoseMode
+                            toggleMode: true
+                            buttonPressed: false
+                            ignoreTextureSize: true
+                            customMinimumSize: 28, 28
+                            textureNormal: "res:/assets/images/toolbar_pose.svg"
+                            textureHover: "res:/assets/images/toolbar_pose.svg"
+                            texturePressed: "res:/assets/images/toolbar_pose_active.svg"
+                            textureFocused: "res:/assets/images/toolbar_pose_active.svg"
+                            tooltipText: "Pose Mode"
+                        }
+                        TextureButton {
+                            id: btnArrangeMode
+                            toggleMode: true
+                            buttonPressed: true
+                            ignoreTextureSize: true
+                            customMinimumSize: 28, 28
+                            textureNormal: "res:/assets/images/toolbar_arrange.svg"
+                            textureHover: "res:/assets/images/toolbar_arrange.svg"
+                            texturePressed: "res:/assets/images/toolbar_arrange_active.svg"
+                            textureFocused: "res:/assets/images/toolbar_arrange_active.svg"
+                            tooltipText: "Arrange Mode"
+                        }
 
                         VSeparator { }
 
-                        Button { id: btnModeMove   text: "Move"   toggleMode: true  buttonPressed: true  }
-                        Button { id: btnModeScale  text: "Scale"  toggleMode: true  buttonPressed: false }
-                        Button { id: btnModeRotate text: "Rotate" toggleMode: true  buttonPressed: false }
+                        TextureButton {
+                            id: btnModeMove
+                            toggleMode: true
+                            buttonPressed: true
+                            ignoreTextureSize: true
+                            customMinimumSize: 28, 28
+                            textureNormal: "res:/assets/images/toolbar_move.svg"
+                            textureHover: "res:/assets/images/toolbar_move.svg"
+                            texturePressed: "res:/assets/images/toolbar_move_active.svg"
+                            textureFocused: "res:/assets/images/toolbar_move_active.svg"
+                            tooltipText: "Move Gizmo"
+                        }
+                        TextureButton {
+                            id: btnModeScale
+                            toggleMode: true
+                            buttonPressed: false
+                            ignoreTextureSize: true
+                            customMinimumSize: 28, 28
+                            textureNormal: "res:/assets/images/toolbar_scale.svg"
+                            textureHover: "res:/assets/images/toolbar_scale.svg"
+                            texturePressed: "res:/assets/images/toolbar_scale_active.svg"
+                            textureFocused: "res:/assets/images/toolbar_scale_active.svg"
+                            tooltipText: "Scale Gizmo"
+                        }
+                        TextureButton {
+                            id: btnModeRotate
+                            toggleMode: true
+                            buttonPressed: false
+                            ignoreTextureSize: true
+                            customMinimumSize: 28, 28
+                            textureNormal: "res:/assets/images/toolbar_rotate.svg"
+                            textureHover: "res:/assets/images/toolbar_rotate.svg"
+                            texturePressed: "res:/assets/images/toolbar_rotate_active.svg"
+                            textureFocused: "res:/assets/images/toolbar_rotate_active.svg"
+                            tooltipText: "Rotate Gizmo"
+                        }
 
-                        Button { id: btnToggleJoints text: "Joints ●" customMinimumSize: 80, 0  visible: false }
+                        TextureButton {
+                            id: btnToggleJoints
+                            toggleMode: true
+                            buttonPressed: true
+                            ignoreTextureSize: true
+                            customMinimumSize: 28, 28
+                            textureNormal: "res:/assets/images/toolbar_joints.svg"
+                            textureHover: "res:/assets/images/toolbar_joints.svg"
+                            texturePressed: "res:/assets/images/toolbar_joints_active.svg"
+                            textureFocused: "res:/assets/images/toolbar_joints_active.svg"
+                            tooltipText: "Toggle Joint Spheres"
+                            visible: false
+                        }
                     }
                     VSplitContainer {
                         sizeFlagsHorizontal: expandFill

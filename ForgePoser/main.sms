@@ -127,6 +127,7 @@ fun activatePoseMode() {
     ui.getObject("btnModeScale").visible = false
     ui.getObject("btnModeRotate").visible = false
     ui.getObject("btnToggleJoints").visible = true
+    ui.getObject("btnToggleJoints").buttonPressed = jointSpheresVisible
     editor.setMode("pose")
 }
 
@@ -867,7 +868,11 @@ on editor.objectSelected(propIdx) {
 
 on editor.objectMoved(propIdx, pos) {
     updateInspectorFromSelection()
-    statusLabel.text = "Prop " + propIdx + " moved to " + pos
+    if (propIdx >= 0) {
+        statusLabel.text = "Prop " + propIdx + " moved to " + pos
+    } else {
+        statusLabel.text = "Character transformed."
+    }
 }
 
 on inspPosX.textChanged(newText) {
@@ -1053,10 +1058,12 @@ on btnToggleJoints.clicked() {
     if (jointSpheresVisible) {
         jointSpheresVisible = false
         editor.setJointSpheresVisible(false)
+        ui.getObject("btnToggleJoints").buttonPressed = false
         statusLabel.text = "Joints hidden."
     } else {
         jointSpheresVisible = true
         editor.setJointSpheresVisible(true)
+        ui.getObject("btnToggleJoints").buttonPressed = true
         statusLabel.text = "Joints visible."
     }
 }

@@ -80,7 +80,7 @@
 - [x] tasks/animation_panel.md / phase 4 still open
 - [x] tasks/timeline_scrubber.md
 - [x] tasks/scene_panel.md
-- [ ] tasks/sms_parser_multiline_function_calls.md
+- [x] tasks/sms_parser_multiline_function_calls.md
 - [ ] tasks/toolbar.md
 - [ ] tasks/viewport_code.md
 

@@ -873,7 +873,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             const float DepthScale = 0.0018f;
             _moveGizmo.UpdateDrag(_camera, mousePos, mousePos - d, DepthScale);
 
-            // Sync ScenePropData with the node's new position (not needed for character)
+            // Sync ScenePropData for props and emit a transform-change event for both selection types.
             if (!_characterSelected && _selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
             {
                 var (node, old) = _sceneProps[_selectedPropIdx];
@@ -881,6 +881,11 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                 var updated = old with { PosX = newPos.X, PosY = newPos.Y, PosZ = newPos.Z };
                 _sceneProps[_selectedPropIdx] = (node, updated);
                 ObjectMoved?.Invoke(_selectedPropIdx, newPos);
+            }
+            else if (_characterSelected && _selectedCharacterIdx >= 0 && _selectedCharacterIdx < _sceneCharacters.Count)
+            {
+                var characterPos = _sceneCharacters[_selectedCharacterIdx].Node.GlobalPosition;
+                ObjectMoved?.Invoke(-1, characterPos);
             }
             UpdateArrangeLabel();
         }
@@ -896,7 +901,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             const float DepthScale = 0.0018f;
             _scaleGizmo.UpdateDrag(_camera, mousePos, mousePos - d, DepthScale);
 
-            // Sync ScenePropData with the node's new scale (not needed for character)
+            // Sync ScenePropData for props and emit a transform-change event for both selection types.
             if (!_characterSelected && _selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
             {
                 var (node, old) = _sceneProps[_selectedPropIdx];
@@ -904,6 +909,11 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                 var updated = old with { ScaleX = s.X, ScaleY = s.Y, ScaleZ = s.Z };
                 _sceneProps[_selectedPropIdx] = (node, updated);
                 ObjectMoved?.Invoke(_selectedPropIdx, node.GlobalPosition);
+            }
+            else if (_characterSelected && _selectedCharacterIdx >= 0 && _selectedCharacterIdx < _sceneCharacters.Count)
+            {
+                var characterPos = _sceneCharacters[_selectedCharacterIdx].Node.GlobalPosition;
+                ObjectMoved?.Invoke(-1, characterPos);
             }
             UpdateArrangeLabel();
         }
@@ -918,7 +928,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             }
             _gizmo.UpdateDrag(d);
 
-            // Sync ScenePropData with the node's new rotation (not needed for character)
+            // Sync ScenePropData for props and emit a transform-change event for both selection types.
             if (!_characterSelected && _selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
             {
                 var (node, old) = _sceneProps[_selectedPropIdx];
@@ -926,6 +936,11 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                 var updated = old with { RotX = euler.X, RotY = euler.Y, RotZ = euler.Z };
                 _sceneProps[_selectedPropIdx] = (node, updated);
                 ObjectMoved?.Invoke(_selectedPropIdx, node.GlobalPosition);
+            }
+            else if (_characterSelected && _selectedCharacterIdx >= 0 && _selectedCharacterIdx < _sceneCharacters.Count)
+            {
+                var characterPos = _sceneCharacters[_selectedCharacterIdx].Node.GlobalPosition;
+                ObjectMoved?.Invoke(-1, characterPos);
             }
             UpdateArrangeLabel();
         }
