@@ -77,7 +77,7 @@
 - [x] tasks/markdown_layout.md
 - [x] tasks/animation_panel.md
 - [x] tasks/animation_panel.md / phase 3
-- [ ] tasks/animation_panel.md / phase 4 still open
+- [x] tasks/animation_panel.md / phase 4 still open
 - [ ] tasks/timeline_scrubber.md
 - [ ] tasks/scene_panel.md
 - [ ] tasks/toolbar.md

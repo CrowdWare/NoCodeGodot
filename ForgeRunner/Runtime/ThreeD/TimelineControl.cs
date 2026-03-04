@@ -21,7 +21,6 @@ using Godot;
 using Runtime.Logging;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Runtime.ThreeD;
 
@@ -37,7 +36,9 @@ namespace Runtime.ThreeD;
 public sealed partial class TimelineTrackArea : Control
 {
     // ── Visual layout constants ───────────────────────────────────────────
-    internal const float RulerHeight   = 20f;
+    private const float RulerTopOffset = 0f;
+    private const float RulerNumberOffset = -4f;
+    internal const float RulerHeight   = 24f;
     internal const float TrackHeight   = 22f;
     internal const float BoneNameWidth = 120f;
     internal const float PixPerFrame   = 8f;
@@ -46,10 +47,12 @@ public sealed partial class TimelineTrackArea : Control
     private static readonly Color ColBg        = new(0.14f, 0.14f, 0.14f);
     private static readonly Color ColTrackAlt  = new(0.11f, 0.11f, 0.11f);
     private static readonly Color ColRulerBg   = new(0.20f, 0.20f, 0.20f);
-    private static readonly Color ColTick      = new(0.60f, 0.60f, 0.60f);
+    private static readonly Color ColTickMinor = new(0.46f, 0.46f, 0.46f, 0.42f);
+    private static readonly Color ColTickMajor = new(0.10f, 0.10f, 0.10f, 0.78f);
+    private static readonly Color ColTickText  = new(0.76f, 0.76f, 0.76f);
     private static readonly Color ColBoneName  = new(0.82f, 0.82f, 0.82f);
     private static readonly Color ColKeyframe  = new(0.95f, 0.78f, 0.10f);
-    private static readonly Color ColPlayhead  = new(1.00f, 0.30f, 0.20f);
+    private static readonly Color ColPlayheadFallback = new(1.00f, 0.30f, 0.20f);
     private static readonly Color ColSeparator = new(0.28f, 0.28f, 0.28f, 0.50f);
 
     // ── Owner reference ───────────────────────────────────────────────────
@@ -70,27 +73,18 @@ public sealed partial class TimelineTrackArea : Control
         var h     = Size.Y;
         var font  = ThemeDB.FallbackFont;
         var fSize = (int)ThemeDB.FallbackFontSize;
+        var rulerLabelSize = Math.Max(10, fSize);
+        var playheadColor = ResolveAccentColor();
 
         // Background
         DrawRect(new Rect2(0, 0, w, h), ColBg);
 
         // Ruler strip
-        DrawRect(new Rect2(BoneNameWidth, 0, w - BoneNameWidth, RulerHeight), ColRulerBg);
-
-        // Ruler ticks and labels
-        var step = TickStep(Owner.TotalFrames);
-        for (var f = 0; f <= Owner.TotalFrames; f += step)
-        {
-            var x = BoneNameWidth + f * PixPerFrame - ScrollOffset;
-            if (x < BoneNameWidth || x > w) continue;
-            DrawLine(new Vector2(x, RulerHeight - 5f), new Vector2(x, RulerHeight), ColTick);
-            DrawString(font, new Vector2(x + 2f, RulerHeight - 6f), f.ToString(),
-                HorizontalAlignment.Left, -1, fSize - 1, ColTick);
-        }
+        DrawRect(new Rect2(BoneNameWidth, RulerTopOffset, w - BoneNameWidth, RulerHeight), ColRulerBg);
 
         // Column / ruler separators
         DrawLine(new Vector2(BoneNameWidth, 0), new Vector2(BoneNameWidth, h), ColSeparator);
-        DrawLine(new Vector2(0, RulerHeight),   new Vector2(w, RulerHeight),   ColSeparator);
+        DrawLine(new Vector2(0, RulerHeight + RulerTopOffset), new Vector2(w, RulerHeight + RulerTopOffset), ColSeparator);
 
         // ── Bone tracks ───────────────────────────────────────────────────
         var bones = Owner.TrackedBones;
@@ -106,26 +100,49 @@ public sealed partial class TimelineTrackArea : Control
                 DisplayName(bones[row]),
                 HorizontalAlignment.Left, (int)(BoneNameWidth - 8), fSize, ColBoneName);
 
-            // Keyframe diamonds
+            DrawLine(new Vector2(0, y + TrackHeight), new Vector2(w, y + TrackHeight), ColSeparator);
+        }
+
+        // Vertical scrubber grid like DCC timelines:
+        // major line every 10 frames, minor line every 5 frames in-between.
+        for (var f = 0; f <= Owner.TotalFrames; f += 5)
+        {
+            var x = BoneNameWidth + f * PixPerFrame - ScrollOffset;
+            if (x < BoneNameWidth || x > w) continue;
+
+            var isMajor = (f % 10) == 0;
+            var col = isMajor ? ColTickMajor : ColTickMinor;
+            var width = isMajor ? 1.5f : 1.0f;
+            DrawLine(new Vector2(x, 0f), new Vector2(x, h), col, width);
+
+            if (!isMajor) continue;
+
+            var label = f.ToString();
+            var textSize = font.GetStringSize(label, HorizontalAlignment.Left, -1, rulerLabelSize);
+            // Center the frame number on its vertical major line.
+            var tx = x - (textSize.X * 0.5f);
+            DrawString(font, new Vector2(tx, 11f + 7f), label,
+                HorizontalAlignment.Left, -1, rulerLabelSize, ColBoneName);
+        }
+
+        // Keyframe diamonds (on top of the grid).
+        for (var row = 0; row < bones.Count; row++)
+        {
+            var y = RulerHeight + row * TrackHeight;
             foreach (var frame in Owner.GetKeyframesForBone(bones[row]))
             {
                 var kx = BoneNameWidth + frame * PixPerFrame - ScrollOffset;
                 if (kx < BoneNameWidth - 8f || kx > w + 8f) continue;
                 DrawDiamond(kx, y + TrackHeight * 0.5f, 5f, ColKeyframe);
             }
-
-            DrawLine(new Vector2(0, y + TrackHeight), new Vector2(w, y + TrackHeight), ColSeparator);
         }
 
         // ── Playhead ──────────────────────────────────────────────────────
         var phX = BoneNameWidth + Owner.CurrentFrame * PixPerFrame - ScrollOffset;
         if (phX >= BoneNameWidth - 1f && phX <= w + 1f)
         {
-            DrawLine(new Vector2(phX, 0f), new Vector2(phX, h), ColPlayhead, 2f);
-            // Triangle handle at top
-            DrawPolygon(
-                new Vector2[] { new(phX - 5f, 0f), new(phX + 5f, 0f), new(phX, 9f) },
-                new Color[]   { ColPlayhead });
+            DrawLine(new Vector2(phX, 0f), new Vector2(phX, h), playheadColor, 2f);
+            DrawPlayheadFrameBadge(phX, font, rulerLabelSize, playheadColor);
         }
     }
 
@@ -199,13 +216,33 @@ public sealed partial class TimelineTrackArea : Control
         return i >= 0 ? name[(i + 1)..] : name;
     }
 
-    private static int TickStep(int total) => total switch
+    private Color ResolveAccentColor()
     {
-        <= 48  => 4,
-        <= 120 => 10,
-        <= 300 => 25,
-        _      => 50,
-    };
+        var accent = GetThemeColor("accent_color", "VScrollBar");
+        return accent.A <= 0.001f ? ColPlayheadFallback : accent;
+    }
+
+    private void DrawPlayheadFrameBadge(float x, Font font, int fontSize, Color color)
+    {
+        var label = Owner?.CurrentFrame.ToString() ?? "0";
+        var textSize = font.GetStringSize(label, HorizontalAlignment.Left, -1, fontSize);
+        var padX = 7f;
+        var padY = 2f;
+        var badgeSize = new Vector2(textSize.X + padX * 2f, textSize.Y + padY * 2f);
+        var badgePos = new Vector2(x - badgeSize.X * 0.5f, 1f + RulerTopOffset - 3); 
+
+        var style = new StyleBoxFlat
+        {
+            BgColor = color,
+            CornerRadiusTopLeft = 4,
+            CornerRadiusTopRight = 4,
+            CornerRadiusBottomLeft = 4,
+            CornerRadiusBottomRight = 4
+        };
+        DrawStyleBox(style, new Rect2(badgePos, badgeSize));
+        DrawString(font, new Vector2(badgePos.X + padX, badgePos.Y + textSize.Y - 3f),
+            label, HorizontalAlignment.Left, -1, fontSize, new Color(1f, 1f, 1f));
+    }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -246,6 +283,7 @@ public sealed partial class TimelineControl : Control
                 if (string.Equals(scopedId, _visibleCharacterId, StringComparison.OrdinalIgnoreCase))
                     _visibleTrackedBones.Add(key);
             }
+            _visibleTrackedBones.Sort(StringComparer.OrdinalIgnoreCase);
             return _visibleTrackedBones;
         }
     }
@@ -253,9 +291,37 @@ public sealed partial class TimelineControl : Control
     /// <summary>Returns the frame indices that have a keyframe for the given bone.</summary>
     public IEnumerable<int> GetKeyframesForBone(string boneName)
     {
+        if (string.IsNullOrWhiteSpace(_visibleCharacterId))
+        {
+            foreach (var (frame, pose) in _keyframes)
+                if (pose.ContainsKey(boneName))
+                    yield return frame;
+            yield break;
+        }
+
+        // Strict mode: timeline rows and keyframes are scoped keys ("charId:BoneName").
+        // If the row key is malformed, no compatibility fallback is applied.
+        if (!TrySplitBoneKey(boneName, out _, out var expectedLocal))
+            yield break;
+
+        var expectedCharId = _visibleCharacterId;
+
         foreach (var (frame, pose) in _keyframes)
-            if (pose.ContainsKey(boneName))
-                yield return frame;
+        {
+            var match = false;
+            foreach (var key in pose.Keys)
+            {
+                if (!TrySplitBoneKey(key, out var scopedId, out var localName))
+                    continue;
+                if (!string.Equals(scopedId, expectedCharId, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (!string.Equals(localName, expectedLocal, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                match = true;
+                break;
+            }
+            if (match) yield return frame;
+        }
     }
 
     // ── Scene nodes ───────────────────────────────────────────────────────
@@ -465,40 +531,18 @@ public sealed partial class TimelineControl : Control
 
     private static List<string> GetCharacterLocalBoneNames(Dictionary<string, Quaternion> bones, string characterId)
     {
-        var canonicalToDisplay = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var names = new List<string>();
         foreach (var key in bones.Keys)
         {
             if (!TrySplitBoneKey(key, out var scopedId, out var localName))
                 continue;
             if (!string.Equals(scopedId, characterId, StringComparison.OrdinalIgnoreCase))
                 continue;
-
-            var canonical = CanonicalBoneAlias(localName);
-            if (!canonicalToDisplay.ContainsKey(canonical))
-                canonicalToDisplay[canonical] = localName;
+            names.Add(localName);
         }
 
-        var names = canonicalToDisplay.Values.ToList();
         names.Sort(StringComparer.OrdinalIgnoreCase);
         return names;
-    }
-
-    private static string CanonicalBoneAlias(string boneName)
-    {
-        if (string.IsNullOrWhiteSpace(boneName))
-            return string.Empty;
-
-        var lower = boneName.ToLowerInvariant();
-        if (!lower.StartsWith("mixamorig", StringComparison.Ordinal))
-            return lower;
-
-        var idx = "mixamorig".Length;
-        while (idx < lower.Length && char.IsDigit(lower[idx]))
-            idx++;
-        if (idx < lower.Length && lower[idx] == '_')
-            return lower[(idx + 1)..];
-
-        return lower;
     }
 
     public int GetKeyframeBoneCountForCharacter(int frame, string characterId)
