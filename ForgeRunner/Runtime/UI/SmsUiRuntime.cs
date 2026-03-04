@@ -63,10 +63,13 @@ public sealed class SmsUiRuntime
     private readonly Dictionary<Type, Dictionary<string, List<MethodInfo>>> _methodCache = [];
     private readonly Dictionary<long, object> _nativeObjects = [];
     private readonly Dictionary<string, NumericLineEditBehavior> _numericLineEdits = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _textChangedDebounceSeqById = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Runtime.ThreeD.AnimationProjectData> _projectSnapshotByPath = new(StringComparer.OrdinalIgnoreCase);
     private long _nextNativeObjectId = 1;
     private int _nextTreeHandle = 1;
     private string? _projectRoot;
     private string? _activeProjectRoot;
+    private const double SourceEditorTextChangedDebounceSeconds = 0.18;
 
     public SmsUiRuntime(RunnerUriResolver uriResolver, string uiSmlUri)
     {
@@ -150,7 +153,53 @@ public sealed class SmsUiRuntime
         {
             var sourceId = ResolveSourceId(ctx);
             if (string.IsNullOrWhiteSpace(sourceId)) return;
-            TryInvokeEvent(sourceId, "textChanged", false, ctx.Clicked ?? string.Empty);
+            var text = ctx.Clicked ?? string.Empty;
+            if (!string.Equals(sourceId, "sourceEditor", StringComparison.OrdinalIgnoreCase))
+            {
+                TryInvokeEvent(sourceId, "textChanged", false, text);
+                return;
+            }
+
+            if (Engine.GetMainLoop() is not SceneTree sceneTree || sceneTree.Root is null)
+            {
+                TryInvokeEvent(sourceId, "textChanged", false, text);
+                return;
+            }
+
+            var sourceTextEdit = ctx.Source as TextEdit;
+
+            var seq = _textChangedDebounceSeqById.TryGetValue(sourceId, out var previous)
+                ? previous + 1
+                : 1;
+            _textChangedDebounceSeqById[sourceId] = seq;
+
+            var timer = sceneTree.CreateTimer(SourceEditorTextChangedDebounceSeconds);
+            timer.Timeout += () =>
+            {
+                if (!_textChangedDebounceSeqById.TryGetValue(sourceId, out var currentSeq) || currentSeq != seq)
+                {
+                    return;
+                }
+
+                if (sourceTextEdit is null || !GodotObject.IsInstanceValid(sourceTextEdit))
+                {
+                    TryInvokeEvent(sourceId, "textChanged", false, text);
+                    return;
+                }
+
+                var savedCaretLine = sourceTextEdit.GetCaretLine();
+                var savedCaretColumn = sourceTextEdit.GetCaretColumn();
+
+                TryInvokeEvent(sourceId, "textChanged", false, text);
+
+                // Keep the editing caret stable even if downstream handlers touched focus/state.
+                var lineCount = Math.Max(1, sourceTextEdit.GetLineCount());
+                var safeLine = Math.Clamp(savedCaretLine, 0, lineCount - 1);
+                sourceTextEdit.SetCaretLine(safeLine, adjustViewport: false);
+                var lineText = sourceTextEdit.GetLine(safeLine) ?? string.Empty;
+                var safeColumn = Math.Clamp(savedCaretColumn, 0, lineText.Length);
+                sourceTextEdit.SetCaretColumn(safeColumn, adjustViewport: false);
+            };
         });
 
         dispatcher.RegisterActionHandler("lineEditTextSubmitted", ctx =>
@@ -207,7 +256,9 @@ public sealed class SmsUiRuntime
             }
             else
             {
-                RunnerLogger.Warn("SMS", $"Save ignored for '{editorId}': no onSave callback registered.");
+                // Fallback for editors without explicit onSave callback:
+                // route Cmd/Ctrl+S to the standard File->Save action.
+                TryInvokeEvent("menuSave", "clicked", warnIfMissing: false);
             }
         });
 
@@ -655,6 +706,45 @@ public sealed class SmsUiRuntime
             {
                 var path = ValueArgString(methodArgs, 0);
                 return new BooleanValue(!string.IsNullOrWhiteSpace(path) && File.Exists(path));
+            }),
+            ["loadPromptConfig"] = new NativeFunctionValue(methodArgs =>
+            {
+                var scenePath = ValueArgString(methodArgs, 0);
+                var defaults = new PromptConfig(
+                    Prompt: methodArgs.Count > 1 ? ValueArgString(methodArgs, 1) : string.Empty,
+                    NegativePrompt: methodArgs.Count > 2 ? ValueArgString(methodArgs, 2) : string.Empty,
+                    StyleImagePath: methodArgs.Count > 3 ? ValueArgString(methodArgs, 3) : string.Empty,
+                    ExtraImagePath: methodArgs.Count > 4 ? ValueArgString(methodArgs, 4) : string.Empty,
+                    ImageModel: methodArgs.Count > 5 ? ValueArgString(methodArgs, 5) : "grok-imagine-image",
+                    VideoModel: methodArgs.Count > 6 ? ValueArgString(methodArgs, 6) : "grok-imagine-video");
+
+                var loaded = LoadPromptConfig(scenePath, defaults);
+                return new ObjectValue("PromptConfig", new Dictionary<string, Value>(StringComparer.Ordinal)
+                {
+                    ["prompt"] = new StringValue(loaded.Prompt),
+                    ["negativePrompt"] = new StringValue(loaded.NegativePrompt),
+                    ["styleImagePath"] = new StringValue(loaded.StyleImagePath),
+                    ["extraImagePath"] = new StringValue(loaded.ExtraImagePath),
+                    ["imageModel"] = new StringValue(loaded.ImageModel),
+                    ["videoModel"] = new StringValue(loaded.VideoModel)
+                });
+            }),
+            ["savePromptConfig"] = new NativeFunctionValue(methodArgs =>
+            {
+                var scenePath = ValueArgString(methodArgs, 0);
+                var config = new PromptConfig(
+                    Prompt: methodArgs.Count > 1 ? ValueArgString(methodArgs, 1) : string.Empty,
+                    NegativePrompt: methodArgs.Count > 2 ? ValueArgString(methodArgs, 2) : string.Empty,
+                    StyleImagePath: methodArgs.Count > 3 ? ValueArgString(methodArgs, 3) : string.Empty,
+                    ExtraImagePath: methodArgs.Count > 4 ? ValueArgString(methodArgs, 4) : string.Empty,
+                    ImageModel: methodArgs.Count > 5 ? ValueArgString(methodArgs, 5) : "grok-imagine-image",
+                    VideoModel: methodArgs.Count > 6 ? ValueArgString(methodArgs, 6) : "grok-imagine-video");
+                return new BooleanValue(SavePromptConfig(scenePath, config));
+            }),
+            ["toResPath"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                return new StringValue(ToResPath(path));
             })
         });
     }
@@ -970,8 +1060,9 @@ public sealed class SmsUiRuntime
                 saveDialog.FileSelected += path =>
                 {
                     saveDialog.QueueFree();
+                    var normalizedPath = NormalizeDialogSelectedPath(path);
                     if (!string.IsNullOrWhiteSpace(callbackName))
-                        ExecuteCall($"{callbackName}({Quote(path)})");
+                        ExecuteCall($"{callbackName}({Quote(normalizedPath)})");
                 };
 
                 saveDialog.Canceled += () =>
@@ -1010,8 +1101,9 @@ public sealed class SmsUiRuntime
                 dialog.FileSelected += path =>
                 {
                     dialog.QueueFree();
+                    var normalizedPath = NormalizeDialogSelectedPath(path);
                     if (!string.IsNullOrWhiteSpace(callbackName))
-                        ExecuteCall($"{callbackName}({Quote(path)})");
+                        ExecuteCall($"{callbackName}({Quote(normalizedPath)})");
                 };
 
                 dialog.Canceled += () =>
@@ -1110,6 +1202,139 @@ public sealed class SmsUiRuntime
         catch (Exception ex)
         {
             RunnerLogger.Warn("SMS", $"setLastProjectPath failed for '{path}'.", ex);
+        }
+    }
+
+    private readonly record struct PromptConfig(
+        string Prompt,
+        string NegativePrompt,
+        string StyleImagePath,
+        string ExtraImagePath,
+        string ImageModel,
+        string VideoModel);
+
+    private static PromptConfig LoadPromptConfig(string scenePath, PromptConfig defaults)
+    {
+        var promptPath = GetPromptConfigPath(scenePath);
+        if (string.IsNullOrWhiteSpace(promptPath) || !File.Exists(promptPath))
+            return defaults;
+
+        try
+        {
+            var text = File.ReadAllText(promptPath, System.Text.Encoding.UTF8);
+            var doc = new SmlParser(text).ParseDocument();
+            SmlNode? root = null;
+            foreach (var node in doc.Roots)
+            {
+                if (string.Equals(node.Name, "Prompt", StringComparison.OrdinalIgnoreCase))
+                {
+                    root = node;
+                    break;
+                }
+            }
+
+            if (root is null && doc.Roots.Count > 0)
+                root = doc.Roots[0];
+            if (root is null)
+                return defaults;
+
+            return new PromptConfig(
+                Prompt: GetNodeString(root, "prompt", defaults.Prompt),
+                NegativePrompt: GetNodeString(root, "negativePrompt", defaults.NegativePrompt),
+                StyleImagePath: GetNodeString(root, "styleImagePath", defaults.StyleImagePath),
+                ExtraImagePath: GetNodeString(root, "extraImagePath", defaults.ExtraImagePath),
+                ImageModel: GetNodeString(root, "imageModel", defaults.ImageModel),
+                VideoModel: GetNodeString(root, "videoModel", defaults.VideoModel));
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("SMS", $"loadPromptConfig failed for '{promptPath}'.", ex);
+            return defaults;
+        }
+    }
+
+    private static bool SavePromptConfig(string scenePath, PromptConfig config)
+    {
+        var promptPath = GetPromptConfigPath(scenePath);
+        if (string.IsNullOrWhiteSpace(promptPath))
+            return false;
+
+        try
+        {
+            var dir = Path.GetDirectoryName(promptPath);
+            if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+            File.WriteAllText(promptPath, SerializePromptConfig(config), System.Text.Encoding.UTF8);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("SMS", $"savePromptConfig failed for '{promptPath}'.", ex);
+            return false;
+        }
+    }
+
+    private static string GetPromptConfigPath(string scenePath)
+    {
+        if (string.IsNullOrWhiteSpace(scenePath))
+            return string.Empty;
+
+        var sceneFilePath = NormalizeDialogSelectedPath(scenePath);
+        var sceneDir = Path.GetDirectoryName(sceneFilePath);
+        if (string.IsNullOrWhiteSpace(sceneDir))
+            return string.Empty;
+        return Path.Combine(sceneDir, "prompt.sml");
+    }
+
+    private static string SerializePromptConfig(PromptConfig config)
+    {
+        return
+$"Prompt {{\n" +
+$"    prompt: \"{EscapeSmlString(config.Prompt)}\"\n" +
+$"    negativePrompt: \"{EscapeSmlString(config.NegativePrompt)}\"\n" +
+$"    styleImagePath: \"{EscapeSmlString(config.StyleImagePath)}\"\n" +
+$"    extraImagePath: \"{EscapeSmlString(config.ExtraImagePath)}\"\n" +
+$"    imageModel: \"{EscapeSmlString(config.ImageModel)}\"\n" +
+$"    videoModel: \"{EscapeSmlString(config.VideoModel)}\"\n" +
+$"}}\n";
+    }
+
+    private static string EscapeSmlString(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        return value
+            .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("\"", "\\\"", StringComparison.Ordinal)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
+    }
+
+    private static string GetNodeString(SmlNode node, string key, string fallback)
+    {
+        if (!node.TryGetProperty(key, out var value))
+            return fallback;
+        return value.Kind is SmlValueKind.String or SmlValueKind.Identifier
+            ? (string)value.Value
+            : fallback;
+    }
+
+    private static string NormalizeDialogSelectedPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return string.Empty;
+
+        if (Uri.TryCreate(path, UriKind.Absolute, out var uri) && uri.IsFile)
+            return uri.LocalPath;
+
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch
+        {
+            return path;
         }
     }
 
@@ -1381,6 +1606,44 @@ public sealed class SmsUiRuntime
         return Path.GetFullPath(Path.Combine(root, relative));
     }
 
+    private string ToResPath(string inputPath)
+    {
+        if (string.IsNullOrWhiteSpace(inputPath))
+            return string.Empty;
+
+        if (inputPath.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+            return $"res:/{inputPath.Substring("res://".Length)}";
+        if (inputPath.StartsWith("res:/", StringComparison.OrdinalIgnoreCase))
+            return inputPath;
+
+        var normalized = NormalizeDialogSelectedPath(inputPath);
+        var roots = new List<string>();
+        if (!string.IsNullOrWhiteSpace(_activeProjectRoot))
+            roots.Add(_activeProjectRoot);
+        if (!string.IsNullOrWhiteSpace(_projectRoot))
+            roots.Add(_projectRoot);
+
+        foreach (var root in roots)
+        {
+            try
+            {
+                var fullRoot = Path.GetFullPath(root);
+                var relative = Path.GetRelativePath(fullRoot, normalized);
+                if (string.IsNullOrWhiteSpace(relative) || relative.StartsWith("..", StringComparison.Ordinal))
+                    continue;
+
+                var relUnix = relative.Replace(Path.DirectorySeparatorChar, '/');
+                return $"res:/{relUnix}";
+            }
+            catch
+            {
+                // Ignore invalid path combinations and continue to next root.
+            }
+        }
+
+        return normalized;
+    }
+
     private Texture2D? LoadTreeButtonTexture(string inputPath)
     {
         if (string.IsNullOrWhiteSpace(inputPath))
@@ -1509,6 +1772,7 @@ public sealed class SmsUiRuntime
             fields["loadProject"] = new NativeFunctionValue(methodArgs =>
             {
                 var path = ValueArgString(methodArgs, 0);
+                var silent = methodArgs.Count > 1 && ValueArgBool(methodArgs, 1);
                 if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
                 {
                     RunnerLogger.Warn("SMS", $"loadProject: file not found '{path}'.");
@@ -1523,9 +1787,12 @@ public sealed class SmsUiRuntime
                     if (string.IsNullOrWhiteSpace(details))
                         details = "Unbekannter Parse-Fehler.";
                     RunnerLogger.Warn("SMS", $"loadProject parse failed for '{path}': {details}");
-                    ShowMessageDialog(
-                        "Scene konnte nicht geladen werden",
-                        $"'{Path.GetFileName(path)}' konnte nicht geladen werden.\nDetails siehe Console/Log.");
+                    if (!silent)
+                    {
+                        ShowMessageDialog(
+                            "Scene konnte nicht geladen werden",
+                            $"'{Path.GetFileName(path)}' konnte nicht geladen werden.\nDetails siehe Console/Log.");
+                    }
                     return new BooleanValue(false);
                 }
 
@@ -1541,6 +1808,93 @@ public sealed class SmsUiRuntime
                 _activeProjectRoot = projectDirectory;
                 posingEditorExt.SetProjectDirectory(projectDirectory);
                 posingEditorExt.LoadProjectData(data, timeline, projectDirectory);
+                _projectSnapshotByPath[path] = CloneProjectData(data);
+                return new BooleanValue(true);
+            });
+
+            // getProjectText(path) — reads a .scene text file (absolute path allowed)
+            fields["getProjectText"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                {
+                    RunnerLogger.Warn("SMS", $"getProjectText: file not found '{path}'.");
+                    return new StringValue(string.Empty);
+                }
+
+                try
+                {
+                    return new StringValue(File.ReadAllText(path, System.Text.Encoding.UTF8));
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("SMS", $"getProjectText failed for '{path}'.", ex);
+                    return new StringValue(string.Empty);
+                }
+            });
+
+            // applyProjectText(path, content) — parse/apply source-of-truth scene text and persist on success
+            fields["applyProjectText"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                var content = ValueArgString(methodArgs, 1);
+                var silent = methodArgs.Count > 2 && ValueArgBool(methodArgs, 2);
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    if (!silent)
+                    {
+                        RunnerLogger.Warn("SMS", "applyProjectText: empty path.");
+                    }
+                    return new BooleanValue(false);
+                }
+
+                var data = Runtime.ThreeD.AnimationSerializer.Deserialize(content, logErrors: !silent);
+                if (data is null)
+                {
+                    // Editing source text is expected to pass through temporarily invalid states.
+                    // Treat parse failures as soft no-op (no warning spam, no stack traces).
+                    return new BooleanValue(false);
+                }
+
+                var timeline = FindSiblingTimeline(posingEditorExt);
+                if (timeline is null)
+                {
+                    RunnerLogger.Warn("SMS", "applyProjectText: no TimelineControl found in scene.");
+                    return new BooleanValue(false);
+                }
+
+                var projectDirectory = Path.GetDirectoryName(path) ?? string.Empty;
+                _activeProjectRoot = projectDirectory;
+                posingEditorExt.SetProjectDirectory(projectDirectory);
+
+                try
+                {
+                    var dir = Path.GetDirectoryName(path);
+                    if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir))
+                        Directory.CreateDirectory(dir);
+                    File.WriteAllText(path, content, System.Text.Encoding.UTF8);
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("SMS", $"applyProjectText write failed for '{path}'.", ex);
+                    return new BooleanValue(false);
+                }
+
+                if (!_projectSnapshotByPath.TryGetValue(path, out var currentData))
+                {
+                    currentData = posingEditorExt.BuildProjectData(timeline);
+                    _projectSnapshotByPath[path] = CloneProjectData(currentData);
+                }
+
+                if (HasStructuralEqualityForFastProjectTextApply(currentData, data))
+                {
+                    posingEditorExt.ReplaceProjectProperties(data.SceneProperties);
+                    _projectSnapshotByPath[path] = CloneProjectData(data);
+                    return new BooleanValue(true);
+                }
+
+                posingEditorExt.LoadProjectData(data, timeline, projectDirectory);
+                _projectSnapshotByPath[path] = CloneProjectData(data);
                 return new BooleanValue(true);
             });
 
@@ -1570,6 +1924,7 @@ public sealed class SmsUiRuntime
                     if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir))
                         Directory.CreateDirectory(dir);
                     File.WriteAllText(path, content, System.Text.Encoding.UTF8);
+                    _projectSnapshotByPath[path] = CloneProjectData(data);
                 }
                 catch (Exception ex)
                 {
@@ -2191,6 +2546,130 @@ public sealed class SmsUiRuntime
     {
         return control.HasMeta(NodePropertyMapper.MetaNodeName)
             && string.Equals(control.GetMeta(NodePropertyMapper.MetaNodeName).AsString(), "Markdown", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasStructuralEqualityForFastProjectTextApply(
+        Runtime.ThreeD.AnimationProjectData current,
+        Runtime.ThreeD.AnimationProjectData incoming)
+    {
+        if (current.Fps != incoming.Fps || current.TotalFrames != incoming.TotalFrames)
+        {
+            return false;
+        }
+
+        if (!AreSceneAssetsEqual(current.SceneAssets, incoming.SceneAssets))
+        {
+            return false;
+        }
+
+        return AreKeyframesEqual(current.Keyframes, incoming.Keyframes);
+    }
+
+    private static bool AreSceneAssetsEqual(
+        List<Runtime.ThreeD.SceneAssetData> left,
+        List<Runtime.ThreeD.SceneAssetData> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < left.Count; i++)
+        {
+            var a = left[i];
+            var b = right[i];
+            if (!string.Equals(a.Id, b.Id, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(a.Name, b.Name, StringComparison.Ordinal)
+                || !string.Equals(a.Src, b.Src, StringComparison.Ordinal)
+                || a.Primary != b.Primary
+                || !Mathf.IsEqualApprox(a.PosX, b.PosX)
+                || !Mathf.IsEqualApprox(a.PosY, b.PosY)
+                || !Mathf.IsEqualApprox(a.PosZ, b.PosZ)
+                || !Mathf.IsEqualApprox(a.RotX, b.RotX)
+                || !Mathf.IsEqualApprox(a.RotY, b.RotY)
+                || !Mathf.IsEqualApprox(a.RotZ, b.RotZ)
+                || !Mathf.IsEqualApprox(a.ScaleX, b.ScaleX)
+                || !Mathf.IsEqualApprox(a.ScaleY, b.ScaleY)
+                || !Mathf.IsEqualApprox(a.ScaleZ, b.ScaleZ))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool AreKeyframesEqual(
+        SortedDictionary<int, Dictionary<string, Quaternion>> left,
+        SortedDictionary<int, Dictionary<string, Quaternion>> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        using var leftEnum = left.GetEnumerator();
+        using var rightEnum = right.GetEnumerator();
+        while (leftEnum.MoveNext() && rightEnum.MoveNext())
+        {
+            var lf = leftEnum.Current;
+            var rf = rightEnum.Current;
+            if (lf.Key != rf.Key)
+            {
+                return false;
+            }
+
+            var lBones = lf.Value;
+            var rBones = rf.Value;
+            if (lBones.Count != rBones.Count)
+            {
+                return false;
+            }
+
+            foreach (var (boneKey, lQuat) in lBones)
+            {
+                if (!rBones.TryGetValue(boneKey, out var rQuat))
+                {
+                    return false;
+                }
+
+                if (!Mathf.IsEqualApprox(lQuat.X, rQuat.X)
+                    || !Mathf.IsEqualApprox(lQuat.Y, rQuat.Y)
+                    || !Mathf.IsEqualApprox(lQuat.Z, rQuat.Z)
+                    || !Mathf.IsEqualApprox(lQuat.W, rQuat.W))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static Runtime.ThreeD.AnimationProjectData CloneProjectData(Runtime.ThreeD.AnimationProjectData data)
+    {
+        var assets = new List<Runtime.ThreeD.SceneAssetData>(data.SceneAssets.Count);
+        for (var i = 0; i < data.SceneAssets.Count; i++)
+        {
+            assets.Add(data.SceneAssets[i]);
+        }
+
+        var keyframes = new SortedDictionary<int, Dictionary<string, Quaternion>>();
+        foreach (var (frame, bones) in data.Keyframes)
+        {
+            keyframes[frame] = new Dictionary<string, Quaternion>(bones, StringComparer.OrdinalIgnoreCase);
+        }
+
+        var props = data.SceneProperties is null
+            ? null
+            : new Dictionary<string, string>(data.SceneProperties, StringComparer.OrdinalIgnoreCase);
+
+        return new Runtime.ThreeD.AnimationProjectData(
+            data.Fps,
+            data.TotalFrames,
+            assets,
+            keyframes,
+            props);
     }
 
     private static void RenderMarkdownContent(Control container, string markdownText)

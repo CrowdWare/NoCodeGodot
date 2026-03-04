@@ -36,6 +36,8 @@ Inherited actions are documented in: [SubViewportContainer](SubViewportContainer
 | setBoneTree | `<id>.setBoneTree(treeId)` | string treeId | void |
 | setModelSource | `<id>.setModelSource(src)` | string src | void |
 | loadProject | `<id>.loadProject(path)` | string path | void |
+| getProjectText | `<id>.getProjectText(path)` | string path | string |
+| applyProjectText | `<id>.applyProjectText(path, content)` | string path, string content | bool |
 | saveProject | `<id>.saveProject(path)` | string path | void |
 | setProjectProperty | `<id>.setProjectProperty(key, value)` | string key, string value | void |
 | getProjectProperty | `<id>.getProjectProperty(key, fallback)` | string key, string fallback | string |
@@ -46,6 +48,7 @@ Inherited actions are documented in: [SubViewportContainer](SubViewportContainer
 | getActiveCharacterId | `<id>.getActiveCharacterId()` | — | string |
 | getSceneCharacterPath | `<id>.getSceneCharacterPath(index)` | int index | string |
 | getSceneCharacterName | `<id>.getSceneCharacterName(index)` | int index | string |
+| getSceneCharacterVisible | `<id>.getSceneCharacterVisible(index)` | int index | bool |
 | selectSceneCharacter | `<id>.selectSceneCharacter(index)` | int index | void |
 | removeCharacter | `<id>.removeCharacter()` | — | void |
 | removeSceneCharacter | `<id>.removeSceneCharacter(index)` | int index | void |
@@ -53,10 +56,15 @@ Inherited actions are documented in: [SubViewportContainer](SubViewportContainer
 | getScenePropCount | `<id>.getScenePropCount()` | — | int |
 | getScenePropPath | `<id>.getScenePropPath(index)` | int index | string |
 | getScenePropName | `<id>.getScenePropName(index)` | int index | string |
+| getScenePropVisible | `<id>.getScenePropVisible(index)` | int index | bool |
 | getScenePropPos | `<id>.getScenePropPos(index)` | int index | string |
 | setScenePropPos | `<id>.setScenePropPos(index, x, y, z)` | int index, float x, float y, float z | void |
+| setSceneCharacterVisible | `<id>.setSceneCharacterVisible(index, visible)` | int index, bool visible | void |
+| setScenePropVisible | `<id>.setScenePropVisible(index, visible)` | int index, bool visible | void |
 | getScenePropRot | `<id>.getScenePropRot(index)` | int index | string |
 | setScenePropRot | `<id>.setScenePropRot(index, x, y, z)` | int index, float x, float y, float z | void |
+| placeSelectedOnGround | `<id>.placeSelectedOnGround(groundY)` | float groundY | bool |
+| rebaseSelectedPivotBottom | `<id>.rebaseSelectedPivotBottom()` | — | bool |
 | getPoseDataForCharacter | `<id>.getPoseDataForCharacter(characterId)` | string characterId | object |
 | getPoseDataForActiveCharacter | `<id>.getPoseDataForActiveCharacter()` | — | object |
 | setMode | `<id>.setMode(mode)` | string mode | void |

@@ -1221,7 +1221,19 @@ public sealed class SmlUiBuilder
             textEdit.TextChanged += () =>
             {
                 var id = GetMetaString(control, NodePropertyMapper.MetaId);
-                RunnerLogger.Info("UI", $"TextEdit changed: id='{id}', length={textEdit.Text.Length}");
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    return;
+                }
+
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "lineEditTextChanged",
+                    Clicked: textEdit.Text,
+                    ClickedIdValue: default
+                ));
             };
         }
 

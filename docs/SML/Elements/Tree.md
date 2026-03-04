@@ -97,6 +97,19 @@ Inherited actions are documented in: [Control](Control.md)
 | set_h_scroll_enabled | `<id>.setHScrollEnabled(hScroll)` | bool hScroll | void |
 | set_v_scroll_enabled | `<id>.setVScrollEnabled(hScroll)` | bool hScroll | void |
 
+## Actions
+
+This page lists **only actions supported by the runtime** for `Tree`.
+Inherited actions are documented in: [Control](Control.md)
+
+| Action | SMS Call | Params | Returns |
+|-|-|-|-|
+| CreateRoot | `<id>.CreateRoot(text, path)` | string text, string path | int |
+| CreateChild | `<id>.CreateChild(parentHandle, text, path, isDirectory)` | int parentHandle, string text, string path, bool isDirectory | int |
+| AddButton | `<id>.AddButton(itemHandle, iconPath, buttonId, tooltip)` | int itemHandle, string iconPath, int buttonId, string tooltip | bool |
+| GetSelectedPath | `<id>.GetSelectedPath()` | — | string |
+| BindEvents | `<id>.BindEvents()` | — | void |
+
 ## Attached Properties
 
 These properties are declared by a parent provider and set on this element using the qualified syntax `<providerId>.property: value` or `ProviderType.property: value`.

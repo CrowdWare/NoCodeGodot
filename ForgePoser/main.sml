@@ -107,7 +107,8 @@ Window {
                 dockSide: center
                 flex: true
                 closeable: false
-                dragToRearrangeEnabled: false
+                dragToRearrangeEnabled: true
+                tabsRearrangeGroup: 2
 
                 VBoxContainer {
                     centerDock.title: "Viewport"
@@ -231,6 +232,21 @@ Window {
                         }
                     }
                 }
+
+                VBoxContainer {
+                    centerDock.title: "Source"
+                    sizeFlagsHorizontal: expandFill
+                    sizeFlagsVertical: expandFill
+                    padding: 4, 4, 4, 4
+
+                    CodeEdit {
+                        id: sourceEditor
+                        sizeFlagsHorizontal: expandFill
+                        sizeFlagsVertical: expandFill
+                        syntax: "sml"
+                        wrapMode: 0
+                    }
+                }
             }
 
             DockingContainer {
@@ -300,6 +316,50 @@ Window {
                     HBoxContainer {
                         spacing: 4
                         Button { id: btnPlaceOnGround text: "Place On Ground" sizeFlagsHorizontal: expandFill tooltipText: "Set selected object bottom to Y=0" }
+                    }
+                }
+
+                VBoxContainer {
+                    id: promptPanel
+                    rightBottomDock.title: "Prompt"
+                    padding: 4, 4, 4, 4
+                    spacing: 4
+
+                    Label { text: "AI Prompt" fontSize: 11 fontWeight: bold }
+                    TextEdit {
+                        id: promptEditor
+                        sizeFlagsHorizontal: expandFill
+                        sizeFlagsVertical: expandFill
+                        customMinimumSize: 0, 120
+                    }
+
+                    Label { text: "Negative Prompt" fontSize: 10 }
+                    LineEdit {
+                        id: negativePromptEdit
+                        sizeFlagsHorizontal: expandFill
+                        placeholderText: "Optional negative prompt"
+                    }
+
+                    Label { text: "Style Image" fontSize: 10 }
+                    HBoxContainer {
+                        spacing: 4
+                        LineEdit {
+                            id: styleImagePathEdit
+                            sizeFlagsHorizontal: expandFill
+                            placeholderText: "Path to style image"
+                        }
+                        Button { id: btnPickStyleImage text: "..." customMinimumSize: 28, 24 }
+                    }
+
+                    Label { text: "Extra Image" fontSize: 10 }
+                    HBoxContainer {
+                        spacing: 4
+                        LineEdit {
+                            id: extraImagePathEdit
+                            sizeFlagsHorizontal: expandFill
+                            placeholderText: "Path to extra image"
+                        }
+                        Button { id: btnPickExtraImage text: "..." customMinimumSize: 28, 24 }
                     }
                 }
             }

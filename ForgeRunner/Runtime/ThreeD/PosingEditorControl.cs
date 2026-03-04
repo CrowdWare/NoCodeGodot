@@ -174,6 +174,25 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         return _sceneProperties.TryGetValue(key, out var value) ? value : (fallback ?? string.Empty);
     }
 
+    public void ReplaceProjectProperties(Dictionary<string, string>? properties)
+    {
+        _sceneProperties.Clear();
+        if (properties is null)
+        {
+            return;
+        }
+
+        foreach (var (key, value) in properties)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            _sceneProperties[key] = value ?? string.Empty;
+        }
+    }
+
     private Dictionary<string, string> BuildScenePropertiesForSave()
     {
         var props = new Dictionary<string, string>(_sceneProperties, StringComparer.OrdinalIgnoreCase);
@@ -202,7 +221,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     public event Action<int, string>?        ScenePropAdded;    // (index, path)
     public event Action<int>?                ScenePropRemoved;  // (index)
     public event Action<int>?                ObjectSelected;    // (propIdx, -1 = deselect)
-    public event Action<int, Vector3>?       ObjectMoved;       // (propIdx, newWorldPos)
+    public event Action<int, Vector3>?       ObjectMoved;       // (propIdx, newWorldPos), emitted once per finished drag
     public event Action<string, int>?        ExportProgress;    // (filename, percent 0‥100)
     public event Action<int, string>?        FrameRangeExportFinished; // (written, outputDirectory)
 
@@ -892,25 +911,21 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                 _moveGizmo.EndDrag();
                 _moveGizmoDragging = false;
                 if (_angleLabel is not null) _angleLabel.Visible = false;
+                EmitObjectMovedForCurrentSelection();
                 return;
             }
             const float DepthScale = 0.0018f;
             _moveGizmo.UpdateDrag(_camera, mousePos, mousePos - d, DepthScale);
 
-            // Sync ScenePropData for props and emit a transform-change event for both selection types.
+            // Sync ScenePropData for props while dragging.
             if (!_characterSelected && _selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
             {
                 var (node, old) = _sceneProps[_selectedPropIdx];
                 var newPos = node.GlobalPosition;
                 var updated = old with { PosX = newPos.X, PosY = newPos.Y, PosZ = newPos.Z };
                 _sceneProps[_selectedPropIdx] = (node, updated);
-                ObjectMoved?.Invoke(_selectedPropIdx, newPos);
             }
-            else if (_characterSelected && _selectedCharacterIdx >= 0 && _selectedCharacterIdx < _sceneCharacters.Count)
-            {
-                var characterPos = _sceneCharacters[_selectedCharacterIdx].Node.GlobalPosition;
-                ObjectMoved?.Invoke(-1, characterPos);
-            }
+            EmitObjectMovedForCurrentSelection();
             UpdateArrangeLabel();
         }
         else if (_scaleGizmoDragging)
@@ -920,25 +935,21 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                 _scaleGizmo.EndDrag();
                 _scaleGizmoDragging = false;
                 if (_angleLabel is not null) _angleLabel.Visible = false;
+                EmitObjectMovedForCurrentSelection();
                 return;
             }
             const float DepthScale = 0.0018f;
             _scaleGizmo.UpdateDrag(_camera, mousePos, mousePos - d, DepthScale);
 
-            // Sync ScenePropData for props and emit a transform-change event for both selection types.
+            // Sync ScenePropData for props while dragging.
             if (!_characterSelected && _selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
             {
                 var (node, old) = _sceneProps[_selectedPropIdx];
                 var s = node.Scale;
                 var updated = old with { ScaleX = s.X, ScaleY = s.Y, ScaleZ = s.Z };
                 _sceneProps[_selectedPropIdx] = (node, updated);
-                ObjectMoved?.Invoke(_selectedPropIdx, node.GlobalPosition);
             }
-            else if (_characterSelected && _selectedCharacterIdx >= 0 && _selectedCharacterIdx < _sceneCharacters.Count)
-            {
-                var characterPos = _sceneCharacters[_selectedCharacterIdx].Node.GlobalPosition;
-                ObjectMoved?.Invoke(-1, characterPos);
-            }
+            EmitObjectMovedForCurrentSelection();
             UpdateArrangeLabel();
         }
         else if (_rotateGizmoDraggingFreeNode)
@@ -948,24 +959,20 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                 _gizmo.EndDrag();
                 _rotateGizmoDraggingFreeNode = false;
                 if (_angleLabel is not null) _angleLabel.Visible = false;
+                EmitObjectMovedForCurrentSelection();
                 return;
             }
             _gizmo.UpdateDrag(d);
 
-            // Sync ScenePropData for props and emit a transform-change event for both selection types.
+            // Sync ScenePropData for props while dragging.
             if (!_characterSelected && _selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
             {
                 var (node, old) = _sceneProps[_selectedPropIdx];
                 var euler = node.RotationDegrees;
                 var updated = old with { RotX = euler.X, RotY = euler.Y, RotZ = euler.Z };
                 _sceneProps[_selectedPropIdx] = (node, updated);
-                ObjectMoved?.Invoke(_selectedPropIdx, node.GlobalPosition);
             }
-            else if (_characterSelected && _selectedCharacterIdx >= 0 && _selectedCharacterIdx < _sceneCharacters.Count)
-            {
-                var characterPos = _sceneCharacters[_selectedCharacterIdx].Node.GlobalPosition;
-                ObjectMoved?.Invoke(-1, characterPos);
-            }
+            EmitObjectMovedForCurrentSelection();
             UpdateArrangeLabel();
         }
         else if (_isRotating)
@@ -992,6 +999,20 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             var panScale = _orbitDistance * 0.0015f;
             _cameraTarget += (-right * d.X + up * d.Y) * panScale;
             ApplyCameraOrbit();
+        }
+    }
+
+    private void EmitObjectMovedForCurrentSelection()
+    {
+        if (!_characterSelected && _selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
+        {
+            ObjectMoved?.Invoke(_selectedPropIdx, _sceneProps[_selectedPropIdx].Node.GlobalPosition);
+            return;
+        }
+
+        if (_characterSelected && _selectedCharacterIdx >= 0 && _selectedCharacterIdx < _sceneCharacters.Count)
+        {
+            ObjectMoved?.Invoke(-1, _sceneCharacters[_selectedCharacterIdx].Node.GlobalPosition);
         }
     }
 
@@ -1251,7 +1272,6 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
         var idx = _sceneCharacters.Count - 1;
         ActivateCharacter(idx);
-        RunnerLogger.Info("PosingEditor", $"Character added: '{name}' id='{id}', bones={skeleton.GetBoneCount()}.");
         return idx;
     }
 
@@ -1519,7 +1539,6 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         {
             AttachArrangeGizmo(propIdx);
             ObjectSelected?.Invoke(propIdx);
-            RunnerLogger.Info("PosingEditor", $"Prop selected: idx={propIdx}.");
         }
         else
         {
@@ -1688,7 +1707,6 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             var boneName = NormBone(_skeleton.GetBoneName(_selectedBoneIdx));
             SyncBoneListSelection(_selectedBoneIdx);
             BoneSelected?.Invoke(boneName);
-            RunnerLogger.Info("PosingEditor", $"Bone selected: '{boneName}' (idx {_selectedBoneIdx}).");
 
             // Show rotation gizmo on selected bone.
             _gizmo.AttachToBone(_skeleton, _selectedBoneIdx);
@@ -2065,7 +2083,6 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     {
         if (root is AnimationPlayer ap)
         {
-            RunnerLogger.Info("PosingEditor", $"Stopping AnimationPlayer '{ap.Name}'.");
             ap.Active = false;
             ap.Stop();
         }
@@ -2297,7 +2314,6 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
         ObjectSelected?.Invoke(-1);
         QueueRedraw();
-        RunnerLogger.Info("PosingEditor", $"Character removed from scene: idx={index}.");
     }
 
     /// <summary>Remove the active character model from the scene.</summary>
@@ -2346,7 +2362,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     public string GetSceneCharacterName(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Name : string.Empty;
     public bool GetSceneCharacterVisible(int i) => i >= 0 && i < _sceneCharacters.Count && _sceneCharacters[i].Node.Visible;
     public Vector3 GetSceneCharacterPos(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Node.GlobalPosition : Vector3.Zero;
-    public Vector3 GetSceneCharacterRot(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Node.RotationDegrees : Vector3.Zero;
+    public Vector3 GetSceneCharacterRot(int i) => i >= 0 && i < _sceneCharacters.Count ? NormalizeRotationDegrees(_sceneCharacters[i].Node.RotationDegrees) : Vector3.Zero;
     public Vector3 GetSceneCharacterScale(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Node.Scale : Vector3.One;
     public float GetSceneCharacterPosX(int i) => GetSceneCharacterPos(i).X;
     public float GetSceneCharacterPosY(int i) => GetSceneCharacterPos(i).Y;
@@ -2363,7 +2379,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     public string GetScenePropName(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Data.Name : string.Empty;
     public bool GetScenePropVisible(int i)  => i >= 0 && i < _sceneProps.Count && _sceneProps[i].Node.Visible;
     public Vector3 GetScenePropPos(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Node.GlobalPosition : Vector3.Zero;
-    public Vector3 GetScenePropRot(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Node.RotationDegrees : Vector3.Zero;
+    public Vector3 GetScenePropRot(int i)   => i >= 0 && i < _sceneProps.Count ? NormalizeRotationDegrees(_sceneProps[i].Node.RotationDegrees) : Vector3.Zero;
     public Vector3 GetScenePropScale(int i) => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Node.Scale : Vector3.One;
     public float GetScenePropPosX(int i) => GetScenePropPos(i).X;
     public float GetScenePropPosY(int i) => GetScenePropPos(i).Y;
@@ -2400,7 +2416,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     public void SetSceneCharacterRot(int index, float x, float y, float z)
     {
         if (index < 0 || index >= _sceneCharacters.Count) return;
-        _sceneCharacters[index].Node.RotationDegrees = new Vector3(x, y, z);
+        _sceneCharacters[index].Node.RotationDegrees = NormalizeRotationDegrees(new Vector3(x, y, z));
     }
 
     public void SetSceneCharacterScale(int index, float x, float y, float z)
@@ -2437,9 +2453,23 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     {
         if (index < 0 || index >= _sceneProps.Count) return;
         var (node, old) = _sceneProps[index];
-        var data = old with { RotX = x, RotY = y, RotZ = z };
+        var normalized = NormalizeRotationDegrees(new Vector3(x, y, z));
+        var data = old with { RotX = normalized.X, RotY = normalized.Y, RotZ = normalized.Z };
         _sceneProps[index] = (node, data);
         ApplyPropTransform(node, data);
+    }
+
+    private static Vector3 NormalizeRotationDegrees(Vector3 value) =>
+        new(
+            NormalizeRotationComponent(value.X),
+            NormalizeRotationComponent(value.Y),
+            NormalizeRotationComponent(value.Z));
+
+    private static float NormalizeRotationComponent(float value)
+    {
+        // Keep round-trips stable for inspector edits (e.g. 10.0 should not come back as 9.999999).
+        var rounded = (float)Math.Round(value, 4, MidpointRounding.AwayFromZero);
+        return Mathf.Abs(rounded) < 0.00005f ? 0f : rounded;
     }
 
     public void SetScenePropScale(int index, float x, float y, float z)

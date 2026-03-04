@@ -187,6 +187,10 @@ case "$MODE" in
       echo "ERROR: gh CLI not found. Install via: brew install gh" >&2
       exit 1
     fi
+    if ! command -v hdiutil >/dev/null 2>&1; then
+      echo "ERROR: hdiutil not found. DMG packaging requires macOS." >&2
+      exit 1
+    fi
 
     CHANNEL="${2:-pre}"   # pre | alpha | beta | stable
     VERSION="$(generate_version)"
@@ -211,10 +215,14 @@ case "$MODE" in
     echo "Exporting macOS release..."
     "$GODOT_BIN" --headless --path "$RUNNER_PATH" --export-release "macOS"
 
-    ZIP="$REPO_ROOT/ForgeRunner-${TAG}-macOS.zip"
-    echo "Zipping ForgeRunner.app -> $(basename "$ZIP")..."
+    DMG="$REPO_ROOT/ForgeRunner-${TAG}-macOS.dmg"
+    TMP_DMG_DIR="$REPO_ROOT/.release_dmg"
+    echo "Packaging ForgeRunner.app -> $(basename "$DMG")..."
     cd "$REPO_ROOT"
-    zip -r -q "$ZIP" ForgeRunner.app
+    rm -rf "$TMP_DMG_DIR"
+    mkdir -p "$TMP_DMG_DIR"
+    cp -R ForgeRunner.app "$TMP_DMG_DIR/"
+    hdiutil create -volname "ForgeRunner" -srcfolder "$TMP_DMG_DIR" -ov -format UDZO "$DMG" >/dev/null
 
     echo "Committing version bump + tagging $TAG..."
     git add ForgeRunner/ForgeRunner.csproj SMLCore/SMLCore.csproj SMSCore/SMSCore.csproj
@@ -224,12 +232,13 @@ case "$MODE" in
     git push origin "$TAG"
 
     echo "Creating GitHub Release $TAG..."
-    gh release create "$TAG" "$ZIP" \
+    gh release create "$TAG" "$DMG" \
       --title "$TITLE" \
       --generate-notes \
       $PRERELEASE_FLAG
 
-    rm "$ZIP"
+    rm -rf "$TMP_DMG_DIR"
+    rm "$DMG"
     echo "Release $TAG [$CHANNEL] published."
     ;;
   *)

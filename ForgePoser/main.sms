@@ -6,6 +6,14 @@ var sceneTreeRef = null
 var editor = null
 var timeline = null
 var statusLabel = null
+var sourceEditorRef = null
+var sourceEditorWriteLock = false
+var sourceEditorDirty = false
+var promptEditorRef = null
+var negativePromptEditRef = null
+var styleImagePathEditRef = null
+var extraImagePathEditRef = null
+var promptPanelWriteLock = false
 var rightDockRef = null
 var bonesPanelRef = null
 var inspectorPanelRef = null
@@ -91,18 +99,44 @@ fun applyThemePreset(index) {
     if (chooserThemeLabel != null) {
         chooserThemeLabel.text = themeNames[selectedThemeIndex]
     }
+    refreshPromptPanelFromState()
+}
+
+fun savePromptConfigForPath(path) {
+    if (path == "") {
+        return
+    }
+    os.savePromptConfig(path, aiPrompt, aiNegativePrompt, aiStyleImagePath, aiExtraImagePath, aiImageModel, aiVideoModel)
 }
 
 fun pushAiSceneProperties() {
-    // Runtime compatibility fallback:
-    // older binaries may not expose setProjectProperty yet.
-    // keep AI settings in script memory only.
+    savePromptConfigForPath(currentProjectPath)
 }
 
 fun pullAiSceneProperties() {
-    // Runtime compatibility fallback:
-    // older binaries may not expose getProjectProperty yet.
-    // keep AI settings in script memory only.
+    if (currentProjectPath == "") {
+        return
+    }
+    var cfg = os.loadPromptConfig(currentProjectPath, aiPrompt, aiNegativePrompt, aiStyleImagePath, aiExtraImagePath, aiImageModel, aiVideoModel)
+    aiPrompt = cfg.prompt
+    aiNegativePrompt = cfg.negativePrompt
+    aiStyleImagePath = cfg.styleImagePath
+    aiExtraImagePath = cfg.extraImagePath
+    aiImageModel = cfg.imageModel
+    aiVideoModel = cfg.videoModel
+    refreshPromptPanelFromState()
+}
+
+fun refreshPromptPanelFromState() {
+    if (promptEditorRef == null || negativePromptEditRef == null || styleImagePathEditRef == null || extraImagePathEditRef == null) {
+        return
+    }
+    promptPanelWriteLock = true
+    promptEditorRef.text = aiPrompt
+    negativePromptEditRef.text = aiNegativePrompt
+    styleImagePathEditRef.text = aiStyleImagePath
+    extraImagePathEditRef.text = aiExtraImagePath
+    promptPanelWriteLock = false
 }
 
 fun activateArrangeMove() {
@@ -172,10 +206,47 @@ fun applyInitialPoseAfterLoad() {
     }
 }
 
+fun refreshSourceEditorFromProject() {
+    if (sourceEditorRef == null || currentProjectPath == "") {
+        return
+    }
+    sourceEditorWriteLock = true
+    sourceEditorRef.text = editor.getProjectText(currentProjectPath)
+    sourceEditorWriteLock = false
+    sourceEditorDirty = false
+}
+
+fun syncSceneToSource() {
+    if (currentProjectPath == "") {
+        return
+    }
+    pushAiSceneProperties()
+    editor.saveProject(currentProjectPath)
+    refreshSourceEditorFromProject()
+}
+
+fun saveSourceEditorToProject(path) {
+    if (sourceEditorRef == null || path == "") {
+        return false
+    }
+    if (!sourceEditorDirty) {
+        return false
+    }
+    os.writeFile(path, sourceEditorRef.text)
+    sourceEditorDirty = false
+    statusLabel.text = "Source saved: " + path
+    return true
+}
+
 fun ready() {
     kfTreeRef    = ui.getObject("keyframeTree")
     sceneTreeRef = ui.getObject("sceneAssetTree")
     editor       = ui.getObject("editor")
+    sourceEditorRef = ui.getObject("sourceEditor")
+    promptEditorRef = ui.getObject("promptEditor")
+    negativePromptEditRef = ui.getObject("negativePromptEdit")
+    styleImagePathEditRef = ui.getObject("styleImagePathEdit")
+    extraImagePathEditRef = ui.getObject("extraImagePathEdit")
     timeline     = ui.getObject("timeline")
     statusLabel  = ui.getObject("statusLabel")
     rightDockRef = ui.getObject("rightDock")
@@ -197,6 +268,7 @@ fun ready() {
     transformSpaceSelectRef = ui.getObject("transformSpaceSelect")
     initThemePresets()
     applyThemePreset(0)
+    refreshPromptPanelFromState()
     transformSpaceSelectRef.clear()
     transformSpaceSelectRef.addItem("World", 0)
     transformSpaceSelectRef.addItem("Local", 1)
@@ -279,13 +351,11 @@ fun applyInspectorTransformLive() {
         editor.setSceneCharacterPos(sel, px, py, pz)
         editor.setSceneCharacterRot(sel, rx, ry, rz)
         editor.setSceneCharacterScale(sel, sx, sy, sz)
-        editor.selectSceneCharacter(sel)
     } else {
         var propIdx = sel - charCount
         editor.setScenePropPos(propIdx, px, py, pz)
         editor.setScenePropRot(propIdx, rx, ry, rz)
         editor.setScenePropScale(propIdx, sx, sy, sz)
-        editor.selectSceneProp(propIdx)
     }
 }
 
@@ -366,6 +436,7 @@ fun openProjectPath(path) {
     updateKeyframeTree()
     activateArrangeMove()
     selectFirstSceneAsset()
+    refreshSourceEditorFromProject()
     hideProjectChooser()
     statusLabel.text = "Opened: " + path
     return true
@@ -395,22 +466,29 @@ fun onProjectCreatePathSelected(path) {
     selectedSceneAssetIndex = -1
     sceneTreeRef.Clear()
     kfTreeRef.Clear()
-    pushAiSceneProperties()
     editor.saveProject(path)
     currentProjectPath = path
     saveLastProjectPath(path)
+    pushAiSceneProperties()
+    refreshSourceEditorFromProject()
     hideProjectChooser()
     updateInspectorFromSelection()
     statusLabel.text = "Created: " + path
 }
 
 on menuSave.clicked() {
-    pushAiSceneProperties()
-    if (currentProjectPath != "") {
-        editor.saveProject(currentProjectPath)
-        statusLabel.text = "Saved: " + currentProjectPath
-    } else {
+    if (currentProjectPath == "") {
         ui.openSaveFileDialog("onSavePathSelected", "*.scene")
+    } else {
+        var sourceSaved = saveSourceEditorToProject(currentProjectPath)
+        if (sourceSaved) {
+            // source text was written directly; avoid overwriting with viewport state.
+        } else {
+            pushAiSceneProperties()
+            editor.saveProject(currentProjectPath)
+            refreshSourceEditorFromProject()
+            statusLabel.text = "Saved: " + currentProjectPath
+        }
     }
 }
 
@@ -419,12 +497,20 @@ on menuSaveAs.clicked() {
 }
 
 fun onSavePathSelected(path) {
-    pushAiSceneProperties()
-    editor.saveProject(path)
-    currentProjectPath = path
-    saveLastProjectPath(path)
-    hideProjectChooser()
-    statusLabel.text = "Saved: " + path
+    var sourceSaved = saveSourceEditorToProject(path)
+    if (sourceSaved) {
+        currentProjectPath = path
+        saveLastProjectPath(path)
+        hideProjectChooser()
+    } else {
+        savePromptConfigForPath(path)
+        editor.saveProject(path)
+        currentProjectPath = path
+        saveLastProjectPath(path)
+        refreshSourceEditorFromProject()
+        hideProjectChooser()
+        statusLabel.text = "Saved: " + path
+    }
 }
 
 on menuOpenGlb.clicked() {
@@ -575,6 +661,7 @@ fun onModelFileSelected(path) {
     } else {
         selectFirstSceneAsset()
     }
+    syncSceneToSource()
     statusLabel.text = "Loaded: " + path
 }
 
@@ -795,6 +882,7 @@ fun onScenePropSelected(path) {
     } else {
         statusLabel.text = "Asset load failed."
     }
+    syncSceneToSource()
 }
 
 fun addGreyboxPaletteItem(kind, label) {
@@ -841,11 +929,13 @@ on btnRemoveProp.clicked() {
         if (sel < charCount) {
             editor.removeSceneCharacter(sel)
             updateScenePanel()
+            syncSceneToSource()
             statusLabel.text = "Character removed."
         } else {
             var idx = sel - charCount
             if (idx >= 0) {
                 editor.removeSceneProp(idx)
+                syncSceneToSource()
             }
         }
     }
@@ -853,11 +943,13 @@ on btnRemoveProp.clicked() {
 
 on editor.scenePropAdded(index, path) {
     updateScenePanel()
+    syncSceneToSource()
     statusLabel.text = "Prop added: " + path
 }
 
 on editor.scenePropRemoved(index) {
     updateScenePanel()
+    syncSceneToSource()
     statusLabel.text = "Prop removed."
 }
 
@@ -888,11 +980,74 @@ on editor.objectSelected(propIdx) {
 
 on editor.objectMoved(propIdx, pos) {
     updateInspectorFromSelection()
-    if (propIdx >= 0) {
-        statusLabel.text = "Prop " + propIdx + " moved to " + pos
-    } else {
-        statusLabel.text = "Character transformed."
+}
+
+on sourceEditor.textChanged(newText) {
+    if (sourceEditorWriteLock) {
+        return
     }
+    sourceEditorDirty = true
+    statusLabel.text = "Source changed. Press Save to write .scene."
+}
+
+on promptEditor.textChanged(newText) {
+    if (promptPanelWriteLock) {
+        return
+    }
+    aiPrompt = newText
+    pushAiSceneProperties()
+}
+
+on negativePromptEdit.textChanged(newText) {
+    if (promptPanelWriteLock) {
+        return
+    }
+    aiNegativePrompt = newText
+    pushAiSceneProperties()
+}
+
+on styleImagePathEdit.textChanged(newText) {
+    if (promptPanelWriteLock) {
+        return
+    }
+    aiStyleImagePath = newText
+    pushAiSceneProperties()
+}
+
+on extraImagePathEdit.textChanged(newText) {
+    if (promptPanelWriteLock) {
+        return
+    }
+    aiExtraImagePath = newText
+    pushAiSceneProperties()
+}
+
+on btnPickStyleImage.clicked() {
+    ui.openFileDialog("onStyleImageSelected", "*.png,*.jpg,*.jpeg,*.webp")
+}
+
+on btnPickExtraImage.clicked() {
+    ui.openFileDialog("onExtraImageSelected", "*.png,*.jpg,*.jpeg,*.webp")
+}
+
+fun onStyleImageSelected(path) {
+    if (path == "") {
+        return
+    }
+    aiStyleImagePath = os.toResPath(path)
+    pushAiSceneProperties()
+    refreshPromptPanelFromState()
+    statusLabel.text = "Style image: " + aiStyleImagePath
+}
+
+fun onExtraImageSelected(path) {
+    if (path == "") {
+        return
+    }
+    aiExtraImagePath = os.toResPath(path)
+    pushAiSceneProperties()
+    refreshPromptPanelFromState()
+    statusLabel.text = "Extra image: " + aiExtraImagePath
 }
 
 on inspPosX.textChanged(newText) {
@@ -926,6 +1081,7 @@ on inspScaleZ.textChanged(newText) {
 on btnPlaceOnGround.clicked() {
     var ok = editor.placeSelectedOnGround(0)
     if (ok) {
+        syncSceneToSource()
         updateInspectorFromSelection()
         statusLabel.text = "Placed on ground (Y=0)."
     } else {

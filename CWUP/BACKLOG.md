@@ -82,7 +82,7 @@
 - [x] tasks/scene_panel.md
 - [x] tasks/sms_parser_multiline_function_calls.md
 - [x] tasks/toolbar.md
-- [ ] tasks/rotate_gizmo.md
+- [x] tasks/rotate_gizmo.md
 - [ ] tasks/viewport_code.md
 
 

@@ -39,6 +39,7 @@ public sealed partial class RotationGizmo3D : Node3D
     private const float RingRadius       = 0.35f;
     private const float GuideGrayRadius  = 0.35f;
     private const float GuideBlueRadius  = 0.50f;
+    private const bool  EnableOuterBlueGuideRing = false;
     private const int   AxisRingSteps    = 96;
     private const float HandleRingDiag   = RingRadius * 0.70710677f; // R / sqrt(2) = 45° on ring
     private const float AxisLineLength   = GuideGrayRadius * 0.98f;
@@ -70,7 +71,8 @@ public sealed partial class RotationGizmo3D : Node3D
 
     // ── Scene nodes ───────────────────────────────────────────────────────────
     private readonly MeshInstance3D     _ringX,    _ringY,    _ringZ;
-    private readonly MeshInstance3D     _guideRingBlue, _guideRingGray;
+    private readonly MeshInstance3D?    _guideRingBlue;
+    private readonly MeshInstance3D     _guideRingGray;
     private readonly MeshInstance3D     _axisX, _axisY, _axisZ;
     private readonly MeshInstance3D     _pivotMarker;
     private readonly MeshInstance3D     _handleX,  _handleY,  _handleZ;
@@ -113,7 +115,9 @@ public sealed partial class RotationGizmo3D : Node3D
         _ringX = MakeRingArcXY(_matRingX, new Vector3(0f, 90f, 0f), RingRadius, 0f, 360f, AxisRingSteps);
         _ringY = MakeRingArcXY(_matRingY, new Vector3(90f, 0f, 0f), RingRadius, 0f, 360f, AxisRingSteps);
         _ringZ = MakeRingArcXY(_matRingZ, Vector3.Zero, RingRadius, 0f, 360f, AxisRingSteps);
-        _guideRingBlue = MakeRingArcXY(MakeRingMat(ColGuideBlue), Vector3.Zero, GuideBlueRadius, 0f, 360f, 96);
+        _guideRingBlue = EnableOuterBlueGuideRing
+            ? MakeRingArcXY(MakeRingMat(ColGuideBlue), Vector3.Zero, GuideBlueRadius, 0f, 360f, 96)
+            : null;
         _guideRingGray = MakeRingArcXY(MakeRingMat(ColGuideGray), Vector3.Zero, GuideGrayRadius, 0f, 360f, 96);
         _axisX = MakeAxisLine(ColRingX, Vector3.Left * AxisLineLength, Vector3.Right * AxisLineLength);
         _axisY = MakeAxisLine(ColRingY, Vector3.Down * AxisLineLength, Vector3.Up * AxisLineLength);
@@ -128,8 +132,8 @@ public sealed partial class RotationGizmo3D : Node3D
         AddChild(_ringX);
         AddChild(_ringY);
         AddChild(_ringZ);
-        // Temporarily disabled until gizmo styling is finalized.
-        // AddChild(_guideRingBlue);
+        if (_guideRingBlue is not null)
+            AddChild(_guideRingBlue);
         AddChild(_guideRingGray);
         AddChild(_axisX);
         AddChild(_axisY);
@@ -158,15 +162,6 @@ public sealed partial class RotationGizmo3D : Node3D
         GlobalPosition = globalBone.Origin;
         GlobalBasis = Basis.Identity;
         UpdateCameraFacingGuideRings(camera);
-    }
-
-    public override void _ExitTree()
-    {
-        // Blue guide ring is intentionally detached for now; free orphaned instance explicitly.
-        if (!_guideRingBlue.IsInsideTree() && GodotObject.IsInstanceValid(_guideRingBlue))
-        {
-            _guideRingBlue.Free();
-        }
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -377,6 +372,8 @@ public sealed partial class RotationGizmo3D : Node3D
         }
 
         var facingBasis = camera.GlobalBasis.Orthonormalized();
+        if (_guideRingBlue is not null && GodotObject.IsInstanceValid(_guideRingBlue))
+            _guideRingBlue.GlobalBasis = facingBasis;
         _guideRingGray.GlobalBasis = facingBasis;
     }
 

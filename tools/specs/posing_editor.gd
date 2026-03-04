@@ -30,6 +30,8 @@ func get_spec() -> Dictionary:
             {"sms":"setBoneTree",         "params":[{"name":"treeId","type":"string"}], "returns":"void"},
             {"sms":"setModelSource",      "params":[{"name":"src","type":"string"}], "returns":"void"},
             {"sms":"loadProject",         "params":[{"name":"path","type":"string"}], "returns":"void"},
+            {"sms":"getProjectText",      "params":[{"name":"path","type":"string"}], "returns":"string", "note":"Reads raw .scene source text from disk (absolute paths allowed)."},
+            {"sms":"applyProjectText",    "params":[{"name":"path","type":"string"},{"name":"content","type":"string"}], "returns":"bool", "note":"Parses scene source text, applies it to viewport/timeline, and writes to disk only on successful parse."},
             {"sms":"saveProject",         "params":[{"name":"path","type":"string"}], "returns":"void"},
             {"sms":"setProjectProperty",  "params":[{"name":"key","type":"string"},{"name":"value","type":"string"}], "returns":"void", "note":"Stores scene-level metadata persisted in .scene root properties."},
             {"sms":"getProjectProperty",  "params":[{"name":"key","type":"string"},{"name":"fallback","type":"string"}], "returns":"string", "note":"Reads scene-level metadata from .scene root properties."},

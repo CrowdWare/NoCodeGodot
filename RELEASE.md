@@ -29,7 +29,7 @@ gh auth login
 
 3. **macOS export** – Godot headless export → `ForgeRunner.app`
 
-4. **Zip** – `ForgeRunner-v1.202.261430-macOS.zip`
+4. **DMG package** – `ForgeRunner-v1.202.261430-macOS.dmg`
 
 5. **Git commit + tag + push**
    ```
@@ -41,10 +41,10 @@ gh auth login
 
 6. **Create GitHub Release** via `gh release create`
    - Release notes are auto-generated from commits (`--generate-notes`)
-   - Zip is attached as a release asset
+   - DMG is attached as a release asset
    - Pre-release flag is set unless channel is `stable`
 
-7. **Cleanup** – zip is deleted after upload
+7. **Cleanup** – dmg is deleted after upload
 
 ## Set version manually
 

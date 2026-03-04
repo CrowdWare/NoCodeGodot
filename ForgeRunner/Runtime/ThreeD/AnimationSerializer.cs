@@ -311,7 +311,7 @@ public static class AnimationSerializer
 
     // ── Deserialize (auto-detects format) ────────────────────────────────
 
-    public static AnimationProjectData? Deserialize(string sml)
+    public static AnimationProjectData? Deserialize(string sml, bool logErrors = true)
     {
         LastError = string.Empty;
 
@@ -322,7 +322,10 @@ public static class AnimationSerializer
         }
         catch (Exception ex)
         {
-            RunnerLogger.Warn("AnimationSerializer", "Failed to parse file.", ex);
+            if (logErrors)
+            {
+                RunnerLogger.Warn("AnimationSerializer", "Failed to parse file.", ex);
+            }
             LastError = ex.Message;
             return null;
         }
@@ -333,7 +336,10 @@ public static class AnimationSerializer
                 return ParseSceneFormat(node);
         }
 
-        RunnerLogger.Warn("AnimationSerializer", "No Scene root node found.");
+        if (logErrors)
+        {
+            RunnerLogger.Warn("AnimationSerializer", "No Scene root node found.");
+        }
         LastError = "No Scene root node found.";
         return null;
     }

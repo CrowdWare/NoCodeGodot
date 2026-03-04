@@ -1333,6 +1333,13 @@ _elapsed += delta;
                 return false;
             }
 
+            // Single-container tab stacks should still expose the dock menu so
+            // tabs can be floated independently even without another peer host.
+            if (sourceHost.Dock.GetTabCount() > 1)
+            {
+                return true;
+            }
+
             var sourceGroup = sourceHost.Dock.GetTabsRearrangeGroup();
             foreach (var candidate in _hosts)
             {
