@@ -42,6 +42,8 @@ func get_spec() -> Dictionary:
             {"sms":"setScenePropRot",     "params":[{"name":"index","type":"int"},{"name":"x","type":"float"},{"name":"y","type":"float"},{"name":"z","type":"float"}], "returns":"void"},
             {"sms":"setMode",             "params":[{"name":"mode","type":"string"}], "returns":"void", "note":"Values: 'pose' | 'arrange'. Clears all gizmos and selections."},
             {"sms":"setEditMode",         "params":[{"name":"mode","type":"string"}], "returns":"void", "note":"Values: 'move' | 'scale' | 'rotate'. Only effective in Arrange mode."},
+            {"sms":"exportCurrentFramePng","params":[{"name":"path","type":"string"}], "returns":"bool", "note":"Captures current viewport frame and writes a PNG."},
+            {"sms":"exportFrameRangePng", "params":[{"name":"frameFrom","type":"int"},{"name":"frameTo","type":"int"},{"name":"outputDirectory","type":"string"}], "returns":"int", "note":"Exports a PNG sequence frame-by-frame from the timeline and returns written frame count."},
         ],
         "events": [
             {"sms":"boneSelected",    "params":[{"name":"boneName","type":"string"}]},

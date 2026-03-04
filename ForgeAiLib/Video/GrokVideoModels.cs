@@ -4,12 +4,12 @@ public sealed record GrokVideoStylizeRequest(
     string InputVideoPath,
     string Prompt,
     string OutputPath,
-    string Model = "grok-video-v1",
+    string Model = "grok-imagine-video",
     string? NegativePrompt = null,
     int PollIntervalMs = 3000,
     int TimeoutSeconds = 600,
-    string SubmitEndpoint = "videos/generations",
-    string StatusEndpointTemplate = "videos/generations/{id}");
+    string SubmitEndpoint = "videos/edits",
+    string StatusEndpointTemplate = "videos/{id}");
 
 public sealed record GrokVideoStylizeResult(
     string JobId,

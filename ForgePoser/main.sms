@@ -10,6 +10,12 @@ var jointSpheresVisible = false
 var hasCharacter = false
 var currentMode = "arrange"
 var currentEditMode = "move"
+var aiPrompt = "Keep exact pose and composition. Render as high-quality cinematic stylized scene."
+var aiNegativePrompt = ""
+var aiStyleImagePath = ""
+var aiExtraImagePath = ""
+var aiImageModel = "grok-imagine-image"
+var aiVideoModel = "grok-imagine-video"
 
 fun activateArrangeMove() {
     currentMode    = "arrange"
@@ -30,6 +36,23 @@ fun activateArrangeMove() {
 fun selectFirstSceneAsset() {
     if (hasCharacter) {
         editor.selectCharacter()
+    }
+}
+
+fun applyInitialPoseAfterLoad() {
+    var targetFrame = 1
+    var keyframeCount = timeline.getKeyframeCount()
+    if (keyframeCount > 0) {
+        var firstKeyframe = timeline.getKeyframeFrameAt(0)
+        if (firstKeyframe > targetFrame) {
+            targetFrame = firstKeyframe
+        }
+    }
+
+    timeline.setCurrentFrame(targetFrame)
+    var pose = timeline.getPoseAt(targetFrame)
+    if (pose != null) {
+        editor.loadPose(pose)
     }
 }
 
@@ -67,6 +90,7 @@ fun onProjectFileSelected(path) {
     if (ok) {
         hasCharacter = true
         currentProjectPath = path
+        applyInitialPoseAfterLoad()
         updateScenePanel()
         updateKeyframeTree()
         activateArrangeMove()
@@ -103,8 +127,82 @@ on menuExport.clicked() {
 }
 
 on menuExportCurrentFrame.clicked() {
-    statusLabel.text = "TODO: Export actual frame (capture + AI stylize pipeline)."
-    log.info("menuExportCurrentFrame clicked")
+    if (!ai.isConfigured()) {
+        statusLabel.text = "AI not configured. Set GROK_API_KEY."
+        return
+    }
+
+    var capturedPath = "exports/frame_capture.png"
+    var styledPath = "exports/frame_styled_<version>.png"
+
+    statusLabel.text = "Capturing current frame..."
+    var ok = editor.exportCurrentFramePng(capturedPath)
+    if (!ok) {
+        statusLabel.text = "Capture failed."
+        return
+    }
+
+    statusLabel.text = "Captured. Sending to Grok..."
+    var resultPath = ai.stylizeImage(capturedPath, styledPath, aiPrompt, aiStyleImagePath, aiExtraImagePath, aiNegativePrompt, aiImageModel)
+
+    if (resultPath != "") {
+        statusLabel.text = "Stylized frame: " + resultPath
+    } else {
+        statusLabel.text = "Stylize failed."
+    }
+}
+
+on menuExportStylizedClip.clicked() {
+    if (!ai.isConfigured()) {
+        statusLabel.text = "AI not configured. Set GROK_API_KEY."
+        return
+    }
+
+    var keyframeCount = timeline.getKeyframeCount()
+    if (keyframeCount < 2) {
+        statusLabel.text = "Need at least 2 keyframes for stylized clip."
+        return
+    }
+
+    var frameFrom = timeline.getKeyframeFrameAt(0)
+    var frameTo = timeline.getKeyframeFrameAt(keyframeCount - 1)
+    if (frameTo < frameFrom) {
+        var tmp = frameFrom
+        frameFrom = frameTo
+        frameTo = tmp
+    }
+
+    var maxFrameTo = frameFrom + 239
+    if (frameTo > maxFrameTo) {
+        frameTo = maxFrameTo
+    }
+
+    var framesDir = "exports/frames_" + frameFrom + "_" + frameTo
+    var fps = 24
+    var sourceVideoPath = "exports/source_clip.mp4"
+    var styledVideoPath = "exports/styled_clip_<version>.mp4"
+
+    statusLabel.text = "Rendering frames " + frameFrom + "..." + frameTo
+    var written = editor.exportFrameRangePng(frameFrom, frameTo, framesDir)
+    if (written <= 1) {
+        statusLabel.text = "Frame sequence render failed."
+        return
+    }
+
+    statusLabel.text = "Encoding source clip..."
+    var encodedPath = ai.createVideoFromFrames(framesDir, fps, sourceVideoPath, "frame_%04d.png")
+    if (encodedPath == "") {
+        statusLabel.text = "Video encoding failed (ffmpeg missing?)."
+        return
+    }
+
+    statusLabel.text = "Sending clip to Grok..."
+    var styledPath = ai.stylizeVideo(encodedPath, styledVideoPath, aiPrompt, aiNegativePrompt, aiVideoModel)
+    if (styledPath != "") {
+        statusLabel.text = "Stylized clip: " + styledPath
+    } else {
+        statusLabel.text = "Stylized clip failed."
+    }
 }
 
 on editor.exportProgress(filename, percent) {
@@ -117,6 +215,7 @@ on editor.exportProgress(filename, percent) {
 
 fun onModelFileSelected(path) {
     editor.setModelSource(path)
+    applyInitialPoseAfterLoad()
     hasCharacter = true
     updateScenePanel()
     activateArrangeMove()

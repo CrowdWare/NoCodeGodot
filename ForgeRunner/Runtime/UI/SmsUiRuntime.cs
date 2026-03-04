@@ -29,6 +29,7 @@ using Runtime.Sml;
 using Runtime.Sms;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -984,7 +985,7 @@ public sealed class SmsUiRuntime
                 var stylePathRaw = methodArgs.Count > 3 ? ValueArgString(methodArgs, 3) : string.Empty;
                 var extraPathRaw = methodArgs.Count > 4 ? ValueArgString(methodArgs, 4) : string.Empty;
                 var negativePrompt = methodArgs.Count > 5 ? ValueArgString(methodArgs, 5) : string.Empty;
-                var model = methodArgs.Count > 6 ? ValueArgString(methodArgs, 6) : "grok-2-image-1212";
+                var model = methodArgs.Count > 6 ? ValueArgString(methodArgs, 6) : "grok-imagine-image";
 
                 var stylePath = string.IsNullOrWhiteSpace(stylePathRaw) ? null : ResolveAiPath(stylePathRaw);
                 var extraPath = string.IsNullOrWhiteSpace(extraPathRaw) ? null : ResolveAiPath(extraPathRaw);
@@ -1018,7 +1019,7 @@ public sealed class SmsUiRuntime
                 var outputPath = VersionedOutputPath.Resolve(ResolveAiPath(ValueArgString(methodArgs, 1)));
                 var prompt = ValueArgString(methodArgs, 2);
                 var negativePrompt = methodArgs.Count > 3 ? ValueArgString(methodArgs, 3) : string.Empty;
-                var model = methodArgs.Count > 4 ? ValueArgString(methodArgs, 4) : "grok-video-v1";
+                var model = methodArgs.Count > 4 ? ValueArgString(methodArgs, 4) : "grok-imagine-video";
 
                 try
                 {
@@ -1040,8 +1041,89 @@ public sealed class SmsUiRuntime
                     RunnerLogger.Warn("AI", $"ai.stylizeVideo failed for '{inputVideoPath}'.", ex);
                     return new StringValue(string.Empty);
                 }
+            }),
+            ["createVideoFromFrames"] = new NativeFunctionValue(methodArgs =>
+            {
+                var framesDirectory = ResolveAiPath(ValueArgString(methodArgs, 0));
+                var fps = methodArgs.Count > 1 ? Math.Max(1, ValueArgInt(methodArgs, 1)) : 24;
+                var outputPath = ResolveAiPath(ValueArgString(methodArgs, 2));
+                var pattern = methodArgs.Count > 3 ? ValueArgString(methodArgs, 3) : "frame_%04d.png";
+
+                try
+                {
+                    if (!Directory.Exists(framesDirectory))
+                    {
+                        RunnerLogger.Warn("AI", $"ai.createVideoFromFrames: frames directory not found '{framesDirectory}'.");
+                        return new StringValue(string.Empty);
+                    }
+
+                    var directory = Path.GetDirectoryName(outputPath);
+                    if (!string.IsNullOrWhiteSpace(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
+
+                    var inputPattern = Path.Combine(framesDirectory, pattern);
+                    var ok = RunFfmpeg(
+                        $"-y -framerate {fps} -i \"{inputPattern}\" -c:v libx264 -pix_fmt yuv420p \"{outputPath}\"",
+                        out var errorText);
+
+                    if (!ok)
+                    {
+                        RunnerLogger.Warn("AI", $"ai.createVideoFromFrames failed. {errorText}");
+                        return new StringValue(string.Empty);
+                    }
+
+                    return new StringValue(outputPath);
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("AI", $"ai.createVideoFromFrames failed for '{framesDirectory}'.", ex);
+                    return new StringValue(string.Empty);
+                }
             })
         });
+    }
+
+    private static bool RunFfmpeg(string arguments, out string errorText)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "ffmpeg",
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process is null)
+            {
+                errorText = "Failed to start ffmpeg process.";
+                return false;
+            }
+
+            var stdErr = process.StandardError.ReadToEnd();
+            _ = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+
+            if (process.ExitCode != 0)
+            {
+                errorText = $"ffmpeg exited with code {process.ExitCode}. {stdErr}";
+                return false;
+            }
+
+            errorText = string.Empty;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            errorText = $"ffmpeg execution error: {ex.Message}";
+            return false;
+        }
     }
 
     private string ResolveAiPath(string inputPath)
@@ -1303,6 +1385,31 @@ public sealed class SmsUiRuntime
                 if (timeline is not null)
                     posingEditorExt.ShowExportDialog(timeline);
                 return NullValue.Instance;
+            });
+
+            // exportCurrentFramePng(path) — captures current viewport frame as PNG
+            fields["exportCurrentFramePng"] = new NativeFunctionValue(methodArgs =>
+            {
+                var outputPath = VersionedOutputPath.Resolve(ResolveAiPath(ValueArgString(methodArgs, 0)));
+                var ok = posingEditorExt.ExportCurrentFramePng(outputPath);
+                return new BooleanValue(ok);
+            });
+
+            // exportFrameRangePng(frameFrom, frameTo, outputDirectory) — renders and writes a full frame sequence
+            fields["exportFrameRangePng"] = new NativeFunctionValue(methodArgs =>
+            {
+                var frameFrom = ValueArgInt(methodArgs, 0);
+                var frameTo = ValueArgInt(methodArgs, 1);
+                var outputDir = ResolveAiPath(ValueArgString(methodArgs, 2));
+                var timeline = FindSiblingTimeline(posingEditorExt);
+                if (timeline is null)
+                {
+                    RunnerLogger.Warn("SMS", "exportFrameRangePng: no TimelineControl found in scene.");
+                    return new NumberValue(0);
+                }
+
+                var count = posingEditorExt.ExportFrameRangePng(timeline, frameFrom, frameTo, outputDir);
+                return new NumberValue(count);
             });
         }
 

@@ -82,6 +82,7 @@
 - [ ] tasks/scene_panel.md
 - [ ] tasks/toolbar.md
 - [ ] tasks/viewport_code.md
+- [ ] tasks/sms_parser_multiline_function_calls.md
 
 
 ## Future Tasks

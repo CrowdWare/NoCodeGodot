@@ -64,6 +64,12 @@ const FUNCTIONS := {
         "description": "Runs video-to-video stylization via Grok, polls job completion, downloads the styled video, and returns the resolved output path (supports <version> placeholder)."
     },
 
+    "ai.createVideoFromFrames": {
+        "category": "AI",
+        "signature": "ai.createVideoFromFrames(framesDirectory: String, fps: int, outputPath: String, pattern: String?)",
+        "description": "Encodes a PNG frame sequence to MP4 via ffmpeg. Returns outputPath on success or empty string on failure. Default pattern is frame_%04d.png."
+    },
+
     "log.success": {
         "category": "Logging",
         "signature": "log.success(message: String)",

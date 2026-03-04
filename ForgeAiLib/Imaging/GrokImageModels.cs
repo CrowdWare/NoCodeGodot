@@ -4,7 +4,7 @@ public sealed record GrokImageEditRequest(
     string Prompt,
     string PoseImagePath,
     string OutputPath,
-    string Model = "grok-2-image-1212",
+    string Model = "grok-imagine-image",
     string? StyleImagePath = null,
     string? ExtraImagePath = null,
     string? NegativePrompt = null,

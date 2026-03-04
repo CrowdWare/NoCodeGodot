@@ -35,11 +35,17 @@ public sealed class GrokVideoService
             throw new ForgeAiException("Prompt is required.");
         }
 
+        var videoDataUri = DataUri.FromFile(request.InputVideoPath);
         var payload = new Dictionary<string, object?>
         {
             ["model"] = request.Model,
             ["prompt"] = request.Prompt,
-            ["video"] = DataUri.FromFile(request.InputVideoPath)
+            // Keep both fields to be compatible with response variants/endpoints.
+            ["video_url"] = videoDataUri,
+            ["video"] = new Dictionary<string, object?>
+            {
+                ["url"] = videoDataUri
+            }
         };
 
         if (!string.IsNullOrWhiteSpace(request.NegativePrompt))
@@ -47,10 +53,26 @@ public sealed class GrokVideoService
             payload["negative_prompt"] = request.NegativePrompt;
         }
 
-        using var submitResponse = await _client.PostJsonAsync(request.SubmitEndpoint, payload, cancellationToken).ConfigureAwait(false);
-        var jobId = ExtractString(submitResponse.RootElement, "id")
+        using var submitResponse = await SubmitWithRouteFallbackAsync(request.SubmitEndpoint, payload, cancellationToken).ConfigureAwait(false);
+        var directUrl = ExtractOutputUrl(submitResponse.RootElement);
+        if (!string.IsNullOrWhiteSpace(directUrl))
+        {
+            var directBytes = await _client.DownloadBytesAsync(directUrl, cancellationToken).ConfigureAwait(false);
+            var directDirectory = Path.GetDirectoryName(request.OutputPath);
+            if (!string.IsNullOrWhiteSpace(directDirectory))
+            {
+                Directory.CreateDirectory(directDirectory);
+            }
+
+            await File.WriteAllBytesAsync(request.OutputPath, directBytes, cancellationToken).ConfigureAwait(false);
+            return new GrokVideoStylizeResult("direct", "done", request.OutputPath, directUrl, request.Model);
+        }
+
+        var jobId = ExtractString(submitResponse.RootElement, "request_id")
+                    ?? ExtractString(submitResponse.RootElement, "id")
                     ?? ExtractString(submitResponse.RootElement, "job_id")
-                    ?? throw new ForgeAiException("Video submit response does not contain job id.");
+                    ?? ExtractNestedString(submitResponse.RootElement, "response", "request_id")
+                    ?? throw new ForgeAiException("Video submit response does not contain request/job id or direct output URL.");
 
         var deadline = DateTimeOffset.UtcNow.AddSeconds(Math.Max(1, request.TimeoutSeconds));
         string? finalStatus = null;
@@ -106,9 +128,17 @@ public sealed class GrokVideoService
     {
         // Common formats:
         // { output_url: "..." }
+        // { video: { url: "..." } }
         // { result: { url: "..." } }
         // { data: [{ url: "..." }] }
         if (TryGetString(root, "output_url", out var direct)) return direct;
+
+        if (root.TryGetProperty("video", out var videoObj)
+            && videoObj.ValueKind == JsonValueKind.Object
+            && TryGetString(videoObj, "url", out var videoUrl))
+        {
+            return videoUrl;
+        }
 
         if (root.TryGetProperty("result", out var resultObj)
             && resultObj.ValueKind == JsonValueKind.Object
@@ -134,6 +164,18 @@ public sealed class GrokVideoService
         return TryGetString(root, key, out var value) ? value : null;
     }
 
+    private static string? ExtractNestedString(JsonElement root, string parentKey, string childKey)
+    {
+        if (root.TryGetProperty(parentKey, out var parent)
+            && parent.ValueKind == JsonValueKind.Object
+            && TryGetString(parent, childKey, out var value))
+        {
+            return value;
+        }
+
+        return null;
+    }
+
     private static bool TryGetString(JsonElement root, string key, out string? value)
     {
         value = null;
@@ -149,5 +191,43 @@ public sealed class GrokVideoService
 
         value = element.GetString();
         return !string.IsNullOrWhiteSpace(value);
+    }
+
+    private async Task<JsonDocument> SubmitWithRouteFallbackAsync(string preferredEndpoint, object payload, CancellationToken cancellationToken)
+    {
+        var candidates = new List<string>();
+        if (!string.IsNullOrWhiteSpace(preferredEndpoint))
+        {
+            candidates.Add(preferredEndpoint);
+        }
+
+        // Keep known variants as fallback for API differences across environments.
+        foreach (var fallback in new[] { "videos/edits", "videos/generations", "videos" })
+        {
+            if (!candidates.Contains(fallback, StringComparer.OrdinalIgnoreCase))
+            {
+                candidates.Add(fallback);
+            }
+        }
+
+        ForgeAiException? last = null;
+        foreach (var endpoint in candidates)
+        {
+            try
+            {
+                return await _client.PostJsonAsync(endpoint, payload, cancellationToken).ConfigureAwait(false);
+            }
+            catch (ForgeAiException ex)
+            {
+                last = ex;
+                if (!ex.Message.Contains("No handler found on route", StringComparison.OrdinalIgnoreCase)
+                    && !ex.Message.Contains("(404)", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw;
+                }
+            }
+        }
+
+        throw last ?? new ForgeAiException("Video submit failed on all known endpoints.");
     }
 }

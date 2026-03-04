@@ -18,6 +18,7 @@ Window {
             Item { id: menuOpenGlb text: "Load Model…"   }
             Item { id: menuExport  text: "Export as GLB…" }
             Item { id: menuExportCurrentFrame text: "Export actual frame" }
+            Item { id: menuExportStylizedClip text: "Export stylized clip" }
         }
     }
 

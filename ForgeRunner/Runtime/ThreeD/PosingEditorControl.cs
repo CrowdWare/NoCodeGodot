@@ -21,6 +21,7 @@ using Godot;
 using Runtime.Logging;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 
 namespace Runtime.ThreeD;
@@ -1599,6 +1600,25 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         // Restore keyframes
         foreach (var (frame, bones) in data.Keyframes)
             timeline.SetKeyframe(frame, bones);
+
+        // Ensure loaded projects do not stay in default T-pose:
+        // jump to frame 1 (or the first available keyframe) and apply that pose immediately.
+        var initialFrame = 1;
+        if (!data.Keyframes.ContainsKey(initialFrame) && data.Keyframes.Count > 0)
+        {
+            foreach (var frame in data.Keyframes.Keys)
+            {
+                initialFrame = frame;
+                break;
+            }
+        }
+
+        timeline.SetCurrentFrame(initialFrame);
+        var initialPose = timeline.GetPoseAt(initialFrame);
+        if (initialPose is not null)
+        {
+            LoadPose(initialPose);
+        }
     }
 
     /// <summary>
@@ -1624,6 +1644,104 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     private string _lastLoadedSource = string.Empty;
 
     // ── GLB Export ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Captures the current SubViewport frame and writes it as PNG to <paramref name="path"/>.
+    /// Returns true on success, false otherwise.
+    /// </summary>
+    public bool ExportCurrentFramePng(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            RunnerLogger.Warn("PosingEditor", "ExportCurrentFramePng: output path is empty.");
+            return false;
+        }
+
+        try
+        {
+            var image = _viewport.GetTexture()?.GetImage();
+            if (image is null || image.IsEmpty())
+            {
+                RunnerLogger.Warn("PosingEditor", "ExportCurrentFramePng: viewport image is empty.");
+                return false;
+            }
+
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var err = image.SavePng(path);
+            if (err != Error.Ok)
+            {
+                RunnerLogger.Warn("PosingEditor", $"ExportCurrentFramePng failed for '{path}' (error {err}).");
+                return false;
+            }
+
+            RunnerLogger.Info("PosingEditor", $"Current frame exported to '{path}'.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("PosingEditor", $"ExportCurrentFramePng crashed for '{path}'.", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Exports an inclusive frame range to PNG files (`frame_0000.png`, ...) by
+    /// applying timeline poses frame-by-frame and forcing a render before capture.
+    /// Returns the number of written frames.
+    /// </summary>
+    public int ExportFrameRangePng(TimelineControl timeline, int frameFrom, int frameTo, string outputDirectory)
+    {
+        if (timeline is null || string.IsNullOrWhiteSpace(outputDirectory))
+        {
+            return 0;
+        }
+
+        var start = Math.Min(frameFrom, frameTo);
+        var end = Math.Max(frameFrom, frameTo);
+        if (end < start)
+        {
+            return 0;
+        }
+
+        Directory.CreateDirectory(outputDirectory);
+
+        var written = 0;
+        for (var frame = start; frame <= end; frame++)
+        {
+            timeline.SetCurrentFrame(frame);
+            var pose = timeline.GetPoseAt(frame);
+            if (pose is not null)
+            {
+                LoadPose(pose);
+            }
+
+            // Force transform/skeleton propagation for this frame before rendering.
+            _skeleton?.ForceUpdateAllBoneTransforms();
+            _modelRoot?.ForceUpdateTransform();
+            _worldRoot.ForceUpdateTransform();
+
+            // Force rendering twice to avoid stale texture readback in tight loops.
+            RenderingServer.ForceDraw();
+            RenderingServer.ForceDraw();
+
+            var fileName = "frame_" + written.ToString("D4", CultureInfo.InvariantCulture) + ".png";
+            var outputPath = Path.Combine(outputDirectory, fileName);
+            if (!ExportCurrentFramePng(outputPath))
+            {
+                RunnerLogger.Warn("PosingEditor", $"ExportFrameRangePng stopped at frame {frame}.");
+                break;
+            }
+
+            written++;
+        }
+
+        return written;
+    }
 
     /// <summary>
     /// Opens a native Godot export-options dialog (checkboxes for animation + props),
