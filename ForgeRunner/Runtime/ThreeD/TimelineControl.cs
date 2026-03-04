@@ -38,6 +38,7 @@ public sealed partial class TimelineTrackArea : Control
     // ── Visual layout constants ───────────────────────────────────────────
     private const float RulerTopOffset = 0f;
     private const float RulerNumberOffset = -4f;
+    private const float RulerGridStartY = 24f;
     internal const float RulerHeight   = 24f;
     internal const float TrackHeight   = 22f;
     internal const float BoneNameWidth = 120f;
@@ -60,6 +61,7 @@ public sealed partial class TimelineTrackArea : Control
     internal float ScrollOffset;
 
     private bool _dragging;
+    private ulong _nextKeyframeDebugAtMs;
 
     public TimelineTrackArea() { FocusMode = FocusModeEnum.Click; }
 
@@ -113,7 +115,7 @@ public sealed partial class TimelineTrackArea : Control
             var isMajor = (f % 10) == 0;
             var col = isMajor ? ColTickMajor : ColTickMinor;
             var width = isMajor ? 1.5f : 1.0f;
-            DrawLine(new Vector2(x, 0f), new Vector2(x, h), col, width);
+            DrawLine(new Vector2(x, RulerGridStartY + RulerTopOffset), new Vector2(x, h), col, width);
 
             if (!isMajor) continue;
 
@@ -136,6 +138,8 @@ public sealed partial class TimelineTrackArea : Control
                 DrawDiamond(kx, y + TrackHeight * 0.5f, 5f, ColKeyframe);
             }
         }
+
+        DebugLogVisibleKeyframes(Owner, bones);
 
         // ── Playhead ──────────────────────────────────────────────────────
         var phX = BoneNameWidth + Owner.CurrentFrame * PixPerFrame - ScrollOffset;
@@ -229,7 +233,7 @@ public sealed partial class TimelineTrackArea : Control
         var padX = 7f;
         var padY = 2f;
         var badgeSize = new Vector2(textSize.X + padX * 2f, textSize.Y + padY * 2f);
-        var badgePos = new Vector2(x - badgeSize.X * 0.5f, 1f + RulerTopOffset - 3); 
+        var badgePos = new Vector2(x - badgeSize.X * 0.5f, 1f + RulerTopOffset - 3f);
 
         var style = new StyleBoxFlat
         {
@@ -242,6 +246,27 @@ public sealed partial class TimelineTrackArea : Control
         DrawStyleBox(style, new Rect2(badgePos, badgeSize));
         DrawString(font, new Vector2(badgePos.X + padX, badgePos.Y + textSize.Y - 3f),
             label, HorizontalAlignment.Left, -1, fontSize, new Color(1f, 1f, 1f));
+    }
+
+    private void DebugLogVisibleKeyframes(TimelineControl owner, IReadOnlyList<string> visibleBones)
+    {
+        var now = Time.GetTicksMsec();
+        if (now < _nextKeyframeDebugAtMs) return;
+        _nextKeyframeDebugAtMs = now + 2000; // throttle
+
+        var visibleFrames = new List<int>();
+        foreach (var frame in owner.GetVisibleKeyframeFrames())
+            visibleFrames.Add(frame);
+
+        if (visibleFrames.Count == 0)
+        {
+            RunnerLogger.Warn("Timeline",
+                $"[SCRUBDBG] no visible keyframes: visibleCharId='{owner.VisibleCharacterId}', totalKeyframes={owner.GetKeyframeCount()}, visibleBones={visibleBones.Count}");
+            return;
+        }
+
+        RunnerLogger.Info("Timeline",
+            $"[SCRUBDBG] visibleCharId='{owner.VisibleCharacterId}', visibleFrames=[{string.Join(", ", visibleFrames)}], visibleBones={visibleBones.Count}");
     }
 }
 
@@ -265,6 +290,7 @@ public sealed partial class TimelineControl : Control
     // ── SML-settable properties ───────────────────────────────────────────
     public int Fps         { get; set; } = 24;
     public int TotalFrames { get; set; } = 120;
+    public string VisibleCharacterId => _visibleCharacterId;
 
     // ── Accessors used by TimelineTrackArea ───────────────────────────────
     public int                   CurrentFrame => _currentFrame;
@@ -299,28 +325,29 @@ public sealed partial class TimelineControl : Control
             yield break;
         }
 
-        // Strict mode: timeline rows and keyframes are scoped keys ("charId:BoneName").
-        // If the row key is malformed, no compatibility fallback is applied.
-        if (!TrySplitBoneKey(boneName, out _, out var expectedLocal))
+        var expectedCharId = _visibleCharacterId;
+        var expectedLocal = boneName;
+        if (TrySplitBoneKey(boneName, out _, out var localFromScoped))
+            expectedLocal = localFromScoped;
+        if (string.IsNullOrWhiteSpace(expectedLocal))
             yield break;
 
-        var expectedCharId = _visibleCharacterId;
+        var scopedExpectedKey = $"{expectedCharId}:{expectedLocal}";
 
         foreach (var (frame, pose) in _keyframes)
         {
-            var match = false;
-            foreach (var key in pose.Keys)
+            // Primary strict lookup by scoped key.
+            if (pose.ContainsKey(scopedExpectedKey))
             {
-                if (!TrySplitBoneKey(key, out var scopedId, out var localName))
-                    continue;
-                if (!string.Equals(scopedId, expectedCharId, StringComparison.OrdinalIgnoreCase))
-                    continue;
-                if (!string.Equals(localName, expectedLocal, StringComparison.OrdinalIgnoreCase))
-                    continue;
-                match = true;
-                break;
+                yield return frame;
+                continue;
             }
-            if (match) yield return frame;
+
+            // Secondary exact-key fallback for legacy/unscoped timeline data.
+            if (pose.ContainsKey(expectedLocal))
+            {
+                yield return frame;
+            }
         }
     }
 
@@ -596,6 +623,13 @@ public sealed partial class TimelineControl : Control
             i++;
         }
         return -1;
+    }
+
+    public IEnumerable<int> GetVisibleKeyframeFrames()
+    {
+        // Scrubber markers are global frame markers (independent from selected character).
+        foreach (var frame in _keyframes.Keys)
+            yield return frame;
     }
 
     public void DebugLogKeyframesForCharacter(string characterId)
