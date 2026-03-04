@@ -99,6 +99,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     private bool _rotateGizmoDraggingFreeNode;
     private int  _selectedPropIdx    = -1;
     private bool _characterSelected;
+    private int  _selectedCharacterIdx = -1;
 
     // ── Editor modes ──────────────────────────────────────────────────────────
     private EditorMode      _editorMode      = EditorMode.Pose;
@@ -116,19 +117,11 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     private readonly Dictionary<string, JointConstraintData> _constraints
         = new(StringComparer.OrdinalIgnoreCase);
 
-    // ── Pose data (normalized bone name → local rotation quaternion) ──────────
+    // ── Pose data (character-scoped bone name → local rotation quaternion) ───
     public Dictionary<string, Quaternion> PoseData { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-    // ── Bone-name normalization ────────────────────────────────────────────────
-    /// <summary>
-    /// When true, well-known rig prefixes (mixamorig:, mixamo1:, CC_Base_, …)
-    /// are stripped from bone names before they appear in PoseData, the bone
-    /// tree, and any saved files.  Default: true.
-    /// </summary>
-    public bool NormalizeNames { get; set; } = true;
-
-    private string NormBone(string raw) =>
-        NormalizeNames ? BoneNameNormalizer.Normalize(raw) : raw;
+    // Bone names are kept exactly as they come from the loaded skeleton.
+    private static string NormBone(string raw) => raw;
 
     // ── Scene props (additional static models in the viewport) ────────────────
     public sealed record ScenePropData(
@@ -137,10 +130,67 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         float PosX, float PosY, float PosZ,
         float RotX, float RotY, float RotZ,
         float ScaleX, float ScaleY, float ScaleZ);
+
+    private sealed class SceneCharacterEntry
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Path { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public Node3D Node { get; set; } = null!;
+        public Skeleton3D Skeleton { get; set; } = null!;
+    }
+
+    private readonly List<SceneCharacterEntry> _sceneCharacters = [];
+    private int _activeCharacterIdx = -1;
+    private int _nextCharacterId = 1;
+    private string _projectDirectory = string.Empty;
+
     private readonly List<(Node3D Node, ScenePropData Data)> _sceneProps = [];
+    private readonly Dictionary<string, string> _sceneProperties = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["aiPrompt"] = "Keep exact pose and composition, camera framing, body proportions, and left-right orientation. Render photorealistic humans with realistic skin pores, hair strands, and clearly defined abdominal muscles. Match clothing design, colors, and materials from the extra image while preserving visible anatomy where appropriate. Apply only scene style, lighting, mood, and color palette from the style image. Never add UI overlays, gizmos, handles, axes, bone markers, or text.",
+        ["aiNegativePrompt"] = string.Empty,
+        ["aiStyleImagePath"] = "res:/input/style.jpg",
+        ["aiExtraImagePath"] = "res:/input/clothing.jpg",
+        ["aiImageModel"] = "grok-imagine-image",
+        ["aiVideoModel"] = "grok-imagine-video",
+    };
 
     public IReadOnlyList<ScenePropData> SceneProps =>
         _sceneProps.ConvertAll(p => p.Data);
+
+    public void SetProjectProperty(string key, string value)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return;
+        _sceneProperties[key] = value ?? string.Empty;
+    }
+
+    public string GetProjectProperty(string key, string fallback = "")
+    {
+        if (string.IsNullOrWhiteSpace(key)) return fallback ?? string.Empty;
+        return _sceneProperties.TryGetValue(key, out var value) ? value : (fallback ?? string.Empty);
+    }
+
+    private Dictionary<string, string> BuildScenePropertiesForSave()
+    {
+        var props = new Dictionary<string, string>(_sceneProperties, StringComparer.OrdinalIgnoreCase);
+
+        // V1 schema: always persist the complete AI property set.
+        if (!props.ContainsKey("aiPrompt"))
+            props["aiPrompt"] = "Keep exact pose and composition, camera framing, body proportions, and left-right orientation. Render photorealistic humans with realistic skin pores, hair strands, and clearly defined abdominal muscles. Match clothing design, colors, and materials from the extra image while preserving visible anatomy where appropriate. Apply only scene style, lighting, mood, and color palette from the style image. Never add UI overlays, gizmos, handles, axes, bone markers, or text.";
+        if (!props.ContainsKey("aiNegativePrompt"))
+            props["aiNegativePrompt"] = string.Empty;
+        if (!props.ContainsKey("aiStyleImagePath"))
+            props["aiStyleImagePath"] = "res:/input/style.jpg";
+        if (!props.ContainsKey("aiExtraImagePath"))
+            props["aiExtraImagePath"] = "res:/input/clothing.jpg";
+        if (!props.ContainsKey("aiImageModel"))
+            props["aiImageModel"] = "grok-imagine-image";
+        if (!props.ContainsKey("aiVideoModel"))
+            props["aiVideoModel"] = "grok-imagine-video";
+
+        return props;
+    }
 
     // ── Events ────────────────────────────────────────────────────────────────
     public event Action<string>?             BoneSelected;
@@ -162,22 +212,59 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     private int _frameExportWritten;
     private string _frameExportOutputDir = string.Empty;
     private bool _frameExportAwaitingCapture;
+    private bool _renderOverlaySuppressed;
+    private bool _savedJointSpheresVisible;
+    private bool _savedRotationGizmoVisible;
+    private bool _savedMoveGizmoVisible;
+    private bool _savedScaleGizmoVisible;
+    private bool _savedAngleLabelVisible;
 
     // ── Editor mode control ───────────────────────────────────────────────────
 
     /// <summary>Switch between "pose" (bone editing) and "arrange" (prop transform) modes.</summary>
     public void SetEditorMode(string mode)
     {
-        _editorMode = mode.Equals("arrange", StringComparison.OrdinalIgnoreCase)
+        var targetMode = mode.Equals("arrange", StringComparison.OrdinalIgnoreCase)
             ? EditorMode.Arrange : EditorMode.Pose;
-        // Clear all gizmos and selections on mode change
+        if (targetMode == _editorMode)
+            return;
+
+        _editorMode = targetMode;
+        _gizmoDragging = _moveGizmoDragging = _scaleGizmoDragging = _rotateGizmoDraggingFreeNode = false;
+
+        if (_editorMode == EditorMode.Pose)
+        {
+            // Leaving Arrange: detach arrange gizmos but keep selected bone if one
+            // was already chosen via the bone tree.
+            _moveGizmo.Detach();
+            _scaleGizmo.Detach();
+            _selectedPropIdx = -1;
+            _characterSelected = false;
+
+            if (_skeleton is not null
+                && _selectedBoneIdx >= 0
+                && _selectedBoneIdx < _skeleton.GetBoneCount())
+            {
+                _gizmo.AttachToBone(_skeleton, _selectedBoneIdx);
+                var boneName = NormBone(_skeleton.GetBoneName(_selectedBoneIdx));
+                ApplyConstraintsToGizmo(boneName);
+            }
+            else
+            {
+                _gizmo.Detach();
+                _selectedBoneIdx = -1;
+            }
+
+            return;
+        }
+
+        // Switching to Arrange clears bone editing selection.
         _gizmo.Detach();
         _moveGizmo.Detach();
         _scaleGizmo.Detach();
-        _selectedBoneIdx   = -1;
-        _selectedPropIdx   = -1;
+        _selectedBoneIdx = -1;
+        _selectedPropIdx = -1;
         _characterSelected = false;
-        _gizmoDragging = _moveGizmoDragging = _scaleGizmoDragging = _rotateGizmoDraggingFreeNode = false;
     }
 
     /// <summary>Set the edit sub-mode used in Arrange mode: "move", "scale", or "rotate".</summary>
@@ -190,8 +277,10 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             _        => ArrangeEditMode.Move,
         };
         // Re-attach gizmo to currently selected object (swaps gizmo type)
-        if (_characterSelected && _modelRoot is not null)
-            AttachArrangeGizmoToNode(_modelRoot);
+        if (_characterSelected
+            && _selectedCharacterIdx >= 0
+            && _selectedCharacterIdx < _sceneCharacters.Count)
+            AttachArrangeGizmoToNode(_sceneCharacters[_selectedCharacterIdx].Node);
         else if (_selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
             AttachArrangeGizmo(_selectedPropIdx);
     }
@@ -401,9 +490,51 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     {
         if (_skeleton is null || _selectedBoneIdx < 0) return;
         var boneName = NormBone(_skeleton.GetBoneName(_selectedBoneIdx));
+        var characterId = GetCurrentSkeletonCharacterId();
+        var key = BuildBoneKey(characterId, boneName);
         var rot      = _skeleton.GetBonePoseRotation(_selectedBoneIdx);
-        PoseData[boneName] = rot;
-        PoseChanged?.Invoke(boneName, rot);
+
+        // Deduplicate legacy/alias keys for the same edited bone on this character
+        // (e.g. mixamorig_LeftArm vs mixamorig1_LeftArm).
+        var canonicalEdited = CanonicalBoneAlias(boneName);
+        var removeKeys = new List<string>();
+        foreach (var existingKey in PoseData.Keys)
+        {
+            if (string.Equals(existingKey, key, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (!TrySplitBoneKey(existingKey, out var scopedId, out var existingBone))
+                continue;
+            if (!string.Equals(scopedId, characterId, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var sameBySkeletonIndex = _skeleton.FindBone(existingBone) == _selectedBoneIdx;
+            var sameByAlias = string.Equals(CanonicalBoneAlias(existingBone), canonicalEdited, StringComparison.OrdinalIgnoreCase);
+            if (sameBySkeletonIndex || sameByAlias)
+                removeKeys.Add(existingKey);
+        }
+        foreach (var removeKey in removeKeys)
+            PoseData.Remove(removeKey);
+
+        PoseData[key] = rot;
+        PoseChanged?.Invoke(key, rot);
+    }
+
+    private static string CanonicalBoneAlias(string boneName)
+    {
+        if (string.IsNullOrWhiteSpace(boneName))
+            return string.Empty;
+
+        var lower = boneName.ToLowerInvariant();
+        if (!lower.StartsWith("mixamorig", StringComparison.Ordinal))
+            return lower;
+
+        var idx = "mixamorig".Length;
+        while (idx < lower.Length && char.IsDigit(lower[idx]))
+            idx++;
+        if (idx < lower.Length && lower[idx] == '_')
+            return lower[(idx + 1)..];
+
+        return lower;
     }
 
     private void UpdateAngleLabel()
@@ -450,8 +581,11 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     public override void _Draw()
     {
         Node3D? target = null;
-        if (_characterSelected && _modelRoot is not null && _modelRoot.IsInsideTree())
-            target = _modelRoot;
+        if (_characterSelected
+            && _selectedCharacterIdx >= 0
+            && _selectedCharacterIdx < _sceneCharacters.Count
+            && _sceneCharacters[_selectedCharacterIdx].Node.IsInsideTree())
+            target = _sceneCharacters[_selectedCharacterIdx].Node;
         else if (_selectedPropIdx >= 0 && _selectedPropIdx < _sceneProps.Count)
         {
             var (node, _) = _sceneProps[_selectedPropIdx];
@@ -535,8 +669,11 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                 LoadPose(pose);
             }
 
-            _skeleton?.ForceUpdateAllBoneTransforms();
-            _modelRoot?.ForceUpdateTransform();
+            foreach (var character in _sceneCharacters)
+            {
+                character.Skeleton.ForceUpdateAllBoneTransforms();
+                character.Node.ForceUpdateTransform();
+            }
             _worldRoot.ForceUpdateTransform();
 
             // Defer capture to next process tick to ensure this frame is visibly rendered.
@@ -577,8 +714,46 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         _frameExportWritten = 0;
         _frameExportAwaitingCapture = false;
         _frameExportOutputDir = string.Empty;
+        RestoreOverlaysAfterRender();
 
         FrameRangeExportFinished?.Invoke(written, outputDir);
+    }
+
+    private void SuppressOverlaysForRender()
+    {
+        if (_renderOverlaySuppressed) return;
+        _renderOverlaySuppressed = true;
+
+        _savedJointSpheresVisible = _jointSpheresVisible;
+        _savedRotationGizmoVisible = _gizmo.Visible;
+        _savedMoveGizmoVisible = _moveGizmo.Visible;
+        _savedScaleGizmoVisible = _scaleGizmo.Visible;
+        _savedAngleLabelVisible = _angleLabel?.Visible ?? false;
+
+        _gizmoDragging = false;
+        _moveGizmoDragging = false;
+        _scaleGizmoDragging = false;
+        _rotateGizmoDraggingFreeNode = false;
+
+        if (_angleLabel is not null)
+            _angleLabel.Visible = false;
+        SetJointSpheresVisible(false);
+        _gizmo.Visible = false;
+        _moveGizmo.Visible = false;
+        _scaleGizmo.Visible = false;
+    }
+
+    private void RestoreOverlaysAfterRender()
+    {
+        if (!_renderOverlaySuppressed) return;
+        _renderOverlaySuppressed = false;
+
+        SetJointSpheresVisible(_savedJointSpheresVisible);
+        _gizmo.Visible = _savedRotationGizmoVisible;
+        _moveGizmo.Visible = _savedMoveGizmoVisible;
+        _scaleGizmo.Visible = _savedScaleGizmoVisible;
+        if (_angleLabel is not null)
+            _angleLabel.Visible = _savedAngleLabelVisible;
     }
 
     /// <summary>
@@ -716,6 +891,117 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
     // ── Model loading ─────────────────────────────────────────────────────────
 
+    private static string NormalizeResPathSyntax(string source)
+    {
+        if (source.StartsWith("res:/", StringComparison.OrdinalIgnoreCase)
+            && !source.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+        {
+            return "res://" + source["res:/".Length..];
+        }
+        return source;
+    }
+
+    public void SetProjectDirectory(string projectDirectory)
+    {
+        _projectDirectory = string.IsNullOrWhiteSpace(projectDirectory)
+            ? string.Empty
+            : Path.GetFullPath(projectDirectory);
+    }
+
+    private string GetProjectRootForAssets()
+    {
+        if (!string.IsNullOrWhiteSpace(_projectDirectory))
+            return _projectDirectory;
+        return ProjectSettings.GlobalizePath("res://");
+    }
+
+    private bool TryMapToProjectModelsPath(string sourcePath, out string loadPath, out string storedPath)
+    {
+        loadPath = sourcePath;
+        storedPath = sourcePath;
+
+        if (string.IsNullOrWhiteSpace(sourcePath))
+            return false;
+
+        if (sourcePath.StartsWith("file://", StringComparison.OrdinalIgnoreCase)
+            && Uri.TryCreate(sourcePath, UriKind.Absolute, out var fileUri))
+        {
+            sourcePath = fileUri.LocalPath;
+        }
+
+        var normalized = NormalizeResPathSyntax(sourcePath);
+        var projectRoot = GetProjectRootForAssets();
+        var modelsDir = Path.Combine(projectRoot, "assets", "models");
+        Directory.CreateDirectory(modelsDir);
+
+        if (normalized.StartsWith("res://assets/models/", StringComparison.OrdinalIgnoreCase))
+        {
+            var rel = normalized["res://".Length..].Replace('\\', '/');
+            storedPath = "res:/" + rel;
+            loadPath = Path.Combine(projectRoot, rel.Replace('/', Path.DirectorySeparatorChar));
+
+            // If the target project does not have this model yet, but the same
+            // resource exists in the app/project res:// root, copy it over.
+            if (!File.Exists(loadPath))
+            {
+                try
+                {
+                    var appResRoot = ProjectSettings.GlobalizePath("res://");
+                    var appResPath = Path.Combine(appResRoot, rel.Replace('/', Path.DirectorySeparatorChar));
+                    var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+                    if (File.Exists(appResPath) && !string.Equals(appResPath, loadPath, comparison))
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(loadPath) ?? modelsDir);
+                        File.Copy(appResPath, loadPath, overwrite: false);
+                        RunnerLogger.Info("PosingEditor", $"Copied model from app resources into project: '{loadPath}'.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("PosingEditor", $"Could not materialize model '{storedPath}' into current project at '{loadPath}'.", ex);
+                }
+            }
+            return true;
+        }
+
+        if (Path.IsPathRooted(normalized))
+        {
+            var full = Path.GetFullPath(normalized);
+            var modelsFull = Path.GetFullPath(modelsDir);
+            var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            var inProjectModels = full.StartsWith(modelsFull + Path.DirectorySeparatorChar, comparison)
+                                  || string.Equals(full, modelsFull, comparison);
+
+            var fileName = Path.GetFileName(full);
+            if (string.IsNullOrWhiteSpace(fileName))
+                return true;
+
+            var targetAbs = Path.Combine(modelsDir, fileName);
+            if (!inProjectModels)
+            {
+                try
+                {
+                    if (!File.Exists(targetAbs))
+                    {
+                        File.Copy(full, targetAbs);
+                        RunnerLogger.Info("PosingEditor", $"Copied external asset into project: '{targetAbs}'.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("PosingEditor", $"Failed to copy external asset '{full}' to '{targetAbs}'. Keeping original path.", ex);
+                    return true;
+                }
+            }
+
+            loadPath = targetAbs;
+            storedPath = "res:/assets/models/" + fileName;
+            return true;
+        }
+
+        return true;
+    }
+
     public void SetModelSource(string source)
     {
         if (string.IsNullOrWhiteSpace(source))
@@ -730,15 +1016,22 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             source = fileUri.LocalPath;
         }
 
-        if (!TryLoadNode3D(source, out var loaded, out var label))
+        TryMapToProjectModelsPath(source, out var loadPath, out var storedPath);
+        if (!TryLoadNode3D(loadPath, out var loaded, out var label))
             return;
 
-        _lastLoadedSource = source;
-        AttachModel(loaded, label);
+        ClearSceneCharacters();
+        var characterIndex = AddCharacterNode(loaded, storedPath, 0f, 0f, 0f, characterId: "hero");
+        if (characterIndex >= 0)
+        {
+            RunnerLogger.Info("PosingEditor", $"Model loaded from '{label}'.");
+            SelectSceneCharacter(characterIndex);
+        }
     }
 
     private bool TryLoadNode3D(string source, out Node3D node3D, out string label)
     {
+        source = NormalizeResPathSyntax(source);
         label = source;
         node3D = null!;
 
@@ -795,39 +1088,181 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         return true;
     }
 
-    private void AttachModel(Node3D node3D, string label)
+    private int AddCharacterNode(Node3D node3D, string path, float posX, float posY, float posZ, string? characterId = null, string? characterName = null)
     {
         if (node3D.GetParent() is not null)
             node3D.GetParent().RemoveChild(node3D);
 
-        if (_modelRoot is not null)
-        {
-            ClearJointSpheres();
-            _worldRoot.RemoveChild(_modelRoot);
-            _modelRoot.QueueFree();
-            _modelRoot = null;
-            _skeleton  = null;
-        }
-
-        _modelRoot = node3D;
-        _modelRoot.Name = "ModelRoot";
-        _worldRoot.AddChild(_modelRoot);
-
         // Stop any embedded animations so they don't override manual bone poses.
-        StopAllAnimationPlayers(_modelRoot);
+        StopAllAnimationPlayers(node3D);
+        _worldRoot.AddChild(node3D);
+        node3D.Position = new Vector3(posX, posY, posZ);
+        node3D.RotationDegrees = Vector3.Zero;
+        node3D.Scale = Vector3.One;
 
-        _skeleton = FindSkeleton(_modelRoot);
+        var skeleton = FindSkeleton(node3D);
+        if (skeleton is null)
+        {
+            if (node3D.GetParent() is not null)
+                node3D.GetParent().RemoveChild(node3D);
+            node3D.QueueFree();
+            return -1;
+        }
 
-        if (_skeleton is null)
+        var requestedId = string.IsNullOrWhiteSpace(characterId) ? CreateCharacterId() : characterId!;
+        var id = EnsureUniqueCharacterId(requestedId);
+        if (!string.Equals(id, requestedId, StringComparison.OrdinalIgnoreCase))
         {
-            RunnerLogger.Warn("PosingEditor", $"No Skeleton3D found in '{label}'.");
+            RunnerLogger.Warn("PosingEditor", $"Duplicate character id '{requestedId}' adjusted to '{id}'.");
         }
-        else
+        var name = string.IsNullOrWhiteSpace(characterName)
+            ? System.IO.Path.GetFileNameWithoutExtension(path)
+            : characterName!;
+        _sceneCharacters.Add(new SceneCharacterEntry
         {
-            RunnerLogger.Info("PosingEditor", $"Model loaded from '{label}'. Skeleton: '{_skeleton.Name}', bones: {_skeleton.GetBoneCount()}.");
-            BuildJointSpheres();
-            if (_showBoneTree || _isExternalBoneTree) PopulateBoneList();
+            Id = id,
+            Path = path,
+            Name = name,
+            Node = node3D,
+            Skeleton = skeleton
+        });
+
+        var idx = _sceneCharacters.Count - 1;
+        ActivateCharacter(idx);
+        RunnerLogger.Info("PosingEditor", $"Character added: '{name}' id='{id}', bones={skeleton.GetBoneCount()}.");
+        return idx;
+    }
+
+    private int AddPropNode(Node3D node3D, string path, float posX, float posY, float posZ)
+    {
+        if (node3D.GetParent() is not null)
+            node3D.GetParent().RemoveChild(node3D);
+
+        StopAllAnimationPlayers(node3D);
+        _worldRoot.AddChild(node3D);
+
+        var name = System.IO.Path.GetFileNameWithoutExtension(path);
+        var data = new ScenePropData(path, name, posX, posY, posZ, 0f, 0f, 0f, 1f, 1f, 1f);
+        ApplyPropTransform(node3D, data);
+
+        var idx = _sceneProps.Count;
+        _sceneProps.Add((node3D, data));
+        ScenePropAdded?.Invoke(idx, path);
+        return idx;
+    }
+
+    private static bool TryParseGreyboxKind(string path, out string kind)
+    {
+        kind = string.Empty;
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        const string prefix = "builtin:greybox/";
+        if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+        kind = path[prefix.Length..].Trim().ToLowerInvariant();
+        return !string.IsNullOrWhiteSpace(kind);
+    }
+
+    private static string GreyboxPath(string kind) => $"builtin:greybox/{kind}";
+
+    private static StandardMaterial3D MakeGreyboxMaterial(Color color, bool transparent = false)
+    {
+        return new StandardMaterial3D
+        {
+            AlbedoColor = color,
+            Roughness = 0.85f,
+            Metallic = 0.0f,
+            Transparency = transparent
+                ? BaseMaterial3D.TransparencyEnum.Alpha
+                : BaseMaterial3D.TransparencyEnum.Disabled
+        };
+    }
+
+    private static MeshInstance3D MakeGreyboxBox(string name, Vector3 size, Color color, Vector3 localPos, bool transparent = false)
+    {
+        var mesh = new BoxMesh { Size = size };
+        mesh.SurfaceSetMaterial(0, MakeGreyboxMaterial(color, transparent));
+        return new MeshInstance3D
+        {
+            Name = name,
+            Mesh = mesh,
+            Position = localPos
+        };
+    }
+
+    private static Node3D CreateGreyboxNode(string kind)
+    {
+        var root = new Node3D { Name = $"Greybox_{kind}" };
+
+        switch (kind)
+        {
+            case "wall":
+                root.AddChild(MakeGreyboxBox("Wall", new Vector3(4.0f, 2.6f, 0.2f), new Color(0.35f, 0.45f, 0.85f), new Vector3(0f, 1.3f, 0f)));
+                break;
+
+            case "door":
+                root.AddChild(MakeGreyboxBox("Door", new Vector3(1.0f, 2.1f, 0.12f), new Color(0.45f, 0.30f, 0.16f), new Vector3(0f, 1.05f, 0f)));
+                break;
+
+            case "window":
+                root.AddChild(MakeGreyboxBox("Frame", new Vector3(1.8f, 1.3f, 0.10f), new Color(0.78f, 0.78f, 0.80f), new Vector3(0f, 1.4f, 0f)));
+                root.AddChild(MakeGreyboxBox("Glass", new Vector3(1.45f, 0.95f, 0.03f), new Color(0.45f, 0.70f, 0.95f, 0.45f), new Vector3(0f, 1.4f, 0.04f), transparent: true));
+                break;
+
+            case "tree":
+            {
+                var trunkMesh = new CylinderMesh { TopRadius = 0.16f, BottomRadius = 0.2f, Height = 2.0f };
+                trunkMesh.SurfaceSetMaterial(0, MakeGreyboxMaterial(new Color(0.40f, 0.26f, 0.15f)));
+                root.AddChild(new MeshInstance3D { Name = "Trunk", Mesh = trunkMesh, Position = new Vector3(0f, 1.0f, 0f) });
+
+                var crownMesh = new SphereMesh { Radius = 0.85f, Height = 1.7f };
+                crownMesh.SurfaceSetMaterial(0, MakeGreyboxMaterial(new Color(0.27f, 0.62f, 0.30f)));
+                root.AddChild(new MeshInstance3D { Name = "Crown", Mesh = crownMesh, Position = new Vector3(0f, 2.2f, 0f) });
+                break;
+            }
+
+            default:
+                // Fallback = wall to keep UX predictable on unknown kind.
+                root.AddChild(MakeGreyboxBox("Wall", new Vector3(4.0f, 2.6f, 0.2f), new Color(0.35f, 0.45f, 0.85f), new Vector3(0f, 1.3f, 0f)));
+                break;
         }
+
+        return root;
+    }
+
+    public int AddGreyboxItem(string kind, float posX, float posY, float posZ)
+    {
+        var token = string.IsNullOrWhiteSpace(kind) ? "wall" : kind.Trim().ToLowerInvariant();
+        var path = GreyboxPath(token);
+        var node3D = CreateGreyboxNode(token);
+        var idx = AddPropNode(node3D, path, posX, posY, posZ);
+        if (idx >= 0)
+            RunnerLogger.Info("PosingEditor", $"Greybox item added: '{token}' at ({posX},{posY},{posZ}).");
+        return idx;
+    }
+
+    public int AddSceneAsset(string path, float posX, float posY, float posZ)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return -1;
+        TryMapToProjectModelsPath(path, out var loadPath, out var storedPath);
+        if (!TryLoadNode3D(loadPath, out var node3D, out var label))
+            return -1;
+
+        var skeleton = FindSkeleton(node3D);
+        if (skeleton is not null)
+        {
+            var characterIndex = AddCharacterNode(node3D, storedPath, posX, posY, posZ);
+            if (characterIndex >= 0)
+            {
+                SelectSceneCharacter(characterIndex);
+                RunnerLogger.Info("PosingEditor", $"Scene character added from '{label}' at ({posX},{posY},{posZ}).");
+                return 1;
+            }
+            return -1;
+        }
+
+        var propIdx = AddPropNode(node3D, storedPath, posX, posY, posZ);
+        if (propIdx >= 0)
+            RunnerLogger.Info("PosingEditor", $"Scene prop added: '{label}' at ({posX},{posY},{posZ}).");
+        return propIdx >= 0 ? 0 : -1;
     }
 
     // ── Joint spheres ─────────────────────────────────────────────────────────
@@ -936,6 +1371,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         if (propIdx == _selectedPropIdx && !_characterSelected) return;
 
         _characterSelected = false;
+        _selectedCharacterIdx = -1;
         _selectedPropIdx   = propIdx;
 
         if (propIdx >= 0 && propIdx < _sceneProps.Count)
@@ -977,17 +1413,23 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     private void TryPickPropArrange(Vector3 rayOrigin, Vector3 rayDir)
     {
         var bestIdx  = -1;
+        var bestCharacterIdx = -1;
         var bestT    = float.MaxValue;
-        var charHit  = false;
 
-        // Test character (modelRoot) AABB
-        if (_modelRoot is not null && _modelRoot.IsInsideTree())
+        // Test all characters
+        for (var ci = 0; ci < _sceneCharacters.Count; ci++)
         {
-            var aabb = GetNodeWorldAabb(_modelRoot);
+            var node = _sceneCharacters[ci].Node;
+            if (!node.IsInsideTree()) continue;
+            var aabb = GetNodeWorldAabb(node);
             if (aabb.Size != Vector3.Zero && RayAabbIntersect(rayOrigin, rayDir, aabb, out var t))
             {
-                bestT   = t;
-                charHit = true;
+                if (t < bestT)
+                {
+                    bestT   = t;
+                    bestCharacterIdx = ci;
+                    bestIdx = -1;
+                }
             }
         }
 
@@ -1003,12 +1445,12 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             {
                 bestT   = t;
                 bestIdx = i;
-                charHit = false;
+                bestCharacterIdx = -1;
             }
         }
 
-        if (charHit)
-            SelectCharacter();
+        if (bestCharacterIdx >= 0)
+            SelectSceneCharacter(bestCharacterIdx);
         else
             SelectProp(bestIdx);
     }
@@ -1312,52 +1754,83 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
     public void ResetPose()
     {
-        if (_skeleton is null) return;
-        for (var i = 0; i < _skeleton.GetBoneCount(); i++)
-            _skeleton.ResetBonePose(i);
+        foreach (var character in _sceneCharacters)
+        {
+            for (var i = 0; i < character.Skeleton.GetBoneCount(); i++)
+                character.Skeleton.ResetBonePose(i);
+        }
         PoseData.Clear();
         PoseReset?.Invoke();
     }
 
     public string SavePoseAsSml()
     {
-        if (_skeleton is null) return string.Empty;
+        if (_sceneCharacters.Count == 0) return string.Empty;
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("Pose {");
-        foreach (var (boneName, rot) in PoseData)
+        foreach (var (key, rot) in PoseData)
         {
             var euler = rot.GetEuler() * (180f / Mathf.Pi);
-            sb.AppendLine($"    Bone {{ name: \"{boneName}\"; rotX: {euler.X:F1}; rotY: {euler.Y:F1}; rotZ: {euler.Z:F1} }}");
+            sb.AppendLine($"    Bone {{ name: \"{key}\"; rotX: {euler.X:F1}; rotY: {euler.Y:F1}; rotZ: {euler.Z:F1} }}");
         }
         sb.Append("}");
         return sb.ToString();
     }
 
+    public Dictionary<string, Quaternion> GetPoseDataForCharacter(string characterId)
+    {
+        var result = new Dictionary<string, Quaternion>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(characterId))
+            return result;
+
+        foreach (var (key, rot) in PoseData)
+        {
+            if (!TrySplitBoneKey(key, out var scopedId, out _))
+                continue;
+            if (!string.Equals(scopedId, characterId, StringComparison.OrdinalIgnoreCase))
+                continue;
+            result[key] = rot;
+        }
+        return result;
+    }
+
+    public Dictionary<string, Quaternion> GetPoseDataForActiveCharacter()
+    {
+        return GetPoseDataForCharacter(GetCurrentSkeletonCharacterId());
+    }
+
     public void LoadPose(Dictionary<string, Quaternion> pose)
     {
-        if (_skeleton is null) return;
-        foreach (var (boneName, rot) in pose)
+        if (_sceneCharacters.Count == 0) return;
+        foreach (var (boneKey, rot) in pose)
         {
-            // 1. Exact match (most common: pose was saved with same skeleton)
-            var idx = _skeleton.FindBone(boneName);
-
-            // 2. Normalised-name match (pose from different rig, same naming base)
-            if (idx < 0 && NormalizeNames)
+            Skeleton3D? targetSkeleton = null;
+            string boneName;
+            string targetCharacterId;
+            if (!TrySplitBoneKey(boneKey, out targetCharacterId, out boneName))
             {
-                for (var i = 0; i < _skeleton.GetBoneCount(); i++)
+                // Legacy unscoped key is ignored intentionally.
+                continue;
+            }
+
+            for (var ci = 0; ci < _sceneCharacters.Count; ci++)
+            {
+                if (string.Equals(_sceneCharacters[ci].Id, targetCharacterId, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (string.Equals(NormBone(_skeleton.GetBoneName(i)),
-                                      boneName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        idx = i;
-                        break;
-                    }
+                    targetSkeleton = _sceneCharacters[ci].Skeleton;
+                    break;
                 }
             }
 
+            if (targetSkeleton is null)
+                continue;
+
+            var idx = targetSkeleton.FindBone(boneName);
             if (idx < 0) continue;
-            _skeleton.SetBonePoseRotation(idx, rot);
-            PoseData[NormBone(_skeleton.GetBoneName(idx))] = rot;
+            targetSkeleton.SetBonePoseRotation(idx, rot);
+            var normalized = NormBone(targetSkeleton.GetBoneName(idx));
+            var resolvedKey = BuildBoneKey(targetCharacterId, normalized);
+            PoseData[resolvedKey] = rot;
         }
     }
 
@@ -1461,6 +1934,110 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         return null;
     }
 
+    private static string BuildBoneKey(string characterId, string boneName) =>
+        string.IsNullOrWhiteSpace(characterId) ? boneName : $"{characterId}:{boneName}";
+
+    private static bool TrySplitBoneKey(string key, out string characterId, out string boneName)
+    {
+        var sep = key.IndexOf(':');
+        if (sep <= 0 || sep >= key.Length - 1)
+        {
+            characterId = string.Empty;
+            boneName = key;
+            return false;
+        }
+
+        characterId = key[..sep];
+        boneName = key[(sep + 1)..];
+        return true;
+    }
+
+    private string GetActiveCharacterIdInternal()
+    {
+        if (_activeCharacterIdx < 0 || _activeCharacterIdx >= _sceneCharacters.Count)
+            return string.Empty;
+        return _sceneCharacters[_activeCharacterIdx].Id;
+    }
+
+    public string GetActiveCharacterId() => GetActiveCharacterIdInternal();
+
+    private string GetCurrentSkeletonCharacterId()
+    {
+        if (_skeleton is null)
+            return GetActiveCharacterIdInternal();
+
+        for (var i = 0; i < _sceneCharacters.Count; i++)
+        {
+            if (ReferenceEquals(_sceneCharacters[i].Skeleton, _skeleton))
+                return _sceneCharacters[i].Id;
+        }
+
+        return GetActiveCharacterIdInternal();
+    }
+
+    private bool ActivateCharacter(int index)
+    {
+        if (index < 0 || index >= _sceneCharacters.Count)
+            return false;
+
+        // Character switch must invalidate old bone/gizmo bindings so first
+        // bone click on the new character always re-attaches correctly.
+        _gizmo.Detach();
+        _gizmoDragging = false;
+        _rotateGizmoDraggingFreeNode = false;
+        _selectedBoneIdx = -1;
+
+        _activeCharacterIdx = index;
+        _modelRoot = _sceneCharacters[index].Node;
+        _skeleton = _sceneCharacters[index].Skeleton;
+
+        ClearJointSpheres();
+        BuildJointSpheres();
+        if (_showBoneTree || _isExternalBoneTree) PopulateBoneList();
+        return true;
+    }
+
+    private void ActivateFirstCharacterOrClear()
+    {
+        if (_sceneCharacters.Count > 0)
+        {
+            ActivateCharacter(0);
+            return;
+        }
+
+        _activeCharacterIdx = -1;
+        _modelRoot = null;
+        _skeleton = null;
+        _selectedBoneIdx = -1;
+        ClearJointSpheres();
+        if (_showBoneTree || _isExternalBoneTree) PopulateBoneList();
+    }
+
+    private string CreateCharacterId() => $"char{_nextCharacterId++}";
+
+    private string EnsureUniqueCharacterId(string requestedId)
+    {
+        var baseId = string.IsNullOrWhiteSpace(requestedId) ? CreateCharacterId() : requestedId;
+        var candidate = baseId;
+        var suffix = 1;
+        while (ContainsCharacterId(candidate))
+        {
+            candidate = $"{baseId}_{suffix}";
+            suffix++;
+        }
+        return candidate;
+    }
+
+    private bool ContainsCharacterId(string id)
+    {
+        for (var i = 0; i < _sceneCharacters.Count; i++)
+        {
+            if (string.Equals(_sceneCharacters[i].Id, id, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+
     // ── Scene props ───────────────────────────────────────────────────────────
 
     /// <summary>Add a static prop model to the scene. Returns the prop index.</summary>
@@ -1468,24 +2045,15 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     {
         if (string.IsNullOrWhiteSpace(path)) return -1;
 
-        if (!TryLoadNode3D(path, out var node3D, out var label))
+        if (TryParseGreyboxKind(path, out var greyboxKind))
+            return AddGreyboxItem(greyboxKind, posX, posY, posZ);
+
+        TryMapToProjectModelsPath(path, out var loadPath, out var storedPath);
+        if (!TryLoadNode3D(loadPath, out var node3D, out var label))
             return -1;
-
-        if (node3D.GetParent() is not null)
-            node3D.GetParent().RemoveChild(node3D);
-
-        StopAllAnimationPlayers(node3D);
-        _worldRoot.AddChild(node3D);
-
-        var name = System.IO.Path.GetFileNameWithoutExtension(path);
-        var data = new ScenePropData(path, name, posX, posY, posZ, 0f, 0f, 0f, 1f, 1f, 1f);
-        ApplyPropTransform(node3D, data);
-
-        var idx = _sceneProps.Count;
-        _sceneProps.Add((node3D, data));
-
-        RunnerLogger.Info("PosingEditor", $"Scene prop added: '{label}' at ({posX},{posY},{posZ}).");
-        ScenePropAdded?.Invoke(idx, path);
+        var idx = AddPropNode(node3D, storedPath, posX, posY, posZ);
+        if (idx >= 0)
+            RunnerLogger.Info("PosingEditor", $"Scene prop added: '{label}' at ({posX},{posY},{posZ}).");
         return idx;
     }
 
@@ -1514,10 +2082,10 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         ScenePropRemoved?.Invoke(index);
     }
 
-    /// <summary>Remove the primary character model from the scene.</summary>
-    public void RemoveCharacter()
+    private void RemoveCharacterByIndex(int index)
     {
-        if (_modelRoot is null) return;
+        if (index < 0 || index >= _sceneCharacters.Count) return;
+        var entry = _sceneCharacters[index];
 
         _moveGizmo.Detach();
         _scaleGizmo.Detach();
@@ -1525,20 +2093,46 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
         _selectedPropIdx   = -1;
         _characterSelected = false;
+        _selectedCharacterIdx = -1;
         _selectedBoneIdx   = -1;
 
-        ClearJointSpheres();
+        // Remove all pose keys for this character.
+        var prefix = entry.Id + ":";
+        var toRemove = new List<string>();
+        foreach (var key in PoseData.Keys)
+        {
+            if (key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                toRemove.Add(key);
+        }
+        foreach (var key in toRemove)
+            PoseData.Remove(key);
 
-        if (_modelRoot.GetParent() is not null)
-            _modelRoot.GetParent().RemoveChild(_modelRoot);
-        _modelRoot.QueueFree();
-        _modelRoot = null;
-        _skeleton = null;
-        _lastLoadedSource = string.Empty;
+        if (entry.Node.GetParent() is not null)
+            entry.Node.GetParent().RemoveChild(entry.Node);
+        entry.Node.QueueFree();
+        _sceneCharacters.RemoveAt(index);
+
+        if (_activeCharacterIdx == index) _activeCharacterIdx = -1;
+        else if (_activeCharacterIdx > index) _activeCharacterIdx--;
+        if (_selectedCharacterIdx > index) _selectedCharacterIdx--;
+
+        ActivateFirstCharacterOrClear();
 
         ObjectSelected?.Invoke(-1);
         QueueRedraw();
-        RunnerLogger.Info("PosingEditor", "Character removed from scene.");
+        RunnerLogger.Info("PosingEditor", $"Character removed from scene: idx={index}.");
+    }
+
+    /// <summary>Remove the active character model from the scene.</summary>
+    public void RemoveCharacter()
+    {
+        if (_activeCharacterIdx < 0) return;
+        RemoveCharacterByIndex(_activeCharacterIdx);
+    }
+
+    public void RemoveSceneCharacter(int index)
+    {
+        RemoveCharacterByIndex(index);
     }
 
     /// <summary>
@@ -1548,19 +2142,32 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     public void SelectSceneProp(int propIdx) => SelectProp(propIdx);
 
     /// <summary>
-    /// Select the character (primary model) as the active transform target in Arrange mode.
-    /// Attaches the appropriate gizmo to _modelRoot.
+    /// Select the active character as the transform target in Arrange mode.
     /// </summary>
     public void SelectCharacter()
     {
-        if (_modelRoot is null) return;
+        if (_activeCharacterIdx < 0 && _sceneCharacters.Count > 0)
+            _activeCharacterIdx = 0;
+        SelectSceneCharacter(_activeCharacterIdx);
+    }
+
+    public void SelectSceneCharacter(int characterIdx)
+    {
+        if (characterIdx < 0 || characterIdx >= _sceneCharacters.Count) return;
+        if (!ActivateCharacter(characterIdx)) return;
         _characterSelected = true;
+        _selectedCharacterIdx = characterIdx;
         _selectedPropIdx   = -1;
-        AttachArrangeGizmoToNode(_modelRoot);
+        AttachArrangeGizmoToNode(_sceneCharacters[characterIdx].Node);
         ObjectSelected?.Invoke(-1);
         QueueRedraw();
-        RunnerLogger.Info("PosingEditor", "Character selected for transform.");
+        RunnerLogger.Info("PosingEditor", $"Character selected for transform: idx={characterIdx} id='{_sceneCharacters[characterIdx].Id}'.");
     }
+
+    public int GetSceneCharacterCount() => _sceneCharacters.Count;
+    public string GetSceneCharacterId(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Id : string.Empty;
+    public string GetSceneCharacterPath(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Path : string.Empty;
+    public string GetSceneCharacterName(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Name : string.Empty;
 
     public int    GetScenePropCount()       => _sceneProps.Count;
     public string GetScenePropPath(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Data.Path : string.Empty;
@@ -1603,18 +2210,27 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     {
         var assets = new List<SceneAssetData>();
 
-        // Primary character — read actual transform from modelRoot
-        var charPos   = _modelRoot?.Position        ?? Vector3.Zero;
-        var charRot   = _modelRoot?.RotationDegrees ?? Vector3.Zero;
-        var charScale = _modelRoot?.Scale           ?? Vector3.One;
-        assets.Add(new SceneAssetData(
-            Id:      "hero",
-            Name:    System.IO.Path.GetFileNameWithoutExtension(_lastLoadedSource),
-            Src:     _lastLoadedSource,
-            Primary: true,
-            PosX:   charPos.X,   PosY:   charPos.Y,   PosZ:   charPos.Z,
-            RotX:   charRot.X,   RotY:   charRot.Y,   RotZ:   charRot.Z,
-            ScaleX: charScale.X, ScaleY: charScale.Y, ScaleZ: charScale.Z));
+        for (var i = 0; i < _sceneCharacters.Count; i++)
+        {
+            var c = _sceneCharacters[i];
+            var pos = c.Node.Position;
+            var rot = c.Node.RotationDegrees;
+            var scale = c.Node.Scale;
+            assets.Add(new SceneAssetData(
+                Id:      string.IsNullOrWhiteSpace(c.Id) ? $"char{i}" : c.Id,
+                Name:    c.Name,
+                Src:     c.Path,
+                Primary: true,
+                PosX:    pos.X,
+                PosY:    pos.Y,
+                PosZ:    pos.Z,
+                RotX:    rot.X,
+                RotY:    rot.Y,
+                RotZ:    rot.Z,
+                ScaleX:  scale.X,
+                ScaleY:  scale.Y,
+                ScaleZ:  scale.Z));
+        }
 
         for (var i = 0; i < _sceneProps.Count; i++)
         {
@@ -1648,7 +2264,12 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                 keyframes[frame] = new Dictionary<string, Quaternion>(pose, StringComparer.OrdinalIgnoreCase);
         }
 
-        return new AnimationProjectData(timeline.Fps, timeline.TotalFrames, assets, keyframes);
+        return new AnimationProjectData(
+            timeline.Fps,
+            timeline.TotalFrames,
+            assets,
+            keyframes,
+            BuildScenePropertiesForSave());
     }
 
     /// <summary>
@@ -1663,9 +2284,21 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     /// </param>
     public void LoadProjectData(AnimationProjectData data, TimelineControl timeline, string projectDirectory = "")
     {
+        SetProjectDirectory(projectDirectory);
+
         // Clear existing state
+        ClearSceneCharacters();
         ClearSceneProps();
         timeline.ClearAllKeyframes();
+        _sceneProperties.Clear();
+        if (data.SceneProperties is not null)
+        {
+            foreach (var (key, value) in data.SceneProperties)
+            {
+                if (string.IsNullOrWhiteSpace(key)) continue;
+                _sceneProperties[key] = value ?? string.Empty;
+            }
+        }
 
         // Load assets
         foreach (var asset in data.SceneAssets)
@@ -1674,13 +2307,15 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             var resolvedSrc = ResolveProjectPath(asset.Src, projectDirectory);
             if (asset.Primary)
             {
-                SetModelSource(resolvedSrc);
-                // Apply stored character transform (pos/rot/scale)
-                if (_modelRoot is not null)
+                TryMapToProjectModelsPath(resolvedSrc, out var loadPath, out var storedPath);
+                if (!TryLoadNode3D(loadPath, out var node3D, out _))
+                    continue;
+                var idx = AddCharacterNode(node3D, storedPath, asset.PosX, asset.PosY, asset.PosZ, asset.Id, asset.Name);
+                if (idx >= 0)
                 {
-                    _modelRoot.Position        = new Vector3(asset.PosX, asset.PosY, asset.PosZ);
-                    _modelRoot.RotationDegrees = new Vector3(asset.RotX, asset.RotY, asset.RotZ);
-                    _modelRoot.Scale           = new Vector3(asset.ScaleX, asset.ScaleY, asset.ScaleZ);
+                    var node = _sceneCharacters[idx].Node;
+                    node.RotationDegrees = new Vector3(asset.RotX, asset.RotY, asset.RotZ);
+                    node.Scale = new Vector3(asset.ScaleX, asset.ScaleY, asset.ScaleZ);
                 }
             }
             else
@@ -1708,9 +2343,12 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         foreach (var (frame, bones) in data.Keyframes)
             timeline.SetKeyframe(frame, bones);
 
+        if (_sceneCharacters.Count > 0)
+            ActivateCharacter(0);
+
         // Ensure loaded projects do not stay in default T-pose:
-        // jump to frame 1 (or the first available keyframe) and apply that pose immediately.
-        var initialFrame = 1;
+        // jump to frame 0 (or the first available keyframe) and apply that pose immediately.
+        var initialFrame = 0;
         if (!data.Keyframes.ContainsKey(initialFrame) && data.Keyframes.Count > 0)
         {
             foreach (var frame in data.Keyframes.Keys)
@@ -1730,14 +2368,16 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
     /// <summary>
     /// Resolves a source path from a .scene file.
-    /// <c>res://relative/path</c> is mapped to <c>{projectDirectory}/relative/path</c>
+    /// <c>res://relative/path</c> and <c>res:/relative/path</c> are mapped to
+    /// <c>{projectDirectory}/relative/path</c>
     /// when a project directory is known; otherwise returned unchanged.
     /// </summary>
     private static string ResolveProjectPath(string src, string projectDirectory)
     {
         if (string.IsNullOrEmpty(projectDirectory)) return src;
-        if (!src.StartsWith("res://", StringComparison.OrdinalIgnoreCase)) return src;
-        var relative = src["res://".Length..];
+        var normalized = NormalizeResPathSyntax(src);
+        if (!normalized.StartsWith("res://", StringComparison.OrdinalIgnoreCase)) return src;
+        var relative = normalized["res://".Length..];
         return Path.Combine(projectDirectory, relative);
     }
 
@@ -1747,8 +2387,15 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             RemoveSceneProp(i);
     }
 
-    // Track last loaded source so BuildProjectData can persist it
-    private string _lastLoadedSource = string.Empty;
+    private void ClearSceneCharacters()
+    {
+        for (var i = _sceneCharacters.Count - 1; i >= 0; i--)
+            RemoveCharacterByIndex(i);
+        _sceneCharacters.Clear();
+        _activeCharacterIdx = -1;
+        _selectedCharacterIdx = -1;
+        _characterSelected = false;
+    }
 
     // ── GLB Export ────────────────────────────────────────────────────────────
 
@@ -1762,6 +2409,14 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         {
             RunnerLogger.Warn("PosingEditor", "ExportCurrentFramePng: output path is empty.");
             return false;
+        }
+
+        var restoreOverlays = !_renderOverlaySuppressed;
+        if (restoreOverlays)
+        {
+            SuppressOverlaysForRender();
+            RenderingServer.ForceDraw();
+            RenderingServer.ForceDraw();
         }
 
         try
@@ -1793,6 +2448,11 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         {
             RunnerLogger.Warn("PosingEditor", $"ExportCurrentFramePng crashed for '{path}'.", ex);
             return false;
+        }
+        finally
+        {
+            if (restoreOverlays)
+                RestoreOverlaysAfterRender();
         }
     }
 
@@ -1828,6 +2488,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         _frameExportWritten = 0;
         _frameExportOutputDir = outputDirectory;
         _frameExportAwaitingCapture = false;
+        SuppressOverlaysForRender();
         _frameExportRunning = true;
 
         return true;
@@ -1853,33 +2514,44 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         Directory.CreateDirectory(outputDirectory);
 
         var written = 0;
-        for (var frame = start; frame <= end; frame++)
+        SuppressOverlaysForRender();
+        try
         {
-            timeline.SetCurrentFrame(frame);
-            var pose = timeline.GetPoseAt(frame);
-            if (pose is not null)
+            for (var frame = start; frame <= end; frame++)
             {
-                LoadPose(pose);
+                timeline.SetCurrentFrame(frame);
+                var pose = timeline.GetPoseAt(frame);
+                if (pose is not null)
+                {
+                    LoadPose(pose);
+                }
+
+                // Force transform/skeleton propagation for this frame before rendering.
+                foreach (var character in _sceneCharacters)
+                {
+                    character.Skeleton.ForceUpdateAllBoneTransforms();
+                    character.Node.ForceUpdateTransform();
+                }
+                _worldRoot.ForceUpdateTransform();
+
+                // Force rendering twice to avoid stale texture readback in tight loops.
+                RenderingServer.ForceDraw();
+                RenderingServer.ForceDraw();
+
+                var fileName = "frame_" + written.ToString("D4", CultureInfo.InvariantCulture) + ".png";
+                var outputPath = Path.Combine(outputDirectory, fileName);
+                if (!ExportCurrentFramePng(outputPath))
+                {
+                    RunnerLogger.Warn("PosingEditor", $"ExportFrameRangePng stopped at frame {frame}.");
+                    break;
+                }
+
+                written++;
             }
-
-            // Force transform/skeleton propagation for this frame before rendering.
-            _skeleton?.ForceUpdateAllBoneTransforms();
-            _modelRoot?.ForceUpdateTransform();
-            _worldRoot.ForceUpdateTransform();
-
-            // Force rendering twice to avoid stale texture readback in tight loops.
-            RenderingServer.ForceDraw();
-            RenderingServer.ForceDraw();
-
-            var fileName = "frame_" + written.ToString("D4", CultureInfo.InvariantCulture) + ".png";
-            var outputPath = Path.Combine(outputDirectory, fileName);
-            if (!ExportCurrentFramePng(outputPath))
-            {
-                RunnerLogger.Warn("PosingEditor", $"ExportFrameRangePng stopped at frame {frame}.");
-                break;
-            }
-
-            written++;
+        }
+        finally
+        {
+            RestoreOverlaysAfterRender();
         }
 
         return written;

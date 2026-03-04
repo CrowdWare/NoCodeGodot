@@ -37,8 +37,18 @@ Inherited actions are documented in: [SubViewportContainer](SubViewportContainer
 | setModelSource | `<id>.setModelSource(src)` | string src | void |
 | loadProject | `<id>.loadProject(path)` | string path | void |
 | saveProject | `<id>.saveProject(path)` | string path | void |
+| setProjectProperty | `<id>.setProjectProperty(key, value)` | string key, string value | void |
+| getProjectProperty | `<id>.getProjectProperty(key, fallback)` | string key, string fallback | string |
+| addSceneAsset | `<id>.addSceneAsset(path, posX, posY, posZ)` | string path, float posX, float posY, float posZ | int |
+| addGreyboxItem | `<id>.addGreyboxItem(kind, posX, posY, posZ)` | string kind, float posX, float posY, float posZ | int |
 | addSceneProp | `<id>.addSceneProp(path, posX, posY, posZ)` | string path, float posX, float posY, float posZ | int |
+| getSceneCharacterCount | `<id>.getSceneCharacterCount()` | — | int |
+| getActiveCharacterId | `<id>.getActiveCharacterId()` | — | string |
+| getSceneCharacterPath | `<id>.getSceneCharacterPath(index)` | int index | string |
+| getSceneCharacterName | `<id>.getSceneCharacterName(index)` | int index | string |
+| selectSceneCharacter | `<id>.selectSceneCharacter(index)` | int index | void |
 | removeCharacter | `<id>.removeCharacter()` | — | void |
+| removeSceneCharacter | `<id>.removeSceneCharacter(index)` | int index | void |
 | removeSceneProp | `<id>.removeSceneProp(index)` | int index | void |
 | getScenePropCount | `<id>.getScenePropCount()` | — | int |
 | getScenePropPath | `<id>.getScenePropPath(index)` | int index | string |
@@ -47,6 +57,8 @@ Inherited actions are documented in: [SubViewportContainer](SubViewportContainer
 | setScenePropPos | `<id>.setScenePropPos(index, x, y, z)` | int index, float x, float y, float z | void |
 | getScenePropRot | `<id>.getScenePropRot(index)` | int index | string |
 | setScenePropRot | `<id>.setScenePropRot(index, x, y, z)` | int index, float x, float y, float z | void |
+| getPoseDataForCharacter | `<id>.getPoseDataForCharacter(characterId)` | string characterId | object |
+| getPoseDataForActiveCharacter | `<id>.getPoseDataForActiveCharacter()` | — | object |
 | setMode | `<id>.setMode(mode)` | string mode | void |
 | setEditMode | `<id>.setEditMode(mode)` | string mode | void |
 | exportCurrentFramePng | `<id>.exportCurrentFramePng(path)` | string path | bool |

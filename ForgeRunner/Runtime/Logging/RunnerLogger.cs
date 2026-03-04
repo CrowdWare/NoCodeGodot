@@ -41,7 +41,7 @@ public static class RunnerLogger
 
     public static void Warn(string subsystem, string message)
     {
-        PrintRichColored($"WARNING: [{subsystem}] {message}", "#ffd166");
+        GD.PushWarning($"[{subsystem}] {message}");
     }
 
     public static void Warn(string subsystem, string message, Exception ex)
@@ -51,7 +51,7 @@ public static class RunnerLogger
 
     public static void Error(string subsystem, string message)
     {
-        PrintRichColored($"ERROR: [{subsystem}] {message}", "#ff6b6b");
+        GD.PushError($"[{subsystem}] {message}");
     }
 
     public static void Success(string subsystem, string message)

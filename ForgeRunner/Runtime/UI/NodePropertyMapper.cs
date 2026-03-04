@@ -244,6 +244,11 @@ public sealed class NodePropertyMapper
                 control.SetMeta(MetaWindowMinSizeY, Variant.From(minSize.Y));
                 return;
 
+            case "customminimumsize":
+                var customMinSize = value.AsVec2iOrThrow(propertyName);
+                control.CustomMinimumSize = new Vector2(customMinSize.X, customMinSize.Y);
+                return;
+
             case "fontsize":
             case "fontsizepx":
                 ApplyFontSize(control, value.AsIntOrThrow(propertyName));
@@ -577,9 +582,11 @@ public sealed class NodePropertyMapper
                 break;
 
             case "normalizenames":
-                if (control is PosingEditorControl posingEditorNorm)
+                if (control is PosingEditorControl)
                 {
-                    posingEditorNorm.NormalizeNames = ToBoolOrThrow(value, propertyName);
+                    // Backward compatibility: property is accepted but ignored.
+                    _ = ToBoolOrThrow(value, propertyName);
+                    RunnerLogger.Warn("UI", "PosingEditor property 'normalizeNames' is deprecated and has no effect.");
                     return;
                 }
                 break;

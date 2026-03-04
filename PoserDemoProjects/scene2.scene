@@ -1,4 +1,11 @@
 ﻿Scene {
+    aiPrompt: "Keep exact pose and composition. Render photorealistic humans with realistic skin and hair. Match clothing design, colors, and materials to the extra image. Apply scene style, lighting, mood, and color palette from the style image."
+    aiNegativePrompt: ""
+    aiStyleImagePath: ""
+    aiExtraImagePath: ""
+    aiImageModel: "grok-imagine-image"
+    aiVideoModel: "grok-imagine-video"
+
     Character {
         id: "hero"  name: "Opa"  src: "/Users/art/SourceCode/Forge/PoserDemoProjects/assets/models/Opa.glb"
         pos: 0.0, 0.0, 0.0

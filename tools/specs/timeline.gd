@@ -19,6 +19,12 @@ func get_spec() -> Dictionary:
             {"sms":"getKeyframeFrameAt","params":[{"name":"index","type":"int"}], "returns":"int"},
             {"sms":"getKeyframeBoneCount","params":[{"name":"frame","type":"int"}], "returns":"int"},
             {"sms":"getKeyframeBoneName","params":[{"name":"frame","type":"int"},{"name":"boneIndex","type":"int"}], "returns":"string"},
+            {"sms":"getKeyframeCountForCharacter","params":[{"name":"characterId","type":"string"}], "returns":"int"},
+            {"sms":"getKeyframeFrameAtForCharacter","params":[{"name":"index","type":"int"},{"name":"characterId","type":"string"}], "returns":"int"},
+            {"sms":"getKeyframeBoneCountForCharacter","params":[{"name":"frame","type":"int"},{"name":"characterId","type":"string"}], "returns":"int"},
+            {"sms":"getKeyframeBoneNameForCharacter","params":[{"name":"frame","type":"int"},{"name":"boneIndex","type":"int"},{"name":"characterId","type":"string"}], "returns":"string"},
+            {"sms":"setVisibleCharacterId","params":[{"name":"characterId","type":"string"}], "returns":"void", "note":"Filters timeline track display to one character id."},
+            {"sms":"debugLogKeyframesForCharacter","params":[{"name":"characterId","type":"string"}], "returns":"void"},
             {"sms":"clearAllKeyframes", "params":[], "returns":"void"},
         ],
         "events": [

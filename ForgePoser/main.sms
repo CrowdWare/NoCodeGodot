@@ -6,15 +6,17 @@ var sceneListRef = null
 var editor = null
 var timeline = null
 var statusLabel = null
+var chooserOverlay = null
+var chooserStatus = null
+var chooserThemeLabel = null
 var jointSpheresVisible = false
-var hasCharacter = false
 var selectedSceneAssetIndex = -1
 var currentMode = "arrange"
 var currentEditMode = "move"
-var aiPrompt = "Keep exact pose and composition. Render as high-quality cinematic stylized scene."
+var aiPrompt = "Keep exact pose and composition, camera framing, body proportions, and left-right orientation. Render photorealistic humans with realistic skin pores, hair strands, and clearly defined abdominal muscles. Match clothing design, colors, and materials from the extra image while preserving visible anatomy where appropriate. Apply only scene style, lighting, mood, and color palette from the style image. Never add UI overlays, gizmos, handles, axes, bone markers, or text."
 var aiNegativePrompt = ""
-var aiStyleImagePath = ""
-var aiExtraImagePath = ""
+var aiStyleImagePath = "res:/input/style.jpg"
+var aiExtraImagePath = "res:/input/clothing.jpg"
 var aiImageModel = "grok-imagine-image"
 var aiVideoModel = "grok-imagine-video"
 var clipExportPending = false
@@ -25,6 +27,58 @@ var clipFramesDir = ""
 var clipFps = 24
 var clipSourceVideoPath = ""
 var clipStyledVideoPath = ""
+var themeNames = []
+var themeStylePaths = []
+var themeExtraPaths = []
+var selectedThemeIndex = 0
+
+fun initThemePresets() {
+    themeNames = []
+    themeStylePaths = []
+    themeExtraPaths = []
+
+    themeNames.add("Default (style + clothing)")
+    themeStylePaths.add("res:/input/style.jpg")
+    themeExtraPaths.add("res:/input/clothing.jpg")
+
+    themeNames.add("Sacred Look")
+    themeStylePaths.add("res:/input/sacred.jpg")
+    themeExtraPaths.add("res:/input/clothing.jpg")
+
+    themeNames.add("Body Study")
+    themeStylePaths.add("res:/input/style.jpg")
+    themeExtraPaths.add("res:/input/muscles.jpg")
+}
+
+fun applyThemePreset(index) {
+    if (themeNames.size <= 0) {
+        return
+    }
+    if (index < 0) {
+        index = themeNames.size - 1
+    }
+    if (index >= themeNames.size) {
+        index = 0
+    }
+    selectedThemeIndex = index
+    aiStyleImagePath = themeStylePaths[selectedThemeIndex]
+    aiExtraImagePath = themeExtraPaths[selectedThemeIndex]
+    if (chooserThemeLabel != null) {
+        chooserThemeLabel.text = themeNames[selectedThemeIndex]
+    }
+}
+
+fun pushAiSceneProperties() {
+    // Runtime compatibility fallback:
+    // older binaries may not expose setProjectProperty yet.
+    // keep AI settings in script memory only.
+}
+
+fun pullAiSceneProperties() {
+    // Runtime compatibility fallback:
+    // older binaries may not expose getProjectProperty yet.
+    // keep AI settings in script memory only.
+}
 
 fun activateArrangeMove() {
     currentMode    = "arrange"
@@ -42,15 +96,26 @@ fun activateArrangeMove() {
     editor.setEditMode("move")
 }
 
+fun activatePoseMode() {
+    currentMode = "pose"
+    ui.getObject("btnPoseMode").buttonPressed = true
+    ui.getObject("btnArrangeMode").buttonPressed = false
+    ui.getObject("btnModeMove").visible = false
+    ui.getObject("btnModeScale").visible = false
+    ui.getObject("btnModeRotate").visible = false
+    ui.getObject("btnToggleJoints").visible = true
+    editor.setMode("pose")
+}
+
 fun selectFirstSceneAsset() {
-    if (hasCharacter) {
+    if (editor.getSceneCharacterCount() > 0) {
         selectedSceneAssetIndex = 0
-        editor.selectCharacter()
+        editor.selectSceneCharacter(0)
     }
 }
 
 fun applyInitialPoseAfterLoad() {
-    var targetFrame = 1
+    var targetFrame = 0
     var keyframeCount = timeline.getKeyframeCount()
     if (keyframeCount > 0) {
         var firstKeyframe = timeline.getKeyframeFrameAt(0)
@@ -59,6 +124,8 @@ fun applyInitialPoseAfterLoad() {
         }
     }
 
+    // Ensure frameChanged path runs at least once after project load.
+    timeline.setCurrentFrame(timeline.totalFrames)
     timeline.setCurrentFrame(targetFrame)
     var pose = timeline.getPoseAt(targetFrame)
     if (pose != null) {
@@ -72,24 +139,83 @@ fun ready() {
     editor       = ui.getObject("editor")
     timeline     = ui.getObject("timeline")
     statusLabel  = ui.getObject("statusLabel")
+    chooserOverlay = ui.getObject("projectChooserOverlay")
+    chooserStatus  = ui.getObject("chooserStatus")
+    chooserThemeLabel = ui.getObject("chooserThemeLabel")
+    initThemePresets()
+    applyThemePreset(0)
     editor.setBoneTree("boneTree")
     editor.setJointSpheresVisible(false)
     activateArrangeMove()
     updateScenePanel()
     updateKeyframeTree()
+    bootstrapProjectChooser()
     log.success("ForgePoser ready.")
+}
+
+fun saveLastProjectPath(path) {
+    if (path != "") {
+        ui.setLastProjectPath(path)
+    }
+}
+
+fun readLastProjectPath() {
+    return ui.getLastProjectPath()
+}
+
+fun hasValidLastProject() {
+    return ui.hasLastProject()
+}
+
+fun showProjectChooser(message) {
+    chooserOverlay.visible = true
+    chooserStatus.text = message
+    var openLast = ui.getObject("btnChooserOpenLast")
+    openLast.disabled = !hasValidLastProject()
+    applyThemePreset(selectedThemeIndex)
+}
+
+fun hideProjectChooser() {
+    chooserOverlay.visible = false
+    chooserStatus.text = ""
+}
+
+fun focusChooserDefaultButton() {
+    if (hasValidLastProject()) {
+        ui.getObject("btnChooserOpenLast").grabFocus()
+    } else {
+        ui.getObject("btnChooserOpen").grabFocus()
+    }
+}
+
+fun openProjectPath(path) {
+    var ok = editor.loadProject(path)
+    if (!ok) {
+        return false
+    }
+
+    currentProjectPath = path
+    saveLastProjectPath(path)
+    pullAiSceneProperties()
+    applyInitialPoseAfterLoad()
+    updateScenePanel()
+    updateKeyframeTree()
+    activateArrangeMove()
+    selectFirstSceneAsset()
+    hideProjectChooser()
+    statusLabel.text = "Opened: " + path
+    return true
+}
+
+fun bootstrapProjectChooser() {
+    showProjectChooser("Choose project: Open Last, Open, or Create.")
+    focusChooserDefaultButton()
 }
 
 // ── File menu ─────────────────────────────────────────────────────────────────
 
 on menuNew.clicked() {
-    editor.resetPose()
-    currentProjectPath = ""
-    hasCharacter = false
-    selectedSceneAssetIndex = -1
-    sceneListRef.Clear()
-    kfTreeRef.Clear()
-    statusLabel.text = "New project."
+    ui.openSaveFileDialog("onProjectCreatePathSelected", "*.scene")
 }
 
 on menuOpen.clicked() {
@@ -97,20 +223,24 @@ on menuOpen.clicked() {
 }
 
 fun onProjectFileSelected(path) {
-    var ok = editor.loadProject(path)
-    if (ok) {
-        hasCharacter = true
-        currentProjectPath = path
-        applyInitialPoseAfterLoad()
-        updateScenePanel()
-        updateKeyframeTree()
-        activateArrangeMove()
-        selectFirstSceneAsset()
-        statusLabel.text = "Opened: " + path
-    }
+    openProjectPath(path)
+}
+
+fun onProjectCreatePathSelected(path) {
+    editor.resetPose()
+    selectedSceneAssetIndex = -1
+    sceneListRef.Clear()
+    kfTreeRef.Clear()
+    pushAiSceneProperties()
+    editor.saveProject(path)
+    currentProjectPath = path
+    saveLastProjectPath(path)
+    hideProjectChooser()
+    statusLabel.text = "Created: " + path
 }
 
 on menuSave.clicked() {
+    pushAiSceneProperties()
     if (currentProjectPath != "") {
         editor.saveProject(currentProjectPath)
         statusLabel.text = "Saved: " + currentProjectPath
@@ -124,12 +254,19 @@ on menuSaveAs.clicked() {
 }
 
 fun onSavePathSelected(path) {
+    pushAiSceneProperties()
     editor.saveProject(path)
     currentProjectPath = path
+    saveLastProjectPath(path)
+    hideProjectChooser()
     statusLabel.text = "Saved: " + path
 }
 
 on menuOpenGlb.clicked() {
+    if (currentProjectPath == "") {
+        showProjectChooser("Load or create a project first.")
+        return
+    }
     ui.openFileDialog("onModelFileSelected")
 }
 
@@ -174,19 +311,8 @@ on menuExportStylizedClip.clicked() {
         return
     }
 
-    var keyframeCount = timeline.getKeyframeCount()
-    if (keyframeCount < 2) {
-        statusLabel.text = "Need at least 2 keyframes for stylized clip."
-        return
-    }
-
-    var frameFrom = timeline.getKeyframeFrameAt(0)
-    var frameTo = timeline.getKeyframeFrameAt(keyframeCount - 1)
-    if (frameTo < frameFrom) {
-        var tmp = frameFrom
-        frameFrom = frameTo
-        frameTo = tmp
-    }
+    var frameFrom = 0
+    var frameTo = timeline.totalFrames
 
     var maxFrameTo = frameFrom + 239
     if (frameTo > maxFrameTo) {
@@ -253,7 +379,7 @@ on editor.exportProgress(filename, percent) {
         if (sourceFrame < clipFrameFrom) {
             sourceFrame = clipFrameFrom
         }
-        statusLabel.text = "Rendering frame " + current + "/" + clipExpectedFrames + " (src " + sourceFrame + ")"
+        statusLabel.text = "Rendering frame " + sourceFrame + "/" + clipFrameTo
     } else {
         if (percent == 100) {
             statusLabel.text = "Exported: " + filename
@@ -264,12 +390,26 @@ on editor.exportProgress(filename, percent) {
 }
 
 fun onModelFileSelected(path) {
-    editor.setModelSource(path)
+    var kind = editor.addSceneAsset(path, 2, 0, 0)
     applyInitialPoseAfterLoad()
-    hasCharacter = true
     updateScenePanel()
     activateArrangeMove()
-    selectFirstSceneAsset()
+    if (kind == 1) {
+        var c = editor.getSceneCharacterCount() - 1
+        if (c >= 0) {
+            selectedSceneAssetIndex = c
+            editor.selectSceneCharacter(c)
+        }
+    } else if (kind == 0) {
+        var charCount = editor.getSceneCharacterCount()
+        var p = editor.getScenePropCount() - 1
+        if (p >= 0) {
+            selectedSceneAssetIndex = charCount + p
+            editor.selectSceneProp(p)
+        }
+    } else {
+        selectFirstSceneAsset()
+    }
     statusLabel.text = "Loaded: " + path
 }
 
@@ -277,11 +417,15 @@ fun onModelFileSelected(path) {
 
 fun updateScenePanel() {
     sceneListRef.Clear()
-    if (hasCharacter) {
-        sceneListRef.AddItem("★ Character")
+    var charCount = editor.getSceneCharacterCount()
+    var i = 0
+    while (i < charCount) {
+        var n = editor.getSceneCharacterName(i)
+        sceneListRef.AddItem("★ Character " + i + ": " + n)
+        i = i + 1
     }
     var propCount = editor.getScenePropCount()
-    var i = 0
+    i = 0
     while (i < propCount) {
         var p = editor.getScenePropPath(i)
         sceneListRef.AddItem("Prop " + i + ": " + p)
@@ -291,20 +435,17 @@ fun updateScenePanel() {
 }
 
 on sceneAssetList.itemSelected(index) {
+    var charCount = editor.getSceneCharacterCount()
     selectedSceneAssetIndex = index
-    if (hasCharacter && index == 0) {
-        // Character row — only act in Arrange mode
-        if (currentMode == "arrange") {
-            editor.setJointSpheresVisible(false)
-            editor.selectCharacter()
-            statusLabel.text = "Character selected."
-        }
+    if (index < charCount) {
+        // Character row — active in both Arrange and Pose modes
+        editor.setJointSpheresVisible(false)
+        editor.selectSceneCharacter(index)
+        updateKeyframeTree()
+        statusLabel.text = "Character selected: " + index
     } else {
         // Prop row — only act in Arrange mode
-        var propIdx = index
-        if (hasCharacter) {
-            propIdx = index - 1
-        }
+        var propIdx = index - charCount
         if (currentMode == "arrange") {
             editor.setJointSpheresVisible(false)
             editor.selectSceneProp(propIdx)
@@ -314,26 +455,82 @@ on sceneAssetList.itemSelected(index) {
 }
 
 on btnAddProp.clicked() {
+    if (currentProjectPath == "") {
+        showProjectChooser("Load or create a project first.")
+        return
+    }
     ui.openFileDialog("onScenePropSelected")
 }
 
 fun onScenePropSelected(path) {
-    editor.addSceneProp(path, 2, 0, 0)
+    var kind = editor.addSceneAsset(path, 2, 0, 0)
+    updateScenePanel()
+    if (kind == 1) {
+        var c = editor.getSceneCharacterCount() - 1
+        if (c >= 0) {
+            selectedSceneAssetIndex = c
+            editor.selectSceneCharacter(c)
+        }
+        statusLabel.text = "Character added: " + path
+    } else if (kind == 0) {
+        var charCount = editor.getSceneCharacterCount()
+        var p = editor.getScenePropCount() - 1
+        if (p >= 0) {
+            selectedSceneAssetIndex = charCount + p
+            editor.selectSceneProp(p)
+        }
+        statusLabel.text = "Prop added: " + path
+    } else {
+        statusLabel.text = "Asset load failed."
+    }
+}
+
+fun addGreyboxPaletteItem(kind, label) {
+    if (currentProjectPath == "") {
+        showProjectChooser("Load or create a project first.")
+        return
+    }
+
+    var idx = editor.addGreyboxItem(kind, 2, 0, 0)
+    if (idx < 0) {
+        statusLabel.text = "Greybox add failed: " + label
+        return
+    }
+
+    activateArrangeMove()
+    updateScenePanel()
+    var charCount = editor.getSceneCharacterCount()
+    selectedSceneAssetIndex = charCount + idx
+    editor.selectSceneProp(idx)
+    statusLabel.text = "Greybox added: " + label
+}
+
+on btnGreyWall.clicked() {
+    addGreyboxPaletteItem("wall", "Wall")
+}
+
+on btnGreyTree.clicked() {
+    addGreyboxPaletteItem("tree", "Tree")
+}
+
+on btnGreyDoor.clicked() {
+    addGreyboxPaletteItem("door", "Door")
+}
+
+on btnGreyWindow.clicked() {
+    addGreyboxPaletteItem("window", "Window")
 }
 
 on btnRemoveProp.clicked() {
     var sel = selectedSceneAssetIndex
     if (sel >= 0) {
-        if (hasCharacter && sel == 0) {
-            editor.removeCharacter()
-            hasCharacter = false
+        var charCount = editor.getSceneCharacterCount()
+        if (sel < charCount) {
+            editor.removeSceneCharacter(sel)
             updateScenePanel()
             statusLabel.text = "Character removed."
         } else {
-            var idx = sel
-            if (hasCharacter) {
-                idx = sel - 1
-            }
+            var idx = sel - charCount
             if (idx >= 0) {
                 editor.removeSceneProp(idx)
             }
@@ -368,20 +565,37 @@ on editor.objectMoved(propIdx, pos) {
 fun updateKeyframeTree() {
     kfTreeRef.Clear()
     var root = kfTreeRef.CreateRoot("Keyframes", "root")
-    var count = timeline.getKeyframeCount()
+    var charCount = editor.getSceneCharacterCount()
+    if (charCount <= 0) {
+        return
+    }
+    var selectedCharId = editor.getActiveCharacterId()
+    if (selectedCharId == "") {
+        var charIdx = selectedSceneAssetIndex
+        if (charIdx < 0 || charIdx >= charCount) {
+            charIdx = 0
+        }
+        selectedCharId = editor.getSceneCharacterId(charIdx)
+    }
+    if (selectedCharId == "") {
+        return
+    }
+
+    timeline.setVisibleCharacterId(selectedCharId)
+
+    var count = timeline.getKeyframeCountForCharacter(selectedCharId)
     var i = 0
     while (i < count) {
-        var frame = timeline.getKeyframeFrameAt(i)
-        var frameNode = kfTreeRef.CreateChild(root, "Frame " + frame, frame, false)
-        var boneCount = timeline.getKeyframeBoneCount(frame)
-        var j = 0
-        while (j < boneCount) {
-            var boneName = timeline.getKeyframeBoneName(frame, j)
-            kfTreeRef.CreateChild(frameNode, boneName, boneName, false)
-            j = j + 1
+        var frame = timeline.getKeyframeFrameAtForCharacter(i, selectedCharId)
+        var boneCount = timeline.getKeyframeBoneCountForCharacter(frame, selectedCharId)
+        if (boneCount > 0) {
+            kfTreeRef.CreateChild(root, "Frame " + frame + " (" + boneCount + " bones)", frame, false)
         }
         i = i + 1
     }
+
+    // Debug dump: prints every stored bone key with its character id marker.
+    timeline.debugLogKeyframesForCharacter(selectedCharId)
 }
 
 on timeline.keyframeAdded(frame, boneName) {
@@ -399,7 +613,7 @@ on editor.boneSelected(boneName) {
 }
 
 on editor.poseChanged(boneName) {
-    timeline.setKeyframe(timeline.currentFrame, editor.poseData)
+    timeline.setKeyframe(timeline.currentFrame, editor.getPoseDataForActiveCharacter())
 }
 
 on editor.poseReset() {
@@ -427,17 +641,18 @@ on keyframeTree.itemSelected() {
     // pass
 }
 
+on boneTree.itemSelected() {
+    // Bone rotation drag works only in pose mode.
+    if (currentMode != "pose") {
+        activatePoseMode()
+        statusLabel.text = "Pose Mode"
+    }
+}
+
 // ── Mode toolbar ──────────────────────────────────────────────────────────
 
 on btnPoseMode.clicked() {
-    currentMode = "pose"
-    ui.getObject("btnPoseMode").buttonPressed = true
-    ui.getObject("btnArrangeMode").buttonPressed = false
-    ui.getObject("btnModeMove").visible = false
-    ui.getObject("btnModeScale").visible = false
-    ui.getObject("btnModeRotate").visible = false
-    ui.getObject("btnToggleJoints").visible = true
-    editor.setMode("pose")
+    activatePoseMode()
     statusLabel.text = "Pose Mode"
 }
 
@@ -446,11 +661,11 @@ on btnArrangeMode.clicked() {
     // Re-attach gizmo to already-selected scene asset (if any)
     var sel = selectedSceneAssetIndex
     if (sel >= 0) {
-        if (hasCharacter && sel == 0) {
-            editor.selectCharacter()
+        var charCount = editor.getSceneCharacterCount()
+        if (sel < charCount) {
+            editor.selectSceneCharacter(sel)
         } else {
-            var propIdx = sel
-            if (hasCharacter) { propIdx = sel - 1 }
+            var propIdx = sel - charCount
             if (propIdx >= 0) {
                 editor.selectSceneProp(propIdx)
             }
@@ -494,5 +709,46 @@ on btnToggleJoints.clicked() {
         jointSpheresVisible = true
         editor.setJointSpheresVisible(true)
         statusLabel.text = "Joints visible."
+    }
+}
+
+// ── Project chooser ───────────────────────────────────────────────────────────
+
+on btnChooserOpenLast.clicked() {
+    var last = readLastProjectPath()
+    if (last == "" || !os.fileExists(last)) {
+        showProjectChooser("Last project not found. Choose Open or Create.")
+        return
+    }
+    if (!openProjectPath(last)) {
+        showProjectChooser("Last project could not be opened.")
+    }
+}
+
+on btnChooserOpen.clicked() {
+    ui.openFileDialog("onProjectFileSelected", "*.scene")
+}
+
+on btnChooserCreate.clicked() {
+    ui.openSaveFileDialog("onProjectCreatePathSelected", "*.scene")
+}
+
+on btnChooserThemePrev.clicked() {
+    applyThemePreset(selectedThemeIndex - 1)
+}
+
+on btnChooserThemeNext.clicked() {
+    applyThemePreset(selectedThemeIndex + 1)
+}
+
+on btnChooserCancel.clicked() {
+    var win = ui.getObject("mainWindow")
+    if (win != null) {
+        var tree = win.getTree()
+        if (tree != null) {
+            tree.quit()
+        } else {
+            win.close()
+        }
     }
 }

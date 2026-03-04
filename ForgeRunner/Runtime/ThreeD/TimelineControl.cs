@@ -18,8 +18,10 @@
  */
 
 using Godot;
+using Runtime.Logging;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Runtime.ThreeD;
 
@@ -229,7 +231,24 @@ public sealed partial class TimelineControl : Control
 
     // ── Accessors used by TimelineTrackArea ───────────────────────────────
     public int                   CurrentFrame => _currentFrame;
-    public IReadOnlyList<string> TrackedBones => _trackedBones;
+    public IReadOnlyList<string> TrackedBones
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_visibleCharacterId))
+                return _trackedBones;
+
+            _visibleTrackedBones.Clear();
+            foreach (var key in _trackedBones)
+            {
+                if (!TrySplitBoneKey(key, out var scopedId, out _))
+                    continue;
+                if (string.Equals(scopedId, _visibleCharacterId, StringComparison.OrdinalIgnoreCase))
+                    _visibleTrackedBones.Add(key);
+            }
+            return _visibleTrackedBones;
+        }
+    }
 
     /// <summary>Returns the frame indices that have a keyframe for the given bone.</summary>
     public IEnumerable<int> GetKeyframesForBone(string boneName)
@@ -249,6 +268,8 @@ public sealed partial class TimelineControl : Control
     // ── Keyframe data: frame → (boneName → rotation) ──────────────────────
     private readonly SortedDictionary<int, Dictionary<string, Quaternion>> _keyframes = new();
     private readonly List<string> _trackedBones = [];
+    private readonly List<string> _visibleTrackedBones = [];
+    private string _visibleCharacterId = string.Empty;
 
     // ── Playback state ────────────────────────────────────────────────────
     private int   _currentFrame;
@@ -352,6 +373,12 @@ public sealed partial class TimelineControl : Control
 
         foreach (var (name, rot) in poseData)
         {
+            var sep = name.IndexOf(':');
+            if (sep <= 0 || sep >= name.Length - 1)
+            {
+                // Legacy key format without character scope is intentionally ignored.
+                continue;
+            }
             existing[name] = rot;
             if (!_trackedBones.Contains(name))
             {
@@ -421,12 +448,160 @@ public sealed partial class TimelineControl : Control
         return string.Empty;
     }
 
+    private static bool TrySplitBoneKey(string key, out string characterId, out string boneName)
+    {
+        var sep = key.IndexOf(':');
+        if (sep <= 0 || sep >= key.Length - 1)
+        {
+            characterId = string.Empty;
+            boneName = key;
+            return false;
+        }
+
+        characterId = key[..sep];
+        boneName = key[(sep + 1)..];
+        return true;
+    }
+
+    private static List<string> GetCharacterLocalBoneNames(Dictionary<string, Quaternion> bones, string characterId)
+    {
+        var canonicalToDisplay = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in bones.Keys)
+        {
+            if (!TrySplitBoneKey(key, out var scopedId, out var localName))
+                continue;
+            if (!string.Equals(scopedId, characterId, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var canonical = CanonicalBoneAlias(localName);
+            if (!canonicalToDisplay.ContainsKey(canonical))
+                canonicalToDisplay[canonical] = localName;
+        }
+
+        var names = canonicalToDisplay.Values.ToList();
+        names.Sort(StringComparer.OrdinalIgnoreCase);
+        return names;
+    }
+
+    private static string CanonicalBoneAlias(string boneName)
+    {
+        if (string.IsNullOrWhiteSpace(boneName))
+            return string.Empty;
+
+        var lower = boneName.ToLowerInvariant();
+        if (!lower.StartsWith("mixamorig", StringComparison.Ordinal))
+            return lower;
+
+        var idx = "mixamorig".Length;
+        while (idx < lower.Length && char.IsDigit(lower[idx]))
+            idx++;
+        if (idx < lower.Length && lower[idx] == '_')
+            return lower[(idx + 1)..];
+
+        return lower;
+    }
+
+    public int GetKeyframeBoneCountForCharacter(int frame, string characterId)
+    {
+        if (string.IsNullOrWhiteSpace(characterId)) return 0;
+        if (!_keyframes.TryGetValue(frame, out var bones)) return 0;
+        return GetCharacterLocalBoneNames(bones, characterId).Count;
+    }
+
+    public string GetKeyframeBoneNameForCharacter(int frame, int boneIndex, string characterId)
+    {
+        if (string.IsNullOrWhiteSpace(characterId)) return string.Empty;
+        if (!_keyframes.TryGetValue(frame, out var bones)) return string.Empty;
+        var names = GetCharacterLocalBoneNames(bones, characterId);
+        return boneIndex >= 0 && boneIndex < names.Count ? names[boneIndex] : string.Empty;
+    }
+
+    public void SetVisibleCharacterId(string characterId)
+    {
+        var normalized = string.IsNullOrWhiteSpace(characterId) ? string.Empty : characterId.Trim();
+        if (string.Equals(_visibleCharacterId, normalized, StringComparison.OrdinalIgnoreCase))
+            return;
+        _visibleCharacterId = normalized;
+        _trackArea.QueueRedraw();
+    }
+
+    public int GetKeyframeCountForCharacter(string characterId)
+    {
+        if (string.IsNullOrWhiteSpace(characterId)) return 0;
+        var count = 0;
+        foreach (var (_, bones) in _keyframes)
+        {
+            if (GetCharacterLocalBoneNames(bones, characterId).Count > 0)
+                count++;
+        }
+        return count;
+    }
+
+    public int GetKeyframeFrameAtForCharacter(int index, string characterId)
+    {
+        if (string.IsNullOrWhiteSpace(characterId)) return -1;
+        if (index < 0) return -1;
+
+        var i = 0;
+        foreach (var (frame, bones) in _keyframes)
+        {
+            if (GetCharacterLocalBoneNames(bones, characterId).Count <= 0)
+                continue;
+            if (i == index)
+                return frame;
+            i++;
+        }
+        return -1;
+    }
+
+    public void DebugLogKeyframesForCharacter(string characterId)
+    {
+        RunnerLogger.Info("Timeline", $"[KFDBG] dump start selectedCharId='{characterId}' keyframeCount={_keyframes.Count}");
+        foreach (var (frame, bones) in _keyframes)
+        {
+            foreach (var key in bones.Keys)
+            {
+                if (!TrySplitBoneKey(key, out var scopedId, out var localName))
+                {
+                    RunnerLogger.Warn("Timeline", $"[KFDBG] frame={frame} legacyBoneKey='{key}' selectedCharId='{characterId}'");
+                    continue;
+                }
+
+                var marker = string.Equals(scopedId, characterId, StringComparison.OrdinalIgnoreCase)
+                    ? "MATCH"
+                    : "OTHER";
+                RunnerLogger.Info("Timeline", $"[KFDBG] frame={frame} selectedCharId='{characterId}' boneCharId='{scopedId}' bone='{localName}' marker={marker}");
+            }
+        }
+        RunnerLogger.Info("Timeline", "[KFDBG] dump end");
+    }
+
     /// <summary>Remove all keyframes and reset the tracked-bone list.</summary>
     public void ClearAllKeyframes()
     {
         _keyframes.Clear();
         _trackedBones.Clear();
         SetCurrentFrame(0);
+        RefreshScrollRange();
+        _trackArea.QueueRedraw();
+    }
+
+    public void NormalizeLegacyBoneKeys()
+    {
+        foreach (var (_, pose) in _keyframes)
+        {
+            var removeLegacy = new List<string>();
+            foreach (var key in pose.Keys)
+            {
+                var sep = key.IndexOf(':');
+                if (sep <= 0 || sep >= key.Length - 1)
+                    removeLegacy.Add(key);
+            }
+            foreach (var key in removeLegacy)
+                pose.Remove(key);
+        }
+
+        RebuildTrackedBones();
         RefreshScrollRange();
         _trackArea.QueueRedraw();
     }
@@ -520,10 +695,17 @@ public sealed partial class TimelineControl : Control
 
     private void RefreshScrollRange()
     {
-        var trackW  = TotalFrames * TimelineTrackArea.PixPerFrame;
-        var visible = _trackArea.Size.X - TimelineTrackArea.BoneNameWidth;
-        _scrollBar.MaxValue = Mathf.Max(0.0, trackW - Mathf.Max(0f, visible) + 40.0);
-        _scrollBar.Page     = Mathf.Max(1.0, visible);
+        var trackW = (TotalFrames + 1) * TimelineTrackArea.PixPerFrame + 40.0;
+        var visible = Mathf.Max(1.0, _trackArea.Size.X - TimelineTrackArea.BoneNameWidth);
+
+        // ScrollBar uses Value in [MinValue .. MaxValue - Page], so MaxValue
+        // must represent the full content width, not just overflow.
+        _scrollBar.MinValue = 0.0;
+        _scrollBar.MaxValue = Mathf.Max(visible, trackW);
+        _scrollBar.Page = visible;
+
+        if (_scrollBar.Value > _scrollBar.MaxValue - _scrollBar.Page)
+            _scrollBar.Value = Mathf.Max(0.0, _scrollBar.MaxValue - _scrollBar.Page);
     }
 
     private void RebuildTrackedBones()

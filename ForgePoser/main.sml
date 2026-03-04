@@ -62,6 +62,27 @@ Window {
                 }
 
                 VBoxContainer {
+                    id: greyboxPanel
+                    leftDock.title: "Greybox"
+                    padding: 4, 4, 4, 4
+                    spacing: 4
+
+                    Label { text: "Greyboxing Palette" fontSize: 11 fontWeight: bold }
+                    Label { text: "Quick placeholders for layout and blocking." wrap: true }
+
+                    HBoxContainer {
+                        spacing: 4
+                        Button { id: btnGreyWall text: "Wall" sizeFlagsHorizontal: expandFill }
+                        Button { id: btnGreyTree text: "Tree" sizeFlagsHorizontal: expandFill }
+                    }
+                    HBoxContainer {
+                        spacing: 4
+                        Button { id: btnGreyDoor text: "Door" sizeFlagsHorizontal: expandFill }
+                        Button { id: btnGreyWindow text: "Window" sizeFlagsHorizontal: expandFill }
+                    }
+                }
+
+                VBoxContainer {
                     id: kfPanel
                     leftDock.title: "Keyframes"
                     padding: 4, 4, 4, 4
@@ -117,7 +138,6 @@ Window {
                             id: editor
                             src: ""
                             showBoneTree: false
-                            normalizeNames: true
                             sizeFlagsHorizontal: expandFill
                             sizeFlagsVertical: expandFill
 
@@ -173,6 +193,53 @@ Window {
                 text: "No model loaded."
                 sizeFlagsHorizontal: expandFill
                 sizeFlagsVertical: shrinkCenter
+            }
+        }
+    }
+
+    Control {
+        id: projectChooserOverlay
+        anchors: left | top | right | bottom
+        visible: false
+
+        PanelContainer {
+            id: projectChooserCard
+            anchorLeft: 0.5
+            anchorRight: 0.5
+            anchorTop: 0.5
+            anchorBottom: 0.5
+            offsetLeft: -220
+            offsetRight: 220
+            offsetTop: -120
+            offsetBottom: 120
+
+            VBoxContainer {
+                padding: 14, 14, 14, 14
+                spacing: 10
+
+                Label { text: "Project Chooser" fontSize: 16 fontWeight: bold }
+                Label { text: "Open last project, open another .scene, or create a new project." wrap: true }
+                Label { id: chooserStatus text: "" wrap: true }
+                Label { text: "Theme for new projects" fontSize: 11 fontWeight: bold }
+
+                HBoxContainer {
+                    spacing: 8
+                    Button { id: btnChooserThemePrev text: "◀" customMinimumSize: 36, 0 }
+                    Label { id: chooserThemeLabel text: "Default (style + clothing)" sizeFlagsHorizontal: expandFill }
+                    Button { id: btnChooserThemeNext text: "▶" customMinimumSize: 36, 0 }
+                }
+
+                HBoxContainer {
+                    spacing: 8
+                    Button { id: btnChooserOpenLast text: "Open Last" sizeFlagsHorizontal: expandFill }
+                    Button { id: btnChooserOpen text: "Open..." sizeFlagsHorizontal: expandFill }
+                }
+
+                HBoxContainer {
+                    spacing: 8
+                    Button { id: btnChooserCreate text: "Create..." sizeFlagsHorizontal: expandFill }
+                    Button { id: btnChooserCancel text: "Cancel" sizeFlagsHorizontal: expandFill }
+                }
             }
         }
     }

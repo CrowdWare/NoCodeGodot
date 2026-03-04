@@ -1,43 +1,63 @@
 ﻿Scene {
+    fps: 24
+    totalFrames: 120
+    aiExtraImagePath: "res:/input/clothing.jpg"
+    aiImageModel: "grok-imagine-image"
+    aiNegativePrompt: ""
+    aiPrompt: "Hard constraint: keep both characters facing the camera/front exactly like the source frame. Do not
+  rotate either character to back view. Keep left/right identity per character unchanged (no mirroring,
+  no side swap). Preserve exact arm orientation and body direction from source"
+    aiStyleImagePath: "res:/input/style.jpg"
+    aiVideoModel: "grok-imagine-video"
+
     Character {
-        id: "hero"  name: "man"  src: "/Users/art/SourceCode/Forge/ForgePoser/assets/models/man.glb"
-        pos: 0.656241, 0.0, 0.0
-        rot: -0.0, 0.0, 0.0
+        id: char1  name: "man"  src: "res:/assets/models/man.glb"
+        pos: 2.0, 0.0, 0.0
+        rot: 0.0, 0.0, 0.0
         scale: 1.0, 1.0, 1.0
 
         Animation {
-            fps: 24
-            totalFrames: 120
             Key { frame: 0
-                Bone { name: "mixamorig1_Head" x: 0.187317 y: -0.0257134 z: -0.00490508 w: 0.981951 }
-                Bone { name: "mixamorig1_LeftForeArm" x: 0.203757 y: -0.286319 z: 0.554261 w: 0.754519 }
-                Bone { name: "mixamorig1_LeftArm" x: 0.263918 y: 0.000433639 z: -0.016206 w: 0.964409 }
-                Bone { name: "mixamorig1_RightArm" x: 0.444904 y: 0.000967647 z: 0.0137014 w: 0.895473 }
+                Bone { name: "mixamorig1_LeftArm" x: 0.3791363 y: 0.01644728 z: -0.07183076 w: 0.9224021 }
+                Bone { name: "mixamorig1_RightArm" x: 0.3348989 y: -0.01536351 z: 0.07306319 w: 0.9392915 }
+            }
+        }
+    }
+    Character {
+        id: char2  name: "man"  src: "res:/assets/models/man.glb"
+        pos: -0.2283004, 0.0, 0.0
+        rot: 0.0, 0.0, 0.0
+        scale: 1.0, 1.0, 1.0
+
+        Animation {
+            Key { frame: 0
+                Bone { name: "mixamorig1_LeftArm" x: 0.3852519 y: -0.107668 z: 0.02392929 w: 0.9161965 }
+                Bone { name: "mixamorig1_RightArm" x: 0.4723653 y: -0.01924433 z: 0.08728699 w: 0.876859 }
             }
             Key { frame: 10
-                Bone { name: "mixamorig1_LeftForeArm" x: 0.292009 y: -0.405733 z: 0.865405 w: -0.0344294 }
-                Bone { name: "mixamorig1_Head" x: 0.328754 y: -0.024721 z: -0.00860875 w: 0.944053 }
-                Bone { name: "mixamorig1_LeftArm" x: 0.263918 y: 0.000433639 z: -0.016206 w: 0.964409 }
-                Bone { name: "mixamorig1_RightArm" x: 0.444904 y: 0.000967647 z: 0.0137014 w: 0.895473 }
+                Bone { name: "mixamorig1_LeftArm" x: 0.3798333 y: -0.3334376 z: 0.2013067 w: 0.8390601 }
+                Bone { name: "mixamorig1_RightArm" x: 0.4723653 y: -0.01924433 z: 0.08728699 w: 0.876859 }
             }
-            Key { frame: 27
-                Bone { name: "mixamorig1_Head" x: 0.218068 y: -0.0255466 z: -0.00571033 w: 0.975582 }
-                Bone { name: "mixamorig1_LeftArm" x: 0.263918 y: 0.000433639 z: -0.016206 w: 0.964409 }
-                Bone { name: "mixamorig1_LeftForeArm" x: 0.292009 y: -0.405733 z: 0.865405 w: -0.0344294 }
-                Bone { name: "mixamorig1_RightArm" x: 0.444904 y: 0.000967647 z: 0.0137014 w: 0.895473 }
+            Key { frame: 20
+                Bone { name: "mixamorig1_LeftArm" x: 0.3220147 y: -0.5827034 z: 0.4052517 w: 0.6265256 }
+                Bone { name: "mixamorig1_RightArm" x: 0.4723653 y: -0.01924433 z: 0.08728699 w: 0.876859 }
+            }
+            Key { frame: 30
+                Bone { name: "mixamorig1_LeftArm" x: 0.2151723 y: -0.743258 z: 0.5475009 w: 0.3186081 }
+                Bone { name: "mixamorig1_RightArm" x: 0.4723653 y: -0.01924433 z: 0.08728699 w: 0.876859 }
             }
         }
     }
     Asset {
-        id: "prop0"  name: "Idle"  src: "/Users/art/SourceCode/Forge/PoserDemoProjects/assets/models/Idle.glb"
-        pos: 2.27777, 0.24695, 0.395714
-        rot: -3.20465, -12.6187, 9.26368
+        id: prop0  name: "tree"  src: "builtin:greybox/tree"
+        pos: -3.071512, 0.0, -1.720766
+        rot: 0.0, 0.0, 0.0
         scale: 1.0, 1.0, 1.0
     }
     Asset {
-        id: "prop1"  name: "woman"  src: "/Users/art/SourceCode/Forge/PoserDemoProjects/assets/models/woman.glb"
-        pos: -0.710561, 0.0, 0.0
-        rot: -0.0, 0.0, 0.0
+        id: prop1  name: "tree"  src: "builtin:greybox/tree"
+        pos: 4.037174, 0.0, -3.477204
+        rot: 0.0, 0.0, 0.0
         scale: 1.0, 1.0, 1.0
     }
 }

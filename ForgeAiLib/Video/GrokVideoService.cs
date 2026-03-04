@@ -30,16 +30,12 @@ public sealed class GrokVideoService
             throw new FileNotFoundException("Input video not found.", request.InputVideoPath);
         }
 
-        if (string.IsNullOrWhiteSpace(request.Prompt))
-        {
-            throw new ForgeAiException("Prompt is required.");
-        }
-
         var videoDataUri = DataUri.FromFile(request.InputVideoPath);
+        var generationPrompt = PromptComposer.ComposeVideoPrompt(request.Prompt, request.NegativePrompt);
         var payload = new Dictionary<string, object?>
         {
             ["model"] = request.Model,
-            ["prompt"] = request.Prompt,
+            ["prompt"] = generationPrompt,
             // Keep both fields to be compatible with response variants/endpoints.
             ["video_url"] = videoDataUri,
             ["video"] = new Dictionary<string, object?>
@@ -47,11 +43,6 @@ public sealed class GrokVideoService
                 ["url"] = videoDataUri
             }
         };
-
-        if (!string.IsNullOrWhiteSpace(request.NegativePrompt))
-        {
-            payload["negative_prompt"] = request.NegativePrompt;
-        }
 
         using var submitResponse = await SubmitWithRouteFallbackAsync(request.SubmitEndpoint, payload, cancellationToken).ConfigureAwait(false);
         var directUrl = ExtractOutputUrl(submitResponse.RootElement);

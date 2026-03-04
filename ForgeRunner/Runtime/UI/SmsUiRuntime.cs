@@ -65,6 +65,7 @@ public sealed class SmsUiRuntime
     private long _nextNativeObjectId = 1;
     private int _nextTreeHandle = 1;
     private string? _projectRoot;
+    private string? _activeProjectRoot;
 
     public SmsUiRuntime(RunnerUriResolver uriResolver, string uiSmlUri)
     {
@@ -947,8 +948,134 @@ public sealed class SmsUiRuntime
                 var message = methodArgs.Count > 1 ? ValueArgString(methodArgs, 1) : string.Empty;
                 ShowMessageDialog(title, message);
                 return NullValue.Instance;
+            }),
+            ["getLastProjectPath"] = new NativeFunctionValue(_ =>
+            {
+                return new StringValue(ReadLastProjectPath());
+            }),
+            ["setLastProjectPath"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                WriteLastProjectPath(path);
+                return NullValue.Instance;
+            }),
+            ["hasLastProject"] = new NativeFunctionValue(_ =>
+            {
+                return new BooleanValue(HasValidLastProjectPath());
+            }),
+            ["quit"] = new NativeFunctionValue(_ =>
+            {
+                if (Engine.GetMainLoop() is SceneTree tree)
+                {
+                    tree.Quit();
+                }
+                return NullValue.Instance;
+            }),
+            ["copyTemplateFilesToProject"] = new NativeFunctionValue(methodArgs =>
+            {
+                var scenePath = ValueArgString(methodArgs, 0);
+                var sourceSubdir = methodArgs.Count > 1 ? ValueArgString(methodArgs, 1) : "input";
+                var targetSubdir = methodArgs.Count > 2 ? ValueArgString(methodArgs, 2) : "input";
+                var copied = CopyTemplateFilesToProject(scenePath, sourceSubdir, targetSubdir);
+                return new BooleanValue(copied);
             })
         });
+    }
+
+    private static string GetLastProjectStorePath()
+    {
+        return ProjectSettings.GlobalizePath("user://forgeposer_last_project.txt");
+    }
+
+    private static string ReadLastProjectPath()
+    {
+        try
+        {
+            var path = GetLastProjectStorePath();
+            if (!File.Exists(path))
+                return string.Empty;
+            return File.ReadAllText(path, System.Text.Encoding.UTF8).Trim();
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static bool HasValidLastProjectPath()
+    {
+        var path = ReadLastProjectPath();
+        return !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+    }
+
+    private static void WriteLastProjectPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        try
+        {
+            var store = GetLastProjectStorePath();
+            var dir = Path.GetDirectoryName(store);
+            if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+            File.WriteAllText(store, path.Trim(), System.Text.Encoding.UTF8);
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("SMS", $"setLastProjectPath failed for '{path}'.", ex);
+        }
+    }
+
+    private bool CopyTemplateFilesToProject(string scenePath, string sourceSubdir, string targetSubdir)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(scenePath))
+                return false;
+
+            var projectDir = Path.GetDirectoryName(scenePath);
+            if (string.IsNullOrWhiteSpace(projectDir))
+                return false;
+
+            var root = _projectRoot;
+            if (string.IsNullOrWhiteSpace(root))
+                root = Directory.GetCurrentDirectory();
+
+            var sourceDir = Path.GetFullPath(Path.Combine(root, sourceSubdir ?? "input"));
+            if (!Directory.Exists(sourceDir))
+            {
+                RunnerLogger.Warn("SMS", $"copyTemplateFilesToProject: source folder not found '{sourceDir}'.");
+                return false;
+            }
+
+            var targetDir = Path.GetFullPath(Path.Combine(projectDir, targetSubdir ?? "input"));
+            Directory.CreateDirectory(targetDir);
+
+            var copiedCount = 0;
+            foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
+            {
+                var relative = Path.GetRelativePath(sourceDir, file);
+                if (string.IsNullOrWhiteSpace(relative) || relative.StartsWith("..", StringComparison.Ordinal))
+                    continue;
+
+                var targetPath = Path.Combine(targetDir, relative);
+                var targetParent = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrWhiteSpace(targetParent))
+                    Directory.CreateDirectory(targetParent);
+
+                File.Copy(file, targetPath, overwrite: true);
+                copiedCount++;
+            }
+
+            RunnerLogger.Info("SMS", $"Copied {copiedCount} template file(s) from '{sourceDir}' to '{targetDir}'.");
+            return copiedCount > 0;
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("SMS", "copyTemplateFilesToProject failed.", ex);
+            return false;
+        }
     }
 
     private ObjectValue CreateAiObject()
@@ -1145,13 +1272,27 @@ public sealed class SmsUiRuntime
             return inputPath;
         }
 
+        var relative = inputPath;
+        if (relative.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+            relative = relative.Substring("res://".Length);
+        else if (relative.StartsWith("res:/", StringComparison.OrdinalIgnoreCase))
+            relative = relative.Substring("res:/".Length);
+        relative = relative.Replace('/', Path.DirectorySeparatorChar);
+
+        if (!string.IsNullOrWhiteSpace(_activeProjectRoot))
+        {
+            var projectCandidate = Path.GetFullPath(Path.Combine(_activeProjectRoot, relative));
+            if (File.Exists(projectCandidate) || Directory.Exists(projectCandidate))
+                return projectCandidate;
+        }
+
         var root = _projectRoot;
         if (string.IsNullOrWhiteSpace(root))
         {
             root = Directory.GetCurrentDirectory();
         }
 
-        return Path.GetFullPath(Path.Combine(root, inputPath));
+        return Path.GetFullPath(Path.Combine(root, relative));
     }
 
     private static void ShowMessageDialog(string title, string message)
@@ -1269,9 +1410,13 @@ public sealed class SmsUiRuntime
                 var data = Runtime.ThreeD.AnimationSerializer.Deserialize(sml);
                 if (data is null)
                 {
+                    var details = Runtime.ThreeD.AnimationSerializer.LastError;
+                    if (string.IsNullOrWhiteSpace(details))
+                        details = "Unbekannter Parse-Fehler.";
+                    RunnerLogger.Warn("SMS", $"loadProject parse failed for '{path}': {details}");
                     ShowMessageDialog(
-                        "Format nicht unterstützt",
-                        $"'{Path.GetFileName(path)}' konnte nicht geladen werden.\nNur .scene Dateien werden unterstützt.");
+                        "Scene konnte nicht geladen werden",
+                        $"'{Path.GetFileName(path)}' konnte nicht geladen werden.\nDetails siehe Console/Log.");
                     return new BooleanValue(false);
                 }
 
@@ -1284,6 +1429,8 @@ public sealed class SmsUiRuntime
                 }
 
                 var projectDirectory = Path.GetDirectoryName(path) ?? string.Empty;
+                _activeProjectRoot = projectDirectory;
+                posingEditorExt.SetProjectDirectory(projectDirectory);
                 posingEditorExt.LoadProjectData(data, timeline, projectDirectory);
                 return new BooleanValue(true);
             });
@@ -1301,6 +1448,10 @@ public sealed class SmsUiRuntime
                     return NullValue.Instance;
                 }
 
+                var projectDirectory = Path.GetDirectoryName(path) ?? string.Empty;
+                _activeProjectRoot = projectDirectory;
+                posingEditorExt.SetProjectDirectory(projectDirectory);
+
                 var data    = posingEditorExt.BuildProjectData(timeline);
                 var content = Runtime.ThreeD.AnimationSerializer.Serialize(data);
 
@@ -1317,6 +1468,24 @@ public sealed class SmsUiRuntime
                 }
 
                 return NullValue.Instance;
+            });
+
+            // setProjectProperty(key, value) — stores custom scene-level metadata for save/load
+            fields["setProjectProperty"] = new NativeFunctionValue(methodArgs =>
+            {
+                var key = ValueArgString(methodArgs, 0);
+                var value = ValueArgString(methodArgs, 1);
+                posingEditorExt.SetProjectProperty(key, value);
+                return NullValue.Instance;
+            });
+
+            // getProjectProperty(key, fallback) — reads custom scene-level metadata
+            fields["getProjectProperty"] = new NativeFunctionValue(methodArgs =>
+            {
+                var key = ValueArgString(methodArgs, 0);
+                var fallback = methodArgs.Count >= 2 ? ValueAsString(methodArgs[1]) : string.Empty;
+                var value = posingEditorExt.GetProjectProperty(key, fallback);
+                return new StringValue(value);
             });
 
             // getScenePropPos(idx) → "x,y,z" string

@@ -48,7 +48,8 @@ public sealed record AnimationProjectData(
     int                                                      Fps,
     int                                                      TotalFrames,
     List<SceneAssetData>                                     SceneAssets,
-    SortedDictionary<int, Dictionary<string, Quaternion>>    Keyframes);
+    SortedDictionary<int, Dictionary<string, Quaternion>>    Keyframes,
+    Dictionary<string, string>?                              SceneProperties = null);
 
 // ── Serializer ───────────────────────────────────────────────────────────────
 
@@ -84,54 +85,220 @@ public sealed record AnimationProjectData(
 /// </summary>
 public static class AnimationSerializer
 {
+    public static string LastError { get; private set; } = string.Empty;
+
+    private static bool TrySplitBoneKey(string key, out string characterId, out string boneName)
+    {
+        var sep = key.IndexOf(':');
+        if (sep <= 0 || sep >= key.Length - 1)
+        {
+            characterId = string.Empty;
+            boneName = key;
+            return false;
+        }
+
+        characterId = key[..sep];
+        boneName = key[(sep + 1)..];
+        return true;
+    }
+
+    private static string BuildBoneKey(string characterId, string boneName) =>
+        string.IsNullOrWhiteSpace(characterId) ? boneName : $"{characterId}:{boneName}";
+
+    private static string ToIdentifierToken(string raw, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return fallback;
+
+        var chars = raw.Trim().ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            var c = chars[i];
+            var valid = char.IsLetterOrDigit(c) || c == '_';
+            chars[i] = valid ? c : '_';
+        }
+
+        var token = new string(chars).Trim('_');
+        if (string.IsNullOrWhiteSpace(token))
+            token = fallback;
+        if (char.IsDigit(token[0]))
+            token = "_" + token;
+        return token;
+    }
+
+    private static string MakeUniqueId(string desiredId, HashSet<string> usedIds)
+    {
+        var baseId = string.IsNullOrWhiteSpace(desiredId) ? "asset" : desiredId;
+        var candidate = baseId;
+        var suffix = 1;
+        while (!usedIds.Add(candidate))
+        {
+            candidate = $"{baseId}_{suffix}";
+            suffix++;
+        }
+        return candidate;
+    }
+
+    private static bool IsIdentifierLike(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        if (!char.IsLetter(value[0]) && value[0] != '_') return false;
+        for (var i = 1; i < value.Length; i++)
+        {
+            var c = value[i];
+            if (!char.IsLetterOrDigit(c) && c != '_') return false;
+        }
+        return true;
+    }
+
+    private static void ValidateProjectData(List<SceneAssetData> assets, SortedDictionary<int, Dictionary<string, Quaternion>> keyframes)
+    {
+        var characterIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var allIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var hasDuplicateIds = false;
+
+        foreach (var asset in assets)
+        {
+            if (string.IsNullOrWhiteSpace(asset.Id))
+            {
+                RunnerLogger.Warn("AnimationSerializer", $"Scene asset '{asset.Name}' has empty id.");
+                continue;
+            }
+
+            if (!IsIdentifierLike(asset.Id))
+            {
+                RunnerLogger.Warn("AnimationSerializer", $"Scene asset id '{asset.Id}' is not an identifier token (expected [A-Za-z_][A-Za-z0-9_]*).");
+            }
+
+            if (!allIds.Add(asset.Id))
+            {
+                hasDuplicateIds = true;
+            }
+
+            if (asset.Primary)
+                characterIds.Add(asset.Id);
+        }
+
+        if (hasDuplicateIds)
+        {
+            RunnerLogger.Warn("AnimationSerializer", "Scene contains duplicate asset ids. IDs must be unique.");
+        }
+
+        foreach (var (frame, bones) in keyframes)
+        {
+            foreach (var key in bones.Keys)
+            {
+                string charId;
+                string boneName;
+                var scoped = TrySplitBoneKey(key, out charId, out boneName);
+                if (!scoped)
+                {
+                    RunnerLogger.Warn("AnimationSerializer", $"Keyframe {frame}: legacy unscoped bone key '{key}' is not supported.");
+                    continue;
+                }
+
+                if (!characterIds.Contains(charId))
+                {
+                    RunnerLogger.Warn("AnimationSerializer", $"Keyframe {frame}: bone key '{key}' references unknown character id '{charId}'.");
+                }
+            }
+        }
+    }
+
     // ── Serialize (.scene) ────────────────────────────────────────────────
 
     public static string Serialize(AnimationProjectData data)
     {
         var sb = new StringBuilder();
         sb.AppendLine("Scene {");
-
-        // Character (primary asset) with embedded Animation block
-        var character = data.SceneAssets.Find(a => a.Primary);
-        var charId    = character?.Id   ?? "hero";
-        var charName  = character?.Name ?? "hero";
-        var charSrc   = character?.Src  ?? string.Empty;
-
-        sb.AppendLine($"    Character {{");
-        sb.AppendLine($"        id: \"{Esc(charId)}\"  name: \"{Esc(charName)}\"  src: \"{Esc(charSrc)}\"");
-        if (character is not null)
+        sb.AppendLine($"    fps: {data.Fps}");
+        sb.AppendLine($"    totalFrames: {data.TotalFrames}");
+        if (data.SceneProperties is not null)
         {
+            var keys = new List<string>(data.SceneProperties.Keys);
+            keys.Sort(StringComparer.OrdinalIgnoreCase);
+            foreach (var key in keys)
+            {
+                if (string.IsNullOrWhiteSpace(key)) continue;
+                var value = data.SceneProperties[key] ?? string.Empty;
+                sb.AppendLine($"    {key}: \"{Esc(value)}\"");
+            }
+        }
+        sb.AppendLine();
+        var characters = data.SceneAssets.FindAll(a => a.Primary);
+        var usedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var rawIdCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var c in characters)
+        {
+            var raw = string.IsNullOrWhiteSpace(c.Id) ? string.Empty : c.Id;
+            if (!rawIdCounts.ContainsKey(raw))
+                rawIdCounts[raw] = 0;
+            rawIdCounts[raw] = rawIdCounts[raw] + 1;
+        }
+
+        for (var ci = 0; ci < characters.Count; ci++)
+        {
+            var character = characters[ci];
+            var normalizedCharId = ToIdentifierToken(character.Id, $"char{ci + 1}");
+            var charId = MakeUniqueId(normalizedCharId, usedIds);
+            sb.AppendLine("    Character {");
+            sb.AppendLine($"        id: {charId}  name: \"{Esc(character.Name)}\"  src: \"{Esc(character.Src)}\"");
             sb.AppendLine($"        pos: {F(character.PosX)}, {F(character.PosY)}, {F(character.PosZ)}");
             sb.AppendLine($"        rot: {F(character.RotX)}, {F(character.RotY)}, {F(character.RotZ)}");
             sb.AppendLine($"        scale: {F(character.ScaleX)}, {F(character.ScaleY)}, {F(character.ScaleZ)}");
-        }
-        sb.AppendLine();
 
-        // Embedded Animation block
-        sb.AppendLine($"        Animation {{");
-        sb.AppendLine($"            fps: {data.Fps}");
-        sb.AppendLine($"            totalFrames: {data.TotalFrames}");
-        foreach (var (frame, bones) in data.Keyframes)
-        {
-            sb.AppendLine($"            Key {{ frame: {frame}");
-            foreach (var (boneName, q) in bones)
+            sb.AppendLine();
+            sb.AppendLine("        Animation {");
+            foreach (var (frame, bones) in data.Keyframes)
             {
-                sb.Append($"                Bone {{");
-                sb.Append($" name: \"{Esc(boneName)}\"");
-                sb.Append($" x: {F(q.X)} y: {F(q.Y)} z: {F(q.Z)} w: {F(q.W)}");
-                sb.AppendLine(" }");
+                var emitted = false;
+                var frameLines = new List<string>();
+                foreach (var (key, q) in bones)
+                {
+                    string scopedId;
+                    string boneName;
+                    var hasScope = TrySplitBoneKey(key, out scopedId, out boneName);
+                    if (!hasScope)
+                    {
+                        // Legacy unscoped key is intentionally not serialized.
+                        continue;
+                    }
+
+                    var rawId = string.IsNullOrWhiteSpace(character.Id) ? string.Empty : character.Id;
+                    var rawIdUnique = !string.IsNullOrWhiteSpace(rawId)
+                        && rawIdCounts.TryGetValue(rawId, out var rawCount)
+                        && rawCount == 1;
+
+                    var matchCanonicalId = string.Equals(scopedId, charId, StringComparison.OrdinalIgnoreCase);
+                    var matchRawId = rawIdUnique && string.Equals(scopedId, rawId, StringComparison.OrdinalIgnoreCase);
+                    if (!matchCanonicalId && !matchRawId)
+                    {
+                        continue;
+                    }
+
+                    frameLines.Add($"                Bone {{ name: \"{Esc(boneName)}\" x: {F(q.X)} y: {F(q.Y)} z: {F(q.Z)} w: {F(q.W)} }}");
+                    emitted = true;
+                }
+
+                if (!emitted) continue;
+                sb.AppendLine($"            Key {{ frame: {frame}");
+                foreach (var line in frameLines)
+                    sb.AppendLine(line);
+                sb.AppendLine("            }");
             }
-            sb.AppendLine("            }");
+            sb.AppendLine("        }");
+
+            sb.AppendLine("    }");
         }
-        sb.AppendLine("        }");
-        sb.AppendLine("    }");
 
         // Props (non-primary assets)
         foreach (var asset in data.SceneAssets)
         {
             if (asset.Primary) continue;
+            var normalizedAssetId = ToIdentifierToken(asset.Id, $"asset_{Math.Abs(asset.Id.GetHashCode())}");
+            var assetId = MakeUniqueId(normalizedAssetId, usedIds);
             sb.AppendLine($"    Asset {{");
-            sb.AppendLine($"        id: \"{Esc(asset.Id)}\"  name: \"{Esc(asset.Name)}\"  src: \"{Esc(asset.Src)}\"");
+            sb.AppendLine($"        id: {assetId}  name: \"{Esc(asset.Name)}\"  src: \"{Esc(asset.Src)}\"");
             sb.AppendLine($"        pos: {F(asset.PosX)}, {F(asset.PosY)}, {F(asset.PosZ)}");
             sb.AppendLine($"        rot: {F(asset.RotX)}, {F(asset.RotY)}, {F(asset.RotZ)}");
             sb.AppendLine($"        scale: {F(asset.ScaleX)}, {F(asset.ScaleY)}, {F(asset.ScaleZ)}");
@@ -146,6 +313,8 @@ public static class AnimationSerializer
 
     public static AnimationProjectData? Deserialize(string sml)
     {
+        LastError = string.Empty;
+
         SmlDocument doc;
         try
         {
@@ -154,6 +323,7 @@ public static class AnimationSerializer
         catch (Exception ex)
         {
             RunnerLogger.Warn("AnimationSerializer", "Failed to parse file.", ex);
+            LastError = ex.Message;
             return null;
         }
 
@@ -164,6 +334,7 @@ public static class AnimationSerializer
         }
 
         RunnerLogger.Warn("AnimationSerializer", "No Scene root node found.");
+        LastError = "No Scene root node found.";
         return null;
     }
 
@@ -173,14 +344,25 @@ public static class AnimationSerializer
     {
         var assets    = new List<SceneAssetData>();
         var keyframes = new SortedDictionary<int, Dictionary<string, Quaternion>>();
-        var fps         = 24;
-        var totalFrames = 120;
+        var fps         = GetInt(scene, "fps", -1);
+        var totalFrames = GetInt(scene, "totalFrames", -1);
+        var sceneProperties = ReadSceneStringProperties(scene);
+        var usedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var child in scene.Children)
         {
             if (string.Equals(child.Name, "Character", StringComparison.OrdinalIgnoreCase))
             {
-                var id    = GetString(child, "id",    "hero");
+                if (child.TryGetProperty("id", out var idValue) && idValue.Kind == SmlValueKind.String)
+                {
+                    RunnerLogger.Warn("AnimationSerializer", "Character.id is stored as string literal; identifier token is recommended.");
+                }
+                var rawId = GetString(child, "id", "hero");
+                var id = MakeUniqueId(rawId, usedIds);
+                if (!string.Equals(id, rawId, StringComparison.OrdinalIgnoreCase))
+                {
+                    RunnerLogger.Warn("AnimationSerializer", $"Duplicate character id '{rawId}' adjusted to '{id}'.");
+                }
                 var name  = GetString(child, "name",  id);
                 var src   = GetString(child, "src",   string.Empty);
                 var pos   = GetVec3f (child, "pos",   "posX", "posY", "posZ");
@@ -193,14 +375,27 @@ public static class AnimationSerializer
                 foreach (var animChild in child.Children)
                 {
                     if (!string.Equals(animChild.Name, "Animation", StringComparison.OrdinalIgnoreCase)) continue;
-                    fps         = GetInt(animChild, "fps",         24);
-                    totalFrames = GetInt(animChild, "totalFrames", 120);
-                    ParseKeyBlocks(animChild, keyframes);
+                    // Backward compatibility: old files stored timeline settings
+                    // inside each Character.Animation block.
+                    if (fps < 0)
+                        fps = GetInt(animChild, "fps", 24);
+                    if (totalFrames < 0)
+                        totalFrames = GetInt(animChild, "totalFrames", 120);
+                    ParseKeyBlocks(animChild, id, keyframes);
                 }
             }
             else if (string.Equals(child.Name, "Asset", StringComparison.OrdinalIgnoreCase))
             {
-                var id    = GetString(child, "id",    $"asset{assets.Count}");
+                if (child.TryGetProperty("id", out var idValue) && idValue.Kind == SmlValueKind.String)
+                {
+                    RunnerLogger.Warn("AnimationSerializer", "Asset.id is stored as string literal; identifier token is recommended.");
+                }
+                var rawId = GetString(child, "id", $"asset{assets.Count}");
+                var id = MakeUniqueId(rawId, usedIds);
+                if (!string.Equals(id, rawId, StringComparison.OrdinalIgnoreCase))
+                {
+                    RunnerLogger.Warn("AnimationSerializer", $"Duplicate asset id '{rawId}' adjusted to '{id}'.");
+                }
                 var name  = GetString(child, "name",  id);
                 var src   = GetString(child, "src",   string.Empty);
                 var pos   = GetVec3f (child, "pos",   "posX", "posY", "posZ");
@@ -211,10 +406,37 @@ public static class AnimationSerializer
             }
         }
 
-        return new AnimationProjectData(fps, totalFrames, assets, keyframes);
+        if (fps < 0) fps = 24;
+        if (totalFrames < 0) totalFrames = 120;
+
+        ValidateProjectData(assets, keyframes);
+        return new AnimationProjectData(fps, totalFrames, assets, keyframes, sceneProperties);
     }
 
-    private static void ParseKeyBlocks(SmlNode anim, SortedDictionary<int, Dictionary<string, Quaternion>> keyframes)
+    private static Dictionary<string, string> ReadSceneStringProperties(SmlNode scene)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in scene.Properties)
+        {
+            if (string.IsNullOrWhiteSpace(key)) continue;
+            if (string.Equals(key, "fps", StringComparison.OrdinalIgnoreCase)) continue;
+            if (string.Equals(key, "totalFrames", StringComparison.OrdinalIgnoreCase)) continue;
+            if (!key.StartsWith("ai", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var text = value.Kind switch
+            {
+                SmlValueKind.String => (string)value.Value,
+                SmlValueKind.Identifier => (string)value.Value,
+                _ => null
+            };
+            if (text is not null)
+                result[key] = text;
+        }
+
+        return result;
+    }
+
+    private static void ParseKeyBlocks(SmlNode anim, string characterId, SortedDictionary<int, Dictionary<string, Quaternion>> keyframes)
     {
         foreach (var kfNode in anim.Children)
         {
@@ -224,7 +446,11 @@ public static class AnimationSerializer
             var frame = GetInt(kfNode, "frame", -1);
             if (frame < 0) continue;
 
-            var bones = new Dictionary<string, Quaternion>(StringComparer.OrdinalIgnoreCase);
+            if (!keyframes.TryGetValue(frame, out var bones))
+            {
+                bones = new Dictionary<string, Quaternion>(StringComparer.OrdinalIgnoreCase);
+                keyframes[frame] = bones;
+            }
             foreach (var boneNode in kfNode.Children)
             {
                 if (!string.Equals(boneNode.Name, "Bone", StringComparison.OrdinalIgnoreCase)) continue;
@@ -234,10 +460,9 @@ public static class AnimationSerializer
                 var y = GetFloat(boneNode, "y", 0f);
                 var z = GetFloat(boneNode, "z", 0f);
                 var w = GetFloat(boneNode, "w", 1f);
-                bones[bName] = new Quaternion(x, y, z, w).Normalized();
+                var key = BuildBoneKey(characterId, bName);
+                bones[key] = new Quaternion(x, y, z, w).Normalized();
             }
-            if (bones.Count > 0)
-                keyframes[frame] = bones;
         }
     }
 
@@ -312,7 +537,10 @@ public static class AnimationSerializer
 
     private static string F(float v)
     {
-        var s = v.ToString("G6", CultureInfo.InvariantCulture);
+        if (MathF.Abs(v) < 1e-9f)
+            return "0.0";
+
+        var s = v.ToString("0.#########", CultureInfo.InvariantCulture);
         return s.Contains('.') ? s : s + ".0";
     }
 

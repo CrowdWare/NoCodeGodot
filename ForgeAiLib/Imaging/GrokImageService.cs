@@ -17,11 +17,7 @@ public sealed class GrokImageService
     {
         ValidateImageInputs(request);
 
-        var generationPrompt = request.Prompt;
-        if (!string.IsNullOrWhiteSpace(request.NegativePrompt))
-        {
-            generationPrompt += $" Avoid: {request.NegativePrompt}";
-        }
+        var generationPrompt = PromptComposer.ComposeImagePrompt(request.Prompt, request.NegativePrompt);
 
         var imageUrls = BuildImageUrls(request);
         var payload = new Dictionary<string, object?>
@@ -52,11 +48,6 @@ public sealed class GrokImageService
 
     private static void ValidateImageInputs(GrokImageEditRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Prompt))
-        {
-            throw new ForgeAiException("Prompt is required.");
-        }
-
         if (!File.Exists(request.PoseImagePath))
         {
             throw new FileNotFoundException("Pose image not found.", request.PoseImagePath);

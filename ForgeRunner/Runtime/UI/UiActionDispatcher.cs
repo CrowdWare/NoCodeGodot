@@ -207,6 +207,14 @@ public sealed class UiActionDispatcher
         var kind = expression[..separator].Trim().ToLowerInvariant();
         var payload = expression[(separator + 1)..].Trim();
 
+        // Only treat known prefixes as typed actions. This avoids false positives
+        // for domain strings that also contain ':' (for example character-scoped
+        // bone keys like "hero:LeftArm").
+        if (kind is not ("action" or "page" or "web"))
+        {
+            return false;
+        }
+
         if (string.IsNullOrWhiteSpace(payload))
         {
             RunnerLogger.Warn("UI", $"Typed action '{expression}' has empty payload and was ignored.");
@@ -248,9 +256,7 @@ public sealed class UiActionDispatcher
                 return true;
 
             default:
-                RunnerLogger.Warn("UI", $"Unknown typed action kind '{kind}' in expression '{expression}'.");
-                handled = true;
-                return true;
+                return false;
         }
     }
 

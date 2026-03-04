@@ -39,4 +39,10 @@ Inherited actions are documented in: [Control](Control.md)
 | getKeyframeFrameAt | `<id>.getKeyframeFrameAt(index)` | int index | int |
 | getKeyframeBoneCount | `<id>.getKeyframeBoneCount(frame)` | int frame | int |
 | getKeyframeBoneName | `<id>.getKeyframeBoneName(frame, boneIndex)` | int frame, int boneIndex | string |
+| getKeyframeCountForCharacter | `<id>.getKeyframeCountForCharacter(characterId)` | string characterId | int |
+| getKeyframeFrameAtForCharacter | `<id>.getKeyframeFrameAtForCharacter(index, characterId)` | int index, string characterId | int |
+| getKeyframeBoneCountForCharacter | `<id>.getKeyframeBoneCountForCharacter(frame, characterId)` | int frame, string characterId | int |
+| getKeyframeBoneNameForCharacter | `<id>.getKeyframeBoneNameForCharacter(frame, boneIndex, characterId)` | int frame, int boneIndex, string characterId | string |
+| setVisibleCharacterId | `<id>.setVisibleCharacterId(characterId)` | string characterId | void |
+| debugLogKeyframesForCharacter | `<id>.debugLogKeyframesForCharacter(characterId)` | string characterId | void |
 | clearAllKeyframes | `<id>.clearAllKeyframes()` | — | void |

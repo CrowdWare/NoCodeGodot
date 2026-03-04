@@ -23,6 +23,8 @@ build/
 dist/
 bin/
 exports/
+/export/frames*/
+/exports/frames*/
 
 # =========================================================
 # Mono / C# (falls genutzt)
