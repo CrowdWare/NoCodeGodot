@@ -53,14 +53,15 @@ if [[ -z "$MODE" ]]; then
   echo "  4) none      -> ohne URL-Override"
   echo "  5) docs      -> SML/SMS Docs generieren (headless)"
   echo "  6) build     -> App bauen"
-  echo "  7) theme     -> theme.tres aus theme.sml generieren (headless)"
-  echo "  8) manifest  -> manifest.sml für alle Docs generieren"
-  echo "  9) publish   -> manifest + git commit + git push"
-  echo " 10) export    -> macOS Release bauen (Godot export)"
-  echo " 11) app       -> ForgeRunner.app starten (Release)"
-  echo " 12) release   -> version setzen + export + tag + GitHub Release (default: pre)"
-  echo " 13) poser     -> ForgePoser/app.sml"
-  read -r -p "Auswahl [1-13]: " CHOICE
+  echo "  7) test      -> ForgeCli Build + alle UnitTests"
+  echo "  8) theme     -> theme.tres aus theme.sml generieren (headless)"
+  echo "  9) manifest  -> manifest.sml für alle Docs generieren"
+  echo " 10) publish   -> manifest + git commit + git push"
+  echo " 11) export    -> macOS Release bauen (Godot export)"
+  echo " 12) app       -> ForgeRunner.app starten (Release)"
+  echo " 13) release   -> version setzen + export + tag + GitHub Release (default: pre)"
+  echo " 14) poser     -> ForgePoser/app.sml"
+  read -r -p "Auswahl [1-14]: " CHOICE
 
   case "$CHOICE" in
     1) MODE="default" ;;
@@ -69,13 +70,14 @@ if [[ -z "$MODE" ]]; then
     4) MODE="none" ;;
     5) MODE="docs" ;;
     6) MODE="build" ;;
-    7) MODE="theme" ;;
-    8) MODE="manifest" ;;
-    9) MODE="publish" ;;
-    10) MODE="export" ;;
-    11) MODE="app" ;;
-    12) MODE="release" ;;
-    13) MODE="poser" ;;
+    7) MODE="test" ;;
+    8) MODE="theme" ;;
+    9) MODE="manifest" ;;
+    10) MODE="publish" ;;
+    11) MODE="export" ;;
+    12) MODE="app" ;;
+    13) MODE="release" ;;
+    14) MODE="poser" ;;
     *)
       echo "Ungültige Auswahl. Abbruch."
       exit 1
@@ -126,6 +128,22 @@ case "$MODE" in
   build)
     echo "Building the app..."
     dotnet build "$REPO_ROOT/ForgeRunner/ForgeRunner.csproj"
+    ;;
+  test)
+    echo "Building ForgeCli..."
+    dotnet build "$REPO_ROOT/ForgeCli/ForgeCli.csproj"
+
+    echo "Running SMLCore unit tests..."
+    dotnet test "$REPO_ROOT/SMLCore.Tests/SMLCore.Tests.csproj"
+
+    echo "Running SMSCore unit tests..."
+    dotnet test "$REPO_ROOT/SMSCore.Tests/SMSCore.Tests.csproj"
+
+    echo "Running ForgeRunner unit tests..."
+    dotnet test "$REPO_ROOT/ForgeRunner.Tests/ForgeRunner.Tests.csproj"
+
+    echo "Running ForgeAiLib unit tests..."
+    dotnet test "$REPO_ROOT/ForgeAiLib.Tests/ForgeAiLib.Tests.csproj"
     ;;
   theme)
     require_godot
@@ -214,7 +232,7 @@ case "$MODE" in
     echo "Release $TAG [$CHANNEL] published."
     ;;
   *)
-    echo "Usage: $0 [default|designer|docking|poser|none|docs|build|theme|manifest|publish|export|app|release]"
+    echo "Usage: $0 [default|designer|docking|poser|none|docs|build|test|theme|manifest|publish|export|app|release]"
     exit 1
     ;;
 esac

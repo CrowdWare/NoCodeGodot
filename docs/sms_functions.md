@@ -2,6 +2,20 @@
 
 This document lists built-in SMS runtime helper functions available in Forge.
 
+## AI
+
+### ai.describeImage(imagePath: String, prompt: String?, model: String?)
+Sends a local image to Grok Vision and returns the textual analysis. imagePath may be absolute or relative to the app project root.
+
+### ai.isConfigured()
+Returns true when GROK_API_KEY is available to the runtime, otherwise false.
+
+### ai.stylizeImage(posePath: String, outputPath: String, prompt: String, stylePath: String?, extraPath: String?, negativePrompt: String?, model: String?)
+Runs image-to-image stylization via Grok using pose/style/extra references and writes the generated image to outputPath. Returns the resolved output path (supports <version> placeholder).
+
+### ai.stylizeVideo(inputVideoPath: String, outputPath: String, prompt: String, negativePrompt: String?, model: String?)
+Runs video-to-video stylization via Grok, polls job completion, downloads the styled video, and returns the resolved output path (supports <version> placeholder).
+
 ## File System
 
 ### fs.list(path: String)

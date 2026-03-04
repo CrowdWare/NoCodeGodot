@@ -17,6 +17,7 @@ Window {
             Item { id: menuSaveAs  text: "Save As…"      }
             Item { id: menuOpenGlb text: "Load Model…"   }
             Item { id: menuExport  text: "Export as GLB…" }
+            Item { id: menuExportCurrentFrame text: "Export actual frame" }
         }
     }
 

@@ -18,6 +18,11 @@
  */
 
 using Godot;
+using Forge.Ai.Chat;
+using Forge.Ai.Core;
+using Forge.Ai.Imaging;
+using Forge.Ai.Util;
+using Forge.Ai.Video;
 using Runtime.Assets;
 using Runtime.Logging;
 using Runtime.Sml;
@@ -347,6 +352,7 @@ public sealed class SmsUiRuntime
         _engine.RegisterFunction("__sms_os", _ => CreateOsObject());
         _engine.RegisterFunction("__sms_i18n", _ => CreateI18nObject());
         _engine.RegisterFunction("__sms_ui", _ => CreateUiObject());
+        _engine.RegisterFunction("__sms_ai", _ => CreateAiObject());
         _engine.RegisterFunction("__sms_get_menu_item", args =>
         {
             var itemId = ArgString(args, 0);
@@ -384,13 +390,13 @@ public sealed class SmsUiRuntime
     {
         try
         {
-            _engine.Execute("var fs = __sms_fs()\nvar log = __sms_log()\nvar os = __sms_os()\nvar i18n = __sms_i18n()\nvar ui = __sms_ui()");
+            _engine.Execute("var fs = __sms_fs()\nvar log = __sms_log()\nvar os = __sms_os()\nvar i18n = __sms_i18n()\nvar ui = __sms_ui()\nvar ai = __sms_ai()");
             BootstrapWindowFlagSymbols();
             BootstrapUiIdSymbols();
         }
         catch (Exception ex)
         {
-            RunnerLogger.Error("SMS", "Failed to bootstrap global SMS objects (fs/log/ui).", ex);
+            RunnerLogger.Error("SMS", "Failed to bootstrap global SMS objects (fs/log/ui/ai).", ex);
         }
     }
 
@@ -935,6 +941,128 @@ public sealed class SmsUiRuntime
                 return NullValue.Instance;
             })
         });
+    }
+
+    private ObjectValue CreateAiObject()
+    {
+        return new ObjectValue("Ai", new Dictionary<string, Value>(StringComparer.Ordinal)
+        {
+            ["isConfigured"] = new NativeFunctionValue(_ =>
+            {
+                var key = System.Environment.GetEnvironmentVariable("GROK_API_KEY");
+                return new BooleanValue(!string.IsNullOrWhiteSpace(key));
+            }),
+            ["describeImage"] = new NativeFunctionValue(methodArgs =>
+            {
+                var imagePath = ResolveAiPath(ValueArgString(methodArgs, 0));
+                var prompt = methodArgs.Count > 1
+                    ? ValueArgString(methodArgs, 1)
+                    : "Analysiere dieses Bild genau und detailliert.";
+                var model = methodArgs.Count > 2 ? ValueArgString(methodArgs, 2) : "grok-4";
+
+                try
+                {
+                    var options = ForgeAiClientOptions.FromEnvironment();
+                    var service = new GrokChatService(options);
+                    var result = Task.Run(async () =>
+                            await service.AnalyzeImageAsync(new GrokImageAnalysisRequest(imagePath, prompt, model)))
+                        .GetAwaiter()
+                        .GetResult();
+                    return new StringValue(result);
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("AI", $"ai.describeImage failed for '{imagePath}'.", ex);
+                    return new StringValue(string.Empty);
+                }
+            }),
+            ["stylizeImage"] = new NativeFunctionValue(methodArgs =>
+            {
+                var posePath = ResolveAiPath(ValueArgString(methodArgs, 0));
+                var outputPath = VersionedOutputPath.Resolve(ResolveAiPath(ValueArgString(methodArgs, 1)));
+                var prompt = ValueArgString(methodArgs, 2);
+                var stylePathRaw = methodArgs.Count > 3 ? ValueArgString(methodArgs, 3) : string.Empty;
+                var extraPathRaw = methodArgs.Count > 4 ? ValueArgString(methodArgs, 4) : string.Empty;
+                var negativePrompt = methodArgs.Count > 5 ? ValueArgString(methodArgs, 5) : string.Empty;
+                var model = methodArgs.Count > 6 ? ValueArgString(methodArgs, 6) : "grok-2-image-1212";
+
+                var stylePath = string.IsNullOrWhiteSpace(stylePathRaw) ? null : ResolveAiPath(stylePathRaw);
+                var extraPath = string.IsNullOrWhiteSpace(extraPathRaw) ? null : ResolveAiPath(extraPathRaw);
+
+                try
+                {
+                    var options = ForgeAiClientOptions.FromEnvironment();
+                    var service = new GrokImageService(options);
+                    _ = Task.Run(async () => await service.EditImageAsync(
+                            new GrokImageEditRequest(
+                                Prompt: prompt,
+                                PoseImagePath: posePath,
+                                OutputPath: outputPath,
+                                Model: model,
+                                StyleImagePath: stylePath,
+                                ExtraImagePath: extraPath,
+                                NegativePrompt: string.IsNullOrWhiteSpace(negativePrompt) ? null : negativePrompt)))
+                        .GetAwaiter()
+                        .GetResult();
+                    return new StringValue(outputPath);
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("AI", $"ai.stylizeImage failed for '{posePath}'.", ex);
+                    return new StringValue(string.Empty);
+                }
+            }),
+            ["stylizeVideo"] = new NativeFunctionValue(methodArgs =>
+            {
+                var inputVideoPath = ResolveAiPath(ValueArgString(methodArgs, 0));
+                var outputPath = VersionedOutputPath.Resolve(ResolveAiPath(ValueArgString(methodArgs, 1)));
+                var prompt = ValueArgString(methodArgs, 2);
+                var negativePrompt = methodArgs.Count > 3 ? ValueArgString(methodArgs, 3) : string.Empty;
+                var model = methodArgs.Count > 4 ? ValueArgString(methodArgs, 4) : "grok-video-v1";
+
+                try
+                {
+                    var options = ForgeAiClientOptions.FromEnvironment();
+                    var service = new GrokVideoService(options);
+                    _ = Task.Run(async () => await service.StylizeVideoAsync(
+                            new GrokVideoStylizeRequest(
+                                InputVideoPath: inputVideoPath,
+                                Prompt: prompt,
+                                OutputPath: outputPath,
+                                Model: model,
+                                NegativePrompt: string.IsNullOrWhiteSpace(negativePrompt) ? null : negativePrompt)))
+                        .GetAwaiter()
+                        .GetResult();
+                    return new StringValue(outputPath);
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("AI", $"ai.stylizeVideo failed for '{inputVideoPath}'.", ex);
+                    return new StringValue(string.Empty);
+                }
+            })
+        });
+    }
+
+    private string ResolveAiPath(string inputPath)
+    {
+        if (string.IsNullOrWhiteSpace(inputPath))
+        {
+            return string.Empty;
+        }
+
+        if (Path.IsPathRooted(inputPath))
+        {
+            return inputPath;
+        }
+
+        var root = _projectRoot;
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            root = Directory.GetCurrentDirectory();
+        }
+
+        return Path.GetFullPath(Path.Combine(root, inputPath));
     }
 
     private static void ShowMessageDialog(string title, string message)

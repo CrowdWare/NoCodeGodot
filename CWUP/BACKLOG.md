@@ -91,3 +91,6 @@
 - [ ] Lifecycle-Template für neue Scripts einführen (OnInit / OnReadyAsync sichtbar als optionaler Einstieg)
 - [ ] Konventionsbasierte UI-Event-Hooks im Script-Template dokumentieren (z. B. treeItemSelected, treeItemToggled, listItemSelected)
 - [ ] Script-Erzeugung im Designer auf neues Template umstellen
+
+## Tasks for Forge-Poser
+- [ ] tasks/ai_stylized_export_dialog.md

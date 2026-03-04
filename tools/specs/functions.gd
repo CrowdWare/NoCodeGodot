@@ -40,6 +40,30 @@ const FUNCTIONS := {
         "description": "Gets a Window flag value by enum constant (recommended) or integer value. Example: var on = mainWindow.getFlag(extendToTitle)."
     },
 
+    "ai.isConfigured": {
+        "category": "AI",
+        "signature": "ai.isConfigured()",
+        "description": "Returns true when GROK_API_KEY is available to the runtime, otherwise false."
+    },
+
+    "ai.describeImage": {
+        "category": "AI",
+        "signature": "ai.describeImage(imagePath: String, prompt: String?, model: String?)",
+        "description": "Sends a local image to Grok Vision and returns the textual analysis. imagePath may be absolute or relative to the app project root."
+    },
+
+    "ai.stylizeImage": {
+        "category": "AI",
+        "signature": "ai.stylizeImage(posePath: String, outputPath: String, prompt: String, stylePath: String?, extraPath: String?, negativePrompt: String?, model: String?)",
+        "description": "Runs image-to-image stylization via Grok using pose/style/extra references and writes the generated image to outputPath. Returns the resolved output path (supports <version> placeholder)."
+    },
+
+    "ai.stylizeVideo": {
+        "category": "AI",
+        "signature": "ai.stylizeVideo(inputVideoPath: String, outputPath: String, prompt: String, negativePrompt: String?, model: String?)",
+        "description": "Runs video-to-video stylization via Grok, polls job completion, downloads the styled video, and returns the resolved output path (supports <version> placeholder)."
+    },
+
     "log.success": {
         "category": "Logging",
         "signature": "log.success(message: String)",

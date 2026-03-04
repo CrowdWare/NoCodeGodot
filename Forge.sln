@@ -1,4 +1,4 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -11,6 +11,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SMSCore", "SMSCore\SMSCore.csproj", "{5D4EAB95-2A5F-4A88-9E9C-6F6D0838C765}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SMSCore.Tests", "SMSCore.Tests\SMSCore.Tests.csproj", "{3FA37F1C-8844-4D31-BF07-0E212F3047C7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ForgeCli", "ForgeCli\ForgeCli.csproj", "{19A3CBF4-0297-4E70-AFD3-D51563D83B49}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ForgeAiLib", "ForgeAiLib\ForgeAiLib.csproj", "{D2FEB00C-FA58-4EEA-B551-E46E017470E0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -38,6 +42,14 @@ Global
 		{3FA37F1C-8844-4D31-BF07-0E212F3047C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3FA37F1C-8844-4D31-BF07-0E212F3047C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3FA37F1C-8844-4D31-BF07-0E212F3047C7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{19A3CBF4-0297-4E70-AFD3-D51563D83B49}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{19A3CBF4-0297-4E70-AFD3-D51563D83B49}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{19A3CBF4-0297-4E70-AFD3-D51563D83B49}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{19A3CBF4-0297-4E70-AFD3-D51563D83B49}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D2FEB00C-FA58-4EEA-B551-E46E017470E0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D2FEB00C-FA58-4EEA-B551-E46E017470E0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D2FEB00C-FA58-4EEA-B551-E46E017470E0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D2FEB00C-FA58-4EEA-B551-E46E017470E0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

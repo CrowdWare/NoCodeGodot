@@ -11,6 +11,10 @@ public static class SchemaFunctions
 {
     public static readonly FunctionDef[] All =
     [
+        new FunctionDef("ai.describeImage", "AI", "ai.describeImage(imagePath: String, prompt: String?, model: String?)", "Sends a local image to Grok Vision and returns the textual analysis. imagePath may be absolute or relative to the app project root."),
+        new FunctionDef("ai.isConfigured", "AI", "ai.isConfigured()", "Returns true when GROK_API_KEY is available to the runtime, otherwise false."),
+        new FunctionDef("ai.stylizeImage", "AI", "ai.stylizeImage(posePath: String, outputPath: String, prompt: String, stylePath: String?, extraPath: String?, negativePrompt: String?, model: String?)", "Runs image-to-image stylization via Grok using pose/style/extra references and writes the generated image to outputPath. Returns the resolved output path (supports <version> placeholder)."),
+        new FunctionDef("ai.stylizeVideo", "AI", "ai.stylizeVideo(inputVideoPath: String, outputPath: String, prompt: String, negativePrompt: String?, model: String?)", "Runs video-to-video stylization via Grok, polls job completion, downloads the styled video, and returns the resolved output path (supports <version> placeholder)."),
         new FunctionDef("fs.list", "File System", "fs.list(path: String)", "Lists files in a directory and returns an array of file names."),
         new FunctionDef("fs.readText", "File System", "fs.readText(path: String)", "Reads text content from a file and returns it as a String."),
         new FunctionDef("fs.writeText", "File System", "fs.writeText(path: String, content: String)", "Writes text content to a file."),

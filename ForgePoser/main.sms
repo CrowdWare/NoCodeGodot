@@ -102,6 +102,11 @@ on menuExport.clicked() {
     editor.showExportDialog()
 }
 
+on menuExportCurrentFrame.clicked() {
+    statusLabel.text = "TODO: Export actual frame (capture + AI stylize pipeline)."
+    log.info("menuExportCurrentFrame clicked")
+}
+
 on editor.exportProgress(filename, percent) {
     if (percent == 100) {
         statusLabel.text = "Exported: " + filename
