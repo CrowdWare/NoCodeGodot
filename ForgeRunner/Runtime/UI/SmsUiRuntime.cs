@@ -120,6 +120,35 @@ public sealed class SmsUiRuntime
         }
     }
 
+    public async Task LoadAdditionalScriptFromUriAsync(string smsUri, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(smsUri))
+        {
+            return;
+        }
+
+        string source;
+        try
+        {
+            source = await _uriResolver.LoadTextAsync(smsUri, cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("SMS", $"Failed loading additional SMS script '{smsUri}'.", ex);
+            return;
+        }
+
+        try
+        {
+            _engine.Execute(source);
+            RunnerLogger.Info("SMS", $"Loaded additional SMS script: '{smsUri}'.");
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("SMS", $"Failed executing additional SMS script '{smsUri}'.", ex);
+        }
+    }
+
     public void BindDispatcher(UiActionDispatcher dispatcher)
     {
         if (!IsLoaded)
@@ -745,6 +774,66 @@ public sealed class SmsUiRuntime
             {
                 var path = ValueArgString(methodArgs, 0);
                 return new StringValue(ToResPath(path));
+            }),
+            ["callStatic"] = new NativeFunctionValue(methodArgs =>
+            {
+                var assemblyPathRaw = ValueArgString(methodArgs, 0);
+                var typeName = ValueArgString(methodArgs, 1);
+                var methodName = ValueArgString(methodArgs, 2);
+
+                if (string.IsNullOrWhiteSpace(assemblyPathRaw)
+                    || string.IsNullOrWhiteSpace(typeName)
+                    || string.IsNullOrWhiteSpace(methodName))
+                {
+                    RunnerLogger.Warn("SMS", "os.callStatic requires assemblyPath, typeName and methodName.");
+                    return NullValue.Instance;
+                }
+
+                try
+                {
+                    var assemblyPath = ResolveAiPath(assemblyPathRaw);
+                    if (string.IsNullOrWhiteSpace(assemblyPath) || !File.Exists(assemblyPath))
+                    {
+                        RunnerLogger.Warn("SMS", $"os.callStatic: assembly not found '{assemblyPathRaw}'.");
+                        return NullValue.Instance;
+                    }
+
+                    var assembly = Assembly.LoadFrom(assemblyPath);
+                    var type = assembly.GetType(typeName, throwOnError: false, ignoreCase: true);
+                    if (type is null)
+                    {
+                        RunnerLogger.Warn("SMS", $"os.callStatic: type '{typeName}' not found in '{assemblyPath}'.");
+                        return NullValue.Instance;
+                    }
+
+                    var staticMethods = type
+                        .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                        .Where(m => string.Equals(m.Name, methodName, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    if (staticMethods.Count == 0)
+                    {
+                        RunnerLogger.Warn("SMS", $"os.callStatic: method '{typeName}.{methodName}' not found.");
+                        return NullValue.Instance;
+                    }
+
+                    var invokeArgs = methodArgs.Count > 3
+                        ? methodArgs.Skip(3).ToList()
+                        : new List<Value>();
+
+                    if (!TrySelectMethod(staticMethods, invokeArgs, out var selected, out var converted))
+                    {
+                        RunnerLogger.Warn("SMS", $"os.callStatic: no overload match for '{typeName}.{methodName}' with {invokeArgs.Count} arg(s).");
+                        return NullValue.Instance;
+                    }
+
+                    var result = selected.Invoke(obj: null, converted);
+                    return ToSmsValue(result);
+                }
+                catch (Exception ex)
+                {
+                    RunnerLogger.Warn("SMS", $"os.callStatic failed for '{typeName}.{methodName}'.", ex);
+                    return NullValue.Instance;
+                }
             })
         });
     }
@@ -2110,6 +2199,33 @@ $"}}\n";
             {
                 return new BooleanValue(posingEditorExt.RebaseSelectedPivotBottom());
             });
+            // setAnimationFrame(frame) — update timeline frame and apply corresponding pose to editor
+            fields["setAnimationFrame"] = new NativeFunctionValue(methodArgs =>
+            {
+                var frame = ValueArgInt(methodArgs, 0);
+                var timeline = FindSiblingTimeline(posingEditorExt);
+                if (timeline is null)
+                {
+                    RunnerLogger.Warn("SMS", "setAnimationFrame: no TimelineControl found in scene.");
+                    return new BooleanValue(false);
+                }
+
+                var safeFrame = Math.Clamp(frame, 0, timeline.TotalFrames);
+                timeline.SetCurrentFrame(safeFrame);
+                var pose = timeline.GetPoseAt(safeFrame);
+                if (pose is not null)
+                {
+                    posingEditorExt.LoadPose(pose);
+                }
+
+                return new BooleanValue(true);
+            });
+            // saveFrame(path) — export current viewport frame as PNG
+            fields["saveFrame"] = new NativeFunctionValue(methodArgs =>
+            {
+                var path = ValueArgString(methodArgs, 0);
+                return new BooleanValue(posingEditorExt.ExportCurrentFramePng(path));
+            });
 
             // setSceneCharacterName(idx, name)
             fields["setSceneCharacterName"] = new NativeFunctionValue(methodArgs =>
@@ -2164,13 +2280,22 @@ $"}}\n";
                 return NullValue.Instance;
             });
 
-            // showExportDialog() — opens export options dialog then saves GLB
-            fields["showExportDialog"] = new NativeFunctionValue(_ =>
+            // exportGlb(path, includeAnimation, includeProps, animationOnlyCharacter) — starts async GLB export
+            fields["exportGlb"] = new NativeFunctionValue(methodArgs =>
             {
+                var outputPath = ResolveAiPath(ValueArgString(methodArgs, 0));
+                var includeAnimation = methodArgs.Count > 1 ? ValueArgBool(methodArgs, 1) : true;
+                var includeProps = methodArgs.Count > 2 ? ValueArgBool(methodArgs, 2) : true;
+                var animationOnlyCharacter = methodArgs.Count > 3 ? ValueArgBool(methodArgs, 3) : false;
                 var timeline = FindSiblingTimeline(posingEditorExt);
-                if (timeline is not null)
-                    posingEditorExt.ShowExportDialog(timeline);
-                return NullValue.Instance;
+                if (timeline is null)
+                {
+                    RunnerLogger.Warn("SMS", "exportGlb: no TimelineControl found in scene.");
+                    return new BooleanValue(false);
+                }
+
+                var ok = posingEditorExt.StartExportAsGlb(timeline, outputPath, includeAnimation, includeProps, animationOnlyCharacter);
+                return new BooleanValue(ok);
             });
 
             // exportCurrentFramePng(path) — captures current viewport frame as PNG

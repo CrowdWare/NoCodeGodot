@@ -2989,90 +2989,59 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     }
 
     /// <summary>
-    /// Opens a native Godot export-options dialog,
-    /// then a file-save dialog, and finally exports to GLB.
+    /// Starts an async GLB export to the given file path.
+    /// Returns false when preconditions fail.
     /// </summary>
-    public void ShowExportDialog(TimelineControl timeline)
+    public bool StartExportAsGlb(
+        TimelineControl timeline,
+        string savePath,
+        bool includeAnimation,
+        bool includeProps,
+        bool animationOnlyCharacter)
     {
         if (_modelRoot is null || _skeleton is null)
         {
             RunnerLogger.Warn("PosingEditor", "No model loaded — cannot export.");
-            return;
+            return false;
         }
 
-        // Options dialog
-        var dlg     = new AcceptDialog { Title = "Export as GLB", Size = new Vector2I(460, 260) };
-        var vbox    = new VBoxContainer { LayoutMode = 1 };
-        var modeLbl = new Label { Text = "Content:" };
-        var mode    = new OptionButton();
-        mode.AddItem("Whole scene (character + props)", 0);
-        mode.AddItem("Character only", 1);
-        mode.AddItem("Character animation only (retarget)", 2);
-        mode.Selected = 0;
-
-        var cbAnim  = new CheckBox { Text = "Include Timeline Animation", ButtonPressed = true };
-        vbox.AddChild(modeLbl);
-        vbox.AddChild(mode);
-        vbox.AddChild(cbAnim);
-        dlg.AddChild(vbox);
-        AddChild(dlg);
-        dlg.PopupCentered(new Vector2I(460, 260));
-
-        mode.ItemSelected += _ =>
+        if (timeline is null || string.IsNullOrWhiteSpace(savePath))
         {
-            var animationOnly = mode.Selected == 2;
-            if (animationOnly)
+            return false;
+        }
+
+        try
+        {
+            var dir = Path.GetDirectoryName(savePath);
+            if (!string.IsNullOrWhiteSpace(dir))
             {
-                cbAnim.Disabled = true;
-                cbAnim.ButtonPressed = true;
-                return;
+                Directory.CreateDirectory(dir);
             }
-
-            cbAnim.Disabled = false;
-        };
-
-        dlg.Confirmed += () =>
+        }
+        catch (Exception ex)
         {
-            var inclAnim = cbAnim.ButtonPressed;
-            var includeProps = mode.Selected == 0;
-            var animationOnly = mode.Selected == 2;
-            dlg.QueueFree();
+            RunnerLogger.Warn("PosingEditor", $"Failed to prepare export directory for '{savePath}'.", ex);
+            return false;
+        }
 
-            var saveDlg = new FileDialog
-            {
-                FileMode = FileDialog.FileModeEnum.SaveFile,
-                Access   = FileDialog.AccessEnum.Filesystem,
-                Filters  = ["*.glb"],
-                Title    = "Export as GLB",
-            };
-            AddChild(saveDlg);
-            saveDlg.PopupCentered(new Vector2I(920, 640));
-            saveDlg.FileSelected += async (string savePath) =>
-            {
-                // Hide immediately (property change is instant; rendering catches up
-                // after we await the process frame below).
-                saveDlg.Hide();
-                saveDlg.QueueFree();
+        var opts = new GlbExporter.ExportOptions(
+            IncludeAnimation: includeAnimation || animationOnlyCharacter,
+            IncludeProps: includeProps,
+            AnimationOnlyCharacter: animationOnlyCharacter,
+            WithRig: true);
 
-                var filename = System.IO.Path.GetFileName(savePath);
-                ExportProgress?.Invoke(filename, 0);
+        var filename = System.IO.Path.GetFileName(savePath);
+        ExportProgress?.Invoke(filename, 0);
+        _ = ContinueExportAsGlbAsync(opts, savePath, timeline);
+        return true;
+    }
 
-                // CallDeferred runs BEFORE rendering, so we must await at least one
-                // rendered frame; otherwise the dialog stays visually open while the
-                // main thread is blocked by the export.
-                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-
-                var opts = new GlbExporter.ExportOptions(
-                    IncludeAnimation: inclAnim || animationOnly,
-                    IncludeProps: includeProps,
-                    AnimationOnlyCharacter: animationOnly,
-                    WithRig: true);
-                await DoExportAsGlbAsync(opts, savePath, timeline);
-            };
-            saveDlg.Canceled += () => saveDlg.QueueFree();
-        };
-        dlg.Canceled += () => dlg.QueueFree();
+    private async Task ContinueExportAsGlbAsync(GlbExporter.ExportOptions options, string savePath, TimelineControl timeline)
+    {
+        // Ensure file dialog/menus have rendered away before heavy export work begins.
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await DoExportAsGlbAsync(options, savePath, timeline);
     }
 
     private async Task DoExportAsGlbAsync(GlbExporter.ExportOptions options, string path, TimelineControl timeline)

@@ -126,9 +126,8 @@ case "$MODE" in
     exit 0
     ;;
   build)
-    BUILD_LOG="$REPO_ROOT/build.log"
-    echo "Building the app... (log: $BUILD_LOG)"
-    dotnet build "$REPO_ROOT/ForgeRunner/ForgeRunner.csproj" 2>&1 | tee "$BUILD_LOG"
+    echo "Building the app..."
+    dotnet build "$REPO_ROOT/ForgeRunner/ForgeRunner.csproj"
     ;;
   test)
     echo "Building ForgeCli..."

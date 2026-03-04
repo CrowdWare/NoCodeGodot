@@ -1,0 +1,321 @@
+var pluginPromptRef = null
+var pluginNegativePromptRef = null
+var pluginStylePathRef = null
+var pluginExtraPathRef = null
+var pluginEditorRef = null
+var pluginTimelineRef = null
+var pluginStatusLabelRef = null
+var pluginWriteLock = false
+var pluginProjectPath = ""
+var pluginClipExportPending = false
+var pluginClipFrameFrom = 0
+var pluginClipFrameTo = 0
+var pluginClipExpectedFrames = 0
+var pluginClipFps = 24
+var pluginClipSourceVideoPath = ""
+var pluginClipStyledVideoPath = ""
+
+var pluginPrompt = "Keep exact pose and composition, camera framing, body proportions, and left-right orientation. Render photorealistic humans with realistic skin pores, hair strands, and clearly defined abdominal muscles. Match clothing design, colors, and materials from the extra image while preserving visible anatomy where appropriate. Apply only scene style, lighting, mood, and color palette from the style image. Never add UI overlays, gizmos, handles, axes, bone markers, or text."
+var pluginNegativePrompt = ""
+var pluginStyleImagePath = "res:/input/style.jpg"
+var pluginExtraImagePath = "res:/input/clothing.jpg"
+var pluginImageModel = "grok-imagine-image"
+var pluginVideoModel = "grok-imagine-video"
+
+fun ensurePluginExportMenuItems() {
+    var menuExport = ui.getObject("menuExport")
+    if (menuExport == null) {
+        return
+    }
+
+    if (ui.getObject("menuExportCurrentFrame") == null) {
+        menuExport.AddMenuItem("menuExportCurrentFrame", 0)
+        var frameItem = ui.getObject("menuExportCurrentFrame")
+        if (frameItem != null) {
+            frameItem.SetText("Export actual frame")
+        }
+    }
+
+    if (ui.getObject("menuExportStylizedClip") == null) {
+        menuExport.AddMenuItem("menuExportStylizedClip", 0)
+        var clipItem = ui.getObject("menuExportStylizedClip")
+        if (clipItem != null) {
+            clipItem.SetText("Export stylized clip")
+        }
+    }
+}
+
+fun resolveProjectPath() {
+    var path = ui.getLastProjectPath()
+    if (path != "") {
+        pluginProjectPath = path
+    }
+}
+
+fun loadPromptConfig() {
+    resolveProjectPath()
+    if (pluginProjectPath == "") {
+        return
+    }
+
+    var cfg = os.loadPromptConfig(pluginProjectPath, pluginPrompt, pluginNegativePrompt, pluginStyleImagePath, pluginExtraImagePath, pluginImageModel, pluginVideoModel)
+    pluginPrompt = cfg.prompt
+    pluginNegativePrompt = cfg.negativePrompt
+    pluginStyleImagePath = cfg.styleImagePath
+    pluginExtraImagePath = cfg.extraImagePath
+    pluginImageModel = cfg.imageModel
+    pluginVideoModel = cfg.videoModel
+}
+
+fun savePromptConfig() {
+    resolveProjectPath()
+    if (pluginProjectPath == "") {
+        return
+    }
+    os.savePromptConfig(pluginProjectPath, pluginPrompt, pluginNegativePrompt, pluginStyleImagePath, pluginExtraImagePath, pluginImageModel, pluginVideoModel)
+}
+
+fun refreshPanel() {
+    if (pluginPromptRef == null || pluginNegativePromptRef == null || pluginStylePathRef == null || pluginExtraPathRef == null) {
+        return
+    }
+
+    pluginWriteLock = true
+    pluginPromptRef.text = pluginPrompt
+    pluginNegativePromptRef.text = pluginNegativePrompt
+    pluginStylePathRef.text = pluginStyleImagePath
+    pluginExtraPathRef.text = pluginExtraImagePath
+    pluginWriteLock = false
+}
+
+fun pluginPromptInit() {
+    ensurePluginExportMenuItems()
+    pluginPromptRef = ui.getObject("pluginPromptEditor")
+    pluginNegativePromptRef = ui.getObject("pluginNegativePromptEdit")
+    pluginStylePathRef = ui.getObject("pluginStyleImagePathEdit")
+    pluginExtraPathRef = ui.getObject("pluginExtraImagePathEdit")
+    pluginEditorRef = ui.getObject("editor")
+    pluginTimelineRef = ui.getObject("timeline")
+    pluginStatusLabelRef = ui.getObject("statusLabel")
+
+    loadPromptConfig()
+    refreshPanel()
+}
+
+pluginPromptInit()
+
+on pluginPromptEditor.textChanged(newText) {
+    if (!pluginWriteLock) {
+        pluginPrompt = newText
+        savePromptConfig()
+    }
+}
+
+on pluginNegativePromptEdit.textChanged(newText) {
+    if (!pluginWriteLock) {
+        pluginNegativePrompt = newText
+        savePromptConfig()
+    }
+}
+
+on pluginStyleImagePathEdit.textChanged(newText) {
+    if (!pluginWriteLock) {
+        pluginStyleImagePath = newText
+        savePromptConfig()
+    }
+}
+
+on pluginExtraImagePathEdit.textChanged(newText) {
+    if (!pluginWriteLock) {
+        pluginExtraImagePath = newText
+        savePromptConfig()
+    }
+}
+
+on pluginBtnPickStyleImage.clicked() {
+    ui.openFileDialog("onPluginStyleImageSelected", "*.png,*.jpg,*.jpeg,*.webp")
+}
+
+on pluginBtnPickExtraImage.clicked() {
+    ui.openFileDialog("onPluginExtraImageSelected", "*.png,*.jpg,*.jpeg,*.webp")
+}
+
+fun onPluginStyleImageSelected(path) {
+    if (path != "") {
+        pluginStyleImagePath = os.toResPath(path)
+        savePromptConfig()
+        refreshPanel()
+    }
+}
+
+fun onPluginExtraImageSelected(path) {
+    if (path != "") {
+        pluginExtraImagePath = os.toResPath(path)
+        savePromptConfig()
+        refreshPanel()
+    }
+}
+
+on pluginBtnAssemblyCall.clicked() {
+    resolveProjectPath()
+    var result = os.callStatic("res:/plugins/prompt/PromptPlugin.dll", "PromptPlugin.EntryPoints", "OnPromptChanged", pluginProjectPath, pluginPrompt)
+    if (result != null) {
+        log.info("Plugin assembly returned: " + result)
+    }
+}
+
+on menuExportCurrentFrame.clicked() {
+    loadPromptConfig()
+    if (!ai.isConfigured()) {
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "AI not configured. Set GROK_API_KEY."
+        }
+        return
+    }
+
+    var capturedPath = "exports/frame_capture.png"
+    var styledPath = "exports/frame_styled_<version>.png"
+
+    if (pluginStatusLabelRef != null) {
+        pluginStatusLabelRef.text = "Capturing current frame..."
+    }
+
+    if (pluginEditorRef == null) {
+        return
+    }
+    var ok = pluginEditorRef.exportCurrentFramePng(capturedPath)
+    if (!ok) {
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "Capture failed."
+        }
+        return
+    }
+
+    if (pluginStatusLabelRef != null) {
+        pluginStatusLabelRef.text = "Captured. Sending to Grok..."
+    }
+    var resultPath = ai.stylizeImage(capturedPath, styledPath, pluginPrompt, pluginStyleImagePath, pluginExtraImagePath, pluginNegativePrompt, pluginImageModel)
+
+    if (pluginStatusLabelRef != null) {
+        if (resultPath != "") {
+            pluginStatusLabelRef.text = "Stylized frame: " + resultPath
+        } else {
+            pluginStatusLabelRef.text = "Stylize failed."
+        }
+    }
+}
+
+on menuExportStylizedClip.clicked() {
+    loadPromptConfig()
+    if (pluginClipExportPending) {
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "Stylized clip export already running."
+        }
+        return
+    }
+
+    if (!ai.isConfigured()) {
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "AI not configured. Set GROK_API_KEY."
+        }
+        return
+    }
+    if (pluginEditorRef == null || pluginTimelineRef == null) {
+        return
+    }
+
+    var frameFrom = 0
+    var frameTo = pluginTimelineRef.totalFrames
+
+    var maxFrameTo = frameFrom + 239
+    if (frameTo > maxFrameTo) {
+        frameTo = maxFrameTo
+    }
+
+    var framesDir = "exports/frames_" + frameFrom + "_" + frameTo
+    pluginClipFrameFrom = frameFrom
+    pluginClipFrameTo = frameTo
+    pluginClipExpectedFrames = (frameTo - frameFrom) + 1
+    pluginClipFps = 24
+    pluginClipSourceVideoPath = "exports/source_clip.mp4"
+    pluginClipStyledVideoPath = "exports/styled_clip_<version>.mp4"
+
+    if (pluginStatusLabelRef != null) {
+        pluginStatusLabelRef.text = "Rendering frames " + frameFrom + "..." + frameTo
+    }
+    var started = pluginEditorRef.startExportFrameRangePng(frameFrom, frameTo, framesDir)
+    if (!started) {
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "Frame sequence render start failed."
+        }
+        return
+    }
+    pluginClipExportPending = true
+}
+
+on editor.frameRangeExportFinished(written, outputDirectory) {
+    if (!pluginClipExportPending) {
+        return
+    }
+    pluginClipExportPending = false
+
+    if (written <= 1) {
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "Frame sequence render failed."
+        }
+        pluginClipExpectedFrames = 0
+        return
+    }
+
+    if (pluginStatusLabelRef != null) {
+        pluginStatusLabelRef.text = "Encoding source clip..."
+    }
+    var encodedPath = ai.createVideoFromFrames(outputDirectory, pluginClipFps, pluginClipSourceVideoPath, "frame_%04d.png")
+    if (encodedPath == "") {
+        if (pluginStatusLabelRef != null) {
+            pluginStatusLabelRef.text = "Video encoding failed (ffmpeg missing?)."
+        }
+        pluginClipExpectedFrames = 0
+        return
+    }
+
+    if (pluginStatusLabelRef != null) {
+        pluginStatusLabelRef.text = "Sending clip to Grok..."
+    }
+    var styledPath = ai.stylizeVideo(encodedPath, pluginClipStyledVideoPath, pluginPrompt, pluginNegativePrompt, pluginVideoModel)
+    if (pluginStatusLabelRef != null) {
+        if (styledPath != "") {
+            pluginStatusLabelRef.text = "Stylized clip: " + styledPath
+        } else {
+            pluginStatusLabelRef.text = "Stylized clip failed."
+        }
+    }
+    pluginClipExpectedFrames = 0
+}
+
+on editor.exportProgress(filename, percent) {
+    if (pluginStatusLabelRef == null) {
+        return
+    }
+
+    if (pluginClipExportPending && pluginClipExpectedFrames > 0) {
+        var current = percent * pluginClipExpectedFrames / 100
+        if (percent > 0 && current < 1) {
+            current = 1
+        }
+        if (current > pluginClipExpectedFrames) {
+            current = pluginClipExpectedFrames
+        }
+        var sourceFrame = pluginClipFrameFrom + current - 1
+        if (sourceFrame < pluginClipFrameFrom) {
+            sourceFrame = pluginClipFrameFrom
+        }
+        pluginStatusLabelRef.text = "Rendering frame " + sourceFrame + "/" + pluginClipFrameTo + " (" + percent + "%)"
+    } else {
+        if (percent == 100) {
+            pluginStatusLabelRef.text = "Exported: " + filename
+        } else {
+            pluginStatusLabelRef.text = "Export " + filename + " (" + percent + "%)"
+        }
+    }
+}

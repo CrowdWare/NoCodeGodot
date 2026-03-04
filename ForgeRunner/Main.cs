@@ -92,6 +92,7 @@ public partial class Main : Node
 	/// <summary>Viewport of the active app window (root viewport during splash, main-window viewport after swap).</summary>
 	private Viewport ActiveAppViewport => _mainAppWindow is not null ? (Viewport)_mainAppWindow : GetViewport();
 	private Runtime.Manifest.ManifestDocument? _startupManifest;
+	private readonly HashSet<string> _loadedRuntimePluginIds = new(StringComparer.OrdinalIgnoreCase);
 
 	public override void _EnterTree()
 	{
@@ -461,7 +462,9 @@ public partial class Main : Node
 		await EnsureRuntimeUiReadyStateAsync();
 		RunnerLogger.Info("UI", $"UI loaded from '{url}'.");
 		await InvokeUiReadyHandlersAsync();
+		await LoadRuntimePluginsAsync(url);
 		_smsUiRuntime?.InvokeReady();
+		ApplyDefaultHiddenPanels();
 
 		// Reveal the main window only after it is fully ready, then banish the splash
 		// (root) window. Godot forbids Visible=false on the root OS window, so we shrink
@@ -643,12 +646,370 @@ public partial class Main : Node
 			await EnsureRuntimeUiReadyStateAsync();
 			Runtime.Logging.RunnerLogger.Info("UI", $"UI loaded from '{uiUrl}'.");
 			await InvokeUiReadyHandlersAsync();
+			await LoadRuntimePluginsAsync(uiUrl);
 			_smsUiRuntime?.InvokeReady();
+			ApplyDefaultHiddenPanels();
 		}
 		catch (Exception ex)
 		{
 			Runtime.Logging.RunnerLogger.Error("UI", $"Failed to load UI from '{uiUrl}'", ex);
 		}
+	}
+
+	private sealed class RuntimePluginDescriptor
+	{
+		public string Id { get; init; } = string.Empty;
+		public bool Enabled { get; init; } = true;
+		public string Title { get; init; } = string.Empty;
+		public string Dock { get; init; } = "dockRightBottom";
+		public string PanelSmlPath { get; init; } = string.Empty;
+		public string SmsPath { get; init; } = string.Empty;
+		public string AssemblyPath { get; init; } = string.Empty;
+	}
+
+	private async Task LoadRuntimePluginsAsync(string uiUrl)
+	{
+		if (_runtimeUiRoot is null)
+		{
+			return;
+		}
+
+		_loadedRuntimePluginIds.Clear();
+		var descriptors = DiscoverRuntimePlugins(uiUrl);
+		foreach (var descriptor in descriptors)
+		{
+			if (!descriptor.Enabled || string.IsNullOrWhiteSpace(descriptor.Id))
+			{
+				continue;
+			}
+
+			if (!_loadedRuntimePluginIds.Add(descriptor.Id))
+			{
+				RunnerLogger.Warn("Plugin", $"Skipping duplicate plugin id '{descriptor.Id}'.");
+				continue;
+			}
+
+			if (!string.IsNullOrWhiteSpace(descriptor.PanelSmlPath))
+			{
+				Control? panel;
+				try
+				{
+					panel = BuildPluginPanelControl(descriptor.PanelSmlPath);
+				}
+				catch (Exception ex)
+				{
+					RunnerLogger.Warn("Plugin", $"Failed to build plugin panel for '{descriptor.Id}'.", ex);
+					panel = null;
+				}
+
+				if (panel is not null && !TryAttachPluginPanel(descriptor, panel))
+				{
+					RunnerLogger.Warn("Plugin", $"Failed to attach plugin panel for '{descriptor.Id}'.");
+				}
+			}
+
+			if (_smsUiRuntime is not null && !string.IsNullOrWhiteSpace(descriptor.SmsPath))
+			{
+				try
+				{
+					await _smsUiRuntime.LoadAdditionalScriptFromUriAsync(new Uri(descriptor.SmsPath).AbsoluteUri);
+				}
+				catch (Exception ex)
+				{
+					RunnerLogger.Warn("Plugin", $"Failed to load plugin SMS for '{descriptor.Id}'.", ex);
+				}
+			}
+
+			if (!string.IsNullOrWhiteSpace(descriptor.AssemblyPath))
+			{
+				try
+				{
+					if (File.Exists(descriptor.AssemblyPath))
+					{
+						Assembly.LoadFrom(descriptor.AssemblyPath);
+						RunnerLogger.Info("Plugin", $"Loaded plugin assembly for '{descriptor.Id}': {descriptor.AssemblyPath}");
+					}
+					else
+					{
+						RunnerLogger.Warn("Plugin", $"Assembly for plugin '{descriptor.Id}' not found: {descriptor.AssemblyPath}");
+					}
+				}
+				catch (Exception ex)
+				{
+					RunnerLogger.Warn("Plugin", $"Failed loading assembly for plugin '{descriptor.Id}'.", ex);
+				}
+			}
+		}
+	}
+
+	private List<RuntimePluginDescriptor> DiscoverRuntimePlugins(string uiUrl)
+	{
+		var result = new List<RuntimePluginDescriptor>();
+		var uiDirectory = ResolveUiDirectory(uiUrl);
+		if (string.IsNullOrWhiteSpace(uiDirectory))
+		{
+			return result;
+		}
+
+		var pluginsRoot = Path.Combine(uiDirectory, "plugins");
+		if (!Directory.Exists(pluginsRoot))
+		{
+			return result;
+		}
+
+		foreach (var pluginDescriptorPath in Directory.EnumerateFiles(pluginsRoot, "plugin.sml", SearchOption.AllDirectories))
+		{
+			try
+			{
+				var descriptor = ParseRuntimePluginDescriptor(pluginDescriptorPath);
+				if (descriptor is not null)
+				{
+					result.Add(descriptor);
+				}
+			}
+			catch (Exception ex)
+			{
+				RunnerLogger.Warn("Plugin", $"Failed to parse plugin descriptor '{pluginDescriptorPath}'.", ex);
+			}
+		}
+
+		return result;
+	}
+
+	private static string ResolveUiDirectory(string uiUrl)
+	{
+		if (string.IsNullOrWhiteSpace(uiUrl))
+		{
+			return string.Empty;
+		}
+
+		if (Uri.TryCreate(uiUrl, UriKind.Absolute, out var uri) && uri.IsFile)
+		{
+			return Path.GetDirectoryName(uri.LocalPath) ?? string.Empty;
+		}
+
+		try
+		{
+			if (File.Exists(uiUrl))
+			{
+				return Path.GetDirectoryName(Path.GetFullPath(uiUrl)) ?? string.Empty;
+			}
+		}
+		catch
+		{
+			// Ignore and fall back to empty.
+		}
+
+		return string.Empty;
+	}
+
+	private static RuntimePluginDescriptor? ParseRuntimePluginDescriptor(string descriptorPath)
+	{
+		var text = File.ReadAllText(descriptorPath, Encoding.UTF8);
+		var doc = new SmlParser(text).ParseDocument();
+		SmlNode? pluginNode = null;
+		foreach (var node in doc.Roots)
+		{
+			if (string.Equals(node.Name, "Plugin", StringComparison.OrdinalIgnoreCase))
+			{
+				pluginNode = node;
+				break;
+			}
+		}
+
+		if (pluginNode is null)
+		{
+			RunnerLogger.Warn("Plugin", $"Descriptor '{descriptorPath}' has no Plugin root.");
+			return null;
+		}
+
+		var pluginDir = Path.GetDirectoryName(descriptorPath) ?? string.Empty;
+		var id = GetSmlString(pluginNode, "id", string.Empty);
+		if (string.IsNullOrWhiteSpace(id))
+		{
+			RunnerLogger.Warn("Plugin", $"Descriptor '{descriptorPath}' missing required 'id'.");
+			return null;
+		}
+
+		var panelSmlRelative = GetSmlString(pluginNode, "panelSml", string.Empty);
+		var smsRelative = GetSmlString(pluginNode, "sms", string.Empty);
+		var assemblyRelative = GetSmlString(pluginNode, "assemblyPath", string.Empty);
+		var title = GetSmlString(pluginNode, "title", id);
+		var dock = GetSmlString(pluginNode, "dock", "dockRightBottom");
+		var enabled = GetSmlBool(pluginNode, "enabled", true);
+
+		return new RuntimePluginDescriptor
+		{
+			Id = id,
+			Enabled = enabled,
+			Title = title,
+			Dock = dock,
+			PanelSmlPath = string.IsNullOrWhiteSpace(panelSmlRelative)
+				? string.Empty
+				: Path.GetFullPath(Path.Combine(pluginDir, panelSmlRelative)),
+			SmsPath = string.IsNullOrWhiteSpace(smsRelative)
+				? string.Empty
+				: Path.GetFullPath(Path.Combine(pluginDir, smsRelative)),
+			AssemblyPath = string.IsNullOrWhiteSpace(assemblyRelative)
+				? string.Empty
+				: Path.GetFullPath(Path.Combine(pluginDir, assemblyRelative))
+		};
+	}
+
+	private Control BuildPluginPanelControl(string panelSmlPath)
+	{
+		var content = File.ReadAllText(panelSmlPath, Encoding.UTF8);
+		var schema = SmlSchemaFactory.CreateDefault();
+		var parser = new SmlParser(content, schema);
+		var document = parser.ParseDocument();
+		foreach (var warning in document.Warnings)
+		{
+			RunnerLogger.ParserWarning(warning);
+		}
+
+		var panelSmlUri = new Uri(panelSmlPath).AbsoluteUri;
+		Func<string, string> resolveAssetPath = source =>
+		{
+			try
+			{
+				return _uriResolver.ResolveForResourceLoadAsync(source, panelSmlUri).GetAwaiter().GetResult();
+			}
+			catch
+			{
+				return source;
+			}
+		};
+
+		var builder = new SmlUiBuilder(
+			_nodeFactoryRegistry,
+			_nodePropertyMapper,
+			animationApi: new Runtime.ThreeD.AnimationControlApi(),
+			localization: LocalizationStore.Empty,
+			resolveAssetPath: resolveAssetPath);
+
+		BridgePluginActionsToMainDispatcher(builder.Actions);
+		var built = builder.Build(document);
+		return built;
+	}
+
+	private void BridgePluginActionsToMainDispatcher(UiActionDispatcher pluginDispatcher)
+	{
+		if (_uiDispatcher is null)
+		{
+			return;
+		}
+
+		void Forward(UiActionContext ctx) => _uiDispatcher.Dispatch(ctx);
+		pluginDispatcher.RegisterActionHandler("buttonClicked", Forward);
+		pluginDispatcher.RegisterActionHandler("lineEditTextChanged", Forward);
+		pluginDispatcher.RegisterActionHandler("lineEditTextSubmitted", Forward);
+		pluginDispatcher.RegisterActionHandler("treeItemSelected", Forward);
+		pluginDispatcher.RegisterActionHandler("treeItemToggled", Forward);
+		pluginDispatcher.RegisterActionHandler("menuItemSelected", Forward);
+		pluginDispatcher.RegisterActionHandler("listItemSelected", Forward);
+		pluginDispatcher.RegisterActionHandler("save", Forward);
+	}
+
+	private bool TryAttachPluginPanel(RuntimePluginDescriptor descriptor, Control panel)
+	{
+		if (_runtimeUiRoot is null)
+		{
+			return false;
+		}
+
+		var dockSide = MapPluginDockSide(descriptor.Dock);
+		var target = CollectDockingContainers(_runtimeUiRoot)
+			.FirstOrDefault(c => c.GetDockSideKind() == dockSide);
+		if (target is null)
+		{
+			target = CollectDockingContainers(_runtimeUiRoot)
+				.FirstOrDefault(c => c.GetDockSideKind() == DockingContainerControl.DockSideKind.RightBottom);
+		}
+
+		if (target is null)
+		{
+			RunnerLogger.Warn("Plugin", $"No target docking container found for plugin '{descriptor.Id}'.");
+			return false;
+		}
+
+		if (!panel.HasMeta(NodePropertyMapper.MetaId))
+		{
+			panel.SetMeta(NodePropertyMapper.MetaId, Variant.From($"{descriptor.Id}Panel"));
+		}
+		panel.Name = string.IsNullOrWhiteSpace(panel.Name) ? $"{descriptor.Id}Panel" : panel.Name;
+		target.AddDockTab(panel, descriptor.Title);
+		target.Visible = true;
+		RunnerLogger.Info("Plugin", $"Loaded plugin panel '{descriptor.Id}' into '{dockSide}'.");
+		return true;
+	}
+
+	private static DockingContainerControl.DockSideKind MapPluginDockSide(string dock)
+	{
+		return dock.Trim().ToLowerInvariant() switch
+		{
+			"farleft" => DockingContainerControl.DockSideKind.FarLeft,
+			"farleftbottom" => DockingContainerControl.DockSideKind.FarLeftBottom,
+			"dockleft" => DockingContainerControl.DockSideKind.Left,
+			"dockleftbottom" => DockingContainerControl.DockSideKind.LeftBottom,
+			"dockfarleft" => DockingContainerControl.DockSideKind.FarLeft,
+			"dockfarleftbottom" => DockingContainerControl.DockSideKind.FarLeftBottom,
+			"dockright" => DockingContainerControl.DockSideKind.Right,
+			"dockrightbottom" => DockingContainerControl.DockSideKind.RightBottom,
+			"farright" => DockingContainerControl.DockSideKind.FarRight,
+			"farrightbottom" => DockingContainerControl.DockSideKind.FarRightBottom,
+			"dockfarright" => DockingContainerControl.DockSideKind.FarRight,
+			"dockfarrightbottom" => DockingContainerControl.DockSideKind.FarRightBottom,
+			"center" => DockingContainerControl.DockSideKind.Center,
+			_ => DockingContainerControl.DockSideKind.RightBottom
+		};
+	}
+
+	private void ApplyDefaultHiddenPanels()
+	{
+		if (_runtimeUiRoot is null)
+		{
+			return;
+		}
+
+		var stack = new Stack<Node>();
+		stack.Push(_runtimeUiRoot);
+		while (stack.Count > 0)
+		{
+			var current = stack.Pop();
+			if (current is DockingHostControl host)
+			{
+				host.HidePanelById("sourcePanel");
+			}
+
+			for (var i = current.GetChildCount() - 1; i >= 0; i--)
+			{
+				stack.Push(current.GetChild(i));
+			}
+		}
+	}
+
+	private static string GetSmlString(SmlNode node, string key, string fallback)
+	{
+		if (!node.TryGetProperty(key, out var value))
+		{
+			return fallback;
+		}
+
+		return value.Kind is SmlValueKind.String or SmlValueKind.Identifier
+			? (string)value.Value
+			: fallback;
+	}
+
+	private static bool GetSmlBool(SmlNode node, string key, bool fallback)
+	{
+		if (!node.TryGetProperty(key, out var value))
+		{
+			return fallback;
+		}
+
+		return value.Kind == SmlValueKind.Bool
+			? (bool)value.Value
+			: fallback;
 	}
 
 	private async Task InvokeUiReadyHandlersAsync()

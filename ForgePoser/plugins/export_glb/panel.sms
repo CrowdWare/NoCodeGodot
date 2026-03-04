@@ -1,0 +1,67 @@
+var exportGlbEditorRef = null
+var exportGlbAssemblyPath = "res:/plugins/export_glb/ExportGlbPlugin.dll"
+
+fun ensureGlbExportMenuItem() {
+    var menuExport = ui.getObject("menuExport")
+    if (menuExport == null) {
+        return
+    }
+
+    if (ui.getObject("menuExportGlb") == null) {
+        menuExport.AddMenuItem("menuExportGlb", 0)
+        var item = ui.getObject("menuExportGlb")
+        if (item != null) {
+            item.SetText("Export GLB…")
+        }
+    }
+}
+
+fun exportGlbInit() {
+    exportGlbEditorRef = ui.getObject("editor")
+    ensureGlbExportMenuItem()
+}
+
+exportGlbInit()
+
+on menuExportGlb.clicked() {
+    if (exportGlbEditorRef == null) {
+        return
+    }
+    ui.openSaveFileDialog("onExportGlbSavePathSelected", "*.glb")
+}
+
+fun onExportGlbSavePathSelected(path) {
+    if (exportGlbEditorRef == null || path == "") {
+        return
+    }
+
+    var projectPath = ui.getLastProjectPath()
+
+    var resolvedPath = os.callStatic(exportGlbAssemblyPath, "ExportGlbPlugin.EntryPoints", "ResolveOutputPath", path)
+    if (resolvedPath == null || resolvedPath == "") {
+        resolvedPath = path
+    }
+
+    var includeAnimation = os.callStatic(exportGlbAssemblyPath, "ExportGlbPlugin.EntryPoints", "GetIncludeAnimation", projectPath)
+    if (includeAnimation == null) {
+        includeAnimation = true
+    }
+
+    var includeProps = os.callStatic(exportGlbAssemblyPath, "ExportGlbPlugin.EntryPoints", "GetIncludeProps", projectPath)
+    if (includeProps == null) {
+        includeProps = true
+    }
+
+    var animationOnly = os.callStatic(exportGlbAssemblyPath, "ExportGlbPlugin.EntryPoints", "GetAnimationOnlyCharacter", projectPath)
+    if (animationOnly == null) {
+        animationOnly = false
+    }
+
+    var ok = exportGlbEditorRef.exportGlb(resolvedPath, includeAnimation, includeProps, animationOnly)
+    if (!ok) {
+        var status = ui.getObject("statusLabel")
+        if (status != null) {
+            status.text = "GLB export failed to start."
+        }
+    }
+}

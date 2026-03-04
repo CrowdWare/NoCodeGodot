@@ -69,6 +69,7 @@ Inherited actions are documented in: [SubViewportContainer](SubViewportContainer
 | getPoseDataForActiveCharacter | `<id>.getPoseDataForActiveCharacter()` | — | object |
 | setMode | `<id>.setMode(mode)` | string mode | void |
 | setEditMode | `<id>.setEditMode(mode)` | string mode | void |
+| exportGlb | `<id>.exportGlb(path, includeAnimation, includeProps, animationOnlyCharacter)` | string path, bool includeAnimation, bool includeProps, bool animationOnlyCharacter | bool |
 | exportCurrentFramePng | `<id>.exportCurrentFramePng(path)` | string path | bool |
 | exportFrameRangePng | `<id>.exportFrameRangePng(frameFrom, frameTo, outputDirectory)` | int frameFrom, int frameTo, string outputDirectory | int |
 | startExportFrameRangePng | `<id>.startExportFrameRangePng(frameFrom, frameTo, outputDirectory)` | int frameFrom, int frameTo, string outputDirectory | bool |
