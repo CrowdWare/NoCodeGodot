@@ -737,6 +737,46 @@ func get_spec() -> Dictionary:
             ]
         },
         "actionsByType": {
+            "Tree": [
+                {
+                    "sms": "CreateRoot",
+                    "params": [
+                        { "name": "text", "type": "string" },
+                        { "name": "path", "type": "string" }
+                    ],
+                    "returns": "int"
+                },
+                {
+                    "sms": "CreateChild",
+                    "params": [
+                        { "name": "parentHandle", "type": "int" },
+                        { "name": "text", "type": "string" },
+                        { "name": "path", "type": "string" },
+                        { "name": "isDirectory", "type": "bool" }
+                    ],
+                    "returns": "int"
+                },
+                {
+                    "sms": "AddButton",
+                    "params": [
+                        { "name": "itemHandle", "type": "int" },
+                        { "name": "iconPath", "type": "string" },
+                        { "name": "buttonId", "type": "int" },
+                        { "name": "tooltip", "type": "string" }
+                    ],
+                    "returns": "bool"
+                },
+                {
+                    "sms": "GetSelectedPath",
+                    "params": [],
+                    "returns": "string"
+                },
+                {
+                    "sms": "BindEvents",
+                    "params": [],
+                    "returns": "void"
+                }
+            ],
             "Window": [
                 {
                     "sms": "onClose",

@@ -48,10 +48,11 @@ Window {
 
                     Label { text: "Scene Assets"  fontSize: 11  fontWeight: bold }
 
-                    ItemList {
-                        id: sceneAssetList
+                    Tree {
+                        id: sceneAssetTree
                         sizeFlagsHorizontal: expandFill
                         sizeFlagsVertical: expandFill
+                        hideRoot: true
                     }
 
                     HBoxContainer {

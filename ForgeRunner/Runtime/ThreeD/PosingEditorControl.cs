@@ -1522,7 +1522,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         for (var ci = 0; ci < _sceneCharacters.Count; ci++)
         {
             var node = _sceneCharacters[ci].Node;
-            if (!node.IsInsideTree()) continue;
+            if (!node.IsInsideTree() || !node.Visible) continue;
             var aabb = GetNodeWorldAabb(node);
             if (aabb.Size != Vector3.Zero && RayAabbIntersect(rayOrigin, rayDir, aabb, out var t))
             {
@@ -1538,7 +1538,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         for (var i = 0; i < _sceneProps.Count; i++)
         {
             var (node, _) = _sceneProps[i];
-            if (!node.IsInsideTree()) continue;
+            if (!node.IsInsideTree() || !node.Visible) continue;
 
             var aabb = GetNodeWorldAabb(node);
             if (aabb.Size == Vector3.Zero) continue;
@@ -2269,6 +2269,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     public string GetSceneCharacterId(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Id : string.Empty;
     public string GetSceneCharacterPath(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Path : string.Empty;
     public string GetSceneCharacterName(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Name : string.Empty;
+    public bool GetSceneCharacterVisible(int i) => i >= 0 && i < _sceneCharacters.Count && _sceneCharacters[i].Node.Visible;
     public Vector3 GetSceneCharacterPos(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Node.GlobalPosition : Vector3.Zero;
     public Vector3 GetSceneCharacterRot(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Node.RotationDegrees : Vector3.Zero;
     public Vector3 GetSceneCharacterScale(int i) => i >= 0 && i < _sceneCharacters.Count ? _sceneCharacters[i].Node.Scale : Vector3.One;
@@ -2285,6 +2286,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     public int    GetScenePropCount()       => _sceneProps.Count;
     public string GetScenePropPath(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Data.Path : string.Empty;
     public string GetScenePropName(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Data.Name : string.Empty;
+    public bool GetScenePropVisible(int i)  => i >= 0 && i < _sceneProps.Count && _sceneProps[i].Node.Visible;
     public Vector3 GetScenePropPos(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Node.GlobalPosition : Vector3.Zero;
     public Vector3 GetScenePropRot(int i)   => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Node.RotationDegrees : Vector3.Zero;
     public Vector3 GetScenePropScale(int i) => i >= 0 && i < _sceneProps.Count ? _sceneProps[i].Node.Scale : Vector3.One;
@@ -2332,6 +2334,21 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         _sceneCharacters[index].Node.Scale = new Vector3(x, y, z);
     }
 
+    public void SetSceneCharacterVisible(int index, bool visible)
+    {
+        if (index < 0 || index >= _sceneCharacters.Count) return;
+        _sceneCharacters[index].Node.Visible = visible;
+        if (!visible && _characterSelected && _selectedCharacterIdx == index)
+        {
+            _characterSelected = false;
+            _selectedCharacterIdx = -1;
+            _moveGizmo.Detach();
+            _scaleGizmo.Detach();
+            _gizmo.Detach();
+            ObjectSelected?.Invoke(-1);
+        }
+    }
+
     public void SetScenePropPos(int index, float x, float y, float z)
     {
         if (index < 0 || index >= _sceneProps.Count) return;
@@ -2357,6 +2374,17 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         var data = old with { ScaleX = x, ScaleY = y, ScaleZ = z };
         _sceneProps[index] = (node, data);
         ApplyPropTransform(node, data);
+    }
+
+    public void SetScenePropVisible(int index, bool visible)
+    {
+        if (index < 0 || index >= _sceneProps.Count) return;
+        var (node, _) = _sceneProps[index];
+        node.Visible = visible;
+        if (!visible && !_characterSelected && _selectedPropIdx == index)
+        {
+            SelectProp(-1);
+        }
     }
 
     public bool PlaceSelectedOnGround(float groundY = 0f)

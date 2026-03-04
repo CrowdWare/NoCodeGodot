@@ -169,7 +169,7 @@ public sealed class SmsUiRuntime
                 return;
             }
 
-            TryInvokeEvent(treeId, "treeItemToggled", ctx.BoolValue == true);
+            TryInvokeEvent(treeId, "treeItemToggled", (double)ctx.ClickedIdValue.Value, ctx.BoolValue == true);
         });
 
         dispatcher.RegisterActionHandler("menuItemSelected", ctx =>
@@ -1381,6 +1381,29 @@ public sealed class SmsUiRuntime
         return Path.GetFullPath(Path.Combine(root, relative));
     }
 
+    private Texture2D? LoadTreeButtonTexture(string inputPath)
+    {
+        if (string.IsNullOrWhiteSpace(inputPath))
+            return null;
+
+        var resolvedPath = ResolveAiPath(inputPath);
+        if (!File.Exists(resolvedPath))
+        {
+            RunnerLogger.Warn("SMS", $"Tree button icon not found: '{resolvedPath}'.");
+            return null;
+        }
+
+        var image = new Image();
+        var err = image.Load(resolvedPath);
+        if (err != Error.Ok)
+        {
+            RunnerLogger.Warn("SMS", $"Failed to load tree button icon '{resolvedPath}' ({err}).");
+            return null;
+        }
+
+        return ImageTexture.CreateFromImage(image);
+    }
+
     private static void ShowMessageDialog(string title, string message)
     {
         if (Engine.GetMainLoop() is not SceneTree tree || tree.Root is null) return;
@@ -1661,6 +1684,8 @@ public sealed class SmsUiRuntime
             fields["getSceneCharacterScaleX"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetSceneCharacterScaleX(ValueArgInt(methodArgs, 0))));
             fields["getSceneCharacterScaleY"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetSceneCharacterScaleY(ValueArgInt(methodArgs, 0))));
             fields["getSceneCharacterScaleZ"] = new NativeFunctionValue(methodArgs => new NumberValue(posingEditorExt.GetSceneCharacterScaleZ(ValueArgInt(methodArgs, 0))));
+            fields["getSceneCharacterVisible"] = new NativeFunctionValue(methodArgs => new BooleanValue(posingEditorExt.GetSceneCharacterVisible(ValueArgInt(methodArgs, 0))));
+            fields["getScenePropVisible"] = new NativeFunctionValue(methodArgs => new BooleanValue(posingEditorExt.GetScenePropVisible(ValueArgInt(methodArgs, 0))));
 
             // setScenePropRot(idx, x, y, z) — Euler degrees
             fields["setScenePropRot"] = new NativeFunctionValue(methodArgs =>
@@ -1703,6 +1728,20 @@ public sealed class SmsUiRuntime
                 var y = ValueArgFloat(methodArgs, 2);
                 var z = ValueArgFloat(methodArgs, 3);
                 posingEditorExt.SetSceneCharacterScale(idx, x, y, z);
+                return NullValue.Instance;
+            });
+            fields["setSceneCharacterVisible"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var visible = ValueArgBool(methodArgs, 1);
+                posingEditorExt.SetSceneCharacterVisible(idx, visible);
+                return NullValue.Instance;
+            });
+            fields["setScenePropVisible"] = new NativeFunctionValue(methodArgs =>
+            {
+                var idx = ValueArgInt(methodArgs, 0);
+                var visible = ValueArgBool(methodArgs, 1);
+                posingEditorExt.SetScenePropVisible(idx, visible);
                 return NullValue.Instance;
             });
 
@@ -1908,6 +1947,22 @@ public sealed class SmsUiRuntime
                 item.SetMetadata(0, path);
                 item.Collapsed = true;
                 return new NumberValue(RegisterTreeHandle(item));
+            });
+            fields["AddButton"] = new NativeFunctionValue(methodArgs =>
+            {
+                var itemHandle = ValueArgInt(methodArgs, 0);
+                if (!_treeHandles.TryGetValue(itemHandle, out var item))
+                    return new BooleanValue(false);
+
+                var iconPath = ValueArgString(methodArgs, 1);
+                var buttonId = ValueArgInt(methodArgs, 2);
+                var tooltip = methodArgs.Count > 3 ? ValueArgString(methodArgs, 3) : string.Empty;
+                var texture = LoadTreeButtonTexture(iconPath);
+                if (texture is null)
+                    return new BooleanValue(false);
+
+                item.AddButton(0, texture, buttonId, false, tooltip);
+                return new BooleanValue(true);
             });
             fields["BindEvents"] = new NativeFunctionValue(_ =>
             {

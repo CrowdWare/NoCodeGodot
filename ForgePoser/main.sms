@@ -2,7 +2,7 @@
 
 var currentProjectPath = ""
 var kfTreeRef = null
-var sceneListRef = null
+var sceneTreeRef = null
 var editor = null
 var timeline = null
 var statusLabel = null
@@ -25,6 +25,15 @@ var chooserStatus = null
 var chooserThemeLabel = null
 var jointSpheresVisible = false
 var selectedSceneAssetIndex = -1
+var scenePathByIndex = []
+var sceneEyeButtonIdByIndex = []
+var sceneLockButtonIdByIndex = []
+var sceneVisibleByIndex = []
+var sceneLockedByIndex = []
+var sceneEyeOpenIcon = "res:/ForgePoser/assets/images/eye_open.png"
+var sceneEyeClosedIcon = "res:/ForgePoser/assets/images/eye_closed.png"
+var sceneLockOpenIcon = "res:/ForgePoser/assets/images/eye_open.png"
+var sceneLockClosedIcon = "res:/ForgePoser/assets/images/eye_closed.png"
 var currentMode = "arrange"
 var currentEditMode = "move"
 var aiPrompt = "Keep exact pose and composition, camera framing, body proportions, and left-right orientation. Render photorealistic humans with realistic skin pores, hair strands, and clearly defined abdominal muscles. Match clothing design, colors, and materials from the extra image while preserving visible anatomy where appropriate. Apply only scene style, lighting, mood, and color palette from the style image. Never add UI overlays, gizmos, handles, axes, bone markers, or text."
@@ -150,7 +159,7 @@ fun applyInitialPoseAfterLoad() {
 
 fun ready() {
     kfTreeRef    = ui.getObject("keyframeTree")
-    sceneListRef = ui.getObject("sceneAssetList")
+    sceneTreeRef = ui.getObject("sceneAssetTree")
     editor       = ui.getObject("editor")
     timeline     = ui.getObject("timeline")
     statusLabel  = ui.getObject("statusLabel")
@@ -173,6 +182,7 @@ fun ready() {
     initThemePresets()
     applyThemePreset(0)
     configureInspectorNumericFields()
+    sceneTreeRef.BindEvents()
     editor.setBoneTree("boneTree")
     editor.setJointSpheresVisible(false)
     activateArrangeMove()
@@ -362,7 +372,7 @@ fun onProjectFileSelected(path) {
 fun onProjectCreatePathSelected(path) {
     editor.resetPose()
     selectedSceneAssetIndex = -1
-    sceneListRef.Clear()
+    sceneTreeRef.Clear()
     kfTreeRef.Clear()
     pushAiSceneProperties()
     editor.saveProject(path)
@@ -549,31 +559,39 @@ fun onModelFileSelected(path) {
 
 // ── Scene panel ───────────────────────────────────────────────────────────────
 
-fun updateScenePanel() {
-    sceneListRef.Clear()
-    var charCount = editor.getSceneCharacterCount()
+fun findSceneIndexByPath(path) {
     var i = 0
-    while (i < charCount) {
-        var n = editor.getSceneCharacterName(i)
-        sceneListRef.AddItem("★ Character " + i + ": " + n)
+    while (i < scenePathByIndex.size) {
+        if (scenePathByIndex[i] == path) {
+            return i
+        }
         i = i + 1
     }
-    var propCount = editor.getScenePropCount()
-    i = 0
-    while (i < propCount) {
-        var p = editor.getScenePropPath(i)
-        sceneListRef.AddItem("Prop " + i + ": " + p)
-        i = i + 1
-    }
-    selectedSceneAssetIndex = -1
-    updateInspectorFromSelection()
+    return -1
 }
 
-on sceneAssetList.itemSelected(index) {
+fun applySceneVisibility(index, visible) {
+    var charCount = editor.getSceneCharacterCount()
+    if (index < charCount) {
+        editor.setSceneCharacterVisible(index, visible)
+    } else {
+        var propIdx = index - charCount
+        editor.setScenePropVisible(propIdx, visible)
+    }
+}
+
+fun selectSceneAssetByIndex(index) {
+    if (index < 0) {
+        return
+    }
+    if (index < sceneLockedByIndex.size && sceneLockedByIndex[index]) {
+        statusLabel.text = "Asset is locked."
+        return
+    }
+
     var charCount = editor.getSceneCharacterCount()
     selectedSceneAssetIndex = index
     if (index < charCount) {
-        // Character row — active in both Arrange and Pose modes
         editor.setJointSpheresVisible(false)
         editor.setBoneTree("boneTree")
         editor.selectSceneCharacter(index)
@@ -581,7 +599,6 @@ on sceneAssetList.itemSelected(index) {
         updateInspectorFromSelection()
         statusLabel.text = "Character selected: " + index
     } else {
-        // Prop row — only act in Arrange mode
         var propIdx = index - charCount
         if (currentMode == "arrange") {
             editor.setJointSpheresVisible(false)
@@ -589,6 +606,140 @@ on sceneAssetList.itemSelected(index) {
             updateInspectorFromSelection()
             statusLabel.text = "Prop selected: " + propIdx
         }
+    }
+}
+
+fun clearSceneSelection() {
+    selectedSceneAssetIndex = -1
+    editor.selectSceneProp(-1)
+    updateInspectorFromSelection()
+}
+
+fun updateScenePanel() {
+    sceneTreeRef.Clear()
+    scenePathByIndex = []
+    sceneEyeButtonIdByIndex = []
+    sceneLockButtonIdByIndex = []
+
+    var charCount = editor.getSceneCharacterCount()
+    var propCount = editor.getScenePropCount()
+    var total = charCount + propCount
+
+    var oldVisible = sceneVisibleByIndex
+    var oldLocked = sceneLockedByIndex
+    sceneVisibleByIndex = []
+    sceneLockedByIndex = []
+    var s = 0
+    while (s < total) {
+        var isVisible = true
+        if (s < oldVisible.size) {
+            isVisible = oldVisible[s]
+        }
+        var isLocked = false
+        if (s < oldLocked.size) {
+            isLocked = oldLocked[s]
+        }
+        sceneVisibleByIndex.add(isVisible)
+        sceneLockedByIndex.add(isLocked)
+        s = s + 1
+    }
+
+    var root = sceneTreeRef.CreateRoot("Scene", "root")
+    var nextButtonId = 1000
+    var i = 0
+    while (i < charCount) {
+        var n = editor.getSceneCharacterName(i)
+        var rowIndex = i
+        var rowPath = "asset_" + rowIndex
+        var rowText = "Character " + i + ": " + n
+        var rowHandle = sceneTreeRef.CreateChild(root, rowText, rowPath, false)
+        scenePathByIndex.add(rowPath)
+        applySceneVisibility(rowIndex, sceneVisibleByIndex[rowIndex])
+
+        var eyeId = nextButtonId
+        nextButtonId = nextButtonId + 1
+        var lockId = nextButtonId
+        nextButtonId = nextButtonId + 1
+        sceneEyeButtonIdByIndex.add(eyeId)
+        sceneLockButtonIdByIndex.add(lockId)
+
+        var eyeIcon = sceneEyeOpenIcon
+        if (!sceneVisibleByIndex[rowIndex]) {
+            eyeIcon = sceneEyeClosedIcon
+        }
+        sceneTreeRef.AddButton(rowHandle, eyeIcon, eyeId, "Toggle visibility")
+
+        var lockIcon = sceneLockOpenIcon
+        if (sceneLockedByIndex[rowIndex]) {
+            lockIcon = sceneLockClosedIcon
+        }
+        sceneTreeRef.AddButton(rowHandle, lockIcon, lockId, "Toggle lock")
+        i = i + 1
+    }
+
+    i = 0
+    while (i < propCount) {
+        var p = editor.getScenePropName(i)
+        var rowIndex = charCount + i
+        var rowPath = "asset_" + rowIndex
+        var rowText = "Prop " + i + ": " + p
+        var rowHandle = sceneTreeRef.CreateChild(root, rowText, rowPath, false)
+        scenePathByIndex.add(rowPath)
+        applySceneVisibility(rowIndex, sceneVisibleByIndex[rowIndex])
+
+        var eyeId = nextButtonId
+        nextButtonId = nextButtonId + 1
+        var lockId = nextButtonId
+        nextButtonId = nextButtonId + 1
+        sceneEyeButtonIdByIndex.add(eyeId)
+        sceneLockButtonIdByIndex.add(lockId)
+
+        var eyeIcon = sceneEyeOpenIcon
+        if (!sceneVisibleByIndex[rowIndex]) {
+            eyeIcon = sceneEyeClosedIcon
+        }
+        sceneTreeRef.AddButton(rowHandle, eyeIcon, eyeId, "Toggle visibility")
+
+        var lockIcon = sceneLockOpenIcon
+        if (sceneLockedByIndex[rowIndex]) {
+            lockIcon = sceneLockClosedIcon
+        }
+        sceneTreeRef.AddButton(rowHandle, lockIcon, lockId, "Toggle lock")
+        i = i + 1
+    }
+
+    selectedSceneAssetIndex = -1
+    updateInspectorFromSelection()
+}
+
+on sceneAssetTree.itemSelected() {
+    var path = sceneTreeRef.GetSelectedPath()
+    var index = findSceneIndexByPath(path)
+    selectSceneAssetByIndex(index)
+}
+
+on sceneAssetTree.treeItemToggled(toggleId, isOn) {
+    var i = 0
+    var handled = false
+    while (i < sceneEyeButtonIdByIndex.size && !handled) {
+        if (sceneEyeButtonIdByIndex[i] == toggleId) {
+            sceneVisibleByIndex[i] = !sceneVisibleByIndex[i]
+            applySceneVisibility(i, sceneVisibleByIndex[i])
+            if (!sceneVisibleByIndex[i] && selectedSceneAssetIndex == i) {
+                clearSceneSelection()
+            }
+            updateScenePanel()
+            handled = true
+        }
+        if (sceneLockButtonIdByIndex[i] == toggleId) {
+            sceneLockedByIndex[i] = !sceneLockedByIndex[i]
+            if (sceneLockedByIndex[i] && selectedSceneAssetIndex == i) {
+                clearSceneSelection()
+            }
+            updateScenePanel()
+            handled = true
+        }
+        i = i + 1
     }
 }
 
@@ -691,7 +842,12 @@ on editor.scenePropRemoved(index) {
 
 on editor.objectSelected(propIdx) {
     if (propIdx >= 0) {
-        selectedSceneAssetIndex = editor.getSceneCharacterCount() + propIdx
+        var nextIndex = editor.getSceneCharacterCount() + propIdx
+        if (nextIndex < sceneLockedByIndex.size && sceneLockedByIndex[nextIndex]) {
+            statusLabel.text = "Locked object ignored."
+            return
+        }
+        selectedSceneAssetIndex = nextIndex
         updateInspectorFromSelection()
         statusLabel.text = "Object selected: prop " + propIdx
     } else {
