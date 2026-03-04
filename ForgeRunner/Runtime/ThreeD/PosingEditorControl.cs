@@ -2558,7 +2558,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     }
 
     /// <summary>
-    /// Opens a native Godot export-options dialog (checkboxes for animation + props),
+    /// Opens a native Godot export-options dialog,
     /// then a file-save dialog, and finally exports to GLB.
     /// </summary>
     public void ShowExportDialog(TimelineControl timeline)
@@ -2570,20 +2570,41 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         }
 
         // Options dialog
-        var dlg     = new AcceptDialog { Title = "Export as GLB", Size = new Vector2I(300, 140) };
+        var dlg     = new AcceptDialog { Title = "Export as GLB", Size = new Vector2I(460, 260) };
         var vbox    = new VBoxContainer { LayoutMode = 1 };
-        var cbAnim  = new CheckBox { Text = "Include Animation", ButtonPressed = true };
-        var cbProps = new CheckBox { Text = "Include Props",     ButtonPressed = true };
+        var modeLbl = new Label { Text = "Content:" };
+        var mode    = new OptionButton();
+        mode.AddItem("Whole scene (character + props)", 0);
+        mode.AddItem("Character only", 1);
+        mode.AddItem("Character animation only (retarget)", 2);
+        mode.Selected = 0;
+
+        var cbAnim  = new CheckBox { Text = "Include Timeline Animation", ButtonPressed = true };
+        vbox.AddChild(modeLbl);
+        vbox.AddChild(mode);
         vbox.AddChild(cbAnim);
-        vbox.AddChild(cbProps);
         dlg.AddChild(vbox);
         AddChild(dlg);
-        dlg.Popup();
+        dlg.PopupCentered(new Vector2I(460, 260));
+
+        mode.ItemSelected += _ =>
+        {
+            var animationOnly = mode.Selected == 2;
+            if (animationOnly)
+            {
+                cbAnim.Disabled = true;
+                cbAnim.ButtonPressed = true;
+                return;
+            }
+
+            cbAnim.Disabled = false;
+        };
 
         dlg.Confirmed += () =>
         {
-            var inclAnim  = cbAnim.ButtonPressed;
-            var inclProps = cbProps.ButtonPressed;
+            var inclAnim = cbAnim.ButtonPressed;
+            var includeProps = mode.Selected == 0;
+            var animationOnly = mode.Selected == 2;
             dlg.QueueFree();
 
             var saveDlg = new FileDialog
@@ -2594,7 +2615,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                 Title    = "Export as GLB",
             };
             AddChild(saveDlg);
-            saveDlg.Popup();
+            saveDlg.PopupCentered(new Vector2I(920, 640));
             saveDlg.FileSelected += async (string savePath) =>
             {
                 // Hide immediately (property change is instant; rendering catches up
@@ -2611,7 +2632,11 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-                var opts = new GlbExporter.ExportOptions(inclAnim, inclProps);
+                var opts = new GlbExporter.ExportOptions(
+                    IncludeAnimation: inclAnim || animationOnly,
+                    IncludeProps: includeProps,
+                    AnimationOnlyCharacter: animationOnly,
+                    WithRig: true);
                 DoExportAsGlb(opts, savePath, timeline);
             };
             saveDlg.Canceled += () => saveDlg.QueueFree();
@@ -2625,22 +2650,16 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         var keyframes = timeline.GetAllKeyframes();
         var props     = _sceneProps.Select(p => (p.Node, p.Data.Name));
 
-        var ctx = GlbExporter.Prepare(_modelRoot!, _skeleton!, keyframes,
+        var currentPose = new Dictionary<string, Quaternion>(PoseData, StringComparer.OrdinalIgnoreCase);
+        var ctx = GlbExporter.Prepare(_modelRoot!, currentPose, keyframes,
             timeline.Fps, timeline.TotalFrames, props, options);
 
         if (ctx is null)
         {
-            if (_modelRoot!.GetParent() is null)
-                _worldRoot.AddChild(_modelRoot);
             return;
         }
 
-        GlbExporter.Write(ctx, path);
-
-        // Re-attach modelRoot — Prepare always detaches it.
-        if (_modelRoot!.GetParent() is null)
-            _worldRoot.AddChild(_modelRoot);
-
-        ExportProgress?.Invoke(filename, 100);
+        if (GlbExporter.Write(ctx, path))
+            ExportProgress?.Invoke(filename, 100);
     }
 }

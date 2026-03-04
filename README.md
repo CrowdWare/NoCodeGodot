@@ -29,6 +29,19 @@ The Forge-Runner interprets this description and executes it on the target platf
 
 - Current Process: [CWUP/README.md](CWUP/README.md)
 - Backlog: [BACKLOG.md](CWUP/BACKLOG.md)
+
+---
+
+## Known Bugs (Blender Import)
+
+When exporting posed/animated characters to `.glb` and opening them in Blender, the rig can appear as a
+"golfball" style armature display. This is a Blender viewport/display issue around armature visualization.
+
+See full guide: [docs/blender_armature_workaround.md](docs/blender_armature_workaround.md)
+
+Short version:
+- Hide `Armature` in Outliner, or set `Display As` to `Stick`/`Octahedral`.
+- Use helper script: `tools/blender_armature_helper.py` (Mixamo + Meshy compatible).
   
 ---
 

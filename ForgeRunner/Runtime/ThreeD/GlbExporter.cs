@@ -18,7 +18,11 @@
  */
 
 using Godot;
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Text;
 using Runtime.Logging;
 
 namespace Runtime.ThreeD;
@@ -29,7 +33,11 @@ namespace Runtime.ThreeD;
 /// </summary>
 public static class GlbExporter
 {
-    public sealed record ExportOptions(bool IncludeAnimation, bool IncludeProps);
+    public sealed record ExportOptions(
+        bool IncludeAnimation,
+        bool IncludeProps,
+        bool AnimationOnlyCharacter = false,
+        bool WithRig = true);
 
     // ── Two-phase context ─────────────────────────────────────────────────────
 
@@ -40,58 +48,49 @@ public static class GlbExporter
     /// </summary>
     public sealed class GltfWriteContext
     {
-        internal GltfState        State      { get; init; } = null!;
-        internal GltfDocument     Doc        { get; init; } = null!;
-        internal Node3D           ModelRoot  { get; init; } = null!;
-        internal AnimationPlayer? AnimPlayer { get; init; }
-        internal Node3D?          TempRoot   { get; init; }
+        internal GltfState    State      { get; init; } = null!;
+        internal GltfDocument Doc        { get; init; } = null!;
+        internal Node3D       RootToFree { get; init; } = null!;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Phase 1: detach modelRoot, bake animation, call AppendFromScene.
-    /// Returns null on failure; modelRoot is re-attached to its original parent
-    /// in that case.
+    /// Phase 1: duplicate and sanitize export subtree, optionally bake animation,
+    /// then call AppendFromScene.
+    /// Returns null on failure.
     /// </summary>
     public static GltfWriteContext? Prepare(
         Node3D     modelRoot,
-        Skeleton3D skeleton,
+        Dictionary<string, Quaternion> currentPose,
         SortedDictionary<int, Dictionary<string, Quaternion>> keyframes,
         int        fps,
         int        totalFrames,
         IEnumerable<(Node3D Node, string Name)> props,
         ExportOptions options)
     {
-        // ── 0. Capture skeleton path BEFORE any re-parenting ──────────────────
-        var skelPath = modelRoot.GetPathTo(skeleton);
-
-        // ── 1. Detach modelRoot so AppendFromScene sees only its subtree ───────
-        var originalParent = modelRoot.GetParent();
-        originalParent?.RemoveChild(modelRoot);
-
-        Node3D exportRoot = modelRoot;
-        Node3D? tempRoot  = null;
-
-        // ── 2. Wrap model + props when requested ──────────────────────────────
-        if (options.IncludeProps)
+        var exportCharacter = CloneNode3D(modelRoot);
+        if (exportCharacter is null)
         {
-            tempRoot = new Node3D { Name = "Scene" };
-            tempRoot.AddChild(modelRoot);
-            foreach (var (node, name) in props)
-            {
-                var dup  = (Node3D)node.Duplicate();
-                dup.Name = name;
-                tempRoot.AddChild(dup);
-            }
-            exportRoot = tempRoot;
+            RunnerLogger.Error("GlbExporter", "Failed to clone model root for export.");
+            return null;
         }
 
-        // ── 3. Bake animation tracks ──────────────────────────────────────────
-        AnimationPlayer? animPlayer = null;
+        SanitizeForExport(exportCharacter, removeCharacterMeshes: options.AnimationOnlyCharacter);
+
+        var exportSkeleton = FindSkeleton(exportCharacter);
+        if (exportSkeleton is null)
+        {
+            RunnerLogger.Error("GlbExporter", "No Skeleton3D found in cloned export tree.");
+            exportCharacter.QueueFree();
+            return null;
+        }
+
+        // ── Bake animation tracks ────────────────────────────────────────────
         if (options.IncludeAnimation && keyframes.Count > 0)
         {
-            var normToOrig = BuildNormToOrigMap(skeleton);
+            var skelPath   = exportCharacter.GetPathTo(exportSkeleton);
+            var normToOrig = BuildNormToOrigMap(exportSkeleton);
             var anim       = new Animation
             {
                 Length   = (float)totalFrames / fps,
@@ -118,31 +117,67 @@ public static class GlbExporter
             var lib = new AnimationLibrary();
             lib.AddAnimation("animation", anim);
 
-            animPlayer = new AnimationPlayer { Name = "AnimationPlayer" };
-            modelRoot.AddChild(animPlayer);
+            var animPlayer = new AnimationPlayer { Name = "AnimationPlayer" };
+            exportCharacter.AddChild(animPlayer);
             animPlayer.RootNode = new NodePath("..");
             animPlayer.AddAnimationLibrary("", lib);
         }
+        else if (!options.WithRig)
+        {
+            // Workaround for Godot GLTF skin/bind roundtrip issues in DCC tools:
+            // for static exports, detach meshes from skeleton and remove armature nodes.
+            ApplyStaticPose(exportSkeleton, currentPose, keyframes);
+            AttachForBakeIfPossible(modelRoot, exportCharacter);
+            var staticOk = ConvertCharacterToStaticMesh(exportCharacter);
+            DetachIfParented(exportCharacter);
+            if (!staticOk)
+            {
+                RunnerLogger.Warn("GlbExporter", "No-Rig export requested, but static bake failed for this asset. Keeping rig to avoid tiny/invalid mesh.");
+            }
+        }
 
-        // ── 4. Build GLTF state ───────────────────────────────────────────────
+        Node3D exportRoot = exportCharacter;
+        Node3D rootToFree = exportCharacter;
+
+        if (options.IncludeProps)
+        {
+            var sceneRoot = new Node3D { Name = "Scene" };
+            sceneRoot.AddChild(exportCharacter);
+            foreach (var (node, name) in props)
+            {
+                var dup = CloneNode3D(node);
+                if (dup is null)
+                {
+                    continue;
+                }
+
+                dup.Name = name;
+                SanitizeForExport(dup, removeCharacterMeshes: false);
+                sceneRoot.AddChild(dup);
+            }
+
+            exportRoot = sceneRoot;
+            rootToFree = sceneRoot;
+        }
+
+        LogExportTree(exportRoot);
+
+        // ── Build GLTF state ─────────────────────────────────────────────────
         var state = new GltfState();
         var doc   = new GltfDocument();
         var err   = doc.AppendFromScene(exportRoot, state);
         if (err != Error.Ok)
         {
             RunnerLogger.Error("GlbExporter", $"AppendFromScene failed: {err}");
-            Cleanup(modelRoot, animPlayer, tempRoot);
-            originalParent?.AddChild(modelRoot);   // restore on failure
+            rootToFree.QueueFree();
             return null;
         }
 
         return new GltfWriteContext
         {
-            State     = state,
-            Doc       = doc,
-            ModelRoot = modelRoot,
-            AnimPlayer = animPlayer,
-            TempRoot  = tempRoot,
+            State      = state,
+            Doc        = doc,
+            RootToFree = rootToFree,
         };
     }
 
@@ -154,7 +189,7 @@ public static class GlbExporter
     public static bool Write(GltfWriteContext ctx, string path)
     {
         var err = ctx.Doc.WriteToFilesystem(ctx.State, path);
-        Cleanup(ctx.ModelRoot, ctx.AnimPlayer, ctx.TempRoot);
+        ctx.RootToFree.QueueFree();
 
         if (err != Error.Ok)
         {
@@ -168,17 +203,445 @@ public static class GlbExporter
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static void Cleanup(Node3D modelRoot, AnimationPlayer? animPlayer, Node3D? tempRoot)
+    private static Node3D? CloneNode3D(Node3D source)
     {
-        if (animPlayer is not null)
+        return source.Duplicate() as Node3D;
+    }
+
+    private static void SanitizeForExport(Node root, bool removeCharacterMeshes)
+    {
+        var toRemove = new List<Node>();
+        CollectNodesToRemove(root, removeCharacterMeshes, toRemove);
+        foreach (var node in toRemove)
         {
-            modelRoot.RemoveChild(animPlayer);
-            animPlayer.QueueFree();
+            var parent = node.GetParent();
+            parent?.RemoveChild(node);
+            node.QueueFree();
         }
-        if (tempRoot is not null)
+    }
+
+    private static void CollectNodesToRemove(Node node, bool removeCharacterMeshes, List<Node> output)
+    {
+        foreach (Node child in node.GetChildren())
         {
-            tempRoot.RemoveChild(modelRoot);
-            tempRoot.QueueFree();
+            CollectNodesToRemove(child, removeCharacterMeshes, output);
+        }
+
+        if (ShouldRemoveNode(node, removeCharacterMeshes))
+        {
+            output.Add(node);
+        }
+    }
+
+    private static bool ShouldRemoveNode(Node node, bool removeCharacterMeshes)
+    {
+        var typeName = node.GetType().Name;
+        var nodeName = node.Name.ToString();
+
+        if (node is AnimationPlayer)
+            return true;
+
+        if (nodeName.Equals("GLTF_not_exported", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (HasBlockedAncestor(node))
+            return true;
+
+        if (typeName.Equals("PhysicalBoneSimulator3D", StringComparison.Ordinal)
+            || nodeName.StartsWith("_PhysicalBoneSimulator3D", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (node is PhysicalBone3D
+            || node is CollisionShape3D
+            || node is CollisionPolygon3D)
+        {
+            return true;
+        }
+
+        if (typeName.Contains("PhysicalBone", StringComparison.Ordinal)
+            || typeName.Contains("CollisionShape", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (node is MeshInstance3D
+            && (nodeName.Contains("icosphere", StringComparison.OrdinalIgnoreCase)
+                || nodeName.Contains("collision", StringComparison.OrdinalIgnoreCase)
+                || nodeName.Contains("physics", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        if (removeCharacterMeshes
+            && (node is MeshInstance3D || typeName.Contains("MeshInstance3D", StringComparison.Ordinal)))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool HasBlockedAncestor(Node node)
+    {
+        var p = node.GetParent();
+        while (p is not null)
+        {
+            var parentName = p.Name.ToString();
+            var parentType = p.GetType().Name;
+            if (parentName.Equals("GLTF_not_exported", StringComparison.OrdinalIgnoreCase)
+                || parentName.StartsWith("_PhysicalBoneSimulator3D", StringComparison.OrdinalIgnoreCase)
+                || parentType.Contains("PhysicalBone", StringComparison.Ordinal)
+                || parentType.Contains("CollisionShape", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            p = p.GetParent();
+        }
+
+        return false;
+    }
+
+    private static Skeleton3D? FindSkeleton(Node node)
+    {
+        if (node is Skeleton3D skeleton)
+            return skeleton;
+
+        foreach (Node child in node.GetChildren())
+        {
+            var found = FindSkeleton(child);
+            if (found is not null)
+                return found;
+        }
+
+        return null;
+    }
+
+    private static bool ConvertCharacterToStaticMesh(Node3D exportCharacter)
+    {
+        var skel = FindSkeleton(exportCharacter);
+        skel?.ForceUpdateAllBoneTransforms();
+        exportCharacter.ForceUpdateTransform();
+
+        var meshes = new List<MeshInstance3D>();
+        CollectMeshes(exportCharacter, meshes);
+
+        var bakedMeshes = new Dictionary<MeshInstance3D, Mesh>();
+        var bakedCount = 0;
+        foreach (var mesh in meshes)
+        {
+            if (TryBakeMeshFromCurrentSkeletonPose(mesh, out var bakedMesh))
+            {
+                bakedCount++;
+                bakedMeshes[mesh] = bakedMesh;
+            }
+        }
+
+        if (meshes.Count > 0 && bakedCount == 0)
+        {
+            RunnerLogger.Warn("GlbExporter", "Static mesh bake produced no baked meshes.");
+            return false;
+        }
+        else if (bakedCount < meshes.Count)
+        {
+            RunnerLogger.Warn("GlbExporter", $"Static mesh bake was partial ({bakedCount}/{meshes.Count}).");
+            return false;
+        }
+        else
+        {
+            RunnerLogger.Info("GlbExporter", $"Static mesh bake succeeded ({bakedCount}/{meshes.Count}); removing rig/armature.");
+        }
+
+        foreach (var (mesh, bakedMesh) in bakedMeshes)
+        {
+            mesh.Mesh = bakedMesh;
+            TryClearSkeletonBinding(mesh);
+        }
+
+        RemoveArmatureNodes(exportCharacter);
+        return true;
+    }
+
+    private static void ApplyStaticPose(
+        Skeleton3D skeleton,
+        Dictionary<string, Quaternion> currentPose,
+        SortedDictionary<int, Dictionary<string, Quaternion>> keyframes)
+    {
+        Dictionary<string, Quaternion>? pose = null;
+        if (currentPose.Count > 0)
+        {
+            pose = currentPose;
+        }
+        else if (keyframes.TryGetValue(0, out pose))
+        {
+            // use frame 0 when available
+        }
+        else if (keyframes.Count > 0)
+        {
+            pose = keyframes.First().Value;
+        }
+
+        if (pose is null || pose.Count == 0)
+            return;
+
+        var normToOrig = BuildNormToOrigMap(skeleton);
+        foreach (var (boneName, rotation) in pose)
+        {
+            var resolvedName = boneName;
+            if (!normToOrig.TryGetValue(boneName, out resolvedName))
+            {
+                var normalized = BoneNameNormalizer.Normalize(boneName);
+                if (!normToOrig.TryGetValue(normalized, out resolvedName))
+                    continue;
+            }
+
+            var boneIndex = skeleton.FindBone(resolvedName);
+            if (boneIndex < 0)
+                continue;
+
+            skeleton.SetBonePoseRotation(boneIndex, rotation);
+        }
+
+        skeleton.ForceUpdateAllBoneTransforms();
+    }
+
+    private static void CollectMeshes(Node node, List<MeshInstance3D> output)
+    {
+        if (node is MeshInstance3D mesh)
+            output.Add(mesh);
+
+        foreach (Node child in node.GetChildren())
+            CollectMeshes(child, output);
+    }
+
+    private static bool TryBakeMeshFromCurrentSkeletonPose(MeshInstance3D mesh, out Mesh bakedMesh)
+    {
+        bakedMesh = null!;
+        try
+        {
+            var originalMesh = mesh.Mesh;
+            var method = mesh.GetType().GetMethod("BakeMeshFromCurrentSkeletonPose",
+                BindingFlags.Public | BindingFlags.Instance,
+                binder: null,
+                types: Type.EmptyTypes,
+                modifiers: null);
+            if (method is null)
+                return false;
+
+            var baked = method.Invoke(mesh, null);
+            if (baked is Mesh candidate)
+            {
+                if (!LooksLikeValidBake(originalMesh, candidate))
+                {
+                    RunnerLogger.Warn("GlbExporter", $"Rejecting baked mesh for '{mesh.Name}' due to invalid scale/geometry.");
+                    return false;
+                }
+                bakedMesh = candidate;
+                return true;
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("GlbExporter", $"BakeMeshFromCurrentSkeletonPose failed for '{mesh.Name}': {ex.Message}");
+            return false;
+        }
+    }
+
+    private static bool LooksLikeValidBake(Mesh? original, Mesh baked)
+    {
+        if (baked.GetSurfaceCount() <= 0)
+            return false;
+
+        if (original is null)
+            return true;
+
+        var origAabb = original.GetAabb();
+        var bakedAabb = baked.GetAabb();
+        var origLen = origAabb.Size.Length();
+        var bakedLen = bakedAabb.Size.Length();
+        if (origLen <= 0.0001f || bakedLen <= 0.0001f)
+            return false;
+
+        // Keep validation permissive. Rigged assets can legitimately differ a lot in local AABB
+        // after baking because of import/unit scale and bind-pose space.
+        return true;
+    }
+
+    private static void TryClearSkeletonBinding(MeshInstance3D mesh)
+    {
+        TrySetProperty(mesh, "Skeleton", new NodePath());
+        TrySetProperty(mesh, "SkeletonPath", new NodePath());
+        TrySetProperty(mesh, "Skin", null);
+    }
+
+    private static void TrySetProperty(object instance, string name, object? value)
+    {
+        try
+        {
+            var prop = instance.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance);
+            if (prop is null || !prop.CanWrite)
+                return;
+            prop.SetValue(instance, value);
+        }
+        catch
+        {
+            // best effort for API differences between Godot versions
+        }
+    }
+
+    private static void RemoveArmatureNodes(Node root)
+    {
+        var toRemove = new List<Node>();
+        CollectArmatureNodes(root, toRemove);
+        foreach (var node in toRemove)
+        {
+            var parent = node.GetParent();
+            if (parent is null)
+                continue;
+
+            var children = new List<Node>();
+            foreach (Node child in node.GetChildren())
+                children.Add(child);
+
+            foreach (var child in children)
+            {
+                var oldParentLocal = node is Node3D parentNode3 ? parentNode3.Transform : Transform3D.Identity;
+                node.RemoveChild(child);
+                parent.AddChild(child);
+                if (child is Node3D child3)
+                {
+                    child3.Transform = oldParentLocal * child3.Transform;
+                }
+            }
+
+            parent.RemoveChild(node);
+            node.QueueFree();
+        }
+    }
+
+    private static void CollectArmatureNodes(Node node, List<Node> output)
+    {
+        foreach (Node child in node.GetChildren())
+            CollectArmatureNodes(child, output);
+
+        if (node is Skeleton3D
+            || node.Name.ToString().Equals("Armature", StringComparison.OrdinalIgnoreCase))
+        {
+            output.Add(node);
+        }
+    }
+
+    private static void ForceStripRigNodes(Node root)
+    {
+        var toRemove = new List<Node>();
+        CollectRigNodes(root, toRemove);
+        foreach (var node in toRemove)
+        {
+            var parent = node.GetParent();
+            if (parent is null)
+                continue;
+
+            var children = new List<Node>();
+            foreach (Node child in node.GetChildren())
+                children.Add(child);
+
+            foreach (var child in children)
+            {
+                node.RemoveChild(child);
+                parent.AddChild(child);
+            }
+
+            parent.RemoveChild(node);
+            node.QueueFree();
+        }
+    }
+
+    private static void CollectRigNodes(Node node, List<Node> output)
+    {
+        foreach (Node child in node.GetChildren())
+            CollectRigNodes(child, output);
+
+        var typeName = node.GetType().Name;
+        var nodeName = node.Name.ToString();
+        if (node is Skeleton3D
+            || node is AnimationPlayer
+            || typeName.Contains("BoneAttachment", StringComparison.Ordinal)
+            || typeName.Contains("PhysicalBone", StringComparison.Ordinal)
+            || nodeName.Equals("Armature", StringComparison.OrdinalIgnoreCase)
+            || nodeName.StartsWith("Armature", StringComparison.OrdinalIgnoreCase))
+        {
+            output.Add(node);
+        }
+    }
+
+    private static void AttachForBakeIfPossible(Node3D modelRoot, Node3D exportCharacter)
+    {
+        if (exportCharacter.GetParent() is not null)
+            return;
+
+        var parent = modelRoot.GetParent();
+        if (parent is null)
+            return;
+
+        parent.AddChild(exportCharacter);
+    }
+
+    private static void DetachIfParented(Node3D node)
+    {
+        var parent = node.GetParent();
+        parent?.RemoveChild(node);
+    }
+
+    private static void LogExportTree(Node root)
+    {
+        var lines = new List<string>(512);
+        CollectTreeLines(root, 0, lines);
+
+        var suspicious = lines
+            .Where(l => l.Contains("icosphere", StringComparison.OrdinalIgnoreCase)
+                     || l.Contains("physical", StringComparison.OrdinalIgnoreCase)
+                     || l.Contains("collision", StringComparison.OrdinalIgnoreCase)
+                     || l.Contains("GLTF_not_exported", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"Export tree node count: {lines.Count}");
+        if (suspicious.Count > 0)
+        {
+            sb.AppendLine("Suspicious nodes:");
+            foreach (var line in suspicious.Take(40))
+            {
+                sb.AppendLine(line);
+            }
+        }
+
+        sb.AppendLine("Export tree (first 220 nodes):");
+        foreach (var line in lines.Take(220))
+        {
+            sb.AppendLine(line);
+        }
+
+        RunnerLogger.Info("GlbExporter", sb.ToString());
+    }
+
+    private static void CollectTreeLines(Node node, int depth, List<string> lines)
+    {
+        var indent = new string(' ', depth * 2);
+        var meshHint = string.Empty;
+        if (node is MeshInstance3D mi && mi.Mesh is not null)
+        {
+            var meshName = string.IsNullOrWhiteSpace(mi.Mesh.ResourceName) ? "<unnamed-mesh>" : mi.Mesh.ResourceName;
+            meshHint = $" mesh={mi.Mesh.GetType().Name}:{meshName}";
+        }
+
+        lines.Add($"{indent}- {node.GetType().Name} '{node.Name}'{meshHint}");
+        foreach (Node child in node.GetChildren())
+        {
+            CollectTreeLines(child, depth + 1, lines);
         }
     }
 

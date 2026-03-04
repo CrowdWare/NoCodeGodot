@@ -26,6 +26,9 @@ exports/
 /export/frames*/
 /exports/frames*/
 
+# temporary images only
+/ScreenShots/
+
 # =========================================================
 # Mono / C# (falls genutzt)
 # =========================================================
