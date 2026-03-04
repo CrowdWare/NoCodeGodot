@@ -94,7 +94,7 @@ public sealed class SmsEventsTests
         var handled = engine.InvokeEvent("mainWindow", "sizeChanged", 10, 20);
 
         Assert.True(handled);
-        Assert.Equal([10d, 20d], seen);
+        Assert.Equal([10L, 20L], seen);
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public sealed class SmsEventsTests
         Assert.Equal("open", target);
         Assert.Equal("pressed", evt);
         Assert.NotNull(args);
-        Assert.Equal([42d], args!);
+        Assert.Equal([42L], args!);
     }
 
     [Fact]

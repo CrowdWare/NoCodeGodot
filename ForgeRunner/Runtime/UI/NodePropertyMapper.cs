@@ -1712,8 +1712,10 @@ public sealed class NodePropertyMapper
         while (!string.IsNullOrWhiteSpace(typeName))
         {
             if (SchemaProperties.PropsByType.TryGetValue(typeName, out var propsByName)
-                && propsByName.TryGetValue(propertyName, out def))
+                && propsByName.TryGetValue(propertyName, out var foundDef)
+                && foundDef is not null)
             {
+                def = foundDef;
                 return true;
             }
 

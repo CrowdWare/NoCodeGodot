@@ -328,7 +328,10 @@ public static class GlbExporter
     private static bool ConvertCharacterToStaticMesh(Node3D exportCharacter)
     {
         var skel = FindSkeleton(exportCharacter);
-        skel?.ForceUpdateAllBoneTransforms();
+        if (skel is not null)
+        {
+            ForceUpdateAllBoneChildTransforms(skel);
+        }
         exportCharacter.ForceUpdateTransform();
 
         var meshes = new List<MeshInstance3D>();
@@ -410,7 +413,34 @@ public static class GlbExporter
             skeleton.SetBonePoseRotation(boneIndex, rotation);
         }
 
-        skeleton.ForceUpdateAllBoneTransforms();
+        ForceUpdateAllBoneChildTransforms(skeleton);
+    }
+
+    private static void ForceUpdateAllBoneChildTransforms(Skeleton3D skeleton)
+    {
+        var boneCount = skeleton.GetBoneCount();
+        var hasRootBone = false;
+        for (var i = 0; i < boneCount; i++)
+        {
+            if (skeleton.GetBoneParent(i) >= 0)
+            {
+                continue;
+            }
+
+            hasRootBone = true;
+            skeleton.ForceUpdateBoneChildTransform(i);
+        }
+
+        if (hasRootBone)
+        {
+            return;
+        }
+
+        // Fallback for unusual skeleton data without explicit roots.
+        for (var i = 0; i < boneCount; i++)
+        {
+            skeleton.ForceUpdateBoneChildTransform(i);
+        }
     }
 
     private static void CollectMeshes(Node node, List<MeshInstance3D> output)

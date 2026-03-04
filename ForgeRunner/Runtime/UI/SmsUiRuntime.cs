@@ -405,7 +405,7 @@ public sealed class SmsUiRuntime
                 RunnerLogger.Warn("SMS", $"BindTreeEvents skipped for '{id}' (treeFound={tree is not null}, dispatcherFound={dispatcher is not null}).");
             }
 
-            return null;
+            return NullValue.Instance;
         });
 
     }
@@ -616,7 +616,7 @@ public sealed class SmsUiRuntime
             ["getArch"] = new NativeFunctionValue(_ => new StringValue(GetArchitecture())),
             ["isMobile"] = new NativeFunctionValue(_ => new BooleanValue(string.Equals(GetPlatform(), "android", StringComparison.Ordinal))),
             ["isDesktop"] = new NativeFunctionValue(_ => new BooleanValue(!string.Equals(GetPlatform(), "android", StringComparison.Ordinal))),
-            ["now"] = new NativeFunctionValue(_ => new NumberValue(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())),
+            ["now"] = new NativeFunctionValue(_ => new IntegerValue(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())),
             ["getUptime"] = new NativeFunctionValue(_ => new NumberValue(Time.GetTicksMsec() / 1000.0)),
             // Unrestricted file I/O for desktop application scripts (bypasses ProjectFs sandbox).
             ["readFile"] = new NativeFunctionValue(methodArgs =>
@@ -1432,7 +1432,7 @@ public sealed class SmsUiRuntime
         {
             ["id"] = new StringValue(id),
             ["type"] = new StringValue(logicalTypeName),
-            ["__nativeObjectId"] = new NumberValue(nativeObjectId)
+            ["__nativeObjectId"] = new IntegerValue(nativeObjectId)
         };
         var dynamicGetters = new Dictionary<string, ObjectFieldGetter>(StringComparer.Ordinal);
         var dynamicSetters = new Dictionary<string, ObjectFieldSetter>(StringComparer.Ordinal);
@@ -1829,11 +1829,11 @@ public sealed class SmsUiRuntime
                 if (timeline is null)
                 {
                     RunnerLogger.Warn("SMS", "exportFrameRangePng: no TimelineControl found in scene.");
-                    return new NumberValue(0);
+                    return new IntegerValue(0);
                 }
 
                 var count = posingEditorExt.ExportFrameRangePng(timeline, frameFrom, frameTo, outputDir);
-                return new NumberValue(count);
+                return new IntegerValue(count);
             });
 
             // startExportFrameRangePng(frameFrom, frameTo, outputDirectory) — async frame-by-frame sequence export
@@ -1928,14 +1928,14 @@ public sealed class SmsUiRuntime
                 item.SetText(0, text);
                 item.Collapsed = false;
                 item.SetMetadata(0, path);
-                return new NumberValue(RegisterTreeHandle(item));
+                return new IntegerValue(RegisterTreeHandle(item));
             });
             fields["CreateChild"] = new NativeFunctionValue(methodArgs =>
             {
                 var parentHandle = ValueArgInt(methodArgs, 0);
                 if (!_treeHandles.TryGetValue(parentHandle, out var parent))
                 {
-                    return new NumberValue(0);
+                    return new IntegerValue(0);
                 }
 
                 var text = ValueArgString(methodArgs, 1);
@@ -1946,7 +1946,7 @@ public sealed class SmsUiRuntime
                 item.SetText(0, isDirectory ? text + "/" : text);
                 item.SetMetadata(0, path);
                 item.Collapsed = true;
-                return new NumberValue(RegisterTreeHandle(item));
+                return new IntegerValue(RegisterTreeHandle(item));
             });
             fields["AddButton"] = new NativeFunctionValue(methodArgs =>
             {
@@ -2004,7 +2004,7 @@ public sealed class SmsUiRuntime
                 var createdIndex = popup.ItemCount - 1;
                 popup.SetItemMetadata(createdIndex, Variant.From(itemKey));
                 RegisterDynamicMenuItem(id, popup, popupId, itemKey, source);
-                return new NumberValue(popupId);
+                return new IntegerValue(popupId);
             });
         }
 
@@ -2026,7 +2026,7 @@ public sealed class SmsUiRuntime
                 var createdIndex = buttonPopup.ItemCount - 1;
                 buttonPopup.SetItemMetadata(createdIndex, Variant.From(itemKey));
                 RegisterDynamicMenuItem(id, buttonPopup, popupId, itemKey, menuButton);
-                return new NumberValue(popupId);
+                return new IntegerValue(popupId);
             });
         }
 
@@ -2420,6 +2420,7 @@ public sealed class SmsUiRuntime
             converted = value switch
             {
                 BooleanValue b => b.Value,
+                IntegerValue i => i.Value != 0L,
                 NumberValue n => Math.Abs(n.Value) > double.Epsilon,
                 StringValue s => string.Equals(s.Value, "true", StringComparison.OrdinalIgnoreCase),
                 _ => ValueUtils.IsTruthy(value)
@@ -2429,12 +2430,13 @@ public sealed class SmsUiRuntime
 
         if (targetType == typeof(int))
         {
-            converted = value switch
+            if (TryConvertToInt32WithWarning(value, out var intValue, "int parameter conversion"))
             {
-                NumberValue n => n.ToInt(),
-                StringValue s when int.TryParse(s.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) => i,
-                _ => 0
-            };
+                converted = intValue;
+                return true;
+            }
+
+            converted = 0;
             return true;
         }
 
@@ -2442,6 +2444,7 @@ public sealed class SmsUiRuntime
         {
             converted = value switch
             {
+                IntegerValue i => i.Value,
                 NumberValue n => (long)n.Value,
                 StringValue s when long.TryParse(s.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l) => l,
                 _ => 0L
@@ -2453,6 +2456,7 @@ public sealed class SmsUiRuntime
         {
             converted = value switch
             {
+                IntegerValue i => (float)i.Value,
                 NumberValue n => (float)n.Value,
                 StringValue s when float.TryParse(s.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var f) => f,
                 _ => 0f
@@ -2464,6 +2468,7 @@ public sealed class SmsUiRuntime
         {
             converted = value switch
             {
+                IntegerValue i => (double)i.Value,
                 NumberValue n => n.Value,
                 StringValue s when double.TryParse(s.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) => d,
                 _ => 0d
@@ -2473,9 +2478,9 @@ public sealed class SmsUiRuntime
 
         if (targetType.IsEnum)
         {
-            if (value is NumberValue enumNumber)
+            if (TryConvertToInt32WithWarning(value, out var enumInt, $"enum conversion to {targetType.Name}"))
             {
-                converted = Enum.ToObject(targetType, enumNumber.ToInt());
+                converted = Enum.ToObject(targetType, enumInt);
                 return true;
             }
 
@@ -2501,9 +2506,8 @@ public sealed class SmsUiRuntime
         }
 
         if (value is ObjectValue objectValue
-            && objectValue.GetField("__nativeObjectId") is NumberValue nativeIdValue)
+            && ValueUtils.TryGetInt64(objectValue.GetField("__nativeObjectId"), out var nativeId))
         {
-            var nativeId = (long)nativeIdValue.Value;
             if (_nativeObjects.TryGetValue(nativeId, out var native)
                 && targetType.IsInstanceOfType(native))
             {
@@ -2524,11 +2528,11 @@ public sealed class SmsUiRuntime
             Value smsValue => smsValue,
             bool b => new BooleanValue(b),
             string s => new StringValue(s),
-            int i => new NumberValue(i),
-            long l => new NumberValue(l),
+            int i => new IntegerValue(i),
+            long l => new IntegerValue(l),
             float f => new NumberValue(f),
             double d => new NumberValue(d),
-            Enum e => new NumberValue(Convert.ToInt32(e, CultureInfo.InvariantCulture)),
+            Enum e => new IntegerValue(Convert.ToInt64(e, CultureInfo.InvariantCulture)),
             Node node => CreateRuntimeObject(
                 node.HasMeta(NodePropertyMapper.MetaId)
                     ? node.GetMeta(NodePropertyMapper.MetaId).AsString()
@@ -3037,6 +3041,7 @@ public sealed class SmsUiRuntime
             null => string.Empty,
             string s => s,
             Runtime.Sms.StringValue s => s.Value,
+            Runtime.Sms.IntegerValue i => i.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
             Runtime.Sms.NumberValue n => n.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
             Runtime.Sms.BooleanValue b => b.Value ? "true" : "false",
             Runtime.Sms.NullValue => string.Empty,
@@ -3066,6 +3071,7 @@ public sealed class SmsUiRuntime
         return args[index] switch
         {
             StringValue s => s.Value,
+            IntegerValue i => i.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
             NumberValue n => n.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
             BooleanValue b => b.Value ? "true" : "false",
             NullValue => string.Empty,
@@ -3080,11 +3086,7 @@ public sealed class SmsUiRuntime
             return 0;
         }
 
-        return args[index] switch
-        {
-            NumberValue n => n.ToInt(),
-            _ => int.TryParse(ValueArgString(args, index), out var parsed) ? parsed : 0
-        };
+        return TryConvertToInt32WithWarning(args[index], out var value, "ValueArgInt") ? value : 0;
     }
 
     private static bool ValueArgBool(IReadOnlyList<Value> args, int index)
@@ -3106,11 +3108,96 @@ public sealed class SmsUiRuntime
         if (index >= args.Count) return 0f;
         return args[index] switch
         {
+            IntegerValue i => (float)i.Value,
             NumberValue n => (float)n.Value,
             _ => float.TryParse(ValueArgString(args, index),
                      System.Globalization.NumberStyles.Float,
                      System.Globalization.CultureInfo.InvariantCulture, out var f) ? f : 0f
         };
+    }
+
+    private static bool TryConvertToInt32WithWarning(Value value, out int converted, string context)
+    {
+        switch (value)
+        {
+            case IntegerValue i:
+            {
+                if (i.Value < int.MinValue)
+                {
+                    converted = int.MinValue;
+                    RunnerLogger.Warn("SMS", $"{context}: clamped {i.Value} to Int32.MinValue.");
+                    return true;
+                }
+                if (i.Value > int.MaxValue)
+                {
+                    converted = int.MaxValue;
+                    RunnerLogger.Warn("SMS", $"{context}: clamped {i.Value} to Int32.MaxValue.");
+                    return true;
+                }
+                converted = (int)i.Value;
+                return true;
+            }
+            case NumberValue n:
+            {
+                if (double.IsNaN(n.Value) || double.IsInfinity(n.Value))
+                {
+                    converted = 0;
+                    RunnerLogger.Warn("SMS", $"{context}: invalid numeric value '{n.Value}' converted to 0.");
+                    return true;
+                }
+
+                var rounded = Math.Round(n.Value, MidpointRounding.AwayFromZero);
+                if (Math.Abs(rounded - n.Value) > double.Epsilon)
+                {
+                    RunnerLogger.Warn("SMS", $"{context}: rounded non-integer value {n.Value} to {rounded}.");
+                }
+                if (rounded < int.MinValue)
+                {
+                    converted = int.MinValue;
+                    RunnerLogger.Warn("SMS", $"{context}: clamped {rounded} to Int32.MinValue.");
+                    return true;
+                }
+                if (rounded > int.MaxValue)
+                {
+                    converted = int.MaxValue;
+                    RunnerLogger.Warn("SMS", $"{context}: clamped {rounded} to Int32.MaxValue.");
+                    return true;
+                }
+
+                converted = (int)rounded;
+                return true;
+            }
+            case StringValue s:
+            {
+                if (int.TryParse(s.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+                {
+                    converted = parsed;
+                    return true;
+                }
+                if (long.TryParse(s.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedLong))
+                {
+                    if (parsedLong < int.MinValue)
+                    {
+                        converted = int.MinValue;
+                        RunnerLogger.Warn("SMS", $"{context}: clamped {parsedLong} to Int32.MinValue.");
+                        return true;
+                    }
+                    if (parsedLong > int.MaxValue)
+                    {
+                        converted = int.MaxValue;
+                        RunnerLogger.Warn("SMS", $"{context}: clamped {parsedLong} to Int32.MaxValue.");
+                        return true;
+                    }
+
+                    converted = (int)parsedLong;
+                    return true;
+                }
+                break;
+            }
+        }
+
+        converted = 0;
+        return false;
     }
 
     private static string Quote(string value)
@@ -3150,6 +3237,7 @@ public sealed class SmsUiRuntime
         return value switch
         {
             StringValue s => s.Value,
+            IntegerValue i => i.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
             NumberValue n => n.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
             BooleanValue b => b.Value ? "true" : "false",
             NullValue => string.Empty,

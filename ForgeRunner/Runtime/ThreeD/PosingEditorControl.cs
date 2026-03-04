@@ -751,7 +751,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
 
             foreach (var character in _sceneCharacters)
             {
-                character.Skeleton.ForceUpdateAllBoneTransforms();
+                ForceUpdateAllBoneChildTransforms(character.Skeleton);
                 character.Node.ForceUpdateTransform();
             }
             _worldRoot.ForceUpdateTransform();
@@ -2036,6 +2036,33 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         return null;
     }
 
+    private static void ForceUpdateAllBoneChildTransforms(Skeleton3D skeleton)
+    {
+        var boneCount = skeleton.GetBoneCount();
+        var hasRootBone = false;
+        for (var i = 0; i < boneCount; i++)
+        {
+            if (skeleton.GetBoneParent(i) >= 0)
+            {
+                continue;
+            }
+
+            hasRootBone = true;
+            skeleton.ForceUpdateBoneChildTransform(i);
+        }
+
+        if (hasRootBone)
+        {
+            return;
+        }
+
+        // Fallback for unusual skeleton data without explicit roots.
+        for (var i = 0; i < boneCount; i++)
+        {
+            skeleton.ForceUpdateBoneChildTransform(i);
+        }
+    }
+
     private static string BuildBoneKey(string characterId, string boneName) =>
         string.IsNullOrWhiteSpace(characterId) ? boneName : $"{characterId}:{boneName}";
 
@@ -2855,7 +2882,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
                 // Force transform/skeleton propagation for this frame before rendering.
                 foreach (var character in _sceneCharacters)
                 {
-                    character.Skeleton.ForceUpdateAllBoneTransforms();
+                    ForceUpdateAllBoneChildTransforms(character.Skeleton);
                     character.Node.ForceUpdateTransform();
                 }
                 _worldRoot.ForceUpdateTransform();

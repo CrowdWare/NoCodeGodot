@@ -38,15 +38,64 @@ public sealed class NativeFunctionRegistry
     public void RegisterBuiltins()
     {
         Register("toString", args => args.Count > 0 ? new StringValue(args[0].ToString()) : new StringValue(string.Empty));
-        Register("size", args => args.Count > 0 && args[0] is ArrayValue array ? new NumberValue(array.Size()) : new NumberValue(0));
-        Register("isNumber", args => new BooleanValue(args.Count > 0 && args[0] is NumberValue));
+        Register("size", args => args.Count > 0 && args[0] is ArrayValue array ? new IntegerValue(array.Size()) : new IntegerValue(0));
+        Register("isNumber", args => new BooleanValue(args.Count > 0 && ValueUtils.IsNumeric(args[0])));
         Register("isString", args => new BooleanValue(args.Count > 0 && args[0] is StringValue));
         Register("isBoolean", args => new BooleanValue(args.Count > 0 && args[0] is BooleanValue));
         Register("isNull", args => new BooleanValue(args.Count > 0 && args[0] is NullValue));
         Register("isArray", args => new BooleanValue(args.Count > 0 && args[0] is ArrayValue));
-        Register("abs", args => args.Count > 0 && args[0] is NumberValue n ? new NumberValue(Math.Abs(n.Value)) : new NumberValue(0));
-        Register("min", args => args.Count >= 2 && args[0] is NumberValue a && args[1] is NumberValue b ? new NumberValue(Math.Min(a.Value, b.Value)) : new NumberValue(0));
-        Register("max", args => args.Count >= 2 && args[0] is NumberValue x && args[1] is NumberValue y ? new NumberValue(Math.Max(x.Value, y.Value)) : new NumberValue(0));
+        Register("abs", args =>
+        {
+            if (args.Count == 0)
+            {
+                return new IntegerValue(0);
+            }
+            if (args[0] is IntegerValue i)
+            {
+                if (i.Value == long.MinValue)
+                {
+                    return new NumberValue(Math.Abs((double)i.Value));
+                }
+                return new IntegerValue(Math.Abs(i.Value));
+            }
+            if (args[0] is NumberValue n)
+            {
+                return new NumberValue(Math.Abs(n.Value));
+            }
+            return new IntegerValue(0);
+        });
+        Register("min", args =>
+        {
+            if (args.Count < 2)
+            {
+                return new IntegerValue(0);
+            }
+            if (args[0] is IntegerValue ai && args[1] is IntegerValue bi)
+            {
+                return new IntegerValue(Math.Min(ai.Value, bi.Value));
+            }
+            if (ValueUtils.TryGetDouble(args[0], out var ad) && ValueUtils.TryGetDouble(args[1], out var bd))
+            {
+                return new NumberValue(Math.Min(ad, bd));
+            }
+            return new IntegerValue(0);
+        });
+        Register("max", args =>
+        {
+            if (args.Count < 2)
+            {
+                return new IntegerValue(0);
+            }
+            if (args[0] is IntegerValue ai && args[1] is IntegerValue bi)
+            {
+                return new IntegerValue(Math.Max(ai.Value, bi.Value));
+            }
+            if (ValueUtils.TryGetDouble(args[0], out var ad) && ValueUtils.TryGetDouble(args[1], out var bd))
+            {
+                return new NumberValue(Math.Max(ad, bd));
+            }
+            return new IntegerValue(0);
+        });
         Register("print", args =>
         {
             if (args.Count > 0)

@@ -618,10 +618,10 @@ public sealed class Parser(IReadOnlyList<Token> tokens)
             var token = Previous();
             if (token.Text.Contains('.', StringComparison.Ordinal))
             {
-                throw new ParseError("Double/float literals are not supported. Use integer values only.", token.Position);
+                return new NumberLiteral(double.Parse(token.Text, System.Globalization.CultureInfo.InvariantCulture), token.Position);
             }
 
-            return new NumberLiteral(double.Parse(token.Text, System.Globalization.CultureInfo.InvariantCulture), token.Position);
+            return new IntegerLiteral(long.Parse(token.Text, System.Globalization.CultureInfo.InvariantCulture), token.Position);
         }
 
         if (Match(TokenType.String))
@@ -701,12 +701,19 @@ public sealed class Parser(IReadOnlyList<Token> tokens)
     private List<Expression> ParseArguments()
     {
         var args = new List<Expression>();
+        SkipNewlines();
         if (!Check(TokenType.RightParen))
         {
-            do
+            while (true)
             {
                 args.Add(ParseExpression());
-            } while (Match(TokenType.Comma));
+                SkipNewlines();
+                if (!Match(TokenType.Comma))
+                {
+                    break;
+                }
+                SkipNewlines();
+            }
         }
 
         Consume(TokenType.RightParen, "Expected ')' after arguments");

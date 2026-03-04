@@ -333,6 +333,7 @@ public sealed class Interpreter
         {
             return expression switch
             {
+                IntegerLiteral number => new IntegerValue(number.Value),
                 NumberLiteral number => new NumberValue(number.Value),
                 StringLiteral str => new StringValue(str.Value),
                 InterpolatedStringLiteral interpolated => EvaluateInterpolated(interpolated),
@@ -380,19 +381,15 @@ public sealed class Interpreter
         return expr.Operator switch
         {
             "+" => EvaluatePlus(left, right, expr.Position),
-            "-" => left is NumberValue ln && right is NumberValue rn
-                ? new NumberValue(ln.Value - rn.Value)
-                : throw new RuntimeError("Invalid operands for '-'", expr.Position),
-            "*" => left is NumberValue lm && right is NumberValue rm
-                ? new NumberValue(lm.Value * rm.Value)
-                : throw new RuntimeError("Invalid operands for '*'", expr.Position),
+            "-" => EvaluateSubtraction(left, right, expr.Position),
+            "*" => EvaluateMultiplication(left, right, expr.Position),
             "/" => EvaluateDivide(left, right, expr.Position),
             "==" => new BooleanValue(ValueUtils.EqualsValue(left, right)),
             "!=" => new BooleanValue(!ValueUtils.EqualsValue(left, right)),
-            "<" => left is NumberValue l1 && right is NumberValue r1 ? new BooleanValue(l1.Value < r1.Value) : throw new RuntimeError("Invalid operands for '<'", expr.Position),
-            ">" => left is NumberValue l2 && right is NumberValue r2 ? new BooleanValue(l2.Value > r2.Value) : throw new RuntimeError("Invalid operands for '>'", expr.Position),
-            "<=" => left is NumberValue l3 && right is NumberValue r3 ? new BooleanValue(l3.Value <= r3.Value) : throw new RuntimeError("Invalid operands for '<='", expr.Position),
-            ">=" => left is NumberValue l4 && right is NumberValue r4 ? new BooleanValue(l4.Value >= r4.Value) : throw new RuntimeError("Invalid operands for '>='", expr.Position),
+            "<" => EvaluateNumericComparison(left, right, expr.Position, (l, r) => l < r),
+            ">" => EvaluateNumericComparison(left, right, expr.Position, (l, r) => l > r),
+            "<=" => EvaluateNumericComparison(left, right, expr.Position, (l, r) => l <= r),
+            ">=" => EvaluateNumericComparison(left, right, expr.Position, (l, r) => l >= r),
             "&&" => new BooleanValue(ValueUtils.IsTruthy(left) && ValueUtils.IsTruthy(right)),
             "||" => new BooleanValue(ValueUtils.IsTruthy(left) || ValueUtils.IsTruthy(right)),
             _ => throw new RuntimeError($"Unknown binary operator '{expr.Operator}'", expr.Position)
@@ -401,9 +398,21 @@ public sealed class Interpreter
 
     private static Value EvaluatePlus(Value left, Value right, Position? position)
     {
-        if (left is NumberValue l && right is NumberValue r)
+        if (left is IntegerValue li && right is IntegerValue ri)
         {
-            return new NumberValue(l.Value + r.Value);
+            try
+            {
+                return new IntegerValue(checked(li.Value + ri.Value));
+            }
+            catch (OverflowException ex)
+            {
+                throw new RuntimeError("Integer overflow in '+' operation", position, ex);
+            }
+        }
+
+        if (ValueUtils.TryGetDouble(left, out var l) && ValueUtils.TryGetDouble(right, out var r))
+        {
+            return new NumberValue(l + r);
         }
 
         return new StringValue(ToStringValue(left) + ToStringValue(right));
@@ -411,26 +420,80 @@ public sealed class Interpreter
         static string ToStringValue(Value value) => value switch
         {
             StringValue s => s.Value,
-            NumberValue n => n.Value % 1 == 0 ? ((int)n.Value).ToString() : n.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            IntegerValue i => i.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            NumberValue n => n.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
             BooleanValue b => b.Value.ToString(),
             NullValue => "null",
             _ => value.ToString()
         };
     }
 
+    private static Value EvaluateSubtraction(Value left, Value right, Position? position)
+    {
+        if (left is IntegerValue li && right is IntegerValue ri)
+        {
+            try
+            {
+                return new IntegerValue(checked(li.Value - ri.Value));
+            }
+            catch (OverflowException ex)
+            {
+                throw new RuntimeError("Integer overflow in '-' operation", position, ex);
+            }
+        }
+
+        if (!ValueUtils.TryGetDouble(left, out var l) || !ValueUtils.TryGetDouble(right, out var r))
+        {
+            throw new RuntimeError("Invalid operands for '-'", position);
+        }
+
+        return new NumberValue(l - r);
+    }
+
+    private static Value EvaluateMultiplication(Value left, Value right, Position? position)
+    {
+        if (left is IntegerValue li && right is IntegerValue ri)
+        {
+            try
+            {
+                return new IntegerValue(checked(li.Value * ri.Value));
+            }
+            catch (OverflowException ex)
+            {
+                throw new RuntimeError("Integer overflow in '*' operation", position, ex);
+            }
+        }
+
+        if (!ValueUtils.TryGetDouble(left, out var l) || !ValueUtils.TryGetDouble(right, out var r))
+        {
+            throw new RuntimeError("Invalid operands for '*'", position);
+        }
+
+        return new NumberValue(l * r);
+    }
+
     private static Value EvaluateDivide(Value left, Value right, Position? position)
     {
-        if (left is not NumberValue l || right is not NumberValue r)
+        if (!ValueUtils.TryGetDouble(left, out var l) || !ValueUtils.TryGetDouble(right, out var r))
         {
             throw new RuntimeError("Invalid operands for '/'", position);
         }
 
-        if (r.Value == 0)
+        if (Math.Abs(r) <= double.Epsilon)
         {
             throw new RuntimeError("Division by zero", position);
         }
 
-        return new NumberValue((int)l.Value / (int)r.Value);
+        return new NumberValue(l / r);
+    }
+
+    private static Value EvaluateNumericComparison(Value left, Value right, Position? position, Func<double, double, bool> predicate)
+    {
+        if (!ValueUtils.TryGetDouble(left, out var l) || !ValueUtils.TryGetDouble(right, out var r))
+        {
+            throw new RuntimeError("Invalid numeric comparison operands", position);
+        }
+        return new BooleanValue(predicate(l, r));
     }
 
     private Value EvaluateUnary(UnaryExpression expr)
@@ -438,11 +501,33 @@ public sealed class Interpreter
         var operand = EvaluateExpression(expr.Operand);
         return expr.Operator switch
         {
-            "-" => operand is NumberValue number ? new NumberValue(-number.Value) : throw new RuntimeError("Invalid operand for unary '-'", expr.Position),
-            "+" => operand is NumberValue plus ? plus : throw new RuntimeError("Invalid operand for unary '+'", expr.Position),
+            "-" => EvaluateUnaryNegation(operand, expr.Position),
+            "+" => operand is IntegerValue or NumberValue ? operand : throw new RuntimeError("Invalid operand for unary '+'", expr.Position),
             "!" => new BooleanValue(!ValueUtils.IsTruthy(operand)),
             _ => throw new RuntimeError($"Unknown unary operator '{expr.Operator}'", expr.Position)
         };
+    }
+
+    private static Value EvaluateUnaryNegation(Value operand, Position? position)
+    {
+        if (operand is IntegerValue i)
+        {
+            try
+            {
+                return new IntegerValue(checked(-i.Value));
+            }
+            catch (OverflowException ex)
+            {
+                throw new RuntimeError("Integer overflow in unary '-'", position, ex);
+            }
+        }
+
+        if (operand is NumberValue d)
+        {
+            return new NumberValue(-d.Value);
+        }
+
+        throw new RuntimeError("Invalid operand for unary '-'", position);
     }
 
     private Value EvaluatePostfix(PostfixExpression expr)
@@ -455,16 +540,26 @@ public sealed class Interpreter
         var binding = _currentScope.GetVariableBinding(identifier.Name)
                       ?? throw new RuntimeError($"Undefined variable '{identifier.Name}'", expr.Position);
         var current = binding.Getter is null ? binding.Value : EvaluateAccessor(binding.Getter, binding, null);
-        if (current is not NumberValue number)
+        if (current is not IntegerValue and not NumberValue)
         {
             throw new RuntimeError("Postfix operators only work on numbers", expr.Position);
         }
 
-        var newValue = expr.Operator switch
+        Value newValue = current switch
         {
-            "++" => new NumberValue(number.Value + 1),
-            "--" => new NumberValue(number.Value - 1),
-            _ => throw new RuntimeError($"Unknown postfix operator '{expr.Operator}'", expr.Position)
+            IntegerValue i => (Value)(expr.Operator switch
+            {
+                "++" => new IntegerValue(checked(i.Value + 1)),
+                "--" => new IntegerValue(checked(i.Value - 1)),
+                _ => throw new RuntimeError($"Unknown postfix operator '{expr.Operator}'", expr.Position)
+            }),
+            NumberValue d => (Value)(expr.Operator switch
+            {
+                "++" => new NumberValue(d.Value + 1d),
+                "--" => new NumberValue(d.Value - 1d),
+                _ => throw new RuntimeError($"Unknown postfix operator '{expr.Operator}'", expr.Position)
+            }),
+            _ => throw new RuntimeError("Postfix operators only work on numbers", expr.Position)
         };
 
         AssignToBinding(binding, newValue);
@@ -562,7 +657,7 @@ public sealed class Interpreter
         {
             "add" when args.Count == 1 => AddArray(array, args[0]),
             "remove" when args.Count == 1 => new BooleanValue(array.Elements.Remove(args[0])),
-            "removeAt" when args.Count == 1 && args[0] is NumberValue index => RemoveAt(array, index.ToInt()),
+            "removeAt" when args.Count == 1 => RemoveAt(array, CoerceArrayIndex(args[0], position)),
             "contains" when args.Count == 1 => new BooleanValue(array.Elements.Contains(args[0])),
             _ => throw new RuntimeError($"Unknown array method '{method}'", position)
         };
@@ -589,7 +684,7 @@ public sealed class Interpreter
     private static Value CallStringMethod(StringValue str, string method, IReadOnlyList<Value> _args, Position? position)
         => method switch
         {
-            "length" => new NumberValue(str.Value.Length),
+            "length" => new IntegerValue(str.Value.Length),
             "toUpperCase" => new StringValue(str.Value.ToUpperInvariant()),
             "toLowerCase" => new StringValue(str.Value.ToLowerInvariant()),
             "trim" => new StringValue(str.Value.Trim()),
@@ -602,7 +697,7 @@ public sealed class Interpreter
         return receiver switch
         {
             ObjectValue obj => obj.GetField(access.Member),
-            ArrayValue arr when access.Member == "size" => new NumberValue(arr.Size()),
+            ArrayValue arr when access.Member == "size" => new IntegerValue(arr.Size()),
             _ => throw new RuntimeError($"Cannot access member '{access.Member}' on {receiver.GetType().Name}", access.Position)
         };
     }
@@ -611,9 +706,9 @@ public sealed class Interpreter
     {
         var receiver = EvaluateExpression(access.Receiver);
         var index = EvaluateExpression(access.Index);
-        if (receiver is ArrayValue arr && index is NumberValue n)
+        if (receiver is ArrayValue arr)
         {
-            return arr.Get(n.ToInt());
+            return arr.Get(CoerceArrayIndex(index, access.Position));
         }
 
         throw new RuntimeError("Invalid array access", access.Position);
@@ -718,12 +813,12 @@ public sealed class Interpreter
             {
                 var array = EvaluateExpression(arrayAccess.Receiver);
                 var index = EvaluateExpression(arrayAccess.Index);
-                if (array is not ArrayValue arr || index is not NumberValue n)
+                if (array is not ArrayValue arr)
                 {
                     throw new RuntimeError("Invalid array assignment", position);
                 }
 
-                arr.Set(n.ToInt(), value);
+                arr.Set(CoerceArrayIndex(index, position), value);
                 break;
             }
             default:
@@ -769,5 +864,20 @@ public sealed class Interpreter
         }
 
         EvaluateAccessor(binding.Setter, binding, value);
+    }
+
+    private static int CoerceArrayIndex(Value value, Position? position)
+    {
+        if (!ValueUtils.TryGetInt64(value, out var numeric))
+        {
+            throw new RuntimeError("Array index must be an integer number", position);
+        }
+
+        if (numeric < int.MinValue || numeric > int.MaxValue)
+        {
+            throw new RuntimeError("Array index is out of supported range", position);
+        }
+
+        return (int)numeric;
     }
 }

@@ -26,7 +26,8 @@ public abstract record Value
 
     public override string ToString() => this switch
     {
-        NumberValue n => n.Value % 1.0 == 0.0 ? ((long)n.Value).ToString() : n.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        IntegerValue i => i.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        NumberValue n => n.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
         StringValue s => s.Value,
         BooleanValue b => b.Value.ToString(),
         NullValue => "null",
@@ -37,11 +38,17 @@ public abstract record Value
     };
 }
 
+public sealed record IntegerValue(long Value) : Value
+{
+    public override object ToDotNet() => Value;
+    public override bool IsTruthy() => Value != 0L;
+    public override string ToString() => base.ToString();
+}
+
 public sealed record NumberValue(double Value) : Value
 {
     public override object ToDotNet() => Value;
     public override bool IsTruthy() => Value != 0.0;
-    public int ToInt() => (int)Value;
     public override string ToString() => base.ToString();
 }
 
@@ -133,8 +140,8 @@ public static class ValueUtils
     {
         null => NullValue.Instance,
         bool b => new BooleanValue(b),
-        int i => new NumberValue(i),
-        long l => new NumberValue(l),
+        int i => new IntegerValue(i),
+        long l => new IntegerValue(l),
         float f => new NumberValue(f),
         double d => new NumberValue(d),
         string s => new StringValue(s),
@@ -143,6 +150,70 @@ public static class ValueUtils
     };
 
     public static object? ToDotNet(Value value) => value.ToDotNet();
-    public static bool EqualsValue(Value left, Value right) => Equals(left, right);
+    public static bool EqualsValue(Value left, Value right)
+    {
+        if (left is IntegerValue li && right is IntegerValue ri)
+        {
+            return li.Value == ri.Value;
+        }
+
+        if (TryGetDouble(left, out var l) && TryGetDouble(right, out var r))
+        {
+            return l.Equals(r);
+        }
+
+        return Equals(left, right);
+    }
+
+    public static bool IsNumeric(Value value) => value is IntegerValue or NumberValue;
+
+    public static bool TryGetDouble(Value value, out double result)
+    {
+        switch (value)
+        {
+            case IntegerValue i:
+                result = i.Value;
+                return true;
+            case NumberValue n:
+                result = n.Value;
+                return true;
+            default:
+                result = 0d;
+                return false;
+        }
+    }
+
+    public static bool TryGetInt64(Value value, out long result)
+    {
+        switch (value)
+        {
+            case IntegerValue i:
+                result = i.Value;
+                return true;
+            case NumberValue n:
+                if (double.IsNaN(n.Value) || double.IsInfinity(n.Value))
+                {
+                    result = 0L;
+                    return false;
+                }
+                if (n.Value < long.MinValue || n.Value > long.MaxValue)
+                {
+                    result = 0L;
+                    return false;
+                }
+                var truncated = Math.Truncate(n.Value);
+                if (!n.Value.Equals(truncated))
+                {
+                    result = 0L;
+                    return false;
+                }
+                result = (long)truncated;
+                return true;
+            default:
+                result = 0L;
+                return false;
+        }
+    }
+
     public static bool IsTruthy(Value value) => value.IsTruthy();
 }

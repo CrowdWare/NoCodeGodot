@@ -68,13 +68,15 @@ public sealed class LocalizationStore
             return false;
         }
 
-        if (_localized.TryGetValue(key, out value))
+        if (_localized.TryGetValue(key, out var localizedValue) && localizedValue is not null)
         {
+            value = localizedValue;
             return true;
         }
 
-        if (_fallback.TryGetValue(key, out value))
+        if (_fallback.TryGetValue(key, out var fallbackValue) && fallbackValue is not null)
         {
+            value = fallbackValue;
             return true;
         }
 

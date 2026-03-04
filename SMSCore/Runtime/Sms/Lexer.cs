@@ -82,7 +82,7 @@ public sealed class Lexer(string input)
             '[' => new Token(TokenType.LeftBracket, "[", startPos),
             ']' => new Token(TokenType.RightBracket, "]", startPos),
             ',' => new Token(TokenType.Comma, ",", startPos),
-            '.' => new Token(TokenType.Dot, ".", startPos),
+            '.' => char.IsDigit(Peek()) ? ParseNumber(start, startPos) : new Token(TokenType.Dot, ".", startPos),
             ';' => new Token(TokenType.Semicolon, ";", startPos),
             '+' => Match('+') ? new Token(TokenType.Increment, "++", startPos) : new Token(TokenType.Plus, "+", startPos),
             '-' => Match('>')
@@ -289,6 +289,11 @@ public sealed class Lexer(string input)
             {
                 Advance();
             }
+        }
+
+        if (Peek() == 'e' || Peek() == 'E')
+        {
+            throw new LexError("Exponential number syntax is not supported in SMS. Use plain literals like 1.0, .5, 3.14.", PositionFromIndex(_current));
         }
 
         return new Token(TokenType.Number, _input[start.._current], startPos);

@@ -53,6 +53,7 @@ public sealed record EventHandlerDeclaration(
     IReadOnlyList<Statement> Body,
     Position? Position = null) : Statement(Position);
 
+public sealed record IntegerLiteral(long Value, Position? Position = null) : Expression(Position);
 public sealed record NumberLiteral(double Value, Position? Position = null) : Expression(Position);
 public sealed record StringLiteral(string Value, Position? Position = null) : Expression(Position);
 public sealed record InterpolatedStringLiteral(IReadOnlyList<StringPart> Parts, Position? Position = null) : Expression(Position);
