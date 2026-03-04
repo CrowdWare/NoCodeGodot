@@ -53,6 +53,7 @@ Repository guidance for coding agents working in Forge.
 - Frame range export was switched to async frame-by-frame capture so timeline pose updates are visible before each screenshot.
 - `tools/specs/` and runtime surface were updated for new AI and poser APIs; regenerate docs with `./run.sh docs` after interface changes.
 - Known open point: xAI video endpoint/protocol and model availability can change; keep `ForgeAiLib` request/response mapping aligned with current xAI docs before production rollout.
+- Known open point: `RotationGizmo3D` guide circle radii are tuned, but the colored rotation arcs still need a final geometry/style pass to match the intended Blockbench-like look.
 
 ## Code Style
 - Match existing project conventions.

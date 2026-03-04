@@ -81,7 +81,8 @@
 - [x] tasks/timeline_scrubber.md
 - [x] tasks/scene_panel.md
 - [x] tasks/sms_parser_multiline_function_calls.md
-- [ ] tasks/toolbar.md
+- [x] tasks/toolbar.md
+- [ ] tasks/rotate_gizmo.md
 - [ ] tasks/viewport_code.md
 
 
