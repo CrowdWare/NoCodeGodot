@@ -4,10 +4,15 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <GodotProjectDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\ForgeRunner\'))</GodotProjectDir>
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
+
+  <ItemGroup>
+    <CompilerVisibleProperty Include="GodotProjectDir" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
