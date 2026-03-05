@@ -42,7 +42,9 @@ enum class TokenType {
     Semicolon,
     Assign,
     Plus,
+    Increment,
     Minus,
+    Decrement,
     Arrow,
     Less,
     Greater,
@@ -111,12 +113,20 @@ public:
                     }
                     break;
                 case '+':
-                    out.push_back({TokenType::Plus, "+"});
+                    if (!is_at_end() && peek() == '+') {
+                        advance();
+                        out.push_back({TokenType::Increment, "++"});
+                    } else {
+                        out.push_back({TokenType::Plus, "+"});
+                    }
                     break;
                 case '-':
                     if (!is_at_end() && peek() == '>') {
                         advance();
                         out.push_back({TokenType::Arrow, "->"});
+                    } else if (!is_at_end() && peek() == '-') {
+                        advance();
+                        out.push_back({TokenType::Decrement, "--"});
                     } else {
                         out.push_back({TokenType::Minus, "-"});
                     }
@@ -576,6 +586,42 @@ struct UnaryExpr final : Expr {
             return Value::Int(-value.as_int("Unary '-'"));
         }
         throw std::runtime_error("Unsupported unary operator.");
+    }
+
+    TokenType oper;
+    std::unique_ptr<Expr> operand_;
+};
+
+struct PostfixExpr final : Expr {
+    PostfixExpr(TokenType op, std::unique_ptr<Expr> operand)
+        : oper(op), operand_(std::move(operand)) {}
+
+    Value eval(Env& env) const override {
+        const auto* variable = dynamic_cast<const VarExpr*>(operand_.get());
+        if (variable == nullptr) {
+            throw std::runtime_error("Postfix operators only work on variables.");
+        }
+
+        auto current = env.get_var(variable->name);
+        if (current.kind != Value::Kind::Int) {
+            throw std::runtime_error("Postfix operators only work on integer variables.");
+        }
+
+        Value next = current;
+        if (oper == TokenType::Increment) {
+            next.int_value = next.int_value + 1;
+        } else if (oper == TokenType::Decrement) {
+            next.int_value = next.int_value - 1;
+        } else {
+            throw std::runtime_error("Unsupported postfix operator.");
+        }
+
+        if (!env.assign_var(variable->name, next)) {
+            throw std::runtime_error("Assignment to unknown variable: " + variable->name);
+        }
+
+        // postfix returns old value
+        return current;
     }
 
     TokenType oper;
@@ -1244,6 +1290,13 @@ private:
             }
 
             break;
+        }
+
+        if (match(TokenType::Increment)) {
+            return std::make_unique<PostfixExpr>(TokenType::Increment, std::move(expr));
+        }
+        if (match(TokenType::Decrement)) {
+            return std::make_unique<PostfixExpr>(TokenType::Decrement, std::move(expr));
         }
 
         return expr;
