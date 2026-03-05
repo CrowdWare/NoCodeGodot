@@ -34,6 +34,7 @@ The Forge-Runner interprets this description and executes it on the target platf
 - Current Process: [CWUP/README.md](CWUP/README.md)
 - Backlog: [BACKLOG.md](CWUP/BACKLOG.md)
 - ForgePoser: [ForgePoser/README.md](ForgePoser/README.md)
+- Contribution model: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
 

@@ -1,4 +1,6 @@
 # ForgePoser
+![screenprint](/images/poser.png)
+
 
 ForgePoser is the posing and scene authoring app built on top of Forge Runner.
 
