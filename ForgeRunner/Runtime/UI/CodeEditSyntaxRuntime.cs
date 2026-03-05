@@ -145,7 +145,7 @@ public static partial class CodeEditSyntaxRuntime
 
         if (!string.Equals(previousSyntax, syntax, StringComparison.Ordinal))
         {
-            RunnerLogger.Info("UI", $"CodeEdit syntax switched: '{previousSyntax}' -> '{syntax}'.");
+            RunnerLogger.Debug("UI", $"CodeEdit syntax switched: '{previousSyntax}' -> '{syntax}'.");
         }
 
         editor.ScrollVertical = previousScroll;

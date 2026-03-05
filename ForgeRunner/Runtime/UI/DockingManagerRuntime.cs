@@ -37,7 +37,7 @@ public static partial class DockingManagerRuntime
         var manager = new DockingManagerNode();
         manager.Initialize(hosts);
         root.AddChild(manager);
-        RunnerLogger.Info("UI", $"DockingManager attached for {hosts.Count} dock host(s).");
+        RunnerLogger.Debug("UI", $"DockingManager attached for {hosts.Count} dock host(s).");
     }
 
     private static List<DockHostState> CollectDockHosts(Control root)

@@ -111,6 +111,11 @@ const FUNCTIONS := {
         "signature": "log.error(message: String)",
         "description": "Logs an error message."
     },
+    "log.debug": {
+        "category": "Logging",
+        "signature": "log.debug(message: String)",
+        "description": "Logs a debug message when debug logging is enabled in startup settings."
+    },
 
     "fs.list": {
         "category": "File System",

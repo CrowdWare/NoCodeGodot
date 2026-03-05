@@ -40,6 +40,14 @@ Here I will list things we need in general, like demos, tech previews-
 - [ ] Server-mode runtime
 - [ ] server.sml → Codegen → Kotlin Sources (KTOR)
 - [ ] HumanityTree statt Database
+
+## Findings
+- [ ] Investigate Godot shutdown leak report: `RID allocations of type TextureStorage::Texture were leaked at exit` (seen after app close; currently treated as engine-level diagnostic, not user-facing app error)
+- [ ] Investigate Godot shutdown warning: `resources still in use at exit (run with --verbose for details)` and capture verbose details for concrete owner paths
+- [ ] Verify cleanup/lifecycle for runtime viewports/textures (`SubViewport`, `ViewportTexture`, generated `ImageTexture`) on exit to reduce RID leak noise
+- [ ] Fix verbose shutdown leak: `Cannot get path of node as it is not in a scene tree` with leaked UI nodes (`VBoxContainer`, `CodeEdit`, `HScrollBar`, `VScrollBar`, `MarginContainer`) during app exit
+- [ ] Fix verbose shutdown leak: `Timer` instances leaked at exit (ensure timers created by runtime are canceled/freed on quit)
+- [ ] Fix verbose shutdown leak: `SyntaxHighlighter` / `TextParagraph` / `FontFile` / `Image` reference leaks at exit (likely CodeEdit/theme/resource lifetime)
   
 
 ### Database sample

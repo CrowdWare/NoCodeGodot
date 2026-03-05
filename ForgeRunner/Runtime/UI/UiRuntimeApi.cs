@@ -255,7 +255,7 @@ public static class UiRuntimeApi
             ));
         };
 
-        RunnerLogger.Info("UI", $"Bound dynamic Tree events for '{sourceIdForLog(tree)}'.");
+        RunnerLogger.Debug("UI", $"Bound dynamic Tree events for '{sourceIdForLog(tree)}'.");
     }
 
     private static string sourceIdForLog(Tree tree)

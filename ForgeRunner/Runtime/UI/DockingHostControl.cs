@@ -127,6 +127,7 @@ public sealed partial class DockingHostControl : Container
 
     public override void _Ready()
     {
+        ClipContents = true;
         _defaultLayoutState = CaptureLayoutState();
     }
 

@@ -113,8 +113,13 @@ public partial class Main : Node
 		DiscoverUiActionModules();
 		ConfigureWindowContentScale(UiScalingMode.Layout);
 
+		var options = ParseStartupOptions();
 		var startupSettings = await LoadStartupSettingsAsync();
-		RunnerLogger.Configure(startupSettings.IncludeStackTraces, startupSettings.ShowParserWarnings);
+		if (options.DebugOverride.HasValue)
+		{
+			startupSettings.ShowDebugLogs = options.DebugOverride.Value;
+		}
+		RunnerLogger.Configure(startupSettings.IncludeStackTraces, startupSettings.ShowParserWarnings, startupSettings.ShowDebugLogs);
 		RunnerLogger.Info("Perf", $"[Ready] settings={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		var theme = GD.Load<Theme>("res://theme.tres");
@@ -422,7 +427,7 @@ public partial class Main : Node
 			RunnerLogger.Error("UI", $"Failed to load UI from '{url}'", ex);
 			return;
 		}
-		RunnerLogger.Info("Perf", $"[SwapToUi] loadFromUri={sw.ElapsedMilliseconds}ms"); sw.Restart();
+		RunnerLogger.Debug("Perf", $"[SwapToUi] loadFromUri={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		_resolvedStartupUiUrl = url;
 		_smsUiRuntime = newRuntime;
@@ -457,10 +462,10 @@ public partial class Main : Node
 
 		// After the first swap, always target _mainAppWindow (null → root window for apps without splash).
 		AttachUi(rootControl, _mainAppWindow);
-		RunnerLogger.Info("Perf", $"[SwapToUi] attachUi={sw.ElapsedMilliseconds}ms"); sw.Restart();
+		RunnerLogger.Debug("Perf", $"[SwapToUi] attachUi={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		await EnsureRuntimeUiReadyStateAsync();
-		RunnerLogger.Info("UI", $"UI loaded from '{url}'.");
+		RunnerLogger.Debug("UI", $"UI loaded from '{url}'.");
 		await InvokeUiReadyHandlersAsync();
 		await LoadRuntimePluginsAsync(url);
 		_smsUiRuntime?.InvokeReady();
@@ -644,7 +649,7 @@ public partial class Main : Node
 			var rootControl = await loader.LoadFromUriAsync(uiUrl);
 			AttachUi(rootControl);
 			await EnsureRuntimeUiReadyStateAsync();
-			Runtime.Logging.RunnerLogger.Info("UI", $"UI loaded from '{uiUrl}'.");
+			Runtime.Logging.RunnerLogger.Debug("UI", $"UI loaded from '{uiUrl}'.");
 			await InvokeUiReadyHandlersAsync();
 			await LoadRuntimePluginsAsync(uiUrl);
 			_smsUiRuntime?.InvokeReady();
@@ -949,7 +954,7 @@ public partial class Main : Node
 		panel.Name = string.IsNullOrWhiteSpace(panel.Name) ? $"{descriptor.Id}Panel" : panel.Name;
 		target.AddDockTab(panel, descriptor.Title);
 		target.Visible = true;
-		RunnerLogger.Info("Plugin", $"Loaded plugin panel '{descriptor.Id}' into '{dockSide}'.");
+		RunnerLogger.Debug("Plugin", $"Loaded plugin panel '{descriptor.Id}' into '{dockSide}'.");
 		return true;
 	}
 
@@ -1292,10 +1297,21 @@ public partial class Main : Node
 		string? urlOverride = null;
 		var clearCache = false;
 		var resetStartUrl = false;
+		bool? debugOverride = null;
 
 		for (var i = 0; i < args.Count; i++)
 		{
 			var arg = args[i];
+			if (arg.StartsWith("--debug=", StringComparison.Ordinal))
+			{
+				var raw = arg.Substring("--debug=".Length);
+				if (TryParseBoolArg(raw, out var parsed))
+				{
+					debugOverride = parsed;
+				}
+				continue;
+			}
+
 			if (arg == "--url" && i + 1 < args.Count)
 			{
 				urlOverride = args[i + 1];
@@ -1323,7 +1339,30 @@ public partial class Main : Node
 			}
 		}
 
-		return new StartupOptions(urlOverride, clearCache, resetStartUrl);
+		return new StartupOptions(urlOverride, clearCache, resetStartUrl, debugOverride);
+	}
+
+	private static bool TryParseBoolArg(string raw, out bool value)
+	{
+		var normalized = (raw ?? string.Empty).Trim().ToLowerInvariant();
+		switch (normalized)
+		{
+			case "1":
+			case "true":
+			case "yes":
+			case "on":
+				value = true;
+				return true;
+			case "0":
+			case "false":
+			case "no":
+			case "off":
+				value = false;
+				return true;
+			default:
+				value = false;
+				return false;
+		}
 	}
 
 	private static List<string> CollectStartupArgs()
@@ -1401,7 +1440,7 @@ public partial class Main : Node
 		File.Move(temp, path);
 	}
 
-	private sealed record StartupOptions(string? UrlOverride, bool ClearCache, bool ResetStartUrl);
+	private sealed record StartupOptions(string? UrlOverride, bool ClearCache, bool ResetStartUrl, bool? DebugOverride);
 
 	private sealed class StartupSettings
 	{
@@ -1409,6 +1448,7 @@ public partial class Main : Node
 		public int ProgressThresholdMb { get; set; } = 10;
 		public bool IncludeStackTraces { get; set; }
 		public bool ShowParserWarnings { get; set; } = true;
+		public bool ShowDebugLogs { get; set; }
 	}
 
 	private static StartupSettings ParseStartupSettingsSml(string content)
@@ -1452,6 +1492,11 @@ public partial class Main : Node
 			settings.ShowParserWarnings = showParserWarningsValue.AsBoolOrThrow("showParserWarnings");
 		}
 
+		if (root.TryGetProperty("showDebugLogs", out var showDebugLogsValue))
+		{
+			settings.ShowDebugLogs = showDebugLogsValue.AsBoolOrThrow("showDebugLogs");
+		}
+
 		return settings;
 	}
 
@@ -1467,6 +1512,7 @@ public partial class Main : Node
 		builder.AppendLine($"    progressThresholdMb: {Math.Max(0, settings.ProgressThresholdMb)}");
 		builder.AppendLine($"    includeStackTraces: {settings.IncludeStackTraces.ToString().ToLowerInvariant()}");
 		builder.AppendLine($"    showParserWarnings: {settings.ShowParserWarnings.ToString().ToLowerInvariant()}");
+		builder.AppendLine($"    showDebugLogs: {settings.ShowDebugLogs.ToString().ToLowerInvariant()}");
 		builder.AppendLine("}");
 		return builder.ToString();
 	}
@@ -1774,7 +1820,7 @@ public partial class Main : Node
 				targetWindow.Theme = inheritedTheme;
 			host.Theme = inheritedTheme;
 			rootControl.Theme = inheritedTheme;
-			RunnerLogger.Info("UI", "Applied window theme directly to RuntimeUiHost and SmlRoot.");
+			RunnerLogger.Debug("UI", "Applied window theme directly to RuntimeUiHost and SmlRoot.");
 		}
 		else
 		{
@@ -2202,13 +2248,13 @@ public partial class Main : Node
 			window.SetFlag(Window.Flags.AlwaysOnTop, false);
 			window.MinimizeDisabled = false;
 			window.MaximizeDisabled = false;
-			RunnerLogger.Info("UI", "Window flags reset to normal (resizable, all buttons, not borderless, not always-on-top)");
+			RunnerLogger.Debug("UI", "Window flags reset to normal (resizable, all buttons, not borderless, not always-on-top)");
 		}
 
 		if (rootControl.HasMeta(NodePropertyMapper.MetaWindowTitle))
 		{
 			window.Title = rootControl.GetMeta(NodePropertyMapper.MetaWindowTitle).AsString();
-			RunnerLogger.Info("UI", $"Window title applied: '{window.Title}'");
+			RunnerLogger.Debug("UI", $"Window title applied: '{window.Title}'");
 		}
 
 		if (rootControl.HasMeta(NodePropertyMapper.MetaWindowSizeX)
@@ -2217,7 +2263,7 @@ public partial class Main : Node
 			var width = Math.Max(1, rootControl.GetMeta(NodePropertyMapper.MetaWindowSizeX).AsInt32());
 			var height = Math.Max(1, rootControl.GetMeta(NodePropertyMapper.MetaWindowSizeY).AsInt32());
 			window.Size = new Vector2I(width, height);
-			RunnerLogger.Info("UI", $"Window size applied: {window.Size.X}x{window.Size.Y}");
+			RunnerLogger.Debug("UI", $"Window size applied: {window.Size.X}x{window.Size.Y}");
 		}
 
 		if (rootControl.HasMeta(NodePropertyMapper.MetaWindowExtendToTitle))
@@ -2245,7 +2291,7 @@ public partial class Main : Node
 		var minWidth = rootControl.GetMeta(NodePropertyMapper.MetaWindowMinSizeX).AsInt32();
 		var minHeight = rootControl.GetMeta(NodePropertyMapper.MetaWindowMinSizeY).AsInt32();
 		window.MinSize = new Vector2I(Math.Max(0, minWidth), Math.Max(0, minHeight));
-		RunnerLogger.Info("UI", $"Window minSize applied: {window.MinSize.X}x{window.MinSize.Y}");
+		RunnerLogger.Debug("UI", $"Window minSize applied: {window.MinSize.X}x{window.MinSize.Y}");
 	}
 
 	private void ResizeUiRootToViewport()

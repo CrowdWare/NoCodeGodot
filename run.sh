@@ -43,7 +43,24 @@ generate_version() {
   echo "${v:0:11}"
 }
 
-MODE="${1:-}"
+GODOT_ARGS=()
+FORGE_RUNNER_ARGS=()
+POSITIONAL_ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --verbose)
+      GODOT_ARGS+=("$arg")
+      ;;
+    --debug=*)
+      FORGE_RUNNER_ARGS+=("$arg")
+      ;;
+    *)
+      POSITIONAL_ARGS+=("$arg")
+      ;;
+  esac
+done
+
+MODE="${POSITIONAL_ARGS[0]:-}"
 
 if [[ -z "$MODE" ]]; then
   echo "Bitte Modus wählen:"
@@ -89,27 +106,27 @@ case "$MODE" in
   default)
     require_godot
     echo "Starting ForgeRunner with docs/Default/app.sml"
-    exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --url "$DEFAULT_UI"
+    exec "$GODOT_BIN" "${GODOT_ARGS[@]-}" --path "$RUNNER_PATH" -- --url "$DEFAULT_UI" "${FORGE_RUNNER_ARGS[@]-}"
     ;;
   designer|sample)
     require_godot
     echo "Starting ForgeRunner with docs/ForgeDesigner/app.sml"
-    exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --url "$SAMPLE_UI"
+    exec "$GODOT_BIN" "${GODOT_ARGS[@]-}" --path "$RUNNER_PATH" -- --url "$SAMPLE_UI" "${FORGE_RUNNER_ARGS[@]-}"
     ;;
   docking)
     require_godot
     echo "Starting ForgeRunner with samples/docking_demo.sml"
-    exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --url "$DOCKING_SAMPLE_UI"
+    exec "$GODOT_BIN" "${GODOT_ARGS[@]-}" --path "$RUNNER_PATH" -- --url "$DOCKING_SAMPLE_UI" "${FORGE_RUNNER_ARGS[@]-}"
     ;;
   poser)
     require_godot
     echo "Starting ForgePoser..."
-    exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --url "$POSER_UI"
+    exec "$GODOT_BIN" "${GODOT_ARGS[@]-}" --path "$RUNNER_PATH" -- --url "$POSER_UI" "${FORGE_RUNNER_ARGS[@]-}"
     ;;
   none)
     require_godot
     echo "Starting ForgeRunner ohne startup URL override"
-    exec "$GODOT_BIN" --path "$RUNNER_PATH" -- --reset-start-url
+    exec "$GODOT_BIN" "${GODOT_ARGS[@]-}" --path "$RUNNER_PATH" -- --reset-start-url "${FORGE_RUNNER_ARGS[@]-}"
     ;;
   docs)
     require_godot
@@ -159,7 +176,7 @@ case "$MODE" in
     bash "$REPO_ROOT/scripts/build_manifest.sh"
 
     cd "$REPO_ROOT"
-    COMMIT_MSG="${2:-"manifest: rebuild $(date +%Y-%m-%d)"}"
+    COMMIT_MSG="${POSITIONAL_ARGS[1]:-"manifest: rebuild $(date +%Y-%m-%d)"}"
     git add .
     git commit -m "$COMMIT_MSG"
     git push
@@ -191,7 +208,7 @@ case "$MODE" in
       exit 1
     fi
 
-    CHANNEL="${2:-pre}"   # pre | alpha | beta | stable
+    CHANNEL="${POSITIONAL_ARGS[1]:-pre}"   # pre | alpha | beta | stable
     VERSION="$(generate_version)"
     TAG="v$VERSION"
 
@@ -241,7 +258,7 @@ case "$MODE" in
     echo "Release $TAG [$CHANNEL] published."
     ;;
   *)
-    echo "Usage: $0 [default|designer|docking|poser|none|docs|build|test|theme|manifest|publish|export|app|release]"
+    echo "Usage: $0 [default|designer|docking|poser|none|docs|build|test|theme|manifest|publish|export|app|release] [--debug=true] [--verbose]"
     exit 1
     ;;
 esac

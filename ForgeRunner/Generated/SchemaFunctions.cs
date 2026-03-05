@@ -24,6 +24,7 @@ public static class SchemaFunctions
         new FunctionDef("i18n.setLocale", "Internationalization", "i18n.setLocale(locale: String)", "Switches the active locale and reloads the corresponding strings-<locale>.sml file. Subsequent i18n.tr() calls return translations for the new locale. Controls whose text was already rendered during UI build are not automatically updated; update them explicitly via script after calling setLocale. The call is a no-op when the requested locale is already active. A warning is logged on load failure and the previous locale is retained."),
         new FunctionDef("i18n.tr", "Internationalization", "i18n.tr(key: String, default: String?)", "Returns the translation for the given key in the current locale. Falls back to the default value when provided, or to the key itself when no default is given and no translation is found."),
         new FunctionDef("log.error", "Logging", "log.error(message: String)", "Logs an error message."),
+        new FunctionDef("log.debug", "Logging", "log.debug(message: String)", "Logs a debug message when debug logging is enabled in startup settings."),
         new FunctionDef("log.info", "Logging", "log.info(message: String)", "Logs an informational message."),
         new FunctionDef("log.success", "Logging", "log.success(message: String)", "Logs a success message."),
         new FunctionDef("log.warn", "Logging", "log.warn(message: String)", "Logs a warning message."),

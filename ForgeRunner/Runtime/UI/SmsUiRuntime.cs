@@ -44,7 +44,6 @@ namespace Runtime.UI;
 public sealed class SmsUiRuntime
 {
     private const string MetaSmsPath = "sms_path";
-    private const string MetaSmsSaveShortcutHooked = "sms_saveShortcutHooked";
     private const string MetaSmsMarkdownText = "sms_markdown_text";
 
     private readonly RunnerUriResolver _uriResolver;
@@ -141,7 +140,7 @@ public sealed class SmsUiRuntime
         try
         {
             _engine.Execute(source);
-            RunnerLogger.Info("SMS", $"Loaded additional SMS script: '{smsUri}'.");
+            RunnerLogger.Debug("SMS", $"Loaded additional SMS script: '{smsUri}'.");
         }
         catch (Exception ex)
         {
@@ -390,6 +389,7 @@ public sealed class SmsUiRuntime
             if (!string.IsNullOrWhiteSpace(srcId))
                 TryInvokeEvent(srcId, "frameRangeExportFinished", false, (int)(ctx.NumericValue ?? 0), ctx.Clicked ?? string.Empty);
         });
+
     }
 
     public void InvokeReady()
@@ -679,6 +679,11 @@ public sealed class SmsUiRuntime
             ["success"] = new NativeFunctionValue(methodArgs =>
             {
                 RunnerLogger.Success("SMS", ValueArgString(methodArgs, 0));
+                return NullValue.Instance;
+            }),
+            ["debug"] = new NativeFunctionValue(methodArgs =>
+            {
+                RunnerLogger.Debug("SMS", ValueArgString(methodArgs, 0));
                 return NullValue.Instance;
             })
         });
@@ -2384,7 +2389,6 @@ $"}}\n";
 
         if (runtimeObject is CodeEdit editor)
         {
-            EnsureCodeEditSaveShortcut(id, editor);
             fields["SetPath"] = new NativeFunctionValue(methodArgs =>
             {
                 var path = ValueArgString(methodArgs, 0);
@@ -2498,7 +2502,7 @@ $"}}\n";
                 if (dispatcher is not null)
                 {
                     UiRuntimeApi.BindTreeEvents(tree, dispatcher);
-                    RunnerLogger.Info("SMS", $"Tree events bound for '{id}'.");
+                    RunnerLogger.Debug("SMS", $"Tree events bound for '{id}'.");
                 }
                 else
                 {
@@ -3619,58 +3623,6 @@ $"}}\n";
         }
 
         return ids;
-    }
-
-    private void EnsureCodeEditSaveShortcut(string id, CodeEdit editor)
-    {
-        if (editor.HasMeta(MetaSmsSaveShortcutHooked) && editor.GetMeta(MetaSmsSaveShortcutHooked).AsBool())
-        {
-            return;
-        }
-
-        editor.GuiInput += @event =>
-        {
-            if (@event is not InputEventKey keyEvent)
-            {
-                return;
-            }
-
-            if (!keyEvent.Pressed || keyEvent.Echo)
-            {
-                return;
-            }
-
-            if (keyEvent.Keycode != Key.S)
-            {
-                return;
-            }
-
-            var isSaveShortcut = keyEvent.CtrlPressed || keyEvent.MetaPressed;
-            if (!isSaveShortcut)
-            {
-                return;
-            }
-
-            var sourceId = string.IsNullOrWhiteSpace(id)
-                ? (editor.HasMeta(NodePropertyMapper.MetaId) ? editor.GetMeta(NodePropertyMapper.MetaId).AsString() : "codeEdit")
-                : id;
-            var sourceIdValue = editor.HasMeta(NodePropertyMapper.MetaIdValue)
-                ? new Id(editor.GetMeta(NodePropertyMapper.MetaIdValue).AsInt32())
-                : new Id(0);
-
-            _dispatcher?.Dispatch(new UiActionContext(
-                Source: editor,
-                SourceId: sourceId,
-                SourceIdValue: sourceIdValue,
-                Action: "save",
-                Clicked: string.Empty,
-                ClickedIdValue: new Id(0)
-            ));
-
-            editor.AcceptEvent();
-        };
-
-        editor.SetMeta(MetaSmsSaveShortcutHooked, Variant.From(true));
     }
 
     private int RegisterTreeHandle(TreeItem item)

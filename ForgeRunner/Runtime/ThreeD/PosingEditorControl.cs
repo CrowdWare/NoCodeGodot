@@ -1396,7 +1396,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         var node3D = CreateGreyboxNode(token);
         var idx = AddPropNode(node3D, path, posX, posY, posZ);
         if (idx >= 0)
-            RunnerLogger.Info("PosingEditor", $"Greybox item added: '{token}' at ({posX},{posY},{posZ}).");
+            RunnerLogger.Debug("PosingEditor", $"Greybox item added: '{token}' at ({posX},{posY},{posZ}).");
         return idx;
     }
 
@@ -1913,7 +1913,7 @@ public sealed partial class PosingEditorControl : SubViewportContainer
         }
 
         if (_constraints.Count > 0)
-            RunnerLogger.Info("PosingEditor", $"Loaded {_constraints.Count} joint constraint(s).");
+            RunnerLogger.Debug("PosingEditor", $"Loaded {_constraints.Count} joint constraint(s).");
     }
 
     public IReadOnlyDictionary<string, JointConstraintData> Constraints => _constraints;

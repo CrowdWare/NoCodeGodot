@@ -93,7 +93,7 @@ public sealed class SmlUiBuilder
             && built.GetMeta(NodePropertyMapper.MetaEnableDockingManager).AsBool();
         var hasDockingHost = ContainsDockingHost(built);
         var legacyDockingTabCount = CountDragRearrangeTabContainers(built);
-        RunnerLogger.Info("UI", $"Docking activation check: explicit={enableDockingManager}, host={hasDockingHost}, legacyTabs={legacyDockingTabCount}.");
+        RunnerLogger.Debug("UI", $"Docking activation check: explicit={enableDockingManager}, host={hasDockingHost}, legacyTabs={legacyDockingTabCount}.");
         if (enableDockingManager || hasDockingHost)
         {
             DockingManagerRuntime.AttachIfNeeded(built);
@@ -703,6 +703,7 @@ public sealed class SmlUiBuilder
             popup.AddItem(text, (int)itemIdSeed);
             var createdIndex = popup.ItemCount - 1;
             popup.SetItemMetadata(createdIndex, Variant.From(itemId));
+            TryApplyMenuShortcut(popup, child, createdIndex, menuId, itemId);
             if (isCheckItemNode || isChecked)
             {
                 popup.SetItemAsCheckable(createdIndex, true);
@@ -752,6 +753,136 @@ public sealed class SmlUiBuilder
                 ClickedIdValue: IdRuntimeScope.GetOrCreate(clickedId)
             ));
         };
+    }
+
+    private static void TryApplyMenuShortcut(PopupMenu popup, SmlNode itemNode, int itemIndex, string menuId, string itemId)
+    {
+        if (!itemNode.TryGetProperty("shortcut", out var shortcutValue))
+        {
+            return;
+        }
+
+        var raw = shortcutValue.AsStringOrThrow("shortcut");
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return;
+        }
+
+        if (!TryParseMenuShortcut(raw, out var accelerator))
+        {
+            RunnerLogger.Warn("UI", $"Invalid shortcut '{raw}' on menu item '{itemId}' in menu '{menuId}'.");
+            return;
+        }
+
+        var shortcut = new Shortcut();
+        shortcut.Events = new Godot.Collections.Array { accelerator };
+        // global=true => shortcut works app-wide, not only while the menu popup is open.
+        popup.SetItemShortcut(itemIndex, shortcut, global: true);
+    }
+
+    private static bool TryParseMenuShortcut(string raw, out InputEventKey accelerator)
+    {
+        accelerator = new InputEventKey();
+        var tokens = raw.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (tokens.Length == 0)
+        {
+            return false;
+        }
+
+        var isMacOs = string.Equals(OS.GetName(), "macOS", StringComparison.OrdinalIgnoreCase);
+        var ctrl = false;
+        var shift = false;
+        var alt = false;
+        var meta = false;
+        var keyToken = string.Empty;
+
+        foreach (var token in tokens)
+        {
+            var normalized = token.Trim().ToLowerInvariant();
+            switch (normalized)
+            {
+                case "ctrl":
+                case "control":
+                    ctrl = true;
+                    continue;
+                case "cmd":
+                case "command":
+                case "meta":
+                    meta = true;
+                    continue;
+                case "shift":
+                    shift = true;
+                    continue;
+                case "alt":
+                case "option":
+                    alt = true;
+                    continue;
+                case "primary":
+                case "cmdorctrl":
+                case "commandorcontrol":
+                    if (isMacOs)
+                    {
+                        meta = true;
+                    }
+                    else
+                    {
+                        ctrl = true;
+                    }
+
+                    continue;
+                default:
+                    if (!string.IsNullOrWhiteSpace(keyToken))
+                    {
+                        return false;
+                    }
+
+                    keyToken = token.Trim();
+                    break;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(keyToken))
+        {
+            return false;
+        }
+
+        if (!TryParseShortcutKey(keyToken, out var key))
+        {
+            return false;
+        }
+
+        accelerator = new InputEventKey
+        {
+            Keycode = key,
+            CtrlPressed = ctrl,
+            ShiftPressed = shift,
+            AltPressed = alt,
+            MetaPressed = meta
+        };
+        return true;
+    }
+
+    private static bool TryParseShortcutKey(string token, out Key key)
+    {
+        key = Key.None;
+        var trimmed = token.Trim();
+        if (trimmed.Length == 1 && char.IsLetter(trimmed[0]))
+        {
+            var letter = char.ToUpperInvariant(trimmed[0]).ToString();
+            return Enum.TryParse(letter, ignoreCase: false, out key);
+        }
+
+        if (trimmed.Length == 1 && char.IsDigit(trimmed[0]))
+        {
+            return Enum.TryParse($"Key{trimmed}", ignoreCase: false, out key);
+        }
+
+        if (trimmed.StartsWith("F", StringComparison.OrdinalIgnoreCase) && int.TryParse(trimmed[1..], out var fn) && fn >= 1 && fn <= 35)
+        {
+            return Enum.TryParse($"F{fn}", ignoreCase: false, out key);
+        }
+
+        return Enum.TryParse(trimmed, ignoreCase: true, out key);
     }
 
     private void MergeMacSystemAppMenuFromSml(Control dispatchSource, SmlNode menuNode, string menuId, int attemptsLeft)

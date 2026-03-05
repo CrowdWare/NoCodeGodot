@@ -93,7 +93,7 @@ public sealed class SmlUiLoader
         var result = builder.Build(document);
         var tBuild = sw.ElapsedMilliseconds;
 
-        RunnerLogger.Info("UI", $"LoadFromUri '{System.IO.Path.GetFileName(normalizedUri)}': " +
+        RunnerLogger.Debug("UI", $"LoadFromUri '{System.IO.Path.GetFileName(normalizedUri)}': " +
             $"fetch={tFetch}ms, parse={tParse}ms, l10n={tL10n}ms, theme={tTheme}ms, " +
             $"markdown={tMarkdown}ms, components={tComponents}ms, build={tBuild}ms, " +
             $"total={total.ElapsedMilliseconds}ms");
@@ -124,7 +124,7 @@ public sealed class SmlUiLoader
                 }
 
                 if (!string.Equals(resolved, source, StringComparison.Ordinal))
-                    RunnerLogger.Info("UI", $"Resolved asset path '{source}' -> '{resolved}'.");
+                    RunnerLogger.Debug("UI", $"Resolved asset path '{source}' -> '{resolved}'.");
 
                 cache[source] = resolved;
                 return resolved;

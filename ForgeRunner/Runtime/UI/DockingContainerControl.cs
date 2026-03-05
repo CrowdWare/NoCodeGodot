@@ -70,6 +70,7 @@ public sealed partial class DockingContainerControl : PanelContainer
 
     public override void _Ready()
     {
+        ClipContents = true;
         EnsureDockStructure();
         EnsureDockDefaults();
         SyncTabVisibility();
@@ -188,6 +189,7 @@ public sealed partial class DockingContainerControl : PanelContainer
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
             SizeFlagsVertical = SizeFlags.ExpandFill
         };
+        _root.ClipContents = true;
 
         _header = new HBoxContainer
         {
@@ -236,6 +238,7 @@ public sealed partial class DockingContainerControl : PanelContainer
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
             SizeFlagsVertical = SizeFlags.ExpandFill
         };
+        _contentContainer.ClipContents = true;
         _contentContainer.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 
         _header.AddChild(_tabBar);

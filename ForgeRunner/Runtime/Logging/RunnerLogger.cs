@@ -26,22 +26,24 @@ public static class RunnerLogger
 {
     public static bool IncludeStackTraces { get; private set; }
     public static bool ShowParserWarnings { get; private set; } = true;
+    public static bool ShowDebugLogs { get; private set; }
 
-    public static void Configure(bool includeStackTraces, bool showParserWarnings)
+    public static void Configure(bool includeStackTraces, bool showParserWarnings, bool showDebugLogs)
     {
         IncludeStackTraces = includeStackTraces;
         ShowParserWarnings = showParserWarnings;
-        Info("Log", $"Logger configured: includeStackTraces={IncludeStackTraces}, showParserWarnings={ShowParserWarnings}");
+        ShowDebugLogs = showDebugLogs;
+        Info("Log", $"Logger configured: includeStackTraces={IncludeStackTraces}, showParserWarnings={ShowParserWarnings}, showDebugLogs={ShowDebugLogs}");
     }
 
     public static void Info(string subsystem, string message)
     {
-        GD.Print($"[{subsystem}] {message}");
+        GD.Print(message);
     }
 
     public static void Warn(string subsystem, string message)
     {
-        PrintRichColored($"WARNING: [{subsystem}] {message}", "#f1c40f");
+        GD.PushWarning($"WARNING ({subsystem}): {message}");
     }
 
     public static void Warn(string subsystem, string message, Exception ex)
@@ -51,12 +53,29 @@ public static class RunnerLogger
 
     public static void Error(string subsystem, string message)
     {
-        GD.PushError($"[{subsystem}] {message}");
+        var formatted = $"ERROR ({subsystem}): {message}";
+        if (OS.HasFeature("editor"))
+        {
+            GD.PushError(formatted);
+            return;
+        }
+
+        GD.Print($"\u001b[31m{formatted}\u001b[0m");
     }
 
     public static void Success(string subsystem, string message)
     {
-        PrintRichColored($"SUCCESS: [{subsystem}] {message}", "#70e000");
+        PrintRichColored(message, "lime");
+    }
+
+    public static void Debug(string subsystem, string message)
+    {
+        if (!ShowDebugLogs)
+        {
+            return;
+        }
+
+        GD.Print($"DEBUG: {message}");
     }
 
     public static void Error(string subsystem, string message, Exception ex)
@@ -84,8 +103,24 @@ public static class RunnerLogger
         return $"{message}: {ex}";
     }
 
-    private static void PrintRichColored(string message, string colorHex)
+    private static void PrintRichColored(string message, string colorNameOrHex)
     {
-        GD.PrintRich($"[color={colorHex}]{message}[/color]");
+        if (OS.HasFeature("editor"))
+        {
+            GD.PrintRich($"[color={colorNameOrHex}][b]{message}[/b][/color]");
+            return;
+        }
+
+        GD.Print($"{ToAnsiColor(colorNameOrHex)}{message}\u001b[0m");
+    }
+
+    private static string ToAnsiColor(string colorNameOrHex)
+    {
+        return colorNameOrHex switch
+        {
+            "lime" or "#70e000" => "\u001b[32m", // success green
+            "yellow" or "#f1c40f" => "\u001b[33m", // warning yellow/orange
+            _ => "\u001b[37m" // info/default white
+        };
     }
 }

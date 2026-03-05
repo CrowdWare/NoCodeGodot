@@ -473,19 +473,35 @@ fun onProjectCreatePathSelected(path) {
     statusLabel.text = "Created: " + path
 }
 
+fun saveProjectFlow(path, fromSaveAs) {
+    if (path == "") {
+        return
+    }
+
+    var sourceSaved = saveSourceEditorToProject(path)
+    if (!sourceSaved) {
+        pushAiSceneProperties()
+        savePromptConfigForPath(path)
+        editor.saveProject(path)
+        refreshSourceEditorFromProject()
+    } else {
+        statusLabel.text = "Source saved: " + path
+    }
+
+    currentProjectPath = path
+    saveLastProjectPath(path)
+    statusLabel.text = "Saved: " + path
+    log.success("Saved: " + path)
+    if (fromSaveAs) {
+        hideProjectChooser()
+    }
+}
+
 on menuSave.clicked() {
     if (currentProjectPath == "") {
         ui.openSaveFileDialog("onSavePathSelected", "*.scene")
     } else {
-        var sourceSaved = saveSourceEditorToProject(currentProjectPath)
-        if (sourceSaved) {
-            // source text was written directly; avoid overwriting with viewport state.
-        } else {
-            pushAiSceneProperties()
-            editor.saveProject(currentProjectPath)
-            refreshSourceEditorFromProject()
-            statusLabel.text = "Saved: " + currentProjectPath
-        }
+        saveProjectFlow(currentProjectPath, false)
     }
 }
 
@@ -494,20 +510,7 @@ on menuSaveAs.clicked() {
 }
 
 fun onSavePathSelected(path) {
-    var sourceSaved = saveSourceEditorToProject(path)
-    if (sourceSaved) {
-        currentProjectPath = path
-        saveLastProjectPath(path)
-        hideProjectChooser()
-    } else {
-        savePromptConfigForPath(path)
-        editor.saveProject(path)
-        currentProjectPath = path
-        saveLastProjectPath(path)
-        refreshSourceEditorFromProject()
-        hideProjectChooser()
-        statusLabel.text = "Saved: " + path
-    }
+    saveProjectFlow(path, true)
 }
 
 on menuOpenGlb.clicked() {

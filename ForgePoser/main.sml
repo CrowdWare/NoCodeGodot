@@ -13,8 +13,8 @@ Window {
 
             Item { id: menuNew     text: "New"           }
             Item { id: menuOpen    text: "Open Project…" }
-            Item { id: menuSave    text: "Save"          }
-            Item { id: menuSaveAs  text: "Save As…"      }
+            Item { id: menuSave    text: "Save"     shortcut: "Primary+S"        }
+            Item { id: menuSaveAs  text: "Save As…" shortcut: "Primary+Shift+S"  }
             Item { id: menuOpenGlb text: "Load Model…"   }
         }
 

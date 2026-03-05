@@ -1705,10 +1705,11 @@ public sealed class NodePropertyMapper
 
     private static bool TryGetGeneratedPropertyDef(Control control, string propertyName, out PropDef def)
     {
-        var typeName = control.HasMeta(MetaNodeName)
+        var schemaTypeName = control.HasMeta(MetaNodeName)
             ? (control.GetMeta(MetaNodeName).AsString() ?? control.GetType().Name)
             : control.GetType().Name;
 
+        var typeName = schemaTypeName;
         while (!string.IsNullOrWhiteSpace(typeName))
         {
             if (SchemaProperties.PropsByType.TryGetValue(typeName, out var propsByName)
@@ -1726,6 +1727,23 @@ public sealed class NodePropertyMapper
             }
 
             typeName = typeDef.Parent;
+        }
+
+        // Custom runtime controls may use a schema node name (for example "NumberPicker")
+        // that is not part of generated schema inheritance. Fall back to CLR base types.
+        var clrType = control.GetType();
+        while (clrType is not null)
+        {
+            var clrName = clrType.Name;
+            if (SchemaProperties.PropsByType.TryGetValue(clrName, out var propsByName)
+                && propsByName.TryGetValue(propertyName, out var foundDef)
+                && foundDef is not null)
+            {
+                def = foundDef;
+                return true;
+            }
+
+            clrType = clrType.BaseType;
         }
 
         def = null!;

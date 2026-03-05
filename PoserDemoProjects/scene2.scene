@@ -1,38 +1,53 @@
 ﻿Scene {
-    aiPrompt: "Keep exact pose and composition. Render photorealistic humans with realistic skin and hair. Match clothing design, colors, and materials to the extra image. Apply scene style, lighting, mood, and color palette from the style image."
-    aiNegativePrompt: ""
-    aiStyleImagePath: ""
-    aiExtraImagePath: ""
+    fps: 24
+    totalFrames: 120
+    aiExtraImagePath: "res:/input/clothing.jpg"
     aiImageModel: "grok-imagine-image"
+    aiNegativePrompt: ""
+    aiPrompt: "Keep exact pose and composition, camera framing, body proportions, and left-right orientation. Render photorealistic humans with realistic skin pores, hair strands, and clearly defined abdominal muscles. Match clothing design, colors, and materials from the extra image while preserving visible anatomy where appropriate. Apply only scene style, lighting, mood, and color palette from the style image. Never add UI overlays, gizmos, handles, axes, bone markers, or text."
+    aiStyleImagePath: "res:/input/style.jpg"
     aiVideoModel: "grok-imagine-video"
 
     Character {
-        id: "hero"  name: "Opa"  src: "/Users/art/SourceCode/Forge/PoserDemoProjects/assets/models/Opa.glb"
-        pos: 0.0, 0.0, 0.0
-        rot: 0.0, 0.0, 0.0
+        id: char1  name: "man"  src: "res:/assets/models/man.glb"
+        pos: 2.028771, -0.01850982, 0.2531173
+        rot: 5.7, -56.55, 0.0
+        scale: 1.0, 0.9999998, 1.0
+
+        Animation {
+            Key { frame: 0
+                Bone { name: "mixamorig1_LeftArm" x: 0.4910468 y: 0.0197618 z: -0.08403588 w: 0.8668452 }
+                Bone { name: "mixamorig1_RightArm" x: 0.5174004 y: -0.02048415 z: 0.09174133 w: 0.850565 }
+            }
+        }
+    }
+    Character {
+        id: char2  name: "man"  src: "res:/assets/models/man.glb"
+        pos: -0.6677406, -0.02355795, 1.273106
+        rot: 0.0, 19.65002, 0.0
         scale: 1.0, 1.0, 1.0
 
         Animation {
-            fps: 24
-            totalFrames: 120
             Key { frame: 0
-                Bone { name: "Head" x: 0.187317 y: -0.0257134 z: -0.00490508 w: 0.981951 }
-                Bone { name: "LeftForeArm" x: 0.203757 y: -0.286319 z: 0.554261 w: 0.754519 }
-                Bone { name: "LeftArm" x: 0.263918 y: 0.000433639 z: -0.016206 w: 0.964409 }
-                Bone { name: "RightArm" x: 0.444904 y: 0.000967647 z: 0.0137014 w: 0.895473 }
+                Bone { name: "mixamorig1_LeftArm" x: 0.4502784 y: -0.4973163 z: -0.3389139 w: 0.6595933 }
+                Bone { name: "mixamorig1_RightArm" x: 0.5360882 y: 0.0320878 z: -0.02170766 w: 0.8432725 }
             }
-            Key { frame: 10
-                Bone { name: "LeftForeArm" x: 0.292009 y: -0.405733 z: 0.865405 w: -0.0344294 }
-                Bone { name: "Head" x: 0.328754 y: -0.024721 z: -0.00860875 w: 0.944053 }
-                Bone { name: "LeftArm" x: 0.263918 y: 0.000433639 z: -0.016206 w: 0.964409 }
-                Bone { name: "RightArm" x: 0.444904 y: 0.000967647 z: 0.0137014 w: 0.895473 }
-            }
-            Key { frame: 27
-                Bone { name: "Head" x: 0.218068 y: -0.0255466 z: -0.00571033 w: 0.975582 }
-                Bone { name: "LeftArm" x: 0.263918 y: 0.000433639 z: -0.016206 w: 0.964409 }
-                Bone { name: "LeftForeArm" x: 0.292009 y: -0.405733 z: 0.865405 w: -0.0344294 }
-                Bone { name: "RightArm" x: 0.444904 y: 0.000967647 z: 0.0137014 w: 0.895473 }
+            Key { frame: 20
+                Bone { name: "mixamorig1_LeftArm" x: 0.4502784 y: -0.4973163 z: -0.3389139 w: 0.6595933 }
+                Bone { name: "mixamorig1_RightArm" x: 0.05991391 y: 0.526589 z: -0.6359935 w: 0.5609159 }
             }
         }
+    }
+    Asset {
+        id: prop0  name: "tree"  src: "builtin:greybox/tree"
+        pos: -3.071512, 0.0, -1.720766
+        rot: 0.0, 0.0, 0.0
+        scale: 1.0, 1.0, 1.0
+    }
+    Asset {
+        id: prop1  name: "tree"  src: "builtin:greybox/tree"
+        pos: 4.037174, 0.0, -3.477204
+        rot: 0.0, 0.0, 0.0
+        scale: 1.0, 1.0, 1.0
     }
 }
