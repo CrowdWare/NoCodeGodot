@@ -122,14 +122,15 @@ public partial class Main : Node
 		RunnerLogger.Configure(startupSettings.IncludeStackTraces, startupSettings.ShowParserWarnings, startupSettings.ShowDebugLogs, options.VerboseRequested);
 			SmlParseRuntime.Configure(options.SmlNativeProbeEnabled);
 			SmsNativeRuntime.Configure(options.SmsNativeProbeEnabled);
-			RunnerLogger.Info("SMS", "Script source mode: sms-only");
+			RunnerLogger.Debug("SMS", "Script source mode: sms-only");
+			RunnerLogger.Debug("SMS", "Managed event fallback: disabled (native-only)");
 			if (!SmsNativeRuntime.EnsureProbed())
 			{
 			RunnerLogger.Error("SMS", "Native runtime is required but unavailable. Set SMS_NATIVE_LIB_DIR correctly.");
 			GetTree().Quit(1);
 			return;
 		}
-		RunnerLogger.Info("SMS", $"Native status: available={SmsNativeRuntime.Available}, sessionApi={SmsNativeRuntime.SessionApiAvailable}");
+		RunnerLogger.Debug("SMS", $"Native status: available={SmsNativeRuntime.Available}, sessionApi={SmsNativeRuntime.SessionApiAvailable}");
 		RunnerLogger.Debug("Perf", $"[Ready] settings={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		var theme = GD.Load<Theme>("res://theme.tres");
@@ -190,7 +191,6 @@ public partial class Main : Node
 	public override void _ExitTree()
 	{
 		TrySaveSessionState();
-		_smsUiRuntime?.LogNativeFallbackSummary();
 		base._ExitTree();
 	}
 
@@ -1331,7 +1331,6 @@ public partial class Main : Node
 				}
 				continue;
 			}
-
 			if (arg == "--url" && i + 1 < args.Count)
 			{
 				urlOverride = args[i + 1];
@@ -1359,7 +1358,14 @@ public partial class Main : Node
 			}
 		}
 
-		return new StartupOptions(urlOverride, clearCache, resetStartUrl, debugOverride, verboseRequested, smlNativeProbeEnabled, smsNativeProbeEnabled);
+		return new StartupOptions(
+			urlOverride,
+			clearCache,
+			resetStartUrl,
+			debugOverride,
+			verboseRequested,
+			smlNativeProbeEnabled,
+			smsNativeProbeEnabled);
 	}
 
 	private static bool TryParseBoolArg(string raw, out bool value)
@@ -1460,7 +1466,14 @@ public partial class Main : Node
 		File.Move(temp, path);
 	}
 
-	private sealed record StartupOptions(string? UrlOverride, bool ClearCache, bool ResetStartUrl, bool? DebugOverride, bool VerboseRequested, bool SmlNativeProbeEnabled, bool SmsNativeProbeEnabled);
+	private sealed record StartupOptions(
+		string? UrlOverride,
+		bool ClearCache,
+		bool ResetStartUrl,
+		bool? DebugOverride,
+		bool VerboseRequested,
+		bool SmlNativeProbeEnabled,
+		bool SmsNativeProbeEnabled);
 
 	private sealed class StartupSettings
 	{

@@ -32,6 +32,7 @@ std::int64_t g_next_session_id = 1;
 sms_native_ui_get_prop_fn g_ui_get_prop = nullptr;
 sms_native_ui_set_prop_fn g_ui_set_prop = nullptr;
 sms_native_ui_invoke_fn g_ui_invoke = nullptr;
+constexpr int kBridgeJsonBufferSize = 65536;
 
 enum class TokenType {
     Eof,
@@ -598,6 +599,94 @@ static Value parse_json_value(std::string text) {
         }
     }
 
+    if (!text.empty() && text.front() == '[' && text.back() == ']') {
+        std::vector<Value> items;
+        std::size_t i = 1;
+        std::size_t token_start = i;
+        int nested_braces = 0;
+        int nested_brackets = 0;
+        bool in_string = false;
+        bool escape = false;
+
+        auto push_token = [&](std::size_t start, std::size_t end) {
+            if (end < start) {
+                return;
+            }
+            auto raw = text.substr(start, end - start);
+            auto trim = [](std::string& s) {
+                auto start_ws = std::size_t{0};
+                while (start_ws < s.size() && std::isspace(static_cast<unsigned char>(s[start_ws])) != 0) {
+                    start_ws++;
+                }
+                auto end_ws = s.size();
+                while (end_ws > start_ws && std::isspace(static_cast<unsigned char>(s[end_ws - 1])) != 0) {
+                    end_ws--;
+                }
+                s = s.substr(start_ws, end_ws - start_ws);
+            };
+            trim(raw);
+            if (raw.empty()) {
+                return;
+            }
+            items.push_back(parse_json_value(std::move(raw)));
+        };
+
+        while (i < text.size() - 1) {
+            const char c = text[i];
+            if (in_string) {
+                if (escape) {
+                    escape = false;
+                } else if (c == '\\') {
+                    escape = true;
+                } else if (c == '"') {
+                    in_string = false;
+                }
+                i++;
+                continue;
+            }
+
+            if (c == '"') {
+                in_string = true;
+                i++;
+                continue;
+            }
+            if (c == '{') {
+                nested_braces++;
+                i++;
+                continue;
+            }
+            if (c == '}') {
+                nested_braces--;
+                i++;
+                continue;
+            }
+            if (c == '[') {
+                nested_brackets++;
+                i++;
+                continue;
+            }
+            if (c == ']') {
+                if (nested_brackets > 0) {
+                    nested_brackets--;
+                }
+                i++;
+                continue;
+            }
+
+            if (c == ',' && nested_braces == 0 && nested_brackets == 0) {
+                push_token(token_start, i);
+                i++;
+                token_start = i;
+                continue;
+            }
+
+            i++;
+        }
+
+        push_token(token_start, text.size() - 1);
+        return Value::Array(std::move(items));
+    }
+
     if (!text.empty() && text.front() == '{' && text.back() == '}') {
         std::unordered_map<std::string, Value> fields;
         std::size_t i = 1;
@@ -899,12 +988,33 @@ struct MethodCallExpr final : Expr {
 
         if (receiver.kind == Value::Kind::Object && receiver.class_name == "log") {
             if (method_ == "info" || method_ == "success" || method_ == "warning" || method_ == "error" || method_ == "debug") {
-                if (!args.empty()) {
-                    std::cout << "[" << method_ << "] " << value_to_string(args[0]) << std::endl;
-                } else {
-                    std::cout << "[" << method_ << "]" << std::endl;
+                if (g_ui_invoke == nullptr) {
+                    throw std::runtime_error("ui invoke bridge unavailable.");
                 }
-                return Value::Null();
+
+                std::string args_json = "[";
+                for (std::size_t i = 0; i < args.size(); i++) {
+                    if (i > 0) {
+                        args_json.push_back(',');
+                    }
+                    args_json += value_to_json(args[i]);
+                }
+                args_json.push_back(']');
+
+                char out_json[kBridgeJsonBufferSize] = {0};
+                char error[1024] = {0};
+                const auto rc = g_ui_invoke(
+                    "__log__",
+                    method_.c_str(),
+                    args_json.c_str(),
+                    out_json,
+                    static_cast<int>(sizeof(out_json)),
+                    error,
+                    static_cast<int>(sizeof(error)));
+                if (rc != 0) {
+                    throw std::runtime_error(error[0] != '\0' ? error : ("Unknown log method: " + method_));
+                }
+                return parse_json_value(out_json);
             }
             throw std::runtime_error("Unknown log method: " + method_);
         }
@@ -950,7 +1060,7 @@ struct MethodCallExpr final : Expr {
             }
             args_json.push_back(']');
 
-            char out_json[4096] = {0};
+            char out_json[kBridgeJsonBufferSize] = {0};
             char error[1024] = {0};
             const auto rc = g_ui_invoke(
                 "__os__",
@@ -962,6 +1072,99 @@ struct MethodCallExpr final : Expr {
                 static_cast<int>(sizeof(error)));
             if (rc != 0) {
                 throw std::runtime_error(error[0] != '\0' ? error : ("Unknown os method: " + method_));
+            }
+
+            return parse_json_value(out_json);
+        }
+
+        if (receiver.kind == Value::Kind::Object && receiver.class_name == "fs") {
+            if (g_ui_invoke == nullptr) {
+                throw std::runtime_error("ui invoke bridge unavailable.");
+            }
+
+            std::string args_json = "[";
+            for (std::size_t i = 0; i < args.size(); i++) {
+                if (i > 0) {
+                    args_json.push_back(',');
+                }
+                args_json += value_to_json(args[i]);
+            }
+            args_json.push_back(']');
+
+            char out_json[kBridgeJsonBufferSize] = {0};
+            char error[1024] = {0};
+            const auto rc = g_ui_invoke(
+                "__fs__",
+                method_.c_str(),
+                args_json.c_str(),
+                out_json,
+                static_cast<int>(sizeof(out_json)),
+                error,
+                static_cast<int>(sizeof(error)));
+            if (rc != 0) {
+                throw std::runtime_error(error[0] != '\0' ? error : ("Unknown fs method: " + method_));
+            }
+
+            return parse_json_value(out_json);
+        }
+
+        if (receiver.kind == Value::Kind::Object && receiver.class_name == "i18n") {
+            if (g_ui_invoke == nullptr) {
+                throw std::runtime_error("ui invoke bridge unavailable.");
+            }
+
+            std::string args_json = "[";
+            for (std::size_t i = 0; i < args.size(); i++) {
+                if (i > 0) {
+                    args_json.push_back(',');
+                }
+                args_json += value_to_json(args[i]);
+            }
+            args_json.push_back(']');
+
+            char out_json[kBridgeJsonBufferSize] = {0};
+            char error[1024] = {0};
+            const auto rc = g_ui_invoke(
+                "__i18n__",
+                method_.c_str(),
+                args_json.c_str(),
+                out_json,
+                static_cast<int>(sizeof(out_json)),
+                error,
+                static_cast<int>(sizeof(error)));
+            if (rc != 0) {
+                throw std::runtime_error(error[0] != '\0' ? error : ("Unknown i18n method: " + method_));
+            }
+
+            return parse_json_value(out_json);
+        }
+
+        if (receiver.kind == Value::Kind::Object && receiver.class_name == "ai") {
+            if (g_ui_invoke == nullptr) {
+                throw std::runtime_error("ui invoke bridge unavailable.");
+            }
+
+            std::string args_json = "[";
+            for (std::size_t i = 0; i < args.size(); i++) {
+                if (i > 0) {
+                    args_json.push_back(',');
+                }
+                args_json += value_to_json(args[i]);
+            }
+            args_json.push_back(']');
+
+            char out_json[kBridgeJsonBufferSize] = {0};
+            char error[1024] = {0};
+            const auto rc = g_ui_invoke(
+                "__ai__",
+                method_.c_str(),
+                args_json.c_str(),
+                out_json,
+                static_cast<int>(sizeof(out_json)),
+                error,
+                static_cast<int>(sizeof(error)));
+            if (rc != 0) {
+                throw std::runtime_error(error[0] != '\0' ? error : ("Unknown ai method: " + method_));
             }
 
             return parse_json_value(out_json);
@@ -1007,7 +1210,7 @@ struct MethodCallExpr final : Expr {
             }
             args_json.push_back(']');
 
-            char out_json[4096] = {0};
+            char out_json[kBridgeJsonBufferSize] = {0};
             char error[1024] = {0};
             const auto rc = g_ui_invoke(
                 "__ui__",
@@ -1044,7 +1247,7 @@ struct MethodCallExpr final : Expr {
             }
             args_json.push_back(']');
 
-            char out_json[4096] = {0};
+            char out_json[kBridgeJsonBufferSize] = {0};
             char error[1024] = {0};
             const auto rc = g_ui_invoke(
                 id_it->second.string_value.c_str(),
@@ -2227,7 +2430,9 @@ struct SmsSessionRuntime {
     std::vector<std::unique_ptr<Stmt>> program;
     Env env;
     Value top_level_last = Value::Null();
-    std::mutex mutex;
+    // Re-entrant because UI callbacks can synchronously trigger nested SMS events
+    // while an outer event invoke is still on the stack (e.g. loadProject -> scenePropAdded).
+    std::recursive_mutex mutex;
 };
 
 static std::shared_ptr<SmsSessionRuntime> build_session_runtime_or_throw(const char* source) {
@@ -2240,6 +2445,9 @@ static std::shared_ptr<SmsSessionRuntime> build_session_runtime_or_throw(const c
     runtime->program = std::move(program);
     runtime->env.define_var("log", Value::Object("log", {}));
     runtime->env.define_var("os", Value::Object("os", {}));
+    runtime->env.define_var("fs", Value::Object("fs", {}));
+    runtime->env.define_var("i18n", Value::Object("i18n", {}));
+    runtime->env.define_var("ai", Value::Object("ai", {}));
     runtime->env.define_var("ui", Value::Object("ui", {}));
 
     for (const auto& stmt : runtime->program) {
@@ -2285,7 +2493,7 @@ static int invoke_event_on_runtime(
 
     try {
         auto args = parse_event_args_json(args_json);
-        std::lock_guard<std::mutex> lock(runtime.mutex);
+        std::lock_guard<std::recursive_mutex> lock(runtime.mutex);
 
         const std::string key = std::string(target_id) + "." + std::string(event_name);
         const auto* handler = runtime.env.get_event_handler(key);

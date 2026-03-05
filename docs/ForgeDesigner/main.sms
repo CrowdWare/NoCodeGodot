@@ -4,6 +4,8 @@ var selectedPath = null
 var mainWindow = null
 var isLoadingEditor = false
 var lastFlushedText = ""
+var treeVisitedPaths = []
+var treeMaxDepth = 8
 
 fun ready() {
     tree = ui.getObject("treeview")
@@ -16,7 +18,6 @@ fun ready() {
     }
 
     populateTree(tree, ".")
-    
     log.success("ForgeDesigner is ready. Shape your interface.")
 }
 
@@ -62,11 +63,20 @@ fun hotReloadPreviewFromEditor(smlContent) {
 
 fun populateTree(treeObj, rootPath) {
     treeObj.Clear()
+    treeVisitedPaths = []
     var root = treeObj.CreateRoot(rootPath, rootPath)
-    populateTreeChildren(treeObj, root, rootPath)
+    populateTreeChildren(treeObj, root, rootPath, 0)
 }
 
-fun populateTreeChildren(treeObj, parentHandle, dirPath) {
+fun populateTreeChildren(treeObj, parentHandle, dirPath, depth) {
+    if (depth > treeMaxDepth) {
+        return
+    }
+    if (treeVisitedPaths.contains(dirPath)) {
+        return
+    }
+    treeVisitedPaths.add(dirPath)
+
     var entries = fs.list(dirPath)
     for (entry in entries) {
         if (entry.Name == ".DS_Store") {
@@ -75,7 +85,7 @@ fun populateTreeChildren(treeObj, parentHandle, dirPath) {
 
         var child = treeObj.CreateChild(parentHandle, entry.Name, entry.Path, entry.IsDirectory)
         if (entry.IsDirectory) {
-            populateTreeChildren(treeObj, child, entry.Path)
+            populateTreeChildren(treeObj, child, entry.Path, depth + 1)
         }
     }
 }

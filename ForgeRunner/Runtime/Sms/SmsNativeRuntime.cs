@@ -32,7 +32,7 @@ public static class SmsNativeRuntime
             return;
         }
 
-        RunnerLogger.Info("SMS", "Native runtime probe: enabled (required mode)");
+        RunnerLogger.Debug("SMS", "Native runtime probe: enabled (required mode)");
     }
 
     public static bool EnsureProbed()
@@ -73,7 +73,7 @@ public static class SmsNativeRuntime
 
         _available = true;
         _lastError = string.Empty;
-        RunnerLogger.Info("SMS", "Native runtime probe OK.");
+        RunnerLogger.Debug("SMS", "Native runtime probe OK.");
         if (NativeSmsBridge.HasSessionApi)
         {
             if (!NativeSmsBridge.TryCreateSession(out var probeSession))
@@ -92,7 +92,7 @@ public static class SmsNativeRuntime
                 return false;
             }
 
-            RunnerLogger.Info("SMS", "Native session API available.");
+            RunnerLogger.Debug("SMS", "Native session API available.");
         }
         else
         {
@@ -504,7 +504,14 @@ public static class SmsNativeRuntime
                     return 1;
                 }
 
-                outJson.Append(valueJson ?? "null");
+                var payload = valueJson ?? "null";
+                if (outJsonCapacity > 0 && payload.Length >= outJsonCapacity)
+                {
+                    error.Append($"ui get payload exceeds native buffer ({payload.Length} >= {outJsonCapacity}).");
+                    return 1;
+                }
+
+                outJson.Append(payload);
                 return 0;
             }
             catch (Exception ex)
@@ -573,7 +580,14 @@ public static class SmsNativeRuntime
                     return 1;
                 }
 
-                outJson.Append(resultJson ?? "null");
+                var payload = resultJson ?? "null";
+                if (outJsonCapacity > 0 && payload.Length >= outJsonCapacity)
+                {
+                    error.Append($"ui invoke payload exceeds native buffer ({payload.Length} >= {outJsonCapacity}).");
+                    return 1;
+                }
+
+                outJson.Append(payload);
                 return 0;
             }
             catch (Exception ex)

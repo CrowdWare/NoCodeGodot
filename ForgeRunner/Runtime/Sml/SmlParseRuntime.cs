@@ -39,7 +39,7 @@ public static class SmlParseRuntime
     {
         _nativeProbeEnabled = nativeProbeEnabled;
         _nativeUnavailableWarningShown = false;
-        RunnerLogger.Info("SML", $"Native parser probe: {(nativeProbeEnabled ? "enabled" : "disabled")}");
+        RunnerLogger.Debug("SML", $"Native parser probe: {(nativeProbeEnabled ? "enabled" : "disabled")}");
     }
 
     public static SmlDocument ParseDocument(string content, SmlParserSchema? schema = null, string context = "SML")

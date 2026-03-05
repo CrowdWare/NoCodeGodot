@@ -1529,6 +1529,7 @@ on btnChooserOpenLast.clicked() {
         return
     }
     if (!openProjectPath(last)) {
+        log.success("right before crash 5")
         showProjectChooser("Last project could not be opened.")
     }
 }

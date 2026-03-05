@@ -1,32 +1,46 @@
 # Contributing to Forge
 
-Thanks for your interest in Forge.
+Thank you for your interest in Forge!  
+We truly appreciate every bit of community involvement that helps make the project better.
 
 ## Contribution Model
 
-Forge uses a split contribution model:
+Forge follows a **split contribution model** to keep the core stable and reliable:
 
-- ForgeCore (`Runtime`, parsers, interpreters, engine-near infrastructure)
-  - Maintained by the core maintainer team.
-  - External direct code PRs to ForgeCore are generally not accepted.
-  - Please open an issue first with a concrete use case and proposal.
-- Plugins, sample apps, and documentation
-  - Community contributions are welcome.
-  - PRs and issues are encouraged.
+- **ForgeCore** (`Runtime`, parsers, interpreters, engine-level infrastructure)  
+  - Maintained exclusively by the core maintainer team.  
+  - Direct code pull requests to ForgeCore are generally **not accepted**.  
+  - **Please open an issue first** with a clear use case, motivation, and rough proposal. We'll discuss whether it fits the core direction and how (or if) it could be implemented.
 
-## What We Welcome
+- **Plugins, sample apps, documentation, examples & tutorials**  
+  - **This is where community contributions shine!**  
+  - We actively welcome issues, pull requests, new plugins, doc improvements, examples, and more.
 
-- Plugin ideas and plugin pull requests
-- Feature requests with clear user value
-- Bug reports with reproducible steps
-- Improvements to docs, examples, and tutorials
+## What We Love to See
 
-## How to Report
+- New plugin ideas (bonus points if you include a rough PoC or draft)  
+- Pull requests for plugins, examples, or docs  
+- Feature suggestions backed by clear **user value** and real-world use cases  
+- Bug reports with **minimal, reproducible steps** (code snippets, logs, or screenshots are gold)  
+- Improvements to READMEs, guides, tutorials, example projects  
+- Small wins: typo fixes, clearer explanations, new diagrams/GIFs in docs
 
-- Use GitHub Issues.
-- Prefix issue titles for clarity:
-  - `[Feature]` for feature requests
-  - `[Bug]` for bug reports
+## How to Get Started
 
-Clear, minimal repro steps and expected behavior help us the most.
+1. **Create issues** via GitHub Issues (that's our single source of truth).  
+2. Use helpful prefixes in issue titles to make triage easier:
 
+   - `[Plugin]` – New plugin or plugin enhancement  
+   - `[Feature]` – Feature request  
+   - `[Bug]` – Bug report  
+   - `[Docs]` – Documentation / example improvement  
+   - `[Question]` – If you're unsure where something fits
+
+The clearer the description (expected vs. actual behavior, minimal repro steps, environment info), the faster we can respond or merge.
+
+If you're looking for a place to start, check out issues labeled **good first issue** (we try to tag beginner-friendly ones when possible):  
+https://github.com/CrowdWare/Forge/labels/good%20first%20issue
+
+Thank you in advance for your time, ideas, and pull requests — every solid contribution makes Forge more powerful and enjoyable for everyone.
+
+Happy forging! 🔨

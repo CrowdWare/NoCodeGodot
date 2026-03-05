@@ -62,6 +62,7 @@ public sealed class SmsUiRuntime
     private readonly Dictionary<ulong, string> _windowCloseCallbacks = new();
     private readonly HashSet<ulong> _windowCloseHooked = [];
     private readonly HashSet<string> _nativeFallbackWarnedEvents = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _nativeStrictDisabledEvents = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _nativeFallbackCountByEvent = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _nativeFallbackReasonByEvent = new(StringComparer.Ordinal);
     private readonly Dictionary<Type, Dictionary<string, List<MethodInfo>>> _methodCache = [];
@@ -222,12 +223,27 @@ public sealed class SmsUiRuntime
             }
 
             _nativeSession = session;
-            RunnerLogger.Info("SMS", "Native session created.");
+            RunnerLogger.Debug("SMS", "Native session created.");
+        }
+
+        var incoming = source ?? string.Empty;
+        if (!append)
+        {
+            // Native strict-mode boot hook for InvokeReady() without reloading the session.
+            incoming = string.Concat(
+                incoming,
+                System.Environment.NewLine,
+                "on __runtime__.ready() {",
+                System.Environment.NewLine,
+                "    ready()",
+                System.Environment.NewLine,
+                "}",
+                System.Environment.NewLine);
         }
 
         _nativeSessionSource = append
-            ? string.Concat(_nativeSessionSource, System.Environment.NewLine, source ?? string.Empty)
-            : (source ?? string.Empty);
+            ? string.Concat(_nativeSessionSource, System.Environment.NewLine, incoming)
+            : incoming;
 
         if (!_nativeSession.TryLoad(_nativeSessionSource))
         {
@@ -487,7 +503,14 @@ public sealed class SmsUiRuntime
             return;
         }
 
-        ExecuteCall("ready()");
+        if (_nativeSession is null)
+        {
+            RunnerLogger.Error("SMS", "Native session unavailable while executing 'ready()'.");
+        }
+        else if (!_nativeSession.TryInvoke("__runtime__", "ready", "[]", out _))
+        {
+            RunnerLogger.Error("SMS", $"Native ready() invoke failed: {SmsNativeRuntime.LastError}");
+        }
         AutoBindTreeEvents();
     }
 
@@ -3643,6 +3666,10 @@ $"}}\n";
     private void TryInvokeEvent(string targetId, string eventName, bool warnIfMissing, params object?[] args)
     {
         var eventKey = $"{targetId}.{eventName}";
+        if (_nativeStrictDisabledEvents.Contains(eventKey))
+        {
+            return;
+        }
         if (_nativeSession is not null)
         {
             try
@@ -3680,6 +3707,13 @@ $"}}\n";
                 {
                     RunnerLogger.Debug("SMS", $"Native SMS fallback active for '{eventKey}': {message}");
                 }
+
+                if (_nativeFallbackWarnedEvents.Add($"strict::{eventKey}"))
+                {
+                    RunnerLogger.Error("SMS", $"Native SMS event dispatch failed for '{eventKey}'.: {message}");
+                }
+                _nativeStrictDisabledEvents.Add(eventKey);
+                return;
             }
             catch (Exception ex)
             {
@@ -3692,21 +3726,23 @@ $"}}\n";
                 {
                     RunnerLogger.Debug("SMS", $"Native SMS fallback active for '{eventKey}': {ex.Message}");
                 }
-            }
-        }
 
-        // Temporary compatibility fallback while native event/runtime surface catches up.
-        try
-        {
-            var handled = _engine.InvokeEvent(targetId, eventName, args);
-            if (!handled && warnIfMissing)
-            {
-                RunnerLogger.Warn("SMS", $"No SMS event handler found for '{eventKey}'.");
+                if (_nativeFallbackWarnedEvents.Add($"strict::{eventKey}"))
+                {
+                    RunnerLogger.Error("SMS", $"Native SMS event dispatch threw for '{eventKey}'.", ex);
+                }
+                _nativeStrictDisabledEvents.Add(eventKey);
+                return;
             }
         }
-        catch (Exception ex)
+        else
         {
-            RunnerLogger.Warn("SMS", $"SMS event dispatch failed for '{eventKey}'.", ex);
+            if (_nativeFallbackWarnedEvents.Add($"strict::{eventKey}"))
+            {
+                RunnerLogger.Error("SMS", $"Native SMS session is unavailable for '{eventKey}'.");
+            }
+            _nativeStrictDisabledEvents.Add(eventKey);
+            return;
         }
     }
 
@@ -3744,7 +3780,6 @@ $"}}\n";
             || message.Contains("Unknown variable: os", StringComparison.Ordinal)
             || message.Contains("Unknown variable: log", StringComparison.Ordinal)
             || message.Contains("Unknown variable: timeline", StringComparison.Ordinal)
-            || message.Contains("Method call expects supported receiver.", StringComparison.Ordinal)
             || message.Contains("Unknown ui method:", StringComparison.Ordinal)
             || message.Contains("Unknown os method:", StringComparison.Ordinal);
     }
@@ -3769,6 +3804,46 @@ $"}}\n";
 
         switch (property)
         {
+            case "totalFrames":
+                if (node is Runtime.ThreeD.TimelineControl timelineTotalGet)
+                {
+                    valueJson = timelineTotalGet.TotalFrames.ToString(CultureInfo.InvariantCulture);
+                    return true;
+                }
+                error = $"Unsupported totalFrames source on '{objectId}'.";
+                return false;
+            case "currentFrame":
+                if (node is Runtime.ThreeD.TimelineControl timelineCurrentGet)
+                {
+                    valueJson = timelineCurrentGet.CurrentFrame.ToString(CultureInfo.InvariantCulture);
+                    return true;
+                }
+                error = $"Unsupported currentFrame source on '{objectId}'.";
+                return false;
+            case "fps":
+                if (node is Runtime.ThreeD.TimelineControl timelineFpsGet)
+                {
+                    valueJson = timelineFpsGet.Fps.ToString(CultureInfo.InvariantCulture);
+                    return true;
+                }
+                error = $"Unsupported fps source on '{objectId}'.";
+                return false;
+            case "visible":
+                if (node is CanvasItem canvasItem)
+                {
+                    valueJson = canvasItem.Visible ? "true" : "false";
+                    return true;
+                }
+                error = $"Unsupported visible source on '{objectId}'.";
+                return false;
+            case "disabled":
+                if (node is BaseButton baseButton)
+                {
+                    valueJson = baseButton.Disabled ? "true" : "false";
+                    return true;
+                }
+                error = $"Unsupported disabled source on '{objectId}'.";
+                return false;
             case "text":
                 if (TryReadText(node, out var text))
                 {
@@ -3803,6 +3878,46 @@ $"}}\n";
 
         switch (property)
         {
+            case "totalFrames":
+                if (node is Runtime.ThreeD.TimelineControl timelineTotalSet)
+                {
+                    timelineTotalSet.TotalFrames = ParseJsonInt(valueJson);
+                    return true;
+                }
+                error = $"Unsupported totalFrames target on '{objectId}'.";
+                return false;
+            case "currentFrame":
+                if (node is Runtime.ThreeD.TimelineControl timelineCurrentSet)
+                {
+                    timelineCurrentSet.SetCurrentFrame(ParseJsonInt(valueJson));
+                    return true;
+                }
+                error = $"Unsupported currentFrame target on '{objectId}'.";
+                return false;
+            case "fps":
+                if (node is Runtime.ThreeD.TimelineControl timelineFpsSet)
+                {
+                    timelineFpsSet.Fps = ParseJsonInt(valueJson);
+                    return true;
+                }
+                error = $"Unsupported fps target on '{objectId}'.";
+                return false;
+            case "visible":
+                if (node is CanvasItem canvasItem)
+                {
+                    canvasItem.Visible = ParseJsonBool(valueJson);
+                    return true;
+                }
+                error = $"Unsupported visible target on '{objectId}'.";
+                return false;
+            case "disabled":
+                if (node is BaseButton baseButton)
+                {
+                    baseButton.Disabled = ParseJsonBool(valueJson);
+                    return true;
+                }
+                error = $"Unsupported disabled target on '{objectId}'.";
+                return false;
             case "text":
                 if (TryWriteText(node, ParseJsonStringOrScalar(valueJson)))
                 {
@@ -3856,6 +3971,26 @@ $"}}\n";
             return TryInvokeRootObjectMethod(CreateOsObject(), method, smsArgs, out resultJson, out error);
         }
 
+        if (string.Equals(objectId, "__log__", StringComparison.Ordinal))
+        {
+            return TryInvokeRootObjectMethod(CreateLogObject(), method, smsArgs, out resultJson, out error);
+        }
+
+        if (string.Equals(objectId, "__fs__", StringComparison.Ordinal))
+        {
+            return TryInvokeRootObjectMethod(CreateFsObject(), method, smsArgs, out resultJson, out error);
+        }
+
+        if (string.Equals(objectId, "__i18n__", StringComparison.Ordinal))
+        {
+            return TryInvokeRootObjectMethod(CreateI18nObject(), method, smsArgs, out resultJson, out error);
+        }
+
+        if (string.Equals(objectId, "__ai__", StringComparison.Ordinal))
+        {
+            return TryInvokeRootObjectMethod(CreateAiObject(), method, smsArgs, out resultJson, out error);
+        }
+
         var target = UiRuntimeApi.GetObjectById(objectId);
         if (target is null)
         {
@@ -3899,9 +4034,34 @@ $"}}\n";
             }
         }
 
+        if (string.Equals(method, "BindEvents", StringComparison.Ordinal))
+        {
+            if (target is Tree tree)
+            {
+                var dispatcher = _dispatcher ?? ResolveDispatcherFromMain();
+                if (dispatcher is null)
+                {
+                    error = "BindEvents failed: dispatcher not found.";
+                    return false;
+                }
+
+                UiRuntimeApi.BindTreeEvents(tree, dispatcher);
+                resultJson = "null";
+                return true;
+            }
+
+            error = $"BindEvents is only supported on Tree, got '{target.GetType().Name}'.";
+            return false;
+        }
+
         var methodMap = GetMethodMap(target.GetType());
         if (!methodMap.TryGetValue(method, out var overloads) || overloads.Count == 0)
         {
+            if (TryInvokeSmsExtensionMethod(objectId, target, method, smsArgs, out resultJson, out error))
+            {
+                return true;
+            }
+
             error = $"Unknown method '{target.GetType().Name}.{method}'.";
             return false;
         }
@@ -3916,6 +4076,40 @@ $"}}\n";
         {
             var result = selected.Invoke(target, convertedArgs);
             resultJson = SerializeNativeInvokeResult(ToSmsValue(result));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.InnerException?.Message ?? ex.Message;
+            return false;
+        }
+    }
+
+    private bool TryInvokeSmsExtensionMethod(
+        string objectId,
+        object runtimeObject,
+        string method,
+        IReadOnlyList<Value> smsArgs,
+        out string resultJson,
+        out string error)
+    {
+        resultJson = "null";
+        error = string.Empty;
+
+        var fields = new Dictionary<string, Value>(StringComparer.Ordinal);
+        var dynamicGetters = new Dictionary<string, ObjectFieldGetter>(StringComparer.Ordinal);
+        var dynamicSetters = new Dictionary<string, ObjectFieldSetter>(StringComparer.Ordinal);
+        AttachSmsExtensions(objectId, runtimeObject, fields, dynamicGetters, dynamicSetters);
+
+        if (!fields.TryGetValue(method, out var methodValue) || methodValue is not NativeFunctionValue nativeFunction)
+        {
+            return false;
+        }
+
+        try
+        {
+            var result = nativeFunction.Function(smsArgs);
+            resultJson = SerializeNativeInvokeResult(result);
             return true;
         }
         catch (Exception ex)
@@ -4155,6 +4349,32 @@ $"}}\n";
             return Math.Abs(numeric) > double.Epsilon;
         }
         return false;
+    }
+
+    private static int ParseJsonInt(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return 0;
+        }
+
+        var trimmed = raw.Trim();
+        if (trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[^1] == '"')
+        {
+            trimmed = ParseJsonStringOrScalar(trimmed);
+        }
+
+        if (int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedInt))
+        {
+            return parsedInt;
+        }
+
+        if (double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedDouble))
+        {
+            return (int)Math.Round(parsedDouble, MidpointRounding.AwayFromZero);
+        }
+
+        return 0;
     }
 
     private static string SerializeNativeEventArgs(object?[] args)

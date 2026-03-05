@@ -13,6 +13,15 @@ Here I will list things we need in general, like demos, tech previews-
 - [ ] SMS in C++ (interpreter/runtime parity to current managed SMS) -> `CWUP/tasks/sms_cpp_native_runtime.md`
 - [ ] SMS language spec upgrade (2b): implement new spec features in native runtime and keep managed/native behavior aligned -> `CWUP/tasks/sms_language_spec_2026_native.md`
 
+## SMS Native Cutover Checklist
+- [ ] Run apps in native-only mode (default, designer, poser)
+- [ ] Verify no `Native SMS event dispatch failed...` errors in strict mode
+- [ ] Verify no `Native SMS session is unavailable...` errors in strict mode
+- [ ] Keep `SmsPerfLab --sms-conformance` green for managed/native parity
+- [ ] Ensure all required `ui.*`/`os.*` bridge calls are supported by native runtime
+- [ ] Remove managed event fallback path from `SmsUiRuntime.TryInvokeEvent`
+- [ ] Remove managed `ScriptEngine.InvokeEvent` dependency after strict runs stay green
+
 ## Designer App
 - [ ] Edit SML/SMS/MD
 - [ ] Preview for MD, Zoom level

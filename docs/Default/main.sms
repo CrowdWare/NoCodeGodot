@@ -33,11 +33,14 @@ fun activateTab(index) {
     //pageLearn.visible = false
     //pageDiscover.visible = false
     //pageUpdates.visible = false
-    when(index) {
-        0 -> tabStart.buttonPressed = true
-        1 -> tabLearn.buttonPressed = true
-        2 -> tabDiscover.buttonPressed = true 
-        3 -> tabUpdates.buttonPressed = true
+    if (index == 0) {
+        tabStart.buttonPressed = true
+    } else if (index == 1) {
+        tabLearn.buttonPressed = true
+    } else if (index == 2) {
+        tabDiscover.buttonPressed = true
+    } else if (index == 3) {
+        tabUpdates.buttonPressed = true
     }
 }
 
