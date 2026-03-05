@@ -2,6 +2,7 @@ var tree = null
 var codeEdit = null
 var selectedPath = null
 var mainWindow = null
+var previewWindow = null
 
 fun ready() {
     tree = ui.getObject("treeview")
@@ -32,6 +33,46 @@ fun openFloatingWindow() {
 
 fun onSettingsWindowClosed() {
     log.warning("TODO - Redock panel")
+}
+
+fun codeEditOnSave(editorId) {
+    var editor = ui.getObject(editorId)
+    if (editor == null) {
+        log.warning("onSave ignored: editor '${editorId}' not found.")
+        return
+    }
+
+    var path = editor.GetPath()
+    if (path == null || path == "") {
+        log.warning("onSave ignored: no file path set on editor.")
+        return
+    }
+
+    var content = editor.GetText()
+    fs.writeText(path, content)
+    log.success("Saved: ${path}")
+
+    hotReloadPreviewFromEditor(content)
+}
+
+fun hotReloadPreviewFromEditor(smlContent) {
+    if (previewWindow != null) {
+        previewWindow.close()
+        previewWindow = null
+    }
+
+    var window = ui.CreateWindow(smlContent)
+    if (window == null) {
+        return
+    }
+
+    previewWindow = window
+    previewWindow.onClose("onPreviewWindowClosed")
+    log.info("HotReload preview updated.")
+}
+
+fun onPreviewWindowClosed() {
+    previewWindow = null
 }
 
 

@@ -30,10 +30,12 @@ public static class SmlParseRuntime
 {
     private const int ErrorCapacity = 1024;
     private static bool _nativeProbeEnabled;
+    private static bool _nativeUnavailableWarningShown;
 
     public static void Configure(bool nativeProbeEnabled)
     {
         _nativeProbeEnabled = nativeProbeEnabled;
+        _nativeUnavailableWarningShown = false;
         RunnerLogger.Info("SML", $"Native parser probe: {(nativeProbeEnabled ? "enabled" : "disabled")}");
     }
 
@@ -52,7 +54,15 @@ public static class SmlParseRuntime
 
             if (!nativeOk)
             {
-                RunnerLogger.Warn("SML", $"Native probe failed in {context}: {NativeSmlProbe.LastError}");
+                if (!_nativeUnavailableWarningShown)
+                {
+                    _nativeUnavailableWarningShown = true;
+                    RunnerLogger.Warn("SML", $"Native probe disabled for this run: {NativeSmlProbe.LastError}. Set SML_NATIVE_LIB_DIR to enable.");
+                }
+                else
+                {
+                    RunnerLogger.Debug("SML", $"Native probe skipped in {context}: {NativeSmlProbe.LastError}");
+                }
             }
         }
 
@@ -95,6 +105,22 @@ public static class SmlParseRuntime
         foreach (var root in doc.Roots)
         {
             total += Count(root);
+        }
+
+        // Managed parser lifts resource namespaces out of Roots.
+        // Include them so probe comparison stays aligned with native top-level counting.
+        foreach (var resource in doc.Resources.Values)
+        {
+            total += Count(resource);
+        }
+
+        // Managed parser lifts component definitions out of Roots.
+        // Approximate native top-level counting with:
+        // 1 node for component shell + body subtree.
+        foreach (var component in doc.Components.Values)
+        {
+            total += 1; // component definition node
+            total += Count(component.Body);
         }
 
         return total;
@@ -190,4 +216,3 @@ public static class SmlParseRuntime
         }
     }
 }
-

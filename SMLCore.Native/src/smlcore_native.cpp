@@ -19,6 +19,8 @@ enum class TokenKind {
     Number,
     String,
     Bool,
+    Comma,
+    Pipe,
     LBrace,
     RBrace,
     Colon
@@ -35,7 +37,8 @@ enum class ValueKind {
     String,
     Number,
     Bool,
-    Identifier
+    Identifier,
+    Tuple
 };
 
 struct Property {
@@ -97,6 +100,17 @@ public:
         if (c == ':') {
             advance();
             return make_token(TokenKind::Colon, ":");
+        }
+        if (c == ',') {
+            advance();
+            return make_token(TokenKind::Comma, ",");
+        }
+        if (c == '|') {
+            advance();
+            return make_token(TokenKind::Pipe, "|");
+        }
+        if (c == '@') {
+            return read_resource_ref();
         }
         if (c == '"') {
             return read_string();
@@ -184,6 +198,24 @@ private:
         if (text == "true" || text == "false") {
             return Token{TokenKind::Bool, text, token_line, token_col};
         }
+        return Token{TokenKind::Identifier, text, token_line, token_col};
+    }
+
+    Token read_resource_ref() {
+        const auto token_line = line_;
+        const auto token_col = column_;
+        std::string text;
+        text.push_back(advance()); // '@'
+
+        if (is_at_end() || !is_identifier_start(peek())) {
+            throw std::runtime_error("Invalid resource reference after '@'.");
+        }
+
+        text.push_back(advance());
+        while (!is_at_end() && is_identifier_char(peek())) {
+            text.push_back(advance());
+        }
+
         return Token{TokenKind::Identifier, text, token_line, token_col};
     }
 
@@ -338,21 +370,41 @@ private:
     }
 
     Property parse_property(const std::string& name) {
+        auto [kind, value] = parse_scalar_value(name);
+        auto had_comma = false;
+
+        while (lookahead_.kind == TokenKind::Comma || lookahead_.kind == TokenKind::Pipe) {
+            const auto separator = consume();
+            auto [nextKind, nextValue] = parse_scalar_value(name);
+            (void)nextKind;
+            had_comma = true;
+            value += separator.kind == TokenKind::Pipe ? "|" : ",";
+            value += nextValue;
+        }
+
+        if (had_comma) {
+            return Property{name, ValueKind::Tuple, value};
+        }
+
+        return Property{name, kind, value};
+    }
+
+    std::pair<ValueKind, std::string> parse_scalar_value(const std::string& name) {
         if (lookahead_.kind == TokenKind::String) {
             const auto token = consume();
-            return Property{name, ValueKind::String, token.text};
+            return {ValueKind::String, token.text};
         }
         if (lookahead_.kind == TokenKind::Number) {
             const auto token = consume();
-            return Property{name, ValueKind::Number, normalize_number_text(token.text)};
+            return {ValueKind::Number, normalize_number_text(token.text)};
         }
         if (lookahead_.kind == TokenKind::Bool) {
             const auto token = consume();
-            return Property{name, ValueKind::Bool, token.text};
+            return {ValueKind::Bool, token.text};
         }
         if (lookahead_.kind == TokenKind::Identifier) {
             const auto token = consume();
-            return Property{name, ValueKind::Identifier, token.text};
+            return {ValueKind::Identifier, token.text};
         }
 
         std::ostringstream oss;
@@ -404,6 +456,7 @@ const char* value_kind_name(ValueKind kind) {
         case ValueKind::Number: return "number";
         case ValueKind::Bool: return "bool";
         case ValueKind::Identifier: return "identifier";
+        case ValueKind::Tuple: return "tuple";
         default: return "unknown";
     }
 }

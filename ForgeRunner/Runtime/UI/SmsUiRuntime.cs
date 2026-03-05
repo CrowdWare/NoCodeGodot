@@ -284,9 +284,7 @@ public sealed class SmsUiRuntime
             }
             else
             {
-                // Fallback for editors without explicit onSave callback:
-                // route Cmd/Ctrl+S to the standard File->Save action.
-                TryInvokeEvent("menuSave", "clicked", warnIfMissing: false);
+                RunnerLogger.Warn("SMS", $"No onSave callback registered for editor '{editorId}'.");
             }
         });
 
