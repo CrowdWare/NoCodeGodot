@@ -44,6 +44,7 @@ var chooserOverlay = null
 var chooserStatus = null
 var chooserThemeLabel = null
 var transformSpaceSelectRef = null
+var mainDockHostRef = null
 var jointSpheresVisible = false
 var selectedSceneAssetIndex = -1
 var scenePathByIndex = []
@@ -288,6 +289,7 @@ fun ready() {
     chooserStatus  = ui.getObject("chooserStatus")
     chooserThemeLabel = ui.getObject("chooserThemeLabel")
     transformSpaceSelectRef = ui.getObject("transformSpaceSelect")
+    mainDockHostRef = ui.getObject("mainDockHost")
     initThemePresets()
     applyThemePreset(0)
     refreshPromptPanelFromState()
@@ -306,6 +308,30 @@ fun ready() {
     updateInspectorFromSelection()
     bootstrapProjectChooser()
     log.success("ForgePoser is ready. Start posing.")
+}
+
+fun refreshDockingVisuals() {
+    if (mainDockHostRef != null) {
+        mainDockHostRef.QueueSort()
+        mainDockHostRef.QueueRedraw()
+    }
+
+    var leftDock = ui.getObject("leftDock")
+    if (leftDock != null) {
+        leftDock.QueueRedraw()
+    }
+    var centerDock = ui.getObject("centerDock")
+    if (centerDock != null) {
+        centerDock.QueueRedraw()
+    }
+    var rightDock = ui.getObject("rightDock")
+    if (rightDock != null) {
+        rightDock.QueueRedraw()
+    }
+    var rightBottomDock = ui.getObject("rightBottomDock")
+    if (rightBottomDock != null) {
+        rightBottomDock.QueueRedraw()
+    }
 }
 
 fun configureInspectorNumericFields() {
@@ -566,6 +592,7 @@ fun openProjectPath(path) {
     selectFirstSceneAsset()
     refreshSourceEditorFromProject()
     hideProjectChooser()
+    refreshDockingVisuals()
     statusLabel.text = "Opened: " + path
     return true
 }
@@ -601,6 +628,7 @@ fun onProjectCreatePathSelected(path) {
     pushAiSceneProperties()
     refreshSourceEditorFromProject()
     hideProjectChooser()
+    refreshDockingVisuals()
     updateInspectorFromSelection()
     statusLabel.text = "Created: " + path
 }

@@ -25,8 +25,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Runtime.Assets;
 using Runtime.Sml;
@@ -78,7 +78,6 @@ public partial class Main : Node
 	private string? _resolvedStartupUiUrl;
 	private const string DefaultStartUrl = "https://crowdware.github.io/Forge/Default/manifest.sml";
 	private const string StartupSettingsFileName = "startup_settings.sml";
-	private const string UiSessionStateFileName = "ui_session_state.json";
 	private CanvasLayer? _startupProgressLayer;
 	private ProgressBar? _startupProgressBar;
 	private Label? _startupProgressLabel;
@@ -1947,6 +1946,7 @@ public partial class Main : Node
 		return new UiWindowState
 		{
 			WindowId = _runtimeUiRoot is not null ? ResolveControlKey(_runtimeUiRoot) : string.Empty,
+			Screen = window.CurrentScreen,
 			PositionX = window.Position.X,
 			PositionY = window.Position.Y,
 			SizeX = window.Size.X,
@@ -1981,6 +1981,12 @@ public partial class Main : Node
 			window.Size = new Vector2I(windowState.SizeX, windowState.SizeY);
 		}
 
+		var screenCount = DisplayServer.GetScreenCount();
+		if (windowState.Screen >= 0 && windowState.Screen < screenCount && window.CurrentScreen != windowState.Screen)
+		{
+			window.CurrentScreen = windowState.Screen;
+		}
+
 		window.Position = new Vector2I(windowState.PositionX, windowState.PositionY);
 	}
 
@@ -2010,6 +2016,8 @@ public partial class Main : Node
 				Visible = container.Visible,
 				DockSide = container.GetDockSide(),
 				FixedWidth = (int)MathF.Round(container.GetFixedWidth()),
+				FixedHeight = container.HasFixedHeight() ? (int?)MathF.Round(container.GetFixedHeight()) : null,
+				HeightPercent = container.HasHeightPercent() ? container.GetHeightPercent() : null,
 				TabTitles = tabTitles,
 				CurrentTitle = currentTitle
 			});
@@ -2036,6 +2044,25 @@ public partial class Main : Node
 
 			target.Visible = saved.Visible;
 			target.SetFixedWidth(saved.FixedWidth);
+			if (saved.FixedHeight.HasValue)
+			{
+				target.SetFixedHeight(saved.FixedHeight.Value);
+			}
+			else if (saved.HeightPercent.HasValue)
+			{
+				target.SetHeightPercent(saved.HeightPercent.Value);
+			}
+			else
+			{
+				if (target.HasMeta(NodePropertyMapper.MetaDockFixedHeight))
+				{
+					target.RemoveMeta(NodePropertyMapper.MetaDockFixedHeight);
+				}
+				if (target.HasMeta(NodePropertyMapper.MetaDockHeightPercent))
+				{
+					target.RemoveMeta(NodePropertyMapper.MetaDockHeightPercent);
+				}
+			}
 		}
 
 		var titleMap = BuildTabTitleMap(containers);
@@ -2166,7 +2193,7 @@ public partial class Main : Node
 
 	private UiSessionState? LoadSessionState()
 	{
-		var path = ProjectSettings.GlobalizePath($"user://{UiSessionStateFileName}");
+		var path = GetUiSessionStatePath();
 		if (!File.Exists(path))
 		{
 			return null;
@@ -2174,8 +2201,8 @@ public partial class Main : Node
 
 		try
 		{
-			var json = File.ReadAllText(path);
-			return JsonSerializer.Deserialize<UiSessionState>(json);
+			var sml = File.ReadAllText(path);
+			return DeserializeUiSessionStateFromSml(sml);
 		}
 		catch (Exception ex)
 		{
@@ -2186,13 +2213,18 @@ public partial class Main : Node
 
 	private void SaveSessionState(UiSessionState state)
 	{
-		var path = ProjectSettings.GlobalizePath($"user://{UiSessionStateFileName}");
+		var path = GetUiSessionStatePath();
 		var temp = path + ".tmp";
 
 		try
 		{
-			var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
-			File.WriteAllText(temp, json);
+			var sml = SerializeUiSessionStateToSml(state);
+			var dir = Path.GetDirectoryName(path);
+			if (!string.IsNullOrWhiteSpace(dir))
+			{
+				Directory.CreateDirectory(dir);
+			}
+			File.WriteAllText(temp, sml);
 			if (File.Exists(path))
 			{
 				File.Delete(path);
@@ -2204,6 +2236,257 @@ public partial class Main : Node
 		{
 			RunnerLogger.Warn("UI", "Failed to save ui session state.", ex);
 		}
+	}
+
+	private string GetUiSessionStatePath()
+	{
+		var keySource = _resolvedStartupUiUrl;
+		if (string.IsNullOrWhiteSpace(keySource))
+		{
+			keySource = !string.IsNullOrWhiteSpace(UiSmlUrl)
+				? UiSmlUrl
+				: (!string.IsNullOrWhiteSpace(ManifestUrl) ? ManifestUrl : DefaultStartUrl);
+		}
+
+		keySource = _uriResolver.Normalize(keySource);
+		var hash = SHA256.HashData(Encoding.UTF8.GetBytes(keySource));
+		var key = Convert.ToHexString(hash).ToLowerInvariant()[..16];
+		return ProjectSettings.GlobalizePath($"user://layouts/ui_session_state_{key}.sml");
+	}
+
+	private static string SerializeUiSessionStateToSml(UiSessionState state)
+	{
+		var sb = new StringBuilder();
+		sb.AppendLine("UiSessionState {");
+
+		if (state.Window is not null)
+		{
+			sb.AppendLine("    Window {");
+			sb.AppendLine($"        windowId: \"{EscSml(state.Window.WindowId)}\"");
+			sb.AppendLine($"        screen: {state.Window.Screen}");
+			sb.AppendLine($"        positionX: {state.Window.PositionX}");
+			sb.AppendLine($"        positionY: {state.Window.PositionY}");
+			sb.AppendLine($"        sizeX: {state.Window.SizeX}");
+			sb.AppendLine($"        sizeY: {state.Window.SizeY}");
+			sb.AppendLine($"        mode: \"{EscSml(state.Window.Mode)}\"");
+			sb.AppendLine("    }");
+		}
+
+		if (state.Docking is not null)
+		{
+			sb.AppendLine("    Docking {");
+			foreach (var container in state.Docking.Containers)
+			{
+				sb.AppendLine("        Container {");
+				sb.AppendLine($"            key: \"{EscSml(container.Key)}\"");
+				sb.AppendLine($"            visible: {(container.Visible ? "true" : "false")}");
+				sb.AppendLine($"            dockSide: \"{EscSml(container.DockSide)}\"");
+				sb.AppendLine($"            fixedWidth: {container.FixedWidth}");
+				if (container.FixedHeight.HasValue)
+				{
+					sb.AppendLine($"            fixedHeight: {container.FixedHeight.Value}");
+				}
+				if (container.HeightPercent.HasValue)
+				{
+					sb.AppendLine(global::System.FormattableString.Invariant($"            heightPercent: {container.HeightPercent.Value:0.###}"));
+				}
+				sb.AppendLine($"            currentTitle: \"{EscSml(container.CurrentTitle)}\"");
+				foreach (var title in container.TabTitles)
+				{
+					sb.AppendLine($"            Tab {{ title: \"{EscSml(title)}\" }}");
+				}
+				sb.AppendLine("        }");
+			}
+			sb.AppendLine("    }");
+		}
+
+		sb.AppendLine("}");
+		return sb.ToString();
+	}
+
+	private static UiSessionState? DeserializeUiSessionStateFromSml(string content)
+	{
+		SmlDocument doc;
+		try
+		{
+			doc = new SmlParser(content).ParseDocument();
+		}
+		catch
+		{
+			return null;
+		}
+
+		SmlNode? root = null;
+		foreach (var node in doc.Roots)
+		{
+			if (string.Equals(node.Name, "UiSessionState", StringComparison.OrdinalIgnoreCase))
+			{
+				root = node;
+				break;
+			}
+		}
+
+		if (root is null)
+		{
+			return null;
+		}
+
+		var state = new UiSessionState();
+		foreach (var child in root.Children)
+		{
+			if (string.Equals(child.Name, "Window", StringComparison.OrdinalIgnoreCase))
+			{
+				state.Window = new UiWindowState
+				{
+					WindowId = GetSessionSmlString(child, "windowId", string.Empty),
+					Screen = GetSessionSmlInt(child, "screen", -1),
+					PositionX = GetSessionSmlInt(child, "positionX", 0),
+					PositionY = GetSessionSmlInt(child, "positionY", 0),
+					SizeX = GetSessionSmlInt(child, "sizeX", 0),
+					SizeY = GetSessionSmlInt(child, "sizeY", 0),
+					Mode = GetSessionSmlString(child, "mode", string.Empty)
+				};
+				continue;
+			}
+
+			if (string.Equals(child.Name, "Docking", StringComparison.OrdinalIgnoreCase))
+			{
+				var docking = new UiDockingState();
+				foreach (var containerNode in child.Children)
+				{
+					if (!string.Equals(containerNode.Name, "Container", StringComparison.OrdinalIgnoreCase))
+					{
+						continue;
+					}
+
+					var container = new UiDockingContainerState
+					{
+						Key = GetSessionSmlString(containerNode, "key", string.Empty),
+						Visible = GetSessionSmlBool(containerNode, "visible", false),
+						DockSide = GetSessionSmlString(containerNode, "dockSide", string.Empty),
+						FixedWidth = GetSessionSmlInt(containerNode, "fixedWidth", 240),
+						CurrentTitle = GetSessionSmlString(containerNode, "currentTitle", string.Empty)
+					};
+					if (containerNode.TryGetProperty("fixedHeight", out var fixedHeightValue))
+					{
+						container.FixedHeight = SessionSmlIntValue(fixedHeightValue, 0);
+					}
+					if (containerNode.TryGetProperty("heightPercent", out var heightPercentValue))
+					{
+						container.HeightPercent = SessionSmlFloatValue(heightPercentValue, 50f);
+					}
+
+					foreach (var tabNode in containerNode.Children)
+					{
+						if (!string.Equals(tabNode.Name, "Tab", StringComparison.OrdinalIgnoreCase))
+						{
+							continue;
+						}
+
+						var tabTitle = GetSessionSmlString(tabNode, "title", string.Empty);
+						if (!string.IsNullOrWhiteSpace(tabTitle))
+						{
+							container.TabTitles.Add(tabTitle);
+						}
+					}
+
+					if (string.IsNullOrWhiteSpace(container.Key))
+					{
+						continue;
+					}
+
+					docking.Containers.Add(container);
+				}
+				state.Docking = docking;
+			}
+		}
+
+		return state;
+	}
+
+	private static string GetSessionSmlString(SmlNode node, string key, string fallback)
+	{
+		if (!node.TryGetProperty(key, out var value))
+		{
+			return fallback;
+		}
+
+		return value.Kind switch
+		{
+			SmlValueKind.String => (string)value.Value,
+			SmlValueKind.Identifier => (string)value.Value,
+			_ => fallback
+		};
+	}
+
+	private static int GetSessionSmlInt(SmlNode node, string key, int fallback)
+	{
+		if (!node.TryGetProperty(key, out var value))
+		{
+			return fallback;
+		}
+
+		return value.Kind switch
+		{
+			SmlValueKind.Int => (int)value.Value,
+			SmlValueKind.Float => (int)(double)value.Value,
+			_ => fallback
+		};
+	}
+
+	private static int SessionSmlIntValue(SmlValue value, int fallback)
+	{
+		return value.Kind switch
+		{
+			SmlValueKind.Int => (int)value.Value,
+			SmlValueKind.Float => (int)(double)value.Value,
+			_ => fallback
+		};
+	}
+
+	private static float SessionSmlFloatValue(SmlValue value, float fallback)
+	{
+		return value.Kind switch
+		{
+			SmlValueKind.Float => (float)(double)value.Value,
+			SmlValueKind.Int => (int)value.Value,
+			_ => fallback
+		};
+	}
+
+	private static bool GetSessionSmlBool(SmlNode node, string key, bool fallback)
+	{
+		if (!node.TryGetProperty(key, out var value))
+		{
+			return fallback;
+		}
+
+		return value.Kind switch
+		{
+			SmlValueKind.Bool => (bool)value.Value,
+			SmlValueKind.Identifier => ParseSessionBoolIdentifier(value.Value as string, fallback),
+			_ => fallback
+		};
+	}
+
+	private static bool ParseSessionBoolIdentifier(string? raw, bool fallback)
+	{
+		if (string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase))
+		{
+			return true;
+		}
+
+		if (string.Equals(raw, "false", StringComparison.OrdinalIgnoreCase))
+		{
+			return false;
+		}
+
+		return fallback;
+	}
+
+	private static string EscSml(string value)
+	{
+		return (value ?? string.Empty).Replace("\\", "\\\\").Replace("\"", "\\\"");
 	}
 
 	private void OnViewportSizeChanged()
@@ -2234,6 +2517,7 @@ public partial class Main : Node
 	private sealed class UiWindowState
 	{
 		public string WindowId { get; set; } = string.Empty;
+		public int Screen { get; set; } = -1;
 		public int PositionX { get; set; }
 		public int PositionY { get; set; }
 		public int SizeX { get; set; }
@@ -2252,6 +2536,8 @@ public partial class Main : Node
 		public bool Visible { get; set; }
 		public string DockSide { get; set; } = string.Empty;
 		public int FixedWidth { get; set; }
+		public int? FixedHeight { get; set; }
+		public float? HeightPercent { get; set; }
 		public List<string> TabTitles { get; set; } = [];
 		public string CurrentTitle { get; set; } = string.Empty;
 	}

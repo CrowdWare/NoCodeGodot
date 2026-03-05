@@ -127,8 +127,15 @@ public sealed partial class DockingHostControl
         var minTop    = _activeVerticalTarget.GetMinFixedHeight() > 0 ? _activeVerticalTarget.GetMinFixedHeight() : 40f;
 
         var newTopHeight = Mathf.Clamp(_dragStartHeight + delta, minTop, Math.Max(minTop, totalH - minBottom));
-
-        _activeVerticalTarget.SetFixedHeight(newTopHeight);
+        if (totalH > 0.001f)
+        {
+            var topPercent = (newTopHeight / totalH) * 100f;
+            _activeVerticalTarget.SetHeightPercent(topPercent);
+        }
+        else
+        {
+            _activeVerticalTarget.SetFixedHeight(newTopHeight);
+        }
         QueueSort();
         AcceptEvent();
     }

@@ -36,24 +36,6 @@ Window {
 
             // ── Left panel: Scene Assets + Keyframe Inspector (two tabs) ──────
             DockingContainer {
-                id: farLeftDock
-                dockSide: farLeft
-                fixedWidth: 220
-                visible: false
-                dragToRearrangeEnabled: true
-                tabsRearrangeGroup: 1
-            }
-
-            DockingContainer {
-                id: farLeftBottomDock
-                dockSide: farLeftBottom
-                fixedWidth: 220
-                visible: false
-                dragToRearrangeEnabled: true
-                tabsRearrangeGroup: 1
-            }
-
-            DockingContainer {
                 id: leftDock
                 dockSide: left
                 fixedWidth: 240
@@ -119,15 +101,6 @@ Window {
                     }
                 }
 
-            }
-
-            DockingContainer {
-                id: leftBottomDock
-                dockSide: leftBottom
-                fixedWidth: 240
-                visible: false
-                dragToRearrangeEnabled: true
-                tabsRearrangeGroup: 1
             }
 
             // ── Center: Toolbar + PosingEditor (top) + Timeline (bottom) ─────
@@ -386,23 +359,6 @@ Window {
 
             }
 
-            DockingContainer {
-                id: farRightDock
-                dockSide: farRight
-                fixedWidth: 220
-                visible: false
-                dragToRearrangeEnabled: true
-                tabsRearrangeGroup: 1
-            }
-
-            DockingContainer {
-                id: farRightBottomDock
-                dockSide: farRightBottom
-                fixedWidth: 220
-                visible: false
-                dragToRearrangeEnabled: true
-                tabsRearrangeGroup: 1
-            }
         }
 
         // ── Status bar ────────────────────────────────────────────────────────

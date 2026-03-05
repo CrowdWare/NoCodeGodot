@@ -157,12 +157,12 @@ fun dockPanelClosed(dockSpace, panelName) {
 
 on saveFile.clicked() {
     if (dock == null) { return }
-    dock.SaveLayout("designer_layout.json")
+    dock.SaveLayout("designer_layout.sml")
 }
 
 on openFile.clicked() {
     if (dock == null) { return }
-    dock.LoadLayout("designer_layout.json")
+    dock.LoadLayout("designer_layout.sml")
 }
 
 on settings.clicked() {

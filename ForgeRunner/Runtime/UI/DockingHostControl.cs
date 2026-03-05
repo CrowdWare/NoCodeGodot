@@ -19,16 +19,18 @@
 
 using Godot;
 using Runtime.Logging;
+using Runtime.Sml;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.Json;
+using System.Text;
 
 namespace Runtime.UI;
 
 public sealed partial class DockingHostControl : Container
 {
     private const float DefaultHandleWidth = 6f;
+    private const float AutoDockFixedWidth = 220f;
     private static readonly Color HandleVisibleColor = new(0f, 0f, 0f, 0.35f);
     private static readonly Color HandleHiddenColor = new(1f, 1f, 1f, 0f);
 
@@ -113,6 +115,7 @@ public sealed partial class DockingHostControl : Container
         public bool Visible { get; set; }
         public int FixedWidth { get; set; }
         public int? FixedHeight { get; set; }
+        public float? HeightPercent { get; set; }
         public List<string> Tabs { get; set; } = [];
         public string CurrentTabTitle { get; set; } = string.Empty;
     }
@@ -128,6 +131,7 @@ public sealed partial class DockingHostControl : Container
     public override void _Ready()
     {
         ClipContents = true;
+        EnsureAutoDockContainers();
         _defaultLayoutState = CaptureLayoutState();
     }
 
@@ -659,9 +663,9 @@ public sealed partial class DockingHostControl : Container
 
         try
         {
-            var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
+            var sml = SerializeLayoutStateToSml(state);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, json);
+            File.WriteAllText(path, sml);
             return true;
         }
         catch (Exception ex)
@@ -686,8 +690,8 @@ public sealed partial class DockingHostControl : Container
 
         try
         {
-            var json = File.ReadAllText(path);
-            var state = JsonSerializer.Deserialize<DockLayoutState>(json);
+            var sml = File.ReadAllText(path);
+            var state = DeserializeLayoutStateFromSml(sml);
             if (state is null)
             {
                 return false;
@@ -732,6 +736,12 @@ public sealed partial class DockingHostControl : Container
         {
             if (GetChild(i) is not DockingContainerControl child || !child.Visible)
             {
+                continue;
+            }
+
+            if (child.GetTabCount() == 0 && child.GetDockSideKind() != DockingContainerControl.DockSideKind.Center)
+            {
+                child.Visible = false;
                 continue;
             }
 
@@ -928,6 +938,68 @@ public sealed partial class DockingHostControl : Container
         }
 
         RebuildHandles(gapSegments, verticalGapSegments);
+    }
+
+    private void EnsureAutoDockContainers()
+    {
+        var existing = GetDockContainers();
+        if (existing.Count == 0)
+        {
+            return;
+        }
+
+        var desiredSides = new[]
+        {
+            DockingContainerControl.DockSideKind.FarLeft,
+            DockingContainerControl.DockSideKind.FarLeftBottom,
+            DockingContainerControl.DockSideKind.Left,
+            DockingContainerControl.DockSideKind.LeftBottom,
+            DockingContainerControl.DockSideKind.Right,
+            DockingContainerControl.DockSideKind.RightBottom,
+            DockingContainerControl.DockSideKind.FarRight,
+            DockingContainerControl.DockSideKind.FarRightBottom
+        };
+
+        var dragGroup = 1;
+        foreach (var container in existing)
+        {
+            var candidate = container.GetTabsRearrangeGroup();
+            if (candidate > 0)
+            {
+                dragGroup = candidate;
+                break;
+            }
+        }
+
+        foreach (var side in desiredSides)
+        {
+            var found = false;
+            foreach (var container in existing)
+            {
+                if (container.GetDockSideKind() == side)
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (found)
+            {
+                continue;
+            }
+
+            var autoDock = new DockingContainerControl
+            {
+                Name = $"Auto{side}Dock",
+                Visible = false
+            };
+            autoDock.SetMeta(NodePropertyMapper.MetaDockSide, Variant.From(NormalizePosition(side.ToString())));
+            autoDock.SetMeta(NodePropertyMapper.MetaDockDragToRearrangeEnabled, Variant.From(true));
+            autoDock.SetMeta(NodePropertyMapper.MetaDockTabsRearrangeGroup, Variant.From(dragGroup));
+            autoDock.SetFixedWidth(AutoDockFixedWidth);
+            AddChild(autoDock);
+            existing.Add(autoDock);
+        }
     }
 
     private static VerticalGapSegment? LayoutColumn(DockColumn column, float x, float width, float hostHeight, float gap)
@@ -1345,6 +1417,7 @@ public sealed partial class DockingHostControl : Container
                 Visible = container.Visible,
                 FixedWidth = (int)MathF.Round(container.GetFixedWidth()),
                 FixedHeight = container.HasFixedHeight() ? (int?)MathF.Round(container.GetFixedHeight()) : null,
+                HeightPercent = container.HasHeightPercent() ? container.GetHeightPercent() : null,
                 Tabs = tabs,
                 CurrentTabTitle = currentTitle
             });
@@ -1375,12 +1448,20 @@ public sealed partial class DockingHostControl : Container
             {
                 target.SetFixedHeight(panel.FixedHeight.Value);
             }
+            else if (panel.HeightPercent.HasValue)
+            {
+                target.SetHeightPercent(panel.HeightPercent.Value);
+            }
             else
             {
                 // No fixed height saved – remove runtime override so SML values take effect again.
                 if (target.HasMeta(NodePropertyMapper.MetaDockFixedHeight))
                 {
                     target.RemoveMeta(NodePropertyMapper.MetaDockFixedHeight);
+                }
+                if (target.HasMeta(NodePropertyMapper.MetaDockHeightPercent))
+                {
+                    target.RemoveMeta(NodePropertyMapper.MetaDockHeightPercent);
                 }
             }
             target.Visible = panel.Visible;
@@ -1512,8 +1593,205 @@ public sealed partial class DockingHostControl : Container
     {
         var hostKey = ResolveHostKey();
         var safeName = name.Trim().Replace("/", "_").Replace("\\", "_");
-        var relative = $"user://docking/layouts/{hostKey}_{safeName}.json";
+        if (safeName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            safeName = safeName[..^5];
+        }
+        else if (safeName.EndsWith(".sml", StringComparison.OrdinalIgnoreCase))
+        {
+            safeName = safeName[..^4];
+        }
+
+        var relative = $"user://layouts/{hostKey}_{safeName}.sml";
         return ProjectSettings.GlobalizePath(relative);
+    }
+
+    private static string SerializeLayoutStateToSml(DockLayoutState state)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("DockLayoutState {");
+        foreach (var panel in state.Panels)
+        {
+            sb.AppendLine("    Panel {");
+            sb.AppendLine($"        key: \"{Esc(panel.Key)}\"");
+            sb.AppendLine($"        dockSide: \"{Esc(panel.DockSide)}\"");
+            sb.AppendLine($"        visible: {(panel.Visible ? "true" : "false")}");
+            sb.AppendLine($"        fixedWidth: {panel.FixedWidth}");
+            if (panel.FixedHeight.HasValue)
+            {
+                sb.AppendLine($"        fixedHeight: {panel.FixedHeight.Value}");
+            }
+            if (panel.HeightPercent.HasValue)
+            {
+                sb.AppendLine(global::System.FormattableString.Invariant($"        heightPercent: {panel.HeightPercent.Value:0.###}"));
+            }
+            sb.AppendLine($"        currentTabTitle: \"{Esc(panel.CurrentTabTitle)}\"");
+            foreach (var title in panel.Tabs)
+            {
+                sb.AppendLine($"        Tab {{ title: \"{Esc(title)}\" }}");
+            }
+            sb.AppendLine("    }");
+        }
+        sb.AppendLine("}");
+        return sb.ToString();
+    }
+
+    private static DockLayoutState? DeserializeLayoutStateFromSml(string content)
+    {
+        SmlDocument doc;
+        try
+        {
+            doc = new SmlParser(content).ParseDocument();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+
+        SmlNode? root = null;
+        foreach (var node in doc.Roots)
+        {
+            if (string.Equals(node.Name, "DockLayoutState", StringComparison.OrdinalIgnoreCase))
+            {
+                root = node;
+                break;
+            }
+        }
+
+        if (root is null)
+        {
+            return null;
+        }
+
+        var result = new DockLayoutState();
+        foreach (var child in root.Children)
+        {
+            if (!string.Equals(child.Name, "Panel", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var panel = new DockPanelState
+            {
+                Key = GetNodeString(child, "key", string.Empty),
+                DockSide = GetNodeString(child, "dockSide", "center"),
+                Visible = GetNodeBool(child, "visible", false),
+                FixedWidth = GetNodeInt(child, "fixedWidth", 240),
+                CurrentTabTitle = GetNodeString(child, "currentTabTitle", string.Empty)
+            };
+
+            if (child.TryGetProperty("fixedHeight", out var fixedHeightValue))
+            {
+                panel.FixedHeight = SmlIntValue(fixedHeightValue, 0);
+            }
+            if (child.TryGetProperty("heightPercent", out var heightPercentValue))
+            {
+                panel.HeightPercent = SmlFloatValue(heightPercentValue, 50f);
+            }
+
+            foreach (var tabNode in child.Children)
+            {
+                if (!string.Equals(tabNode.Name, "Tab", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var title = GetNodeString(tabNode, "title", string.Empty);
+                if (!string.IsNullOrWhiteSpace(title))
+                {
+                    panel.Tabs.Add(title);
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(panel.Key))
+            {
+                continue;
+            }
+
+            result.Panels.Add(panel);
+        }
+
+        return result;
+    }
+
+    private static string GetNodeString(SmlNode node, string key, string fallback)
+    {
+        if (!node.TryGetProperty(key, out var value))
+        {
+            return fallback;
+        }
+
+        return value.Kind switch
+        {
+            SmlValueKind.String => (string)value.Value,
+            SmlValueKind.Identifier => (string)value.Value,
+            _ => fallback
+        };
+    }
+
+    private static bool GetNodeBool(SmlNode node, string key, bool fallback)
+    {
+        if (!node.TryGetProperty(key, out var value))
+        {
+            return fallback;
+        }
+
+        return value.Kind switch
+        {
+            SmlValueKind.Bool => (bool)value.Value,
+            SmlValueKind.Identifier => ParseBoolIdentifier((string)value.Value, fallback),
+            _ => fallback
+        };
+    }
+
+    private static int GetNodeInt(SmlNode node, string key, int fallback)
+    {
+        if (!node.TryGetProperty(key, out var value))
+        {
+            return fallback;
+        }
+
+        return SmlIntValue(value, fallback);
+    }
+
+    private static int SmlIntValue(SmlValue value, int fallback)
+    {
+        return value.Kind switch
+        {
+            SmlValueKind.Int => (int)value.Value,
+            SmlValueKind.Float => (int)(double)value.Value,
+            _ => fallback
+        };
+    }
+
+    private static float SmlFloatValue(SmlValue value, float fallback)
+    {
+        return value.Kind switch
+        {
+            SmlValueKind.Float => (float)(double)value.Value,
+            SmlValueKind.Int => (int)value.Value,
+            _ => fallback
+        };
+    }
+
+    private static bool ParseBoolIdentifier(string raw, bool fallback)
+    {
+        if (string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(raw, "false", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return fallback;
+    }
+
+    private static string Esc(string value)
+    {
+        return (value ?? string.Empty).Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 
     private string ResolveHostKey()

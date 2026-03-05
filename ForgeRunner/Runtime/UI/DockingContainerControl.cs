@@ -74,6 +74,7 @@ public sealed partial class DockingContainerControl : PanelContainer
         EnsureDockStructure();
         EnsureDockDefaults();
         SyncTabVisibility();
+        CallDeferred(nameof(ForceDockRedraw));
     }
 
     public override void _Draw()
@@ -84,6 +85,8 @@ public sealed partial class DockingContainerControl : PanelContainer
         var themeBgColor = GetThemeColor("dock_background", "DockingContainerControl");
         var headerColor = themeBgColor;
         var contentColor = ResolveContentBackgroundColor(headerColor);
+        headerColor.A = 1f;
+        contentColor.A = 1f;
 
         ApplyTabBarBackgroundColorOverride(headerColor);
 
@@ -609,6 +612,16 @@ public sealed partial class DockingContainerControl : PanelContainer
         SetMeta(NodePropertyMapper.MetaDockFixedHeight, Variant.From((int)MathF.Round(clamped)));
     }
 
+    public void SetHeightPercent(float percent)
+    {
+        var clamped = Mathf.Clamp(percent, 0f, 100f);
+        if (HasMeta(NodePropertyMapper.MetaDockFixedHeight))
+        {
+            RemoveMeta(NodePropertyMapper.MetaDockFixedHeight);
+        }
+        SetMeta(NodePropertyMapper.MetaDockHeightPercent, Variant.From((double)clamped));
+    }
+
     public bool IsCloseable()
     {
         if (HasMeta(NodePropertyMapper.MetaDockCloseable))
@@ -668,10 +681,14 @@ public sealed partial class DockingContainerControl : PanelContainer
         var panelStyle = GetThemeStylebox("panel", "Tree");
         if (panelStyle is StyleBoxFlat flat)
         {
-            return flat.BgColor;
+            var color = flat.BgColor;
+            color.A = 1f;
+            return color;
         }
 
-        return fallback.Darkened(0.08f);
+        var fallbackColor = fallback.Darkened(0.08f);
+        fallbackColor.A = 1f;
+        return fallbackColor;
     }
 
     private void OnTabChanged(long _index)
@@ -903,6 +920,7 @@ public sealed partial class DockingContainerControl : PanelContainer
                 tab.Content.Visible = false;
             }
 
+            ForceDockRedraw();
             return;
         }
 
@@ -934,6 +952,7 @@ public sealed partial class DockingContainerControl : PanelContainer
 
         if (selectedFound)
         {
+            ForceDockRedraw();
             return;
         }
 
@@ -941,6 +960,15 @@ public sealed partial class DockingContainerControl : PanelContainer
         {
             _tabs[i].Content.Visible = i <= maxValidIndex && i == currentTab;
         }
+
+        ForceDockRedraw();
+    }
+
+    private void ForceDockRedraw()
+    {
+        QueueRedraw();
+        _contentContainer?.QueueRedraw();
+        _root?.QueueRedraw();
     }
 
     private static string ResolveTabTitle(Control child)
