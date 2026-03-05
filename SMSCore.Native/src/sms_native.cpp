@@ -23,10 +23,13 @@ enum class TokenType {
     In,
     If,
     Else,
+    When,
     While,
     Fun,
     Data,
     Class,
+    Break,
+    Continue,
     Return,
     LeftParen,
     RightParen,
@@ -40,12 +43,16 @@ enum class TokenType {
     Assign,
     Plus,
     Minus,
+    Arrow,
     Less,
     Greater,
     LessEqual,
     GreaterEqual,
     EqualEqual,
-    BangEqual
+    BangEqual,
+    Bang,
+    AndAnd,
+    OrOr
 };
 
 struct Token {
@@ -107,7 +114,12 @@ public:
                     out.push_back({TokenType::Plus, "+"});
                     break;
                 case '-':
-                    out.push_back({TokenType::Minus, "-"});
+                    if (!is_at_end() && peek() == '>') {
+                        advance();
+                        out.push_back({TokenType::Arrow, "->"});
+                    } else {
+                        out.push_back({TokenType::Minus, "-"});
+                    }
                     break;
                 case '<':
                     if (!is_at_end() && peek() == '=') {
@@ -129,6 +141,22 @@ public:
                     if (!is_at_end() && peek() == '=') {
                         advance();
                         out.push_back({TokenType::BangEqual, "!="});
+                    } else {
+                        out.push_back({TokenType::Bang, "!"});
+                    }
+                    break;
+                case '&':
+                    if (!is_at_end() && peek() == '&') {
+                        advance();
+                        out.push_back({TokenType::AndAnd, "&&"});
+                    } else {
+                        throw std::runtime_error("Unexpected character in source.");
+                    }
+                    break;
+                case '|':
+                    if (!is_at_end() && peek() == '|') {
+                        advance();
+                        out.push_back({TokenType::OrOr, "||"});
                     } else {
                         throw std::runtime_error("Unexpected character in source.");
                     }
@@ -188,10 +216,13 @@ private:
         if (text == "in") return {TokenType::In, text};
         if (text == "if") return {TokenType::If, text};
         if (text == "else") return {TokenType::Else, text};
+        if (text == "when") return {TokenType::When, text};
         if (text == "while") return {TokenType::While, text};
         if (text == "fun") return {TokenType::Fun, text};
         if (text == "data") return {TokenType::Data, text};
         if (text == "class") return {TokenType::Class, text};
+        if (text == "break") return {TokenType::Break, text};
+        if (text == "continue") return {TokenType::Continue, text};
         if (text == "return") return {TokenType::Return, text};
         return {TokenType::Identifier, text};
     }
@@ -349,6 +380,9 @@ struct ReturnSignal final : std::exception {
     Value value;
 };
 
+struct BreakSignal final : std::exception {};
+struct ContinueSignal final : std::exception {};
+
 struct Expr {
     virtual ~Expr() = default;
     virtual Value eval(Env& env) const = 0;
@@ -504,6 +538,83 @@ struct BinaryExpr final : Expr {
     TokenType oper;
     std::unique_ptr<Expr> left_;
     std::unique_ptr<Expr> right_;
+};
+
+struct LogicalExpr final : Expr {
+    LogicalExpr(TokenType op, std::unique_ptr<Expr> left, std::unique_ptr<Expr> right)
+        : oper(op), left_(std::move(left)), right_(std::move(right)) {}
+
+    Value eval(Env& env) const override {
+        const auto left = left_->eval(env);
+        const auto right = right_->eval(env);
+        if (oper == TokenType::AndAnd) {
+            return Value::Int(left.truthy() && right.truthy() ? 1 : 0);
+        }
+
+        if (oper == TokenType::OrOr) {
+            return Value::Int(left.truthy() || right.truthy() ? 1 : 0);
+        }
+
+        throw std::runtime_error("Unsupported logical operator.");
+    }
+
+    TokenType oper;
+    std::unique_ptr<Expr> left_;
+    std::unique_ptr<Expr> right_;
+};
+
+struct UnaryExpr final : Expr {
+    UnaryExpr(TokenType op, std::unique_ptr<Expr> operand)
+        : oper(op), operand_(std::move(operand)) {}
+
+    Value eval(Env& env) const override {
+        const auto value = operand_->eval(env);
+        if (oper == TokenType::Bang) {
+            return Value::Int(value.truthy() ? 0 : 1);
+        }
+        if (oper == TokenType::Minus) {
+            return Value::Int(-value.as_int("Unary '-'"));
+        }
+        throw std::runtime_error("Unsupported unary operator.");
+    }
+
+    TokenType oper;
+    std::unique_ptr<Expr> operand_;
+};
+
+struct WhenBranch {
+    std::unique_ptr<Expr> condition;
+    std::unique_ptr<Expr> result;
+    bool is_else = false;
+};
+
+struct WhenExpr final : Expr {
+    explicit WhenExpr(std::unique_ptr<Expr> subject, std::vector<WhenBranch> branches)
+        : subject_(std::move(subject)), branches_(std::move(branches)) {}
+
+    Value eval(Env& env) const override {
+        const auto subject = subject_ ? subject_->eval(env) : Value::Null();
+        const auto has_subject = static_cast<bool>(subject_);
+        for (const auto& branch : branches_) {
+            if (branch.is_else) {
+                return branch.result->eval(env);
+            }
+
+            if (!branch.condition) {
+                throw std::runtime_error("Invalid when branch.");
+            }
+
+            const auto condition = branch.condition->eval(env);
+            const auto matches = has_subject ? (condition == subject) : condition.truthy();
+            if (matches) {
+                return branch.result->eval(env);
+            }
+        }
+        return Value::Null();
+    }
+
+    std::unique_ptr<Expr> subject_;
+    std::vector<WhenBranch> branches_;
 };
 
 struct Stmt {
@@ -665,6 +776,18 @@ struct ReturnStmt final : Stmt {
     std::unique_ptr<Expr> value;
 };
 
+struct BreakStmt final : Stmt {
+    void execute(Env&, Value&) const override {
+        throw BreakSignal();
+    }
+};
+
+struct ContinueStmt final : Stmt {
+    void execute(Env&, Value&) const override {
+        throw ContinueSignal();
+    }
+};
+
 struct ExprStmt final : Stmt {
     explicit ExprStmt(std::unique_ptr<Expr> v) : value(std::move(v)) {}
     void execute(Env& env, Value& last) const override {
@@ -683,7 +806,14 @@ struct ForStmt final : Stmt {
     void execute(Env& env, Value& last) const override {
         init->execute(env, last);
         while (condition->eval(env).truthy()) {
-            execute_statements(body, env, last);
+            try {
+                execute_statements(body, env, last);
+            } catch (const ContinueSignal&) {
+                update->execute(env, last);
+                continue;
+            } catch (const BreakSignal&) {
+                break;
+            }
             update->execute(env, last);
         }
     }
@@ -704,7 +834,13 @@ struct ForInStmt final : Stmt {
             if (!env.assign_var(variable, element)) {
                 env.define_var(variable, element);
             }
-            execute_statements(body, env, last);
+            try {
+                execute_statements(body, env, last);
+            } catch (const ContinueSignal&) {
+                continue;
+            } catch (const BreakSignal&) {
+                break;
+            }
         }
     }
 };
@@ -715,7 +851,13 @@ struct WhileStmt final : Stmt {
 
     void execute(Env& env, Value& last) const override {
         while (condition->eval(env).truthy()) {
-            execute_statements(body, env, last);
+            try {
+                execute_statements(body, env, last);
+            } catch (const ContinueSignal&) {
+                continue;
+            } catch (const BreakSignal&) {
+                break;
+            }
         }
     }
 };
@@ -755,6 +897,8 @@ private:
         if (match(TokenType::While)) return parse_while();
         if (match(TokenType::If)) return parse_if();
         if (match(TokenType::Fun)) return parse_function_decl();
+        if (match(TokenType::Break)) return parse_break();
+        if (match(TokenType::Continue)) return parse_continue();
         if (match(TokenType::Return)) return parse_return();
 
         if (check(TokenType::Identifier)) {
@@ -856,6 +1000,16 @@ private:
         }
         match(TokenType::Semicolon);
         return std::make_unique<ReturnStmt>(std::move(value));
+    }
+
+    std::unique_ptr<Stmt> parse_break() {
+        match(TokenType::Semicolon);
+        return std::make_unique<BreakStmt>();
+    }
+
+    std::unique_ptr<Stmt> parse_continue() {
+        match(TokenType::Semicolon);
+        return std::make_unique<ContinueStmt>();
     }
 
     std::unique_ptr<Stmt> parse_function_decl() {
@@ -963,7 +1117,25 @@ private:
         return body;
     }
 
-    std::unique_ptr<Expr> parse_expression() { return parse_equality(); }
+    std::unique_ptr<Expr> parse_expression() { return parse_or(); }
+
+    std::unique_ptr<Expr> parse_or() {
+        auto expr = parse_and();
+        while (match(TokenType::OrOr)) {
+            auto rhs = parse_and();
+            expr = std::make_unique<LogicalExpr>(TokenType::OrOr, std::move(expr), std::move(rhs));
+        }
+        return expr;
+    }
+
+    std::unique_ptr<Expr> parse_and() {
+        auto expr = parse_equality();
+        while (match(TokenType::AndAnd)) {
+            auto rhs = parse_equality();
+            expr = std::make_unique<LogicalExpr>(TokenType::AndAnd, std::move(expr), std::move(rhs));
+        }
+        return expr;
+    }
 
     std::unique_ptr<Expr> parse_equality() {
         auto expr = parse_comparison();
@@ -1012,21 +1184,31 @@ private:
     }
 
     std::unique_ptr<Expr> parse_term() {
-        auto expr = parse_postfix();
+        auto expr = parse_unary();
         while (true) {
             if (match(TokenType::Plus)) {
-                auto rhs = parse_postfix();
+                auto rhs = parse_unary();
                 expr = std::make_unique<BinaryExpr>(TokenType::Plus, std::move(expr), std::move(rhs));
                 continue;
             }
             if (match(TokenType::Minus)) {
-                auto rhs = parse_postfix();
+                auto rhs = parse_unary();
                 expr = std::make_unique<BinaryExpr>(TokenType::Minus, std::move(expr), std::move(rhs));
                 continue;
             }
             break;
         }
         return expr;
+    }
+
+    std::unique_ptr<Expr> parse_unary() {
+        if (match(TokenType::Bang)) {
+            return std::make_unique<UnaryExpr>(TokenType::Bang, parse_unary());
+        }
+        if (match(TokenType::Minus)) {
+            return std::make_unique<UnaryExpr>(TokenType::Minus, parse_unary());
+        }
+        return parse_postfix();
     }
 
     std::unique_ptr<Expr> parse_postfix() {
@@ -1079,6 +1261,10 @@ private:
     }
 
     std::unique_ptr<Expr> parse_primary() {
+        if (match(TokenType::When)) {
+            return parse_when_expression();
+        }
+
         if (match(TokenType::Number)) {
             return std::make_unique<NumberExpr>(std::stoll(previous().text));
         }
@@ -1105,6 +1291,37 @@ private:
         }
 
         throw std::runtime_error("Expected expression.");
+    }
+
+    std::unique_ptr<Expr> parse_when_expression() {
+        std::unique_ptr<Expr> subject;
+        if (match(TokenType::LeftParen)) {
+            subject = parse_expression();
+            consume(TokenType::RightParen, "Expected ')' after when subject");
+        }
+
+        consume(TokenType::LeftBrace, "Expected '{' after when");
+        std::vector<WhenBranch> branches;
+        bool else_seen = false;
+        while (!check(TokenType::RightBrace) && !check(TokenType::Eof)) {
+            WhenBranch branch;
+            if (match(TokenType::Else)) {
+                if (else_seen) {
+                    throw std::runtime_error("Multiple else branches in when.");
+                }
+                else_seen = true;
+                branch.is_else = true;
+            } else {
+                branch.condition = parse_expression();
+            }
+
+            consume(TokenType::Arrow, "Expected '->' after when branch condition");
+            branch.result = parse_expression();
+            branches.push_back(std::move(branch));
+            match(TokenType::Semicolon);
+        }
+        consume(TokenType::RightBrace, "Expected '}' after when branches");
+        return std::make_unique<WhenExpr>(std::move(subject), std::move(branches));
     }
 
     bool match(TokenType type) {
@@ -1278,6 +1495,12 @@ extern "C" int sms_native_execute(const char* source, std::int64_t* out_result, 
         return 0;
     } catch (const ReturnSignal&) {
         write_error(error, error_capacity, "return outside function");
+        return 1;
+    } catch (const BreakSignal&) {
+        write_error(error, error_capacity, "break outside loop");
+        return 1;
+    } catch (const ContinueSignal&) {
+        write_error(error, error_capacity, "continue outside loop");
         return 1;
     } catch (const std::exception& ex) {
         write_error(error, error_capacity, ex.what());
