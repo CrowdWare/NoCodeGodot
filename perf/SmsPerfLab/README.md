@@ -14,7 +14,7 @@ This lab is intentionally independent from `ForgeRunner` runtime/UI integration.
 - `SmsPerfLab.csproj` - console benchmark harness
 - `Program.cs` - benchmark runner
 - `NativeSmsBridge.cs` - optional native bridge (`sms_native` shared library)
-- `native/` - C++ SMS spike implementation
+- `native/` - compatibility wrapper build (sources live in `SMSCore.Native/`)
 
 ## Build Native Spike
 
@@ -35,7 +35,7 @@ Creates:
 SMS native interpreter:
 
 ```bash
-cd perf/SmsPerfLab/native
+cd SMSCore.Native
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
@@ -58,7 +58,7 @@ With native libraries:
 
 ```bash
 SML_NATIVE_LIB_DIR="$(pwd)/SMLCore.Native/build" \
-SMS_NATIVE_LIB_DIR="$(pwd)/perf/SmsPerfLab/native/build" \
+SMS_NATIVE_LIB_DIR="$(pwd)/SMSCore.Native/build" \
 dotnet run --project perf/SmsPerfLab/SmsPerfLab.csproj -- --iterations 200 --loop 20000
 ```
 
@@ -80,8 +80,22 @@ On Windows PowerShell:
 
 ```powershell
 $env:SML_NATIVE_LIB_DIR = "$pwd/SMLCore.Native/build/Release"
-$env:SMS_NATIVE_LIB_DIR = "$pwd/perf/SmsPerfLab/native/build/Release"
+$env:SMS_NATIVE_LIB_DIR = "$pwd/SMSCore.Native/build/Release"
 dotnet run --project perf/SmsPerfLab/SmsPerfLab.csproj -- --iterations 200 --loop 20000
+```
+
+## Run SMS Conformance (Managed vs Native Execute)
+
+```bash
+SMS_NATIVE_LIB_DIR="$(pwd)/SMSCore.Native/build" \
+dotnet run --project perf/SmsPerfLab/SmsPerfLab.csproj -- --sms-conformance
+```
+
+Custom fixtures directory:
+
+```bash
+SMS_NATIVE_LIB_DIR="$(pwd)/SMSCore.Native/build" \
+dotnet run --project perf/SmsPerfLab/SmsPerfLab.csproj -- --sms-conformance --sms-fixtures "$(pwd)/perf/SmsPerfLab/fixtures/sms_conformance"
 ```
 
 ## Notes

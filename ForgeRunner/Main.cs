@@ -30,6 +30,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Runtime.Assets;
 using Runtime.Sml;
+using Runtime.Sms;
 using System.Linq;
 
 public partial class Main : Node
@@ -120,6 +121,8 @@ public partial class Main : Node
 		}
 		RunnerLogger.Configure(startupSettings.IncludeStackTraces, startupSettings.ShowParserWarnings, startupSettings.ShowDebugLogs, options.VerboseRequested);
 		SmlParseRuntime.Configure(options.SmlNativeProbeEnabled);
+		SmsNativeRuntime.Configure(options.SmsNativeProbeEnabled);
+		SmsNativeRuntime.EnsureProbed();
 		RunnerLogger.Debug("Perf", $"[Ready] settings={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		var theme = GD.Load<Theme>("res://theme.tres");
@@ -1283,6 +1286,7 @@ public partial class Main : Node
 		bool? debugOverride = null;
 		var verboseRequested = false;
 		var smlNativeProbeEnabled = false;
+		var smsNativeProbeEnabled = false;
 
 		for (var i = 0; i < args.Count; i++)
 		{
@@ -1307,6 +1311,15 @@ public partial class Main : Node
 				if (TryParseBoolArg(raw, out var parsed))
 				{
 					smlNativeProbeEnabled = parsed;
+				}
+				continue;
+			}
+			if (arg.StartsWith("--sms-native=", StringComparison.Ordinal))
+			{
+				var raw = arg.Substring("--sms-native=".Length);
+				if (TryParseBoolArg(raw, out var parsed))
+				{
+					smsNativeProbeEnabled = parsed;
 				}
 				continue;
 			}
@@ -1338,7 +1351,7 @@ public partial class Main : Node
 			}
 		}
 
-		return new StartupOptions(urlOverride, clearCache, resetStartUrl, debugOverride, verboseRequested, smlNativeProbeEnabled);
+		return new StartupOptions(urlOverride, clearCache, resetStartUrl, debugOverride, verboseRequested, smlNativeProbeEnabled, smsNativeProbeEnabled);
 	}
 
 	private static bool TryParseBoolArg(string raw, out bool value)
@@ -1439,7 +1452,7 @@ public partial class Main : Node
 		File.Move(temp, path);
 	}
 
-	private sealed record StartupOptions(string? UrlOverride, bool ClearCache, bool ResetStartUrl, bool? DebugOverride, bool VerboseRequested, bool SmlNativeProbeEnabled);
+	private sealed record StartupOptions(string? UrlOverride, bool ClearCache, bool ResetStartUrl, bool? DebugOverride, bool VerboseRequested, bool SmlNativeProbeEnabled, bool SmsNativeProbeEnabled);
 
 	private sealed class StartupSettings
 	{

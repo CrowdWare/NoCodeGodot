@@ -8,8 +8,10 @@ internal static class Program
     {
         var iterations = 200;
         var loopCount = 20_000;
-        var runConformance = false;
-        var conformanceDir = Path.Combine(Directory.GetCurrentDirectory(), "perf", "SmsPerfLab", "fixtures", "sml_conformance");
+        var runSmlConformance = false;
+        var runSmsConformance = false;
+        var smlConformanceDir = Path.Combine(Directory.GetCurrentDirectory(), "perf", "SmsPerfLab", "fixtures", "sml_conformance");
+        var smsConformanceDir = Path.Combine(Directory.GetCurrentDirectory(), "perf", "SmsPerfLab", "fixtures", "sms_conformance");
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -29,23 +31,44 @@ internal static class Program
 
             if (args[i] == "--conformance")
             {
-                runConformance = true;
+                runSmlConformance = true;
+                continue;
+            }
+
+            if (args[i] == "--sms-conformance")
+            {
+                runSmsConformance = true;
                 continue;
             }
 
             if (args[i] == "--fixtures" && i + 1 < args.Length)
             {
-                conformanceDir = args[i + 1];
+                smlConformanceDir = args[i + 1];
+                i++;
+                continue;
+            }
+
+            if (args[i] == "--sms-fixtures" && i + 1 < args.Length)
+            {
+                smsConformanceDir = args[i + 1];
                 i++;
             }
         }
 
-        if (runConformance)
+        if (runSmlConformance)
         {
             Console.WriteLine("SmsPerfLab - SML Conformance");
-            Console.WriteLine($"  fixtures: {conformanceDir}");
+            Console.WriteLine($"  fixtures: {smlConformanceDir}");
             Console.WriteLine();
-            return SmlConformance.Run(conformanceDir);
+            return SmlConformance.Run(smlConformanceDir);
+        }
+
+        if (runSmsConformance)
+        {
+            Console.WriteLine("SmsPerfLab - SMS Conformance");
+            Console.WriteLine($"  fixtures: {smsConformanceDir}");
+            Console.WriteLine();
+            return SmsConformance.Run(smsConformanceDir);
         }
 
         Console.WriteLine("SmsPerfLab");

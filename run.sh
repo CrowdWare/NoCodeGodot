@@ -170,6 +170,9 @@ for arg in "$@"; do
     --sml-native=*)
       FORGE_RUNNER_ARGS+=("$arg")
       ;;
+    --sms-native=*)
+      FORGE_RUNNER_ARGS+=("$arg")
+      ;;
     --install=true|--install)
       SETUP_INSTALL="true"
       ;;
@@ -406,7 +409,7 @@ case "$MODE" in
     setup_tools "$SETUP_INSTALL"
     ;;
   *)
-    echo "Usage: $0 [default|designer|poser|docking|none|setup|docs|theme|build|export|test|manifest|pub|app|release] [--debug=true] [--verbose] [--install=true]"
+    echo "Usage: $0 [default|designer|poser|docking|none|setup|docs|theme|build|export|test|manifest|pub|app|release] [--debug=true] [--sml-native=true] [--sms-native=true] [--verbose] [--install=true]"
     exit 1
     ;;
 esac
