@@ -10,16 +10,24 @@
 
     Character {
         id: char1  name: "man"  src: "res:/assets/models/man.glb"
-        pos: 2.319911, -0.05384673, 0.6823035
+        pos: 2.513659, -0.06562571, 0.7443683
         rot: 9.999996, -56.55, 0.0
         scale: 1.0, 0.9999998, 1.0
 
         Animation {
+            Key { frame: 0
+                Bone { name: "mixamorig1_LeftArm" x: 0.5182542 y: -0.4758154 z: 0.005317055 w: 0.7106223 }
+                Bone { name: "mixamorig1_RightArm" x: 0.4619998 y: -0.1141995 z: -0.2297128 w: 0.848968 }
+            }
+            Key { frame: 10
+                Bone { name: "mixamorig1_LeftArm" x: 0.6034247 y: -0.3968719 z: 0.03259039 w: 0.6908757 }
+                Bone { name: "mixamorig1_RightArm" x: 0.4619998 y: -0.1141995 z: -0.2297128 w: 0.848968 }
+            }
         }
     }
     Character {
         id: char2  name: "man"  src: "res:/assets/models/man.glb"
-        pos: -0.6677406, -0.05889487, 1.459292
+        pos: -0.6677406, -0.07067386, 1.521354
         rot: 0.0, 19.65, 0.0
         scale: 1.0, 1.0, 1.0
 

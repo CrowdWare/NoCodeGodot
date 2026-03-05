@@ -19,6 +19,9 @@ public static class SmsNativeRuntime
     public static bool Available => _available;
     public static bool SessionApiAvailable => NativeSmsBridge.HasSessionApi;
     public static string LastError => _lastError;
+    public delegate bool UiGetPropertyBridge(string objectId, string property, out string valueJson, out string error);
+    public delegate bool UiSetPropertyBridge(string objectId, string property, string valueJson, out string error);
+    public delegate bool UiInvokeMethodBridge(string objectId, string method, string argsJson, out string resultJson, out string error);
 
     public static void Configure(bool enabled)
     {
@@ -95,6 +98,22 @@ public static class SmsNativeRuntime
         {
             RunnerLogger.Warn("SMS", "Native session API missing. Runner still uses managed ScriptEngine for events.");
         }
+        return true;
+    }
+
+    public static bool ConfigureUiInterop(UiGetPropertyBridge? getProperty, UiSetPropertyBridge? setProperty, UiInvokeMethodBridge? invokeMethod)
+    {
+        if (!EnsureProbed())
+        {
+            return false;
+        }
+
+        if (!NativeSmsBridge.TrySetUiCallbacks(getProperty, setProperty, invokeMethod))
+        {
+            _lastError = NativeSmsBridge.LastError;
+            return false;
+        }
+
         return true;
     }
 
@@ -182,6 +201,13 @@ public static class SmsNativeRuntime
         private static NativeSessionLoadFn? _sessionLoadFn;
         private static NativeSessionInvokeFn? _sessionInvokeFn;
         private static NativeSessionDisposeFn? _sessionDisposeFn;
+        private static NativeSetUiCallbacksFn? _setUiCallbacksFn;
+        private static UiGetPropertyBridge? _managedUiGetBridge;
+        private static UiSetPropertyBridge? _managedUiSetBridge;
+        private static UiInvokeMethodBridge? _managedUiInvokeBridge;
+        private static NativeUiGetPropertyBridgeFn? _nativeUiGetBridge;
+        private static NativeUiSetPropertyBridgeFn? _nativeUiSetBridge;
+        private static NativeUiInvokeBridgeFn? _nativeUiInvokeBridge;
         private static string _lastError = string.Empty;
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -217,6 +243,41 @@ public static class SmsNativeRuntime
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate int NativeSessionDisposeFn(
             long session,
+            StringBuilder error,
+            int errorCapacity);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int NativeSetUiCallbacksFn(
+            IntPtr getPropertyFn,
+            IntPtr setPropertyFn,
+            IntPtr invokeMethodFn,
+            StringBuilder error,
+            int errorCapacity);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int NativeUiGetPropertyBridgeFn(
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string objectId,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string property,
+            StringBuilder outJson,
+            int outJsonCapacity,
+            StringBuilder error,
+            int errorCapacity);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int NativeUiSetPropertyBridgeFn(
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string objectId,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string property,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string valueJson,
+            StringBuilder error,
+            int errorCapacity);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int NativeUiInvokeBridgeFn(
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string objectId,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string method,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string argsJson,
+            StringBuilder outJson,
+            int outJsonCapacity,
             StringBuilder error,
             int errorCapacity);
 
@@ -326,6 +387,42 @@ public static class SmsNativeRuntime
             return true;
         }
 
+        public static bool TrySetUiCallbacks(UiGetPropertyBridge? getProperty, UiSetPropertyBridge? setProperty, UiInvokeMethodBridge? invokeMethod)
+        {
+            if (!EnsureResolved() || _setUiCallbacksFn is null)
+            {
+                _lastError = "native ui callback API unavailable";
+                return false;
+            }
+
+            _managedUiGetBridge = getProperty;
+            _managedUiSetBridge = setProperty;
+            _managedUiInvokeBridge = invokeMethod;
+            _nativeUiGetBridge = getProperty is null ? null : NativeUiGetPropertyThunk;
+            _nativeUiSetBridge = setProperty is null ? null : NativeUiSetPropertyThunk;
+            _nativeUiInvokeBridge = invokeMethod is null ? null : NativeUiInvokeThunk;
+
+            var getPtr = _nativeUiGetBridge is null
+                ? IntPtr.Zero
+                : Marshal.GetFunctionPointerForDelegate(_nativeUiGetBridge);
+            var setPtr = _nativeUiSetBridge is null
+                ? IntPtr.Zero
+                : Marshal.GetFunctionPointerForDelegate(_nativeUiSetBridge);
+            var invokePtr = _nativeUiInvokeBridge is null
+                ? IntPtr.Zero
+                : Marshal.GetFunctionPointerForDelegate(_nativeUiInvokeBridge);
+
+            var error = new StringBuilder(ErrorCapacity);
+            var rc = _setUiCallbacksFn(getPtr, setPtr, invokePtr, error, ErrorCapacity);
+            if (rc != 0)
+            {
+                _lastError = error.Length > 0 ? error.ToString() : $"native rc={rc}";
+                return false;
+            }
+
+            return true;
+        }
+
         private static bool EnsureResolved()
         {
             if (_resolved)
@@ -367,6 +464,11 @@ public static class SmsNativeRuntime
                     _sessionDisposeFn = Marshal.GetDelegateForFunctionPointer<NativeSessionDisposeFn>(disposePtr);
                 }
 
+                if (NativeLibrary.TryGetExport(_libraryHandle, "sms_native_set_ui_callbacks", out var setUiCallbacksPtr))
+                {
+                    _setUiCallbacksFn = Marshal.GetDelegateForFunctionPointer<NativeSetUiCallbacksFn>(setUiCallbacksPtr);
+                }
+
                 if (_executeFn is not null)
                 {
                     return true;
@@ -375,6 +477,110 @@ public static class SmsNativeRuntime
 
             _lastError = "sms_native library not found";
             return false;
+        }
+
+        private static int NativeUiGetPropertyThunk(
+            string objectId,
+            string property,
+            StringBuilder outJson,
+            int outJsonCapacity,
+            StringBuilder error,
+            int errorCapacity)
+        {
+            if (_managedUiGetBridge is null)
+            {
+                error.Append("ui get bridge not set");
+                return 2;
+            }
+
+            try
+            {
+                if (!_managedUiGetBridge(objectId, property, out var valueJson, out var err))
+                {
+                    if (!string.IsNullOrWhiteSpace(err))
+                    {
+                        error.Append(err);
+                    }
+                    return 1;
+                }
+
+                outJson.Append(valueJson ?? "null");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                error.Append(ex.Message);
+                return 1;
+            }
+        }
+
+        private static int NativeUiSetPropertyThunk(
+            string objectId,
+            string property,
+            string valueJson,
+            StringBuilder error,
+            int errorCapacity)
+        {
+            if (_managedUiSetBridge is null)
+            {
+                error.Append("ui set bridge not set");
+                return 2;
+            }
+
+            try
+            {
+                if (!_managedUiSetBridge(objectId, property, valueJson, out var err))
+                {
+                    if (!string.IsNullOrWhiteSpace(err))
+                    {
+                        error.Append(err);
+                    }
+                    return 1;
+                }
+
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                error.Append(ex.Message);
+                return 1;
+            }
+        }
+
+        private static int NativeUiInvokeThunk(
+            string objectId,
+            string method,
+            string argsJson,
+            StringBuilder outJson,
+            int outJsonCapacity,
+            StringBuilder error,
+            int errorCapacity)
+        {
+            if (_managedUiInvokeBridge is null)
+            {
+                error.Append("ui invoke bridge not set");
+                return 2;
+            }
+
+            try
+            {
+                if (!_managedUiInvokeBridge(objectId, method, argsJson, out var resultJson, out var err))
+                {
+                    if (!string.IsNullOrWhiteSpace(err))
+                    {
+                        error.Append(err);
+                    }
+                    return 1;
+                }
+
+                outJson.Append(resultJson ?? "null");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                error.Append(ex.Message);
+                return 1;
+            }
         }
 
         private static IEnumerable<string> BuildCandidates()

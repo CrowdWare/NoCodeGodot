@@ -35,6 +35,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -61,6 +62,8 @@ public sealed class SmsUiRuntime
     private readonly Dictionary<ulong, string> _windowCloseCallbacks = new();
     private readonly HashSet<ulong> _windowCloseHooked = [];
     private readonly HashSet<string> _nativeFallbackWarnedEvents = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _nativeFallbackCountByEvent = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _nativeFallbackReasonByEvent = new(StringComparer.Ordinal);
     private readonly Dictionary<Type, Dictionary<string, List<MethodInfo>>> _methodCache = [];
     private readonly Dictionary<long, object> _nativeObjects = [];
     private readonly Dictionary<string, NumericLineEditBehavior> _numericLineEdits = new(StringComparer.Ordinal);
@@ -80,27 +83,57 @@ public sealed class SmsUiRuntime
 
     public bool IsLoaded { get; private set; }
 
+    public void LogNativeFallbackSummary()
+    {
+        if (_nativeFallbackCountByEvent.Count == 0)
+        {
+            RunnerLogger.Info("SMS", "Native fallback summary: none.");
+            return;
+        }
+
+        var visible = new List<(string Key, int Count, string Reason)>();
+        foreach (var kv in _nativeFallbackCountByEvent)
+        {
+            var reason = _nativeFallbackReasonByEvent.TryGetValue(kv.Key, out var value) ? value : "unknown";
+            if (IsKnownNativeInteropGap(reason))
+            {
+                continue;
+            }
+
+            visible.Add((kv.Key, kv.Value, reason));
+        }
+
+        if (visible.Count == 0)
+        {
+            RunnerLogger.Info("SMS", "Native fallback summary: none.");
+            return;
+        }
+
+        var total = 0;
+        foreach (var item in visible)
+        {
+            total += item.Count;
+        }
+
+        RunnerLogger.Info("SMS", $"Native fallback summary: {visible.Count} event key(s), {total} fallback(s).");
+        foreach (var item in visible.OrderByDescending(v => v.Count).ThenBy(v => v.Key, StringComparer.Ordinal))
+        {
+            RunnerLogger.Info("SMS", $"  {item.Key} -> {item.Count}x (first reason: {item.Reason})");
+        }
+    }
+
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        var smsUri = TryBuildCompanionSmsUri(_uiSmlUri);
-        if (string.IsNullOrWhiteSpace(smsUri))
+        var scriptCandidates = BuildCompanionScriptCandidates(_uiSmlUri);
+        if (scriptCandidates.Count == 0)
         {
             return;
         }
 
-        string source;
-        try
+        var load = await TryLoadFirstAvailableScriptAsync(scriptCandidates, cancellationToken);
+        if (!load.Success)
         {
-            source = await _uriResolver.LoadTextAsync(smsUri, cancellationToken: cancellationToken);
-        }
-        catch (FileNotFoundException)
-        {
-            RunnerLogger.Debug("SMS", $"No companion SMS script found for '{_uiSmlUri}' (expected '{smsUri}').");
-            return;
-        }
-        catch (Exception ex)
-        {
-            RunnerLogger.Warn("SMS", $"Failed loading companion SMS script '{smsUri}'.", ex);
+            RunnerLogger.Debug("SMS", $"No companion SMS script found for '{_uiSmlUri}'.");
             return;
         }
 
@@ -108,17 +141,17 @@ public sealed class SmsUiRuntime
         _localization = await LocalizationStore.LoadAsync(_uriResolver, _uiSmlUri, cancellationToken: cancellationToken);
         RegisterNativeFunctions();
         ExecuteBootstrapGlobals();
-        SyncNativeSessionSource(source, smsUri, append: false);
+        SyncNativeSessionSource(load.Source, load.Uri, append: false);
 
         try
         {
-            _engine.Execute(source);
+            _engine.Execute(load.Source);
             IsLoaded = true;
-            RunnerLogger.Debug("SMS", $"Loaded companion SMS script: '{smsUri}'.");
+            RunnerLogger.Debug("SMS", $"Loaded companion script: '{load.Uri}'.");
         }
         catch (Exception ex)
         {
-            RunnerLogger.Error("SMS", $"Failed executing companion SMS script '{smsUri}'.", ex);
+            RunnerLogger.Error("SMS", $"Failed executing companion script '{load.Uri}'.", ex);
         }
     }
 
@@ -129,27 +162,48 @@ public sealed class SmsUiRuntime
             return;
         }
 
-        string source;
-        try
+        var scriptCandidates = BuildRuntimeScriptCandidates(smsUri);
+        var load = await TryLoadFirstAvailableScriptAsync(scriptCandidates, cancellationToken);
+        if (!load.Success)
         {
-            source = await _uriResolver.LoadTextAsync(smsUri, cancellationToken: cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            RunnerLogger.Warn("SMS", $"Failed loading additional SMS script '{smsUri}'.", ex);
+            RunnerLogger.Warn("SMS", $"Failed loading additional SMS script: '{smsUri}'.");
             return;
         }
 
         try
         {
-            _engine.Execute(source);
-            SyncNativeSessionSource(source, smsUri, append: true);
-            RunnerLogger.Debug("SMS", $"Loaded additional SMS script: '{smsUri}'.");
+            _engine.Execute(load.Source);
+            SyncNativeSessionSource(load.Source, load.Uri, append: true);
+            RunnerLogger.Debug("SMS", $"Loaded additional script: '{load.Uri}'.");
         }
         catch (Exception ex)
         {
-            RunnerLogger.Warn("SMS", $"Failed executing additional SMS script '{smsUri}'.", ex);
+            RunnerLogger.Warn("SMS", $"Failed executing additional script '{load.Uri}'.", ex);
         }
+    }
+
+    private async Task<(bool Success, string Uri, string Source)> TryLoadFirstAvailableScriptAsync(
+        IReadOnlyList<string> candidates,
+        CancellationToken cancellationToken)
+    {
+        foreach (var candidate in candidates)
+        {
+            try
+            {
+                var source = await _uriResolver.LoadTextAsync(candidate, cancellationToken: cancellationToken);
+                return (true, candidate, source);
+            }
+            catch (FileNotFoundException)
+            {
+                continue;
+            }
+            catch
+            {
+                continue;
+            }
+        }
+
+        return (false, string.Empty, string.Empty);
     }
 
     private void SyncNativeSessionSource(string source, string label, bool append)
@@ -192,6 +246,13 @@ public sealed class SmsUiRuntime
         }
 
         _dispatcher = dispatcher;
+        if (SmsNativeRuntime.Available)
+        {
+            if (!SmsNativeRuntime.ConfigureUiInterop(TryNativeUiGetProperty, TryNativeUiSetProperty, TryNativeUiInvokeMethod))
+            {
+                RunnerLogger.Debug("SMS", $"Native UI interop bridge not active: {SmsNativeRuntime.LastError}");
+            }
+        }
 
         dispatcher.RegisterActionHandler("treeItemSelected", ctx =>
         {
@@ -3530,31 +3591,50 @@ $"}}\n";
         return Directory.GetCurrentDirectory();
     }
 
-    private static string? TryBuildCompanionSmsUri(string uiSmlUri)
+    private static List<string> BuildCompanionScriptCandidates(string uiSmlUri)
     {
+        var result = new List<string>();
         if (string.IsNullOrWhiteSpace(uiSmlUri))
         {
-            return null;
+            return result;
         }
 
         if (Uri.TryCreate(uiSmlUri, UriKind.Absolute, out var absoluteUri))
         {
             if (!absoluteUri.AbsolutePath.EndsWith(".sml", StringComparison.OrdinalIgnoreCase))
             {
-                return null;
+                return result;
             }
 
-            var builder = new UriBuilder(absoluteUri)
-            {
-                Path = absoluteUri.AbsolutePath[..^4] + ".sms"
-            };
-
-            return builder.Uri.ToString();
+            var sms = new UriBuilder(absoluteUri) { Path = absoluteUri.AbsolutePath[..^4] + ".sms" }.Uri.ToString();
+            result.Add(sms);
+            return result;
         }
 
-        return uiSmlUri.EndsWith(".sml", StringComparison.OrdinalIgnoreCase)
-            ? uiSmlUri[..^4] + ".sms"
-            : null;
+        if (uiSmlUri.EndsWith(".sml", StringComparison.OrdinalIgnoreCase))
+        {
+            result.Add(uiSmlUri[..^4] + ".sms");
+        }
+
+        return result;
+    }
+
+    private static List<string> BuildRuntimeScriptCandidates(string scriptUri)
+    {
+        var result = new List<string>();
+        if (string.IsNullOrWhiteSpace(scriptUri))
+        {
+            return result;
+        }
+
+        if (scriptUri.EndsWith(".sms", StringComparison.OrdinalIgnoreCase))
+        {
+            result.Add(scriptUri);
+            return result;
+        }
+
+        result.Add(scriptUri + ".sms");
+        return result;
     }
 
     private void TryInvokeEvent(string targetId, string eventName, params object?[] args)
@@ -3585,7 +3665,9 @@ $"}}\n";
                     return;
                 }
 
-                var isKnownParserGap = message.Contains("Unexpected character in source.", StringComparison.Ordinal);
+                var isKnownParserGap = message.Contains("Unexpected character in source.", StringComparison.Ordinal)
+                    || IsKnownNativeInteropGap(message);
+                TrackNativeFallback(eventKey, message);
                 if (isKnownParserGap)
                 {
                     RunnerLogger.Debug("SMS", $"Native SMS fallback active for '{eventKey}': {message}");
@@ -3601,6 +3683,7 @@ $"}}\n";
             }
             catch (Exception ex)
             {
+                TrackNativeFallback(eventKey, ex.Message);
                 if (_nativeFallbackWarnedEvents.Add(eventKey))
                 {
                     RunnerLogger.Warn("SMS", $"Native SMS event dispatch failed for '{eventKey}'. Falling back to managed runtime.", ex);
@@ -3625,6 +3708,453 @@ $"}}\n";
         {
             RunnerLogger.Warn("SMS", $"SMS event dispatch failed for '{eventKey}'.", ex);
         }
+    }
+
+    private void TrackNativeFallback(string eventKey, string reason)
+    {
+        if (string.IsNullOrWhiteSpace(eventKey))
+        {
+            return;
+        }
+
+        if (_nativeFallbackCountByEvent.TryGetValue(eventKey, out var count))
+        {
+            _nativeFallbackCountByEvent[eventKey] = count + 1;
+        }
+        else
+        {
+            _nativeFallbackCountByEvent[eventKey] = 1;
+        }
+
+        if (!_nativeFallbackReasonByEvent.ContainsKey(eventKey))
+        {
+            _nativeFallbackReasonByEvent[eventKey] = string.IsNullOrWhiteSpace(reason) ? "unknown" : reason;
+        }
+    }
+
+    private static bool IsKnownNativeInteropGap(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("Unknown variable: ui", StringComparison.Ordinal)
+            || message.Contains("Unknown variable: editor", StringComparison.Ordinal)
+            || message.Contains("Unknown variable: os", StringComparison.Ordinal)
+            || message.Contains("Unknown variable: log", StringComparison.Ordinal)
+            || message.Contains("Unknown variable: timeline", StringComparison.Ordinal)
+            || message.Contains("Method call expects supported receiver.", StringComparison.Ordinal)
+            || message.Contains("Unknown ui method:", StringComparison.Ordinal)
+            || message.Contains("Unknown os method:", StringComparison.Ordinal);
+    }
+
+    private bool TryNativeUiGetProperty(string objectId, string property, out string valueJson, out string error)
+    {
+        valueJson = "null";
+        error = string.Empty;
+
+        var node = UiRuntimeApi.GetObjectById(objectId);
+        if (string.Equals(property, "__exists", StringComparison.Ordinal))
+        {
+            valueJson = node is null ? "false" : "true";
+            return true;
+        }
+
+        if (node is null)
+        {
+            error = $"UI object '{objectId}' not found.";
+            return false;
+        }
+
+        switch (property)
+        {
+            case "text":
+                if (TryReadText(node, out var text))
+                {
+                    valueJson = ToJsonString(text);
+                    return true;
+                }
+                error = $"Unsupported text source on '{objectId}'.";
+                return false;
+            case "buttonPressed":
+                if (node is BaseButton button)
+                {
+                    valueJson = button.ButtonPressed ? "true" : "false";
+                    return true;
+                }
+                error = $"Unsupported buttonPressed source on '{objectId}'.";
+                return false;
+            default:
+                error = $"Unsupported UI property '{property}'.";
+                return false;
+        }
+    }
+
+    private bool TryNativeUiSetProperty(string objectId, string property, string valueJson, out string error)
+    {
+        error = string.Empty;
+        var node = UiRuntimeApi.GetObjectById(objectId);
+        if (node is null)
+        {
+            error = $"UI object '{objectId}' not found.";
+            return false;
+        }
+
+        switch (property)
+        {
+            case "text":
+                if (TryWriteText(node, ParseJsonStringOrScalar(valueJson)))
+                {
+                    return true;
+                }
+                error = $"Unsupported text target on '{objectId}'.";
+                return false;
+            case "buttonPressed":
+                if (node is BaseButton button)
+                {
+                    button.ButtonPressed = ParseJsonBool(valueJson);
+                    return true;
+                }
+                error = $"Unsupported buttonPressed target on '{objectId}'.";
+                return false;
+            default:
+                error = $"Unsupported UI property '{property}'.";
+                return false;
+        }
+    }
+
+    private bool TryNativeUiInvokeMethod(string objectId, string method, string argsJson, out string resultJson, out string error)
+    {
+        resultJson = "null";
+        error = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(method))
+        {
+            error = "Missing method name.";
+            return false;
+        }
+
+        List<Value> smsArgs;
+        try
+        {
+            smsArgs = ParseNativeInvokeArgs(argsJson);
+        }
+        catch (Exception ex)
+        {
+            error = $"Invalid invoke args json: {ex.Message}";
+            return false;
+        }
+
+        if (string.Equals(objectId, "__ui__", StringComparison.Ordinal))
+        {
+            return TryInvokeRootObjectMethod(CreateUiObject(), method, smsArgs, out resultJson, out error);
+        }
+
+        if (string.Equals(objectId, "__os__", StringComparison.Ordinal))
+        {
+            return TryInvokeRootObjectMethod(CreateOsObject(), method, smsArgs, out resultJson, out error);
+        }
+
+        var target = UiRuntimeApi.GetObjectById(objectId);
+        if (target is null)
+        {
+            error = $"UI object '{objectId}' not found.";
+            return false;
+        }
+
+        if (string.Equals(method, "AddMenuItem", StringComparison.Ordinal))
+        {
+            var itemKey = ValueArgString(smsArgs, 0);
+            if (string.IsNullOrWhiteSpace(itemKey))
+            {
+                resultJson = "null";
+                return true;
+            }
+
+            if (target is PopupMenu popup)
+            {
+                var requestedPopupId = ValueArgInt(smsArgs, 1);
+                var popupId = requestedPopupId > 0 ? requestedPopupId : ResolveNextPopupItemId(popup);
+                popup.AddItem(itemKey, popupId);
+                var createdIndex = popup.ItemCount - 1;
+                popup.SetItemMetadata(createdIndex, Variant.From(itemKey));
+                var source = popup.GetParent() as Control;
+                RegisterDynamicMenuItem(objectId, popup, popupId, itemKey, source);
+                resultJson = popupId.ToString(CultureInfo.InvariantCulture);
+                return true;
+            }
+
+            if (target is MenuButton menuButton)
+            {
+                var buttonPopup = menuButton.GetPopup();
+                var requestedPopupId = ValueArgInt(smsArgs, 1);
+                var popupId = requestedPopupId > 0 ? requestedPopupId : ResolveNextPopupItemId(buttonPopup);
+                buttonPopup.AddItem(itemKey, popupId);
+                var createdIndex = buttonPopup.ItemCount - 1;
+                buttonPopup.SetItemMetadata(createdIndex, Variant.From(itemKey));
+                RegisterDynamicMenuItem(objectId, buttonPopup, popupId, itemKey, menuButton);
+                resultJson = popupId.ToString(CultureInfo.InvariantCulture);
+                return true;
+            }
+        }
+
+        var methodMap = GetMethodMap(target.GetType());
+        if (!methodMap.TryGetValue(method, out var overloads) || overloads.Count == 0)
+        {
+            error = $"Unknown method '{target.GetType().Name}.{method}'.";
+            return false;
+        }
+
+        if (!TrySelectMethod(overloads, smsArgs, out var selected, out var convertedArgs))
+        {
+            error = $"No suitable overload for '{target.GetType().Name}.{method}' with {smsArgs.Count} arg(s).";
+            return false;
+        }
+
+        try
+        {
+            var result = selected.Invoke(target, convertedArgs);
+            resultJson = SerializeNativeInvokeResult(ToSmsValue(result));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.InnerException?.Message ?? ex.Message;
+            return false;
+        }
+    }
+
+    private static bool TryInvokeRootObjectMethod(ObjectValue rootObject, string method, IReadOnlyList<Value> smsArgs, out string resultJson, out string error)
+    {
+        resultJson = "null";
+        error = string.Empty;
+
+        var methodValue = rootObject.GetField(method);
+        if (methodValue is not NativeFunctionValue nativeFunction)
+        {
+            error = $"Unknown root method '{method}'.";
+            return false;
+        }
+
+        try
+        {
+            var result = nativeFunction.Function(smsArgs);
+            resultJson = SerializeNativeInvokeResult(result);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.InnerException?.Message ?? ex.Message;
+            return false;
+        }
+    }
+
+    private List<Value> ParseNativeInvokeArgs(string argsJson)
+    {
+        var result = new List<Value>();
+        if (string.IsNullOrWhiteSpace(argsJson))
+        {
+            return result;
+        }
+
+        using var doc = JsonDocument.Parse(argsJson);
+        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidOperationException("Expected JSON array.");
+        }
+
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            result.Add(ParseNativeInvokeValue(item));
+        }
+
+        return result;
+    }
+
+    private Value ParseNativeInvokeValue(JsonElement item)
+    {
+        switch (item.ValueKind)
+        {
+            case JsonValueKind.Null:
+            case JsonValueKind.Undefined:
+                return NullValue.Instance;
+            case JsonValueKind.True:
+                return new BooleanValue(true);
+            case JsonValueKind.False:
+                return new BooleanValue(false);
+            case JsonValueKind.Number:
+                if (item.TryGetInt64(out var l))
+                {
+                    return new IntegerValue(l);
+                }
+                return new NumberValue(item.GetDouble());
+            case JsonValueKind.String:
+                return new StringValue(item.GetString() ?? string.Empty);
+            case JsonValueKind.Object:
+                if (item.TryGetProperty("__nativeObjectId", out var idProp) && idProp.TryGetInt64(out var nativeId))
+                {
+                    if (_nativeObjects.TryGetValue(nativeId, out var nativeObject))
+                    {
+                        return ToSmsValue(nativeObject);
+                    }
+                }
+                return NullValue.Instance;
+            default:
+                return NullValue.Instance;
+        }
+    }
+
+    private static string SerializeNativeInvokeResult(Value value)
+    {
+        return SerializeValueToJson(value);
+    }
+
+    private static string SerializeValueToJson(Value value)
+    {
+        return value switch
+        {
+            NullValue => "null",
+            BooleanValue b => b.Value ? "true" : "false",
+            IntegerValue i => i.Value.ToString(CultureInfo.InvariantCulture),
+            NumberValue n => n.Value.ToString(CultureInfo.InvariantCulture),
+            StringValue s => ToJsonString(s.Value),
+            ArrayValue a => "[" + string.Join(",", a.Elements.Select(SerializeValueToJson)) + "]",
+            ObjectValue o when ValueUtils.TryGetInt64(o.GetField("__nativeObjectId"), out var nativeId)
+                => $"{{\"__nativeObjectId\":{nativeId.ToString(CultureInfo.InvariantCulture)}}}",
+            ObjectValue o => SerializeObjectToJson(o),
+            _ => "null"
+        };
+    }
+
+    private static string SerializeObjectToJson(ObjectValue obj)
+    {
+        var parts = new List<string>();
+        foreach (var kv in obj.Fields)
+        {
+            // Skip function members in bridge JSON payloads.
+            if (kv.Value is NativeFunctionValue)
+            {
+                continue;
+            }
+
+            parts.Add($"{ToJsonString(kv.Key)}:{SerializeValueToJson(kv.Value)}");
+        }
+
+        return "{" + string.Join(",", parts) + "}";
+    }
+
+    private static bool TryReadText(Node node, out string text)
+    {
+        text = string.Empty;
+        switch (node)
+        {
+            case Label label:
+                text = label.Text ?? string.Empty;
+                return true;
+            case LineEdit lineEdit:
+                text = lineEdit.Text ?? string.Empty;
+                return true;
+            case TextEdit textEdit:
+                text = textEdit.Text ?? string.Empty;
+                return true;
+            case Button button:
+                text = button.Text ?? string.Empty;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static bool TryWriteText(Node node, string text)
+    {
+        switch (node)
+        {
+            case Label label:
+                label.Text = text;
+                return true;
+            case LineEdit lineEdit:
+                lineEdit.Text = text;
+                return true;
+            case TextEdit textEdit:
+                textEdit.Text = text;
+                return true;
+            case Button button:
+                button.Text = text;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static string ToJsonString(string text)
+    {
+        var sb = new StringBuilder();
+        sb.Append('"');
+        foreach (var ch in text ?? string.Empty)
+        {
+            switch (ch)
+            {
+                case '\\': sb.Append("\\\\"); break;
+                case '"': sb.Append("\\\""); break;
+                case '\n': sb.Append("\\n"); break;
+                case '\r': sb.Append("\\r"); break;
+                case '\t': sb.Append("\\t"); break;
+                default: sb.Append(ch); break;
+            }
+        }
+        sb.Append('"');
+        return sb.ToString();
+    }
+
+    private static string ParseJsonStringOrScalar(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = raw.Trim();
+        if (string.Equals(trimmed, "null", StringComparison.Ordinal))
+        {
+            return string.Empty;
+        }
+
+        if (trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[^1] == '"')
+        {
+            var inner = trimmed.Substring(1, trimmed.Length - 2);
+            return inner
+                .Replace("\\\"", "\"", StringComparison.Ordinal)
+                .Replace("\\\\", "\\", StringComparison.Ordinal)
+                .Replace("\\n", "\n", StringComparison.Ordinal)
+                .Replace("\\r", "\r", StringComparison.Ordinal)
+                .Replace("\\t", "\t", StringComparison.Ordinal);
+        }
+
+        return trimmed;
+    }
+
+    private static bool ParseJsonBool(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        var trimmed = raw.Trim();
+        if (string.Equals(trimmed, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        if (string.Equals(trimmed, "false", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        if (double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var numeric))
+        {
+            return Math.Abs(numeric) > double.Epsilon;
+        }
+        return false;
     }
 
     private static string SerializeNativeEventArgs(object?[] args)

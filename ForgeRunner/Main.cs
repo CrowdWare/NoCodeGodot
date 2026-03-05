@@ -120,10 +120,11 @@ public partial class Main : Node
 			startupSettings.ShowDebugLogs = options.DebugOverride.Value;
 		}
 		RunnerLogger.Configure(startupSettings.IncludeStackTraces, startupSettings.ShowParserWarnings, startupSettings.ShowDebugLogs, options.VerboseRequested);
-		SmlParseRuntime.Configure(options.SmlNativeProbeEnabled);
-		SmsNativeRuntime.Configure(options.SmsNativeProbeEnabled);
-		if (!SmsNativeRuntime.EnsureProbed())
-		{
+			SmlParseRuntime.Configure(options.SmlNativeProbeEnabled);
+			SmsNativeRuntime.Configure(options.SmsNativeProbeEnabled);
+			RunnerLogger.Info("SMS", "Script source mode: sms-only");
+			if (!SmsNativeRuntime.EnsureProbed())
+			{
 			RunnerLogger.Error("SMS", "Native runtime is required but unavailable. Set SMS_NATIVE_LIB_DIR correctly.");
 			GetTree().Quit(1);
 			return;
@@ -189,6 +190,7 @@ public partial class Main : Node
 	public override void _ExitTree()
 	{
 		TrySaveSessionState();
+		_smsUiRuntime?.LogNativeFallbackSummary();
 		base._ExitTree();
 	}
 

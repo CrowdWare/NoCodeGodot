@@ -36,6 +36,28 @@ require_godot() {
   fi
 }
 
+build_native_lib() {
+  local name="$1"
+  local src_dir="$2"
+  local build_dir="$3"
+
+  if ! command -v cmake >/dev/null 2>&1; then
+    echo "ERROR: cmake not found. Install cmake to build ${name}." >&2
+    return 1
+  fi
+
+  if [[ ! -d "$src_dir" ]]; then
+    echo "ERROR: Missing native source directory for ${name}: $src_dir" >&2
+    return 1
+  fi
+
+  mkdir -p "$build_dir"
+  echo "Configuring ${name}..."
+  cmake -S "$src_dir" -B "$build_dir" -DCMAKE_BUILD_TYPE=Release
+  echo "Building ${name}..."
+  cmake --build "$build_dir" --config Release
+}
+
 setup_tools() {
   local auto_install="${1:-false}"
   local missing=()
@@ -193,6 +215,12 @@ if [[ -z "${SMS_NATIVE_LIB_DIR:-}" ]]; then
   fi
 fi
 
+if [[ -z "${SML_NATIVE_LIB_DIR:-}" ]]; then
+  if [[ -d "$REPO_ROOT/SMLCore.Native/build" ]]; then
+    export SML_NATIVE_LIB_DIR="$REPO_ROOT/SMLCore.Native/build"
+  fi
+fi
+
 if [[ -z "$MODE" ]]; then
   echo "Bitte Modus wählen:"
   echo "  1) default   -> docs/Default/app.sml"
@@ -281,6 +309,8 @@ case "$MODE" in
     ;;
   build)
     echo "Building the app..."
+    build_native_lib "SMLCore.Native" "$REPO_ROOT/SMLCore.Native" "$REPO_ROOT/SMLCore.Native/build"
+    build_native_lib "SMSCore.Native" "$REPO_ROOT/SMSCore.Native" "$REPO_ROOT/SMSCore.Native/build"
     dotnet build "$REPO_ROOT/ForgeRunner/ForgeRunner.csproj"
     ;;
   test)

@@ -204,6 +204,7 @@ internal static class Program
         return (sw.Elapsed.TotalMilliseconds, result);
     }
 
+
     private static void Validate(string name, long actual, long expected)
     {
         if (actual != expected)
@@ -265,4 +266,5 @@ internal static class Program
         sum
         """;
     }
+
 }

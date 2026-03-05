@@ -5,6 +5,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <chrono>
+#include <cstdlib>
+#include <filesystem>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -15,18 +19,25 @@
 
 namespace {
 
+struct SmsSessionRuntime;
+
 struct SmsSessionState {
     std::string source;
+    std::shared_ptr<SmsSessionRuntime> runtime;
 };
 
 std::mutex g_sessions_mutex;
 std::unordered_map<std::int64_t, SmsSessionState> g_sessions;
 std::int64_t g_next_session_id = 1;
+sms_native_ui_get_prop_fn g_ui_get_prop = nullptr;
+sms_native_ui_set_prop_fn g_ui_set_prop = nullptr;
+sms_native_ui_invoke_fn g_ui_invoke = nullptr;
 
 enum class TokenType {
     Eof,
     Identifier,
     Number,
+    String,
     Var,
     For,
     In,
@@ -38,6 +49,9 @@ enum class TokenType {
     Data,
     Class,
     On,
+    True,
+    False,
+    Null,
     Break,
     Continue,
     Return,
@@ -148,7 +162,33 @@ public:
                     out.push_back({TokenType::Star, "*"});
                     break;
                 case '/':
-                    out.push_back({TokenType::Slash, "/"});
+                    if (!is_at_end() && peek() == '/') {
+                        // line comment
+                        advance(); // consume second '/'
+                        while (!is_at_end()) {
+                            const char ch = advance();
+                            if (ch == '\n') {
+                                break;
+                            }
+                        }
+                    } else if (!is_at_end() && peek() == '*') {
+                        // block comment
+                        advance(); // consume '*'
+                        bool closed = false;
+                        while (!is_at_end()) {
+                            const char ch = advance();
+                            if (ch == '*' && !is_at_end() && peek() == '/') {
+                                advance(); // consume '/'
+                                closed = true;
+                                break;
+                            }
+                        }
+                        if (!closed) {
+                            throw std::runtime_error("Unterminated block comment.");
+                        }
+                    } else {
+                        out.push_back({TokenType::Slash, "/"});
+                    }
                     break;
                 case '%':
                     out.push_back({TokenType::Percent, "%"});
@@ -196,6 +236,8 @@ public:
                 default:
                     if (std::isdigit(static_cast<unsigned char>(c))) {
                         out.push_back(number_token(c));
+                    } else if (c == '"') {
+                        out.push_back(string_token());
                     } else if (std::isalpha(static_cast<unsigned char>(c)) || c == '_') {
                         out.push_back(identifier_token(c));
                     } else {
@@ -231,6 +273,42 @@ private:
         return {TokenType::Number, text};
     }
 
+    Token string_token() {
+        std::string text;
+        bool escape = false;
+        while (!is_at_end()) {
+            const char c = advance();
+            if (escape) {
+                switch (c) {
+                    case '"': text.push_back('"'); break;
+                    case '\\': text.push_back('\\'); break;
+                    case '/': text.push_back('/'); break;
+                    case 'b': text.push_back('\b'); break;
+                    case 'f': text.push_back('\f'); break;
+                    case 'n': text.push_back('\n'); break;
+                    case 'r': text.push_back('\r'); break;
+                    case 't': text.push_back('\t'); break;
+                    default: text.push_back(c); break;
+                }
+                escape = false;
+                continue;
+            }
+
+            if (c == '\\') {
+                escape = true;
+                continue;
+            }
+
+            if (c == '"') {
+                return {TokenType::String, text};
+            }
+
+            text.push_back(c);
+        }
+
+        throw std::runtime_error("Unterminated string literal.");
+    }
+
     Token identifier_token(char first) {
         std::string text;
         text.push_back(first);
@@ -254,6 +332,9 @@ private:
         if (text == "data") return {TokenType::Data, text};
         if (text == "class") return {TokenType::Class, text};
         if (text == "on") return {TokenType::On, text};
+        if (text == "true") return {TokenType::True, text};
+        if (text == "false") return {TokenType::False, text};
+        if (text == "null") return {TokenType::Null, text};
         if (text == "break") return {TokenType::Break, text};
         if (text == "continue") return {TokenType::Continue, text};
         if (text == "return") return {TokenType::Return, text};
@@ -370,6 +451,236 @@ struct Value {
     }
 };
 
+static std::string value_to_string(const Value& value) {
+    switch (value.kind) {
+        case Value::Kind::Int:
+            return std::to_string(value.int_value);
+        case Value::Kind::Bool:
+            return value.bool_value ? "true" : "false";
+        case Value::Kind::String:
+            return value.string_value;
+        case Value::Kind::Null:
+            return "null";
+        case Value::Kind::Array:
+            return "[array]";
+        case Value::Kind::Object:
+            return "[object]";
+    }
+    return "";
+}
+
+static std::string json_escape(const std::string& text) {
+    std::string out;
+    out.reserve(text.size() + 8);
+    for (const auto ch : text) {
+        switch (ch) {
+            case '\\': out += "\\\\"; break;
+            case '"': out += "\\\""; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default: out.push_back(ch); break;
+        }
+    }
+    return out;
+}
+
+static std::string value_to_json(const Value& value) {
+    switch (value.kind) {
+        case Value::Kind::Int:
+            return std::to_string(value.int_value);
+        case Value::Kind::Bool:
+            return value.bool_value ? "true" : "false";
+        case Value::Kind::String:
+            return std::string("\"") + json_escape(value.string_value) + "\"";
+        case Value::Kind::Null:
+            return "null";
+        case Value::Kind::Array:
+            return "null";
+        case Value::Kind::Object:
+            if (value.class_name == "__host_ref" && value.object_fields) {
+                const auto it = value.object_fields->find("__nativeObjectId");
+                if (it != value.object_fields->end() && it->second.kind == Value::Kind::Int) {
+                    return std::string("{\"__nativeObjectId\":") + std::to_string(it->second.int_value) + "}";
+                }
+            }
+            return "null";
+    }
+    return "null";
+}
+
+static Value parse_json_scalar(std::string text) {
+    auto trim = [](std::string& s) {
+        auto start = std::size_t{0};
+        while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start])) != 0) {
+            start++;
+        }
+        auto end = s.size();
+        while (end > start && std::isspace(static_cast<unsigned char>(s[end - 1])) != 0) {
+            end--;
+        }
+        s = s.substr(start, end - start);
+    };
+
+    trim(text);
+    if (text.empty() || text == "null") {
+        return Value::Null();
+    }
+    if (text == "true") {
+        return Value::Bool(true);
+    }
+    if (text == "false") {
+        return Value::Bool(false);
+    }
+    if (text.front() == '"' && text.back() == '"' && text.size() >= 2) {
+        std::string out;
+        out.reserve(text.size() - 2);
+        bool escape = false;
+        for (std::size_t i = 1; i + 1 < text.size(); i++) {
+            const auto c = text[i];
+            if (escape) {
+                switch (c) {
+                    case 'n': out.push_back('\n'); break;
+                    case 'r': out.push_back('\r'); break;
+                    case 't': out.push_back('\t'); break;
+                    case '"': out.push_back('"'); break;
+                    case '\\': out.push_back('\\'); break;
+                    default: out.push_back(c); break;
+                }
+                escape = false;
+                continue;
+            }
+            if (c == '\\') {
+                escape = true;
+                continue;
+            }
+            out.push_back(c);
+        }
+        return Value::String(std::move(out));
+    }
+
+    try {
+        std::size_t consumed = 0;
+        const auto number = std::stoll(text, &consumed, 10);
+        if (consumed == text.size()) {
+            return Value::Int(number);
+        }
+    } catch (...) {
+    }
+
+    return Value::String(text);
+}
+
+static Value parse_json_value(std::string text) {
+    auto trim = [](std::string& s) {
+        auto start = std::size_t{0};
+        while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start])) != 0) {
+            start++;
+        }
+        auto end = s.size();
+        while (end > start && std::isspace(static_cast<unsigned char>(s[end - 1])) != 0) {
+            end--;
+        }
+        s = s.substr(start, end - start);
+    };
+
+    trim(text);
+    if (text.rfind("{\"__nativeObjectId\":", 0) == 0 && !text.empty() && text.back() == '}') {
+        const auto prefix = std::string("{\"__nativeObjectId\":");
+        const auto number_text = text.substr(prefix.size(), text.size() - prefix.size() - 1);
+        try {
+            const auto id = std::stoll(number_text);
+            std::unordered_map<std::string, Value> fields;
+            fields.emplace("__nativeObjectId", Value::Int(id));
+            return Value::Object("__host_ref", std::move(fields));
+        } catch (...) {
+            return Value::Null();
+        }
+    }
+
+    if (!text.empty() && text.front() == '{' && text.back() == '}') {
+        std::unordered_map<std::string, Value> fields;
+        std::size_t i = 1;
+
+        auto skip_ws = [&]() {
+            while (i < text.size() && std::isspace(static_cast<unsigned char>(text[i])) != 0) {
+                i++;
+            }
+        };
+
+        auto parse_string_token = [&]() -> std::string {
+            if (i >= text.size() || text[i] != '"') {
+                throw std::runtime_error("Expected JSON string token.");
+            }
+            i++;
+            std::string out;
+            bool escape = false;
+            while (i < text.size()) {
+                const char c = text[i++];
+                if (escape) {
+                    switch (c) {
+                        case 'n': out.push_back('\n'); break;
+                        case 'r': out.push_back('\r'); break;
+                        case 't': out.push_back('\t'); break;
+                        case '"': out.push_back('"'); break;
+                        case '\\': out.push_back('\\'); break;
+                        default: out.push_back(c); break;
+                    }
+                    escape = false;
+                    continue;
+                }
+                if (c == '\\') {
+                    escape = true;
+                    continue;
+                }
+                if (c == '"') {
+                    return out;
+                }
+                out.push_back(c);
+            }
+            throw std::runtime_error("Unterminated JSON string token.");
+        };
+
+        auto parse_scalar_until = [&](char delimiter_a, char delimiter_b) -> Value {
+            skip_ws();
+            if (i < text.size() && text[i] == '"') {
+                return Value::String(parse_string_token());
+            }
+            const auto start = i;
+            while (i < text.size() && text[i] != delimiter_a && text[i] != delimiter_b) {
+                i++;
+            }
+            auto raw = text.substr(start, i - start);
+            return parse_json_scalar(std::move(raw));
+        };
+
+        skip_ws();
+        while (i < text.size() && text[i] != '}') {
+            skip_ws();
+            const auto key = parse_string_token();
+            skip_ws();
+            if (i >= text.size() || text[i] != ':') {
+                throw std::runtime_error("Expected ':' in JSON object.");
+            }
+            i++;
+            auto value = parse_scalar_until(',', '}');
+            fields[key] = std::move(value);
+            skip_ws();
+            if (i < text.size() && text[i] == ',') {
+                i++;
+                continue;
+            }
+            if (i < text.size() && text[i] == '}') {
+                break;
+            }
+        }
+
+        return Value::Object("__json_obj", std::move(fields));
+    }
+
+    return parse_json_scalar(std::move(text));
+}
+
 class Env {
 public:
     explicit Env(Env* parent = nullptr) : parent_(parent) {}
@@ -466,6 +777,22 @@ struct NumberExpr final : Expr {
     std::int64_t value;
 };
 
+struct StringExpr final : Expr {
+    explicit StringExpr(std::string v) : value(std::move(v)) {}
+    Value eval(Env&) const override { return Value::String(value); }
+    std::string value;
+};
+
+struct BoolExpr final : Expr {
+    explicit BoolExpr(bool v) : value(v) {}
+    Value eval(Env&) const override { return Value::Bool(value); }
+    bool value;
+};
+
+struct NullExpr final : Expr {
+    Value eval(Env&) const override { return Value::Null(); }
+};
+
 struct VarExpr final : Expr {
     explicit VarExpr(std::string n) : name(std::move(n)) {}
     Value eval(Env& env) const override { return env.get_var(name); }
@@ -514,6 +841,31 @@ struct MemberAccessExpr final : Expr {
 
     Value eval(Env& env) const override {
         auto receiver = receiver_->eval(env);
+        if (receiver.kind == Value::Kind::Object
+            && receiver.class_name == "__ui_ref"
+            && receiver.object_fields) {
+            const auto id_it = receiver.object_fields->find("id");
+            if (id_it == receiver.object_fields->end() || id_it->second.kind != Value::Kind::String) {
+                throw std::runtime_error("ui ref missing id.");
+            }
+            if (g_ui_get_prop == nullptr) {
+                throw std::runtime_error("ui bridge unavailable.");
+            }
+            char out_json[2048] = {0};
+            char error[1024] = {0};
+            const auto rc = g_ui_get_prop(
+                id_it->second.string_value.c_str(),
+                member_.c_str(),
+                out_json,
+                static_cast<int>(sizeof(out_json)),
+                error,
+                static_cast<int>(sizeof(error)));
+            if (rc != 0) {
+                throw std::runtime_error(error[0] != '\0' ? error : "ui get failed");
+            }
+            return parse_json_scalar(out_json);
+        }
+
         if (receiver.kind == Value::Kind::Array && member_ == "size" && receiver.array) {
             return Value::Int(static_cast<std::int64_t>(receiver.array->size()));
         }
@@ -543,6 +895,170 @@ struct MethodCallExpr final : Expr {
         args.reserve(args_.size());
         for (const auto& arg : args_) {
             args.push_back(arg->eval(env));
+        }
+
+        if (receiver.kind == Value::Kind::Object && receiver.class_name == "log") {
+            if (method_ == "info" || method_ == "success" || method_ == "warning" || method_ == "error" || method_ == "debug") {
+                if (!args.empty()) {
+                    std::cout << "[" << method_ << "] " << value_to_string(args[0]) << std::endl;
+                } else {
+                    std::cout << "[" << method_ << "]" << std::endl;
+                }
+                return Value::Null();
+            }
+            throw std::runtime_error("Unknown log method: " + method_);
+        }
+
+        if (receiver.kind == Value::Kind::Object && receiver.class_name == "os") {
+            if (method_ == "now" && args.empty()) {
+                const auto now = std::chrono::time_point_cast<std::chrono::milliseconds>(std::chrono::system_clock::now());
+                const auto epoch_ms = now.time_since_epoch().count();
+                return Value::Int(static_cast<std::int64_t>(epoch_ms));
+            }
+
+            if (method_ == "fileExists" && args.size() == 1) {
+                const auto path = value_to_string(args[0]);
+                if (path.empty()) {
+                    return Value::Int(0);
+                }
+                const auto exists = std::filesystem::exists(std::filesystem::path(path));
+                return Value::Int(exists ? 1 : 0);
+            }
+
+            if (method_ == "getEnv" && args.size() == 1) {
+                const auto key = value_to_string(args[0]);
+                if (key.empty()) {
+                    return Value::Null();
+                }
+                const char* value = std::getenv(key.c_str());
+                if (value == nullptr) {
+                    return Value::Null();
+                }
+                return Value::String(value);
+            }
+
+            if (g_ui_invoke == nullptr) {
+                throw std::runtime_error("ui invoke bridge unavailable.");
+            }
+
+            std::string args_json = "[";
+            for (std::size_t i = 0; i < args.size(); i++) {
+                if (i > 0) {
+                    args_json.push_back(',');
+                }
+                args_json += value_to_json(args[i]);
+            }
+            args_json.push_back(']');
+
+            char out_json[4096] = {0};
+            char error[1024] = {0};
+            const auto rc = g_ui_invoke(
+                "__os__",
+                method_.c_str(),
+                args_json.c_str(),
+                out_json,
+                static_cast<int>(sizeof(out_json)),
+                error,
+                static_cast<int>(sizeof(error)));
+            if (rc != 0) {
+                throw std::runtime_error(error[0] != '\0' ? error : ("Unknown os method: " + method_));
+            }
+
+            return parse_json_value(out_json);
+        }
+
+        if (receiver.kind == Value::Kind::Object && receiver.class_name == "ui") {
+            if (method_ == "getObject" && args.size() == 1) {
+                if (g_ui_get_prop == nullptr) {
+                    throw std::runtime_error("ui bridge unavailable.");
+                }
+                const auto id = value_to_string(args[0]);
+                char out_json[256] = {0};
+                char error[1024] = {0};
+                const auto rc = g_ui_get_prop(
+                    id.c_str(),
+                    "__exists",
+                    out_json,
+                    static_cast<int>(sizeof(out_json)),
+                    error,
+                    static_cast<int>(sizeof(error)));
+                if (rc != 0) {
+                    throw std::runtime_error(error[0] != '\0' ? error : "ui exists probe failed");
+                }
+                const auto exists = parse_json_scalar(out_json).truthy();
+                if (!exists) {
+                    return Value::Null();
+                }
+                std::unordered_map<std::string, Value> fields;
+                fields.emplace("id", Value::String(id));
+                return Value::Object("__ui_ref", std::move(fields));
+            }
+
+            if (g_ui_invoke == nullptr) {
+                throw std::runtime_error("ui invoke bridge unavailable.");
+            }
+
+            std::string args_json = "[";
+            for (std::size_t i = 0; i < args.size(); i++) {
+                if (i > 0) {
+                    args_json.push_back(',');
+                }
+                args_json += value_to_json(args[i]);
+            }
+            args_json.push_back(']');
+
+            char out_json[4096] = {0};
+            char error[1024] = {0};
+            const auto rc = g_ui_invoke(
+                "__ui__",
+                method_.c_str(),
+                args_json.c_str(),
+                out_json,
+                static_cast<int>(sizeof(out_json)),
+                error,
+                static_cast<int>(sizeof(error)));
+            if (rc != 0) {
+                throw std::runtime_error(error[0] != '\0' ? error : ("Unknown ui method: " + method_));
+            }
+
+            return parse_json_value(out_json);
+        }
+
+        if (receiver.kind == Value::Kind::Object
+            && receiver.class_name == "__ui_ref"
+            && receiver.object_fields) {
+            const auto id_it = receiver.object_fields->find("id");
+            if (id_it == receiver.object_fields->end() || id_it->second.kind != Value::Kind::String) {
+                throw std::runtime_error("ui ref missing id.");
+            }
+            if (g_ui_invoke == nullptr) {
+                throw std::runtime_error("ui invoke bridge unavailable.");
+            }
+
+            std::string args_json = "[";
+            for (std::size_t i = 0; i < args.size(); i++) {
+                if (i > 0) {
+                    args_json.push_back(',');
+                }
+                args_json += value_to_json(args[i]);
+            }
+            args_json.push_back(']');
+
+            char out_json[4096] = {0};
+            char error[1024] = {0};
+            const auto rc = g_ui_invoke(
+                id_it->second.string_value.c_str(),
+                method_.c_str(),
+                args_json.c_str(),
+                out_json,
+                static_cast<int>(sizeof(out_json)),
+                error,
+                static_cast<int>(sizeof(error)));
+            if (rc != 0) {
+                throw std::runtime_error(error[0] != '\0' ? error : "ui invoke failed");
+            }
+
+            return parse_json_value(out_json);
         }
 
         if (receiver.kind == Value::Kind::Array && receiver.array) {
@@ -591,28 +1107,40 @@ struct BinaryExpr final : Expr {
         : oper(op), left_(std::move(left)), right_(std::move(right)) {}
 
     Value eval(Env& env) const override {
-        const auto left = left_->eval(env).as_int("Binary expression");
-        const auto right = right_->eval(env).as_int("Binary expression");
+        const auto left_value = left_->eval(env);
+        const auto right_value = right_->eval(env);
         switch (oper) {
-            case TokenType::Plus: return Value::Int(left + right);
-            case TokenType::Minus: return Value::Int(left - right);
-            case TokenType::Star: return Value::Int(left * right);
+            case TokenType::Plus:
+                if (left_value.kind == Value::Kind::String || right_value.kind == Value::Kind::String) {
+                    return Value::String(value_to_string(left_value) + value_to_string(right_value));
+                }
+                return Value::Int(left_value.as_int("Binary expression") + right_value.as_int("Binary expression"));
+            case TokenType::Minus:
+                return Value::Int(left_value.as_int("Binary expression") - right_value.as_int("Binary expression"));
+            case TokenType::Star:
+                return Value::Int(left_value.as_int("Binary expression") * right_value.as_int("Binary expression"));
             case TokenType::Slash:
-                if (right == 0) {
+                if (right_value.as_int("Binary expression") == 0) {
                     throw std::runtime_error("Division by zero.");
                 }
-                return Value::Int(left / right);
+                return Value::Int(left_value.as_int("Binary expression") / right_value.as_int("Binary expression"));
             case TokenType::Percent:
-                if (right == 0) {
+                if (right_value.as_int("Binary expression") == 0) {
                     throw std::runtime_error("Modulo by zero.");
                 }
-                return Value::Int(left % right);
-            case TokenType::Less: return Value::Int(left < right ? 1 : 0);
-            case TokenType::LessEqual: return Value::Int(left <= right ? 1 : 0);
-            case TokenType::Greater: return Value::Int(left > right ? 1 : 0);
-            case TokenType::GreaterEqual: return Value::Int(left >= right ? 1 : 0);
-            case TokenType::EqualEqual: return Value::Int(left == right ? 1 : 0);
-            case TokenType::BangEqual: return Value::Int(left != right ? 1 : 0);
+                return Value::Int(left_value.as_int("Binary expression") % right_value.as_int("Binary expression"));
+            case TokenType::Less:
+                return Value::Int(left_value.as_int("Binary expression") < right_value.as_int("Binary expression") ? 1 : 0);
+            case TokenType::LessEqual:
+                return Value::Int(left_value.as_int("Binary expression") <= right_value.as_int("Binary expression") ? 1 : 0);
+            case TokenType::Greater:
+                return Value::Int(left_value.as_int("Binary expression") > right_value.as_int("Binary expression") ? 1 : 0);
+            case TokenType::GreaterEqual:
+                return Value::Int(left_value.as_int("Binary expression") >= right_value.as_int("Binary expression") ? 1 : 0);
+            case TokenType::EqualEqual:
+                return Value::Int(left_value == right_value ? 1 : 0);
+            case TokenType::BangEqual:
+                return Value::Int(left_value == right_value ? 0 : 1);
             default:
                 throw std::runtime_error("Unsupported operator.");
         }
@@ -867,6 +1395,29 @@ struct AssignStmt final : Stmt {
 
         if (const auto* member = dynamic_cast<const MemberAccessExpr*>(target_expr.get())) {
             auto receiver = member->receiver_->eval(env);
+            if (receiver.kind == Value::Kind::Object
+                && receiver.class_name == "__ui_ref"
+                && receiver.object_fields) {
+                const auto id_it = receiver.object_fields->find("id");
+                if (id_it == receiver.object_fields->end() || id_it->second.kind != Value::Kind::String) {
+                    throw std::runtime_error("ui ref missing id.");
+                }
+                if (g_ui_set_prop == nullptr) {
+                    throw std::runtime_error("ui bridge unavailable.");
+                }
+                char error[1024] = {0};
+                const auto payload = value_to_json(value);
+                const auto rc = g_ui_set_prop(
+                    id_it->second.string_value.c_str(),
+                    member->member_.c_str(),
+                    payload.c_str(),
+                    error,
+                    static_cast<int>(sizeof(error)));
+                if (rc != 0) {
+                    throw std::runtime_error(error[0] != '\0' ? error : "ui set failed");
+                }
+                return;
+            }
             if (receiver.kind != Value::Kind::Object || !receiver.object_fields) {
                 throw std::runtime_error("Member assignment expects object receiver.");
             }
@@ -1097,7 +1648,12 @@ private:
         while (true) {
             if (match(TokenType::Dot)) {
                 const auto member = consume(TokenType::Identifier, "Expected property name after '.'").text;
-                target = std::make_unique<MemberAccessExpr>(std::move(target), member);
+                if (match(TokenType::LeftParen)) {
+                    auto args = parse_arguments();
+                    target = std::make_unique<MethodCallExpr>(std::move(target), member, std::move(args));
+                } else {
+                    target = std::make_unique<MemberAccessExpr>(std::move(target), member);
+                }
                 continue;
             }
 
@@ -1254,7 +1810,12 @@ private:
         auto then_body = parse_block();
         std::vector<std::unique_ptr<Stmt>> else_body;
         if (match(TokenType::Else)) {
-            else_body = parse_block();
+            if (match(TokenType::If)) {
+                // Preserve else-if semantics by nesting the chained if in else_body.
+                else_body.push_back(parse_if());
+            } else {
+                else_body = parse_block();
+            }
         }
 
         auto if_stmt = std::make_unique<IfStmt>();
@@ -1453,6 +2014,22 @@ private:
             return parse_when_expression();
         }
 
+        if (match(TokenType::String)) {
+            return std::make_unique<StringExpr>(previous().text);
+        }
+
+        if (match(TokenType::True)) {
+            return std::make_unique<BoolExpr>(true);
+        }
+
+        if (match(TokenType::False)) {
+            return std::make_unique<BoolExpr>(false);
+        }
+
+        if (match(TokenType::Null)) {
+            return std::make_unique<NullExpr>();
+        }
+
         if (match(TokenType::Number)) {
             return std::make_unique<NumberExpr>(std::stoll(previous().text));
         }
@@ -1644,6 +2221,111 @@ std::int64_t count_sml_nodes(const char* source) {
     return nodes;
 }
 
+std::vector<Value> parse_event_args_json(const char* args_json);
+
+struct SmsSessionRuntime {
+    std::vector<std::unique_ptr<Stmt>> program;
+    Env env;
+    Value top_level_last = Value::Null();
+    std::mutex mutex;
+};
+
+static std::shared_ptr<SmsSessionRuntime> build_session_runtime_or_throw(const char* source) {
+    Lexer lexer(source);
+    auto tokens = lexer.tokenize();
+    Parser parser(std::move(tokens));
+    auto program = parser.parse_program();
+
+    auto runtime = std::make_shared<SmsSessionRuntime>();
+    runtime->program = std::move(program);
+    runtime->env.define_var("log", Value::Object("log", {}));
+    runtime->env.define_var("os", Value::Object("os", {}));
+    runtime->env.define_var("ui", Value::Object("ui", {}));
+
+    for (const auto& stmt : runtime->program) {
+        if (const auto* fn = dynamic_cast<const FunctionDeclStmt*>(stmt.get())) {
+            runtime->env.define_function(fn->name, fn);
+            continue;
+        }
+        if (const auto* data = dynamic_cast<const DataClassDeclStmt*>(stmt.get())) {
+            runtime->env.define_data_class(data->name, data);
+            continue;
+        }
+        if (const auto* handler = dynamic_cast<const EventHandlerDeclStmt*>(stmt.get())) {
+            runtime->env.define_event_handler(handler->key(), handler);
+        }
+    }
+
+    Value last = Value::Null();
+    for (const auto& stmt : runtime->program) {
+        if (dynamic_cast<const FunctionDeclStmt*>(stmt.get()) != nullptr
+            || dynamic_cast<const DataClassDeclStmt*>(stmt.get()) != nullptr
+            || dynamic_cast<const EventHandlerDeclStmt*>(stmt.get()) != nullptr) {
+            continue;
+        }
+        stmt->execute(runtime->env, last);
+    }
+
+    runtime->top_level_last = last;
+    return runtime;
+}
+
+static int invoke_event_on_runtime(
+    SmsSessionRuntime& runtime,
+    const char* target_id,
+    const char* event_name,
+    const char* args_json,
+    std::int64_t* out_result,
+    char* error,
+    int error_capacity) {
+    if (target_id == nullptr || event_name == nullptr || out_result == nullptr) {
+        write_error(error, error_capacity, "target_id/event_name/out_result must not be null");
+        return 2;
+    }
+
+    try {
+        auto args = parse_event_args_json(args_json);
+        std::lock_guard<std::mutex> lock(runtime.mutex);
+
+        const std::string key = std::string(target_id) + "." + std::string(event_name);
+        const auto* handler = runtime.env.get_event_handler(key);
+        if (handler == nullptr) {
+            write_error(error, error_capacity, "No SMS event handler found for '" + key + "'.");
+            return 1;
+        }
+
+        if (args.size() != handler->params.size()) {
+            write_error(error, error_capacity, "Event handler '" + key + "' expects "
+                + std::to_string(handler->params.size()) + " arg(s), got "
+                + std::to_string(args.size()) + ".");
+            return 1;
+        }
+
+        Env local(&runtime.env);
+        for (std::size_t idx = 0; idx < args.size(); idx++) {
+            local.define_var(handler->params[idx], args[idx]);
+        }
+
+        Value handler_last = Value::Null();
+        try {
+            execute_statements(handler->body, local, handler_last);
+        } catch (const ReturnSignal& ret) {
+            handler_last = ret.value;
+        }
+
+        *out_result = handler_last.kind == Value::Kind::Int
+            ? handler_last.int_value
+            : (handler_last.kind == Value::Kind::Bool ? (handler_last.bool_value ? 1 : 0) : 0);
+        return 0;
+    } catch (const std::exception& ex) {
+        write_error(error, error_capacity, ex.what());
+        return 1;
+    } catch (...) {
+        write_error(error, error_capacity, "unknown native exception");
+        return 1;
+    }
+}
+
 int execute_sms_source(const char* source, std::int64_t* out_result, char* error, int error_capacity) {
     if (source == nullptr || out_result == nullptr) {
         write_error(error, error_capacity, "source/out_result must not be null");
@@ -1651,37 +2333,8 @@ int execute_sms_source(const char* source, std::int64_t* out_result, char* error
     }
 
     try {
-        Lexer lexer(source);
-        auto tokens = lexer.tokenize();
-        Parser parser(std::move(tokens));
-        auto program = parser.parse_program();
-
-        Env env;
-        Value last = Value::Null();
-
-        for (const auto& stmt : program) {
-            if (const auto* fn = dynamic_cast<const FunctionDeclStmt*>(stmt.get())) {
-                env.define_function(fn->name, fn);
-                continue;
-            }
-            if (const auto* data = dynamic_cast<const DataClassDeclStmt*>(stmt.get())) {
-                env.define_data_class(data->name, data);
-                continue;
-            }
-            if (const auto* handler = dynamic_cast<const EventHandlerDeclStmt*>(stmt.get())) {
-                env.define_event_handler(handler->key(), handler);
-            }
-        }
-
-        for (const auto& stmt : program) {
-            if (dynamic_cast<const FunctionDeclStmt*>(stmt.get()) != nullptr
-                || dynamic_cast<const DataClassDeclStmt*>(stmt.get()) != nullptr
-                || dynamic_cast<const EventHandlerDeclStmt*>(stmt.get()) != nullptr) {
-                continue;
-            }
-            stmt->execute(env, last);
-        }
-
+        auto runtime = build_session_runtime_or_throw(source);
+        const auto& last = runtime->top_level_last;
         *out_result = last.kind == Value::Kind::Int
             ? last.int_value
             : (last.kind == Value::Kind::Bool ? (last.bool_value ? 1 : 0) : 0);
@@ -1837,68 +2490,8 @@ int invoke_sms_event(
     }
 
     try {
-        Lexer lexer(source);
-        auto tokens = lexer.tokenize();
-        Parser parser(std::move(tokens));
-        auto program = parser.parse_program();
-
-        Env env;
-        Value last = Value::Null();
-
-        for (const auto& stmt : program) {
-            if (const auto* fn = dynamic_cast<const FunctionDeclStmt*>(stmt.get())) {
-                env.define_function(fn->name, fn);
-                continue;
-            }
-            if (const auto* data = dynamic_cast<const DataClassDeclStmt*>(stmt.get())) {
-                env.define_data_class(data->name, data);
-                continue;
-            }
-            if (const auto* handler = dynamic_cast<const EventHandlerDeclStmt*>(stmt.get())) {
-                env.define_event_handler(handler->key(), handler);
-            }
-        }
-
-        for (const auto& stmt : program) {
-            if (dynamic_cast<const FunctionDeclStmt*>(stmt.get()) != nullptr
-                || dynamic_cast<const DataClassDeclStmt*>(stmt.get()) != nullptr
-                || dynamic_cast<const EventHandlerDeclStmt*>(stmt.get()) != nullptr) {
-                continue;
-            }
-            stmt->execute(env, last);
-        }
-
-        const std::string key = std::string(target_id) + "." + std::string(event_name);
-        const auto* handler = env.get_event_handler(key);
-        if (handler == nullptr) {
-            write_error(error, error_capacity, "No SMS event handler found for '" + key + "'.");
-            return 1;
-        }
-
-        auto args = parse_event_args_json(args_json);
-        if (args.size() != handler->params.size()) {
-            write_error(error, error_capacity, "Event handler '" + key + "' expects "
-                + std::to_string(handler->params.size()) + " arg(s), got "
-                + std::to_string(args.size()) + ".");
-            return 1;
-        }
-
-        Env local(&env);
-        for (std::size_t idx = 0; idx < args.size(); idx++) {
-            local.define_var(handler->params[idx], args[idx]);
-        }
-
-        Value handler_last = Value::Null();
-        try {
-            execute_statements(handler->body, local, handler_last);
-        } catch (const ReturnSignal& ret) {
-            handler_last = ret.value;
-        }
-
-        *out_result = handler_last.kind == Value::Kind::Int
-            ? handler_last.int_value
-            : (handler_last.kind == Value::Kind::Bool ? (handler_last.bool_value ? 1 : 0) : 0);
-        return 0;
+        auto runtime = build_session_runtime_or_throw(source);
+        return invoke_event_on_runtime(*runtime, target_id, event_name, args_json, out_result, error, error_capacity);
     } catch (const std::exception& ex) {
         write_error(error, error_capacity, ex.what());
         return 1;
@@ -1933,15 +2526,35 @@ extern "C" int sms_native_session_load(std::int64_t session, const char* source,
         return 2;
     }
 
-    std::lock_guard<std::mutex> lock(g_sessions_mutex);
-    const auto it = g_sessions.find(session);
-    if (it == g_sessions.end()) {
-        write_error(error, error_capacity, "invalid session");
-        return 2;
-    }
+    try {
+        auto runtime = build_session_runtime_or_throw(source);
 
-    it->second.source = source;
-    return 0;
+        std::lock_guard<std::mutex> lock(g_sessions_mutex);
+        const auto it = g_sessions.find(session);
+        if (it == g_sessions.end()) {
+            write_error(error, error_capacity, "invalid session");
+            return 2;
+        }
+
+        it->second.source = source;
+        it->second.runtime = std::move(runtime);
+        return 0;
+    } catch (const ReturnSignal&) {
+        write_error(error, error_capacity, "return outside function");
+        return 1;
+    } catch (const BreakSignal&) {
+        write_error(error, error_capacity, "break outside loop");
+        return 1;
+    } catch (const ContinueSignal&) {
+        write_error(error, error_capacity, "continue outside loop");
+        return 1;
+    } catch (const std::exception& ex) {
+        write_error(error, error_capacity, ex.what());
+        return 1;
+    } catch (...) {
+        write_error(error, error_capacity, "unknown native exception");
+        return 1;
+    }
 }
 
 extern "C" int sms_native_session_invoke(
@@ -1952,7 +2565,7 @@ extern "C" int sms_native_session_invoke(
     std::int64_t* out_result,
     char* error,
     int error_capacity) {
-    std::string source_copy;
+    std::shared_ptr<SmsSessionRuntime> runtime;
     {
         std::lock_guard<std::mutex> lock(g_sessions_mutex);
         const auto it = g_sessions.find(session);
@@ -1960,15 +2573,15 @@ extern "C" int sms_native_session_invoke(
             write_error(error, error_capacity, "invalid session");
             return 2;
         }
-        source_copy = it->second.source;
+        runtime = it->second.runtime;
     }
 
-    if (source_copy.empty()) {
+    if (!runtime) {
         write_error(error, error_capacity, "session has no loaded source");
         return 2;
     }
 
-    return invoke_sms_event(source_copy.c_str(), target_id, event_name, args_json, out_result, error, error_capacity);
+    return invoke_event_on_runtime(*runtime, target_id, event_name, args_json, out_result, error, error_capacity);
 }
 
 extern "C" int sms_native_session_dispose(std::int64_t session, char* error, int error_capacity) {
@@ -1977,6 +2590,18 @@ extern "C" int sms_native_session_dispose(std::int64_t session, char* error, int
         write_error(error, error_capacity, "invalid session");
         return 2;
     }
+    return 0;
+}
+
+extern "C" int sms_native_set_ui_callbacks(
+    sms_native_ui_get_prop_fn get_prop,
+    sms_native_ui_set_prop_fn set_prop,
+    sms_native_ui_invoke_fn invoke,
+    char*,
+    int) {
+    g_ui_get_prop = get_prop;
+    g_ui_set_prop = set_prop;
+    g_ui_invoke = invoke;
     return 0;
 }
 

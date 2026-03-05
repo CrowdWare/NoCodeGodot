@@ -18,6 +18,7 @@ internal static class NativeSmsBridge
         StringBuilder error,
         int errorCapacity);
 
+
     public static bool IsAvailable => IsSmsAvailable;
     public static bool IsSmsAvailable => EnsureResolved() && _executeFn is not null;
     public static string LastError => _lastError;
@@ -41,11 +42,12 @@ internal static class NativeSmsBridge
         return true;
     }
 
+
     private static bool EnsureResolved()
     {
         if (_resolved)
         {
-            return _executeFn is not null;
+            return _libraryHandle != 0;
         }
 
         _resolved = true;
@@ -62,7 +64,7 @@ internal static class NativeSmsBridge
                 _executeFn = Marshal.GetDelegateForFunctionPointer<NativeExecuteFn>(executePtr);
             }
 
-            if (_executeFn is not null)
+            if (_libraryHandle != 0)
             {
                 return true;
             }
