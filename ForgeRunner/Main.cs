@@ -293,7 +293,7 @@ public partial class Main : Node
 				_startupManifest, entryPathsOnly: entryPaths);
 			if (!string.IsNullOrWhiteSpace(entryResult.EntryFileUrl))
 			{
-				RunnerLogger.Info("Startup", $"Entry file synced: '{entryResult.EntryFileUrl}'");
+			RunnerLogger.Debug("Startup", $"Entry file synced: '{entryResult.EntryFileUrl}'");
 				return entryResult.EntryFileUrl;
 			}
 		}

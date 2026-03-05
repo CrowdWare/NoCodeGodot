@@ -19,13 +19,13 @@
 
 using Runtime.Logging;
 using Runtime.Manifest;
+using Runtime.Sml;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -34,10 +34,7 @@ namespace Runtime.Assets;
 public sealed class AssetCacheManager
 {
     private static readonly System.Net.Http.HttpClient HttpClient = new();
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true
-    };
+    private const string MetadataFileName = "metadata.sml";
 
     private readonly string _cacheRoot;
 
@@ -51,7 +48,7 @@ public sealed class AssetCacheManager
     {
         var appCacheRoot = GetAppCacheRoot(manifest.SourceManifestUrl);
         var assetsRoot = Path.Combine(appCacheRoot, "files");
-        var metadataPath = Path.Combine(appCacheRoot, "metadata.json");
+        var metadataPath = Path.Combine(appCacheRoot, MetadataFileName);
 
         Directory.CreateDirectory(assetsRoot);
 
@@ -104,7 +101,7 @@ public sealed class AssetCacheManager
     {
         var appCacheRoot = GetAppCacheRoot(manifest.SourceManifestUrl);
         var assetsRoot = Path.Combine(appCacheRoot, "files");
-        var metadataPath = Path.Combine(appCacheRoot, "metadata.json");
+        var metadataPath = Path.Combine(appCacheRoot, MetadataFileName);
         var manifestCachePath = Path.Combine(appCacheRoot, "manifest.sml");
 
         Directory.CreateDirectory(assetsRoot);
@@ -198,7 +195,21 @@ public sealed class AssetCacheManager
 
         var cacheHit = reused > 0 || (failed == 0 && downloaded == 0 && manifest.Assets.Count > 0);
 
-        metadata.Items = updatedItems;
+        if (entryPathsOnly is not null)
+        {
+            // Entry-only sync must not wipe cached metadata for non-entry assets.
+            var mergedByPath = previousByPath;
+            foreach (var item in updatedItems)
+            {
+                mergedByPath[item.RelativePath] = item;
+            }
+
+            metadata.Items = mergedByPath.Values.ToList();
+        }
+        else
+        {
+            metadata.Items = updatedItems;
+        }
         metadata.ManifestVersion = manifest.Version;
         metadata.ManifestContentHash = manifestContentHash;
         metadata.EntryPoint = NormalizeRelativePath(manifest.EntryPoint ?? "app.sml");
@@ -218,14 +229,14 @@ public sealed class AssetCacheManager
         string expectedHash)
     {
         return !previousByPath.TryGetValue(relativePath, out var existing)
-               || !string.Equals(existing.Hash, expectedHash, StringComparison.OrdinalIgnoreCase)
+               || !HashEquals(existing.Hash, expectedHash)
                || !File.Exists(absolutePath);
     }
 
     public string? TryGetCachedEntryUrl(string manifestUrl)
     {
         var appCacheRoot = GetAppCacheRoot(manifestUrl);
-        var metadataPath = Path.Combine(appCacheRoot, "metadata.json");
+        var metadataPath = Path.Combine(appCacheRoot, MetadataFileName);
         if (!File.Exists(metadataPath))
         {
             return null;
@@ -233,8 +244,8 @@ public sealed class AssetCacheManager
 
         try
         {
-            var json = File.ReadAllText(metadataPath);
-            var metadata = JsonSerializer.Deserialize<AssetCacheMetadata>(json, JsonOptions);
+            var content = File.ReadAllText(metadataPath);
+            var metadata = ParseMetadataSml(content);
             if (metadata is null)
             {
                 return null;
@@ -276,13 +287,12 @@ public sealed class AssetCacheManager
 
         try
         {
-            await using var stream = File.OpenRead(metadataPath);
-            var metadata = await JsonSerializer.DeserializeAsync<AssetCacheMetadata>(stream, JsonOptions, cancellationToken);
-            return metadata ?? new AssetCacheMetadata();
+            var content = await File.ReadAllTextAsync(metadataPath, cancellationToken);
+            return ParseMetadataSml(content) ?? new AssetCacheMetadata();
         }
         catch (Exception ex)
         {
-            RunnerLogger.Warn("Assets", "Could not read cache metadata, rebuilding cache index", ex);
+            RunnerLogger.Warn("Assets", "Could not read cache metadata SML, rebuilding cache index", ex);
             return new AssetCacheMetadata();
         }
     }
@@ -292,11 +302,8 @@ public sealed class AssetCacheManager
         Directory.CreateDirectory(Path.GetDirectoryName(metadataPath)!);
         var tempPath = metadataPath + ".tmp";
 
-        await using (var stream = File.Create(tempPath))
-        {
-            await JsonSerializer.SerializeAsync(stream, metadata, JsonOptions, cancellationToken);
-            await stream.FlushAsync(cancellationToken);
-        }
+        var sml = BuildMetadataSml(metadata);
+        await File.WriteAllTextAsync(tempPath, sml, cancellationToken);
 
         if (File.Exists(metadataPath))
         {
@@ -304,6 +311,134 @@ public sealed class AssetCacheManager
         }
 
         File.Move(tempPath, metadataPath);
+    }
+
+    private static AssetCacheMetadata? ParseMetadataSml(string content)
+    {
+        var schema = new SmlParserSchema();
+        schema.RegisterKnownNode("AssetCacheMetadata");
+        schema.RegisterKnownNode("Asset");
+        schema.WarnOnUnknownNodes = true;
+
+        var parser = new SmlParser(content, schema);
+        var document = parser.ParseDocument();
+        if (document.Roots.Count == 0)
+        {
+            return new AssetCacheMetadata();
+        }
+
+        var root = document.Roots[0];
+        if (!string.Equals(root.Name, "AssetCacheMetadata", StringComparison.OrdinalIgnoreCase))
+        {
+            return new AssetCacheMetadata();
+        }
+
+        var metadata = new AssetCacheMetadata();
+        if (root.TryGetProperty("version", out var versionValue))
+        {
+            metadata.Version = versionValue.AsIntOrThrow("version");
+        }
+
+        if (root.TryGetProperty("updatedAtUtc", out var updatedValue))
+        {
+            var raw = updatedValue.AsStringOrThrow("updatedAtUtc");
+            if (DateTimeOffset.TryParse(raw, out var parsed))
+            {
+                metadata.UpdatedAtUtc = parsed;
+            }
+        }
+
+        if (root.TryGetProperty("manifestVersion", out var manifestVersionValue))
+        {
+            metadata.ManifestVersion = manifestVersionValue.AsStringOrThrow("manifestVersion");
+        }
+
+        if (root.TryGetProperty("manifestContentHash", out var manifestHashValue))
+        {
+            metadata.ManifestContentHash = manifestHashValue.AsStringOrThrow("manifestContentHash");
+        }
+
+        if (root.TryGetProperty("entryPoint", out var entryPointValue))
+        {
+            metadata.EntryPoint = entryPointValue.AsStringOrThrow("entryPoint");
+        }
+
+        foreach (var child in root.Children)
+        {
+            if (!string.Equals(child.Name, "Asset", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var item = new AssetCacheItem
+            {
+                Id = child.TryGetProperty("id", out var idValue) ? idValue.AsStringOrThrow("id") : string.Empty,
+                Hash = child.TryGetProperty("hash", out var hashValue) ? hashValue.AsStringOrThrow("hash") : string.Empty,
+                RelativePath = child.TryGetProperty("relativePath", out var pathValue) ? pathValue.AsStringOrThrow("relativePath") : string.Empty,
+                SourceUrl = child.TryGetProperty("sourceUrl", out var sourceValue) ? sourceValue.AsStringOrThrow("sourceUrl") : string.Empty
+            };
+
+            if (child.TryGetProperty("size", out var sizeValue))
+            {
+                var sizeRaw = sizeValue.AsStringOrThrow("size");
+                if (long.TryParse(sizeRaw, out var parsedSize))
+                {
+                    item.Size = parsedSize;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(item.Hash) && !string.IsNullOrWhiteSpace(item.RelativePath))
+            {
+                metadata.Items.Add(item);
+            }
+        }
+
+        return metadata;
+    }
+
+    private static string BuildMetadataSml(AssetCacheMetadata metadata)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("AssetCacheMetadata {");
+        builder.AppendLine($"    version: {Math.Max(1, metadata.Version)}");
+        builder.AppendLine($"    updatedAtUtc: \"{EscapeSmlString(metadata.UpdatedAtUtc.ToString("O"))}\"");
+
+        if (!string.IsNullOrWhiteSpace(metadata.ManifestVersion))
+        {
+            builder.AppendLine($"    manifestVersion: \"{EscapeSmlString(metadata.ManifestVersion)}\"");
+        }
+
+        if (!string.IsNullOrWhiteSpace(metadata.ManifestContentHash))
+        {
+            builder.AppendLine($"    manifestContentHash: \"{EscapeSmlString(metadata.ManifestContentHash)}\"");
+        }
+
+        if (!string.IsNullOrWhiteSpace(metadata.EntryPoint))
+        {
+            builder.AppendLine($"    entryPoint: \"{EscapeSmlString(metadata.EntryPoint)}\"");
+        }
+
+        foreach (var item in metadata.Items)
+        {
+            builder.AppendLine("    Asset {");
+            builder.AppendLine($"        id: \"{EscapeSmlString(item.Id)}\"");
+            builder.AppendLine($"        hash: \"{EscapeSmlString(item.Hash)}\"");
+            builder.AppendLine($"        relativePath: \"{EscapeSmlString(item.RelativePath)}\"");
+            builder.AppendLine($"        sourceUrl: \"{EscapeSmlString(item.SourceUrl)}\"");
+            if (item.Size is { } size)
+            {
+                builder.AppendLine($"        size: \"{size}\"");
+            }
+            builder.AppendLine("    }");
+        }
+
+        builder.AppendLine("}");
+        return builder.ToString();
+    }
+
+    private static string EscapeSmlString(string value)
+    {
+        return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 
     private static async Task SaveManifestAtomicAsync(string manifestPath, string manifestContent, CancellationToken cancellationToken)
