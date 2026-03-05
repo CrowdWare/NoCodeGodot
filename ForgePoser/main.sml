@@ -319,33 +319,68 @@ Window {
                     Label { text: "Inspector" fontSize: 11 fontWeight: bold }
                     Label { id: inspectorTargetLabel text: "No selection" }
 
-                    Label { text: "Position" fontSize: 10 }
-                    HBoxContainer {
+                    VBoxContainer {
+                        id: transformInspectorPanel
                         spacing: 4
-                        NumberPicker { id: inspPosX sizeFlagsHorizontal: expandFill placeholderText: "X" }
-                        NumberPicker { id: inspPosY sizeFlagsHorizontal: expandFill placeholderText: "Y" }
-                        NumberPicker { id: inspPosZ sizeFlagsHorizontal: expandFill placeholderText: "Z" }
+
+                        Label { text: "Position" fontSize: 10 }
+                        HBoxContainer {
+                            spacing: 4
+                            NumberPicker { id: inspPosX sizeFlagsHorizontal: expandFill placeholderText: "X" }
+                            NumberPicker { id: inspPosY sizeFlagsHorizontal: expandFill placeholderText: "Y" }
+                            NumberPicker { id: inspPosZ sizeFlagsHorizontal: expandFill placeholderText: "Z" }
+                        }
+
+                        Label { text: "Rotation" fontSize: 10 }
+                        HBoxContainer {
+                            spacing: 4
+                            NumberPicker { id: inspRotX sizeFlagsHorizontal: expandFill placeholderText: "X" }
+                            NumberPicker { id: inspRotY sizeFlagsHorizontal: expandFill placeholderText: "Y" }
+                            NumberPicker { id: inspRotZ sizeFlagsHorizontal: expandFill placeholderText: "Z" }
+                        }
+
+                        Label { text: "Scale" fontSize: 10 }
+                        HBoxContainer {
+                            spacing: 4
+                            NumberPicker { id: inspScaleX sizeFlagsHorizontal: expandFill placeholderText: "X" }
+                            NumberPicker { id: inspScaleY sizeFlagsHorizontal: expandFill placeholderText: "Y" }
+                            NumberPicker { id: inspScaleZ sizeFlagsHorizontal: expandFill placeholderText: "Z" }
+                        }
+
+                        HBoxContainer {
+                            spacing: 4
+                            Button { id: btnPlaceOnGround text: "Place On Ground" sizeFlagsHorizontal: expandFill tooltipText: "Set selected object bottom to Y=0" }
+                        }
                     }
 
-                    Label { text: "Rotation" fontSize: 10 }
-                    HBoxContainer {
+                    VBoxContainer {
+                        id: poseModeRotationPanel
+                        visible: false
                         spacing: 4
-                        NumberPicker { id: inspRotX sizeFlagsHorizontal: expandFill placeholderText: "X" }
-                        NumberPicker { id: inspRotY sizeFlagsHorizontal: expandFill placeholderText: "Y" }
-                        NumberPicker { id: inspRotZ sizeFlagsHorizontal: expandFill placeholderText: "Z" }
-                    }
 
-                    Label { text: "Scale" fontSize: 10 }
-                    HBoxContainer {
-                        spacing: 4
-                        NumberPicker { id: inspScaleX sizeFlagsHorizontal: expandFill placeholderText: "X" }
-                        NumberPicker { id: inspScaleY sizeFlagsHorizontal: expandFill placeholderText: "Y" }
-                        NumberPicker { id: inspScaleZ sizeFlagsHorizontal: expandFill placeholderText: "Z" }
-                    }
+                        Label { text: "Pose Rotation (deg)" fontSize: 10 }
+                        HBoxContainer {
+                            spacing: 4
+                            NumberPicker { id: poseRotX sizeFlagsHorizontal: expandFill placeholderText: "X" }
+                            NumberPicker { id: poseRotY sizeFlagsHorizontal: expandFill placeholderText: "Y" }
+                            NumberPicker { id: poseRotZ sizeFlagsHorizontal: expandFill placeholderText: "Z" }
+                        }
 
-                    HBoxContainer {
-                        spacing: 4
-                        Button { id: btnPlaceOnGround text: "Place On Ground" sizeFlagsHorizontal: expandFill tooltipText: "Set selected object bottom to Y=0" }
+                        Label { text: "Joint Limits Min" fontSize: 10 }
+                        HBoxContainer {
+                            spacing: 4
+                            NumberPicker { id: poseMinX sizeFlagsHorizontal: expandFill placeholderText: "X min" }
+                            NumberPicker { id: poseMinY sizeFlagsHorizontal: expandFill placeholderText: "Y min" }
+                            NumberPicker { id: poseMinZ sizeFlagsHorizontal: expandFill placeholderText: "Z min" }
+                        }
+
+                        Label { text: "Joint Limits Max" fontSize: 10 }
+                        HBoxContainer {
+                            spacing: 4
+                            NumberPicker { id: poseMaxX sizeFlagsHorizontal: expandFill placeholderText: "X max" }
+                            NumberPicker { id: poseMaxY sizeFlagsHorizontal: expandFill placeholderText: "Y max" }
+                            NumberPicker { id: poseMaxZ sizeFlagsHorizontal: expandFill placeholderText: "Z max" }
+                        }
                     }
                 }
 

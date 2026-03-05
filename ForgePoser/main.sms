@@ -27,7 +27,19 @@ var inspRotZ = null
 var inspScaleX = null
 var inspScaleY = null
 var inspScaleZ = null
+var transformInspectorPanel = null
+var poseModeRotationPanel = null
+var poseRotX = null
+var poseRotY = null
+var poseRotZ = null
+var poseMinX = null
+var poseMinY = null
+var poseMinZ = null
+var poseMaxX = null
+var poseMaxY = null
+var poseMaxZ = null
 var inspectorWriteLock = false
+var poseInspectorWriteLock = false
 var chooserOverlay = null
 var chooserStatus = null
 var chooserThemeLabel = null
@@ -152,6 +164,7 @@ fun activateArrangeMove() {
     editor.setMode("arrange")
     editor.setEditMode("move")
     editor.setTransformSpace(currentTransformSpace)
+    refreshInspectorModePanels()
 }
 
 fun activatePoseMode() {
@@ -165,6 +178,7 @@ fun activatePoseMode() {
     ui.getObject("btnToggleJoints").visible = true
     ui.getObject("btnToggleJoints").buttonPressed = jointSpheresVisible
     editor.setMode("pose")
+    updatePoseInspectorFromEditor()
 }
 
 fun applyTransformSpace(index) {
@@ -259,6 +273,17 @@ fun ready() {
     inspScaleX = ui.getObject("inspScaleX")
     inspScaleY = ui.getObject("inspScaleY")
     inspScaleZ = ui.getObject("inspScaleZ")
+    transformInspectorPanel = ui.getObject("transformInspectorPanel")
+    poseModeRotationPanel = ui.getObject("poseModeRotationPanel")
+    poseRotX = ui.getObject("poseRotX")
+    poseRotY = ui.getObject("poseRotY")
+    poseRotZ = ui.getObject("poseRotZ")
+    poseMinX = ui.getObject("poseMinX")
+    poseMinY = ui.getObject("poseMinY")
+    poseMinZ = ui.getObject("poseMinZ")
+    poseMaxX = ui.getObject("poseMaxX")
+    poseMaxY = ui.getObject("poseMaxY")
+    poseMaxZ = ui.getObject("poseMaxZ")
     chooserOverlay = ui.getObject("projectChooserOverlay")
     chooserStatus  = ui.getObject("chooserStatus")
     chooserThemeLabel = ui.getObject("chooserThemeLabel")
@@ -295,6 +320,17 @@ fun configureInspectorNumericFields() {
     ui.configureNumericLineEdit("inspScaleX", "x", "", "#d64545", "0.01", "0.01", 3)
     ui.configureNumericLineEdit("inspScaleY", "y", "", "#4aa34a", "0.01", "0.01", 3)
     ui.configureNumericLineEdit("inspScaleZ", "z", "", "#4b72d9", "0.01", "0.01", 3)
+
+    ui.configureNumericLineEdit("poseRotX", "x", "deg", "#d64545", 1, "0.15", 2)
+    ui.configureNumericLineEdit("poseRotY", "y", "deg", "#4aa34a", 1, "0.15", 2)
+    ui.configureNumericLineEdit("poseRotZ", "z", "deg", "#4b72d9", 1, "0.15", 2)
+
+    ui.configureNumericLineEdit("poseMinX", "x", "deg", "#d64545", 1, "0.15", 2)
+    ui.configureNumericLineEdit("poseMinY", "y", "deg", "#4aa34a", 1, "0.15", 2)
+    ui.configureNumericLineEdit("poseMinZ", "z", "deg", "#4b72d9", 1, "0.15", 2)
+    ui.configureNumericLineEdit("poseMaxX", "x", "deg", "#d64545", 1, "0.15", 2)
+    ui.configureNumericLineEdit("poseMaxY", "y", "deg", "#4aa34a", 1, "0.15", 2)
+    ui.configureNumericLineEdit("poseMaxZ", "z", "deg", "#4b72d9", 1, "0.15", 2)
 }
 
 fun setRightPanels(selectionKind) {
@@ -308,6 +344,91 @@ fun setRightPanels(selectionKind) {
     if (inspectorPanelRef != null) {
         inspectorPanelRef.visible = selectionKind != "none"
     }
+}
+
+fun refreshInspectorModePanels() {
+    var showPosePanel = false
+    if (currentMode == "pose") {
+        var boneName = editor.getSelectedBoneName()
+        showPosePanel = boneName != ""
+    }
+    if (poseModeRotationPanel != null) {
+        poseModeRotationPanel.visible = showPosePanel
+    }
+    if (transformInspectorPanel != null) {
+        transformInspectorPanel.visible = !showPosePanel
+    }
+}
+
+fun writePoseInspectorValues(rotX, rotY, rotZ, minX, maxX, minY, maxY, minZ, maxZ) {
+    poseInspectorWriteLock = true
+    ui.setNumericLineEditValue("poseRotX", rotX)
+    ui.setNumericLineEditValue("poseRotY", rotY)
+    ui.setNumericLineEditValue("poseRotZ", rotZ)
+    ui.setNumericLineEditValue("poseMinX", minX)
+    ui.setNumericLineEditValue("poseMaxX", maxX)
+    ui.setNumericLineEditValue("poseMinY", minY)
+    ui.setNumericLineEditValue("poseMaxY", maxY)
+    ui.setNumericLineEditValue("poseMinZ", minZ)
+    ui.setNumericLineEditValue("poseMaxZ", maxZ)
+    poseInspectorWriteLock = false
+}
+
+fun updatePoseInspectorFromEditor() {
+    var boneName = editor.getSelectedBoneName()
+    if (boneName == "") {
+        refreshInspectorModePanels()
+        return
+    }
+    writePoseInspectorValues(
+        editor.getSelectedBoneRotX(),
+        editor.getSelectedBoneRotY(),
+        editor.getSelectedBoneRotZ(),
+        editor.getSelectedBoneMinX(),
+        editor.getSelectedBoneMaxX(),
+        editor.getSelectedBoneMinY(),
+        editor.getSelectedBoneMaxY(),
+        editor.getSelectedBoneMinZ(),
+        editor.getSelectedBoneMaxZ()
+    )
+    refreshInspectorModePanels()
+}
+
+fun applyPoseInspectorRotationLive() {
+    if (poseInspectorWriteLock) {
+        return
+    }
+    var boneName = editor.getSelectedBoneName()
+    if (boneName == "") {
+        return
+    }
+    editor.setSelectedBoneRot(
+        ui.getNumericLineEditValue("poseRotX"),
+        ui.getNumericLineEditValue("poseRotY"),
+        ui.getNumericLineEditValue("poseRotZ")
+    )
+    syncSceneToSource()
+}
+
+fun applyPoseInspectorConstraintLive() {
+    if (poseInspectorWriteLock) {
+        return
+    }
+    var boneName = editor.getSelectedBoneName()
+    if (boneName == "") {
+        return
+    }
+    editor.setSelectedBoneConstraint(
+        ui.getNumericLineEditValue("poseMinX"),
+        ui.getNumericLineEditValue("poseMaxX"),
+        ui.getNumericLineEditValue("poseMinY"),
+        ui.getNumericLineEditValue("poseMaxY"),
+        ui.getNumericLineEditValue("poseMinZ"),
+        ui.getNumericLineEditValue("poseMaxZ"),
+        true
+    )
+    updatePoseInspectorFromEditor()
+    syncSceneToSource()
 }
 
 fun writeInspectorTransform(px, py, pz, rx, ry, rz, sx, sy, sz) {
@@ -364,15 +485,24 @@ fun updateInspectorFromSelection() {
         if (inspectorTargetLabel != null) {
             inspectorTargetLabel.text = "No selection"
         }
+        refreshInspectorModePanels()
         return
     }
 
     if (sel < charCount) {
         setRightPanels("character")
         if (inspectorTargetLabel != null) {
-            inspectorTargetLabel.text = "Character: " + editor.getSceneCharacterName(sel)
+            var target = "Character: " + editor.getSceneCharacterName(sel)
+            if (currentMode == "pose") {
+                var boneName = editor.getSelectedBoneName()
+                if (boneName != "") {
+                    target = "Bone: " + boneName
+                }
+            }
+            inspectorTargetLabel.text = target
         }
         writeInspectorTransform(editor.getSceneCharacterPosX(sel), editor.getSceneCharacterPosY(sel), editor.getSceneCharacterPosZ(sel), editor.getSceneCharacterRotX(sel), editor.getSceneCharacterRotY(sel), editor.getSceneCharacterRotZ(sel), editor.getSceneCharacterScaleX(sel), editor.getSceneCharacterScaleY(sel), editor.getSceneCharacterScaleZ(sel))
+        updatePoseInspectorFromEditor()
         return
     }
 
@@ -382,6 +512,7 @@ fun updateInspectorFromSelection() {
         inspectorTargetLabel.text = "Asset: " + editor.getScenePropName(propIdx)
     }
     writeInspectorTransform(editor.getScenePropPosX(propIdx), editor.getScenePropPosY(propIdx), editor.getScenePropPosZ(propIdx), editor.getScenePropRotX(propIdx), editor.getScenePropRotY(propIdx), editor.getScenePropRotZ(propIdx), editor.getScenePropScaleX(propIdx), editor.getScenePropScaleY(propIdx), editor.getScenePropScaleZ(propIdx))
+    refreshInspectorModePanels()
 }
 
 fun saveLastProjectPath(path) {
@@ -464,6 +595,7 @@ fun onProjectCreatePathSelected(path) {
     sceneTreeRef.Clear()
     kfTreeRef.Clear()
     editor.saveProject(path)
+    ui.copyTemplateFilesToProject(path, "ForgePoser/config", "")
     currentProjectPath = path
     saveLastProjectPath(path)
     pushAiSceneProperties()
@@ -959,6 +1091,34 @@ on inspScaleZ.textChanged(newText) {
     applyInspectorTransformLive()
 }
 
+on poseRotX.textChanged(newText) {
+    applyPoseInspectorRotationLive()
+}
+on poseRotY.textChanged(newText) {
+    applyPoseInspectorRotationLive()
+}
+on poseRotZ.textChanged(newText) {
+    applyPoseInspectorRotationLive()
+}
+on poseMinX.textChanged(newText) {
+    applyPoseInspectorConstraintLive()
+}
+on poseMinY.textChanged(newText) {
+    applyPoseInspectorConstraintLive()
+}
+on poseMinZ.textChanged(newText) {
+    applyPoseInspectorConstraintLive()
+}
+on poseMaxX.textChanged(newText) {
+    applyPoseInspectorConstraintLive()
+}
+on poseMaxY.textChanged(newText) {
+    applyPoseInspectorConstraintLive()
+}
+on poseMaxZ.textChanged(newText) {
+    applyPoseInspectorConstraintLive()
+}
+
 on btnPlaceOnGround.clicked() {
     var ok = editor.placeSelectedOnGround(0)
     if (ok) {
@@ -1020,14 +1180,18 @@ on timeline.keyframeRemoved(frame) {
 
 on editor.boneSelected(boneName) {
     statusLabel.text = "Selected: " + boneName
+    updatePoseInspectorFromEditor()
+    updateInspectorFromSelection()
 }
 
 on editor.poseChanged(boneName) {
     timeline.setKeyframe(timeline.currentFrame, editor.getPoseDataForActiveCharacter())
+    updatePoseInspectorFromEditor()
 }
 
 on editor.poseReset() {
     statusLabel.text = "Pose reset."
+    updatePoseInspectorFromEditor()
 }
 
 // ── Timeline events ───────────────────────────────────────────────────────────
@@ -1037,6 +1201,7 @@ on timeline.frameChanged(frame) {
     if (pose != null) {
         editor.loadPose(pose)
     }
+    updatePoseInspectorFromEditor()
 }
 
 on timeline.playbackStarted() {

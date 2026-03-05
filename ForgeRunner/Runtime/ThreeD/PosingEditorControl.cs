@@ -1726,6 +1726,51 @@ public sealed partial class PosingEditorControl : SubViewportContainer
             _gizmo.SetConstraints(-180f, 180f, -180f, 180f, -180f, 180f);
     }
 
+    private JointConstraintData GetConstraintOrDefault(string boneName)
+    {
+        if (_constraints.TryGetValue(boneName, out var existing))
+            return existing;
+        return new JointConstraintData(boneName, -180f, 180f, -180f, 180f, -180f, 180f);
+    }
+
+    private static Vector3 ClampEulerByConstraint(Vector3 eulerDeg, JointConstraintData constraint) =>
+        new(
+            Mathf.Clamp(eulerDeg.X, constraint.MinX, constraint.MaxX),
+            Mathf.Clamp(eulerDeg.Y, constraint.MinY, constraint.MaxY),
+            Mathf.Clamp(eulerDeg.Z, constraint.MinZ, constraint.MaxZ));
+
+    private static bool TryBuildLeftRightMirrorName(string boneName, out string mirrorName)
+    {
+        if (TryReplaceTokenIgnoreCase(boneName, "Left", "Right", out mirrorName))
+            return true;
+        if (TryReplaceTokenIgnoreCase(boneName, "Right", "Left", out mirrorName))
+            return true;
+        if (TryReplaceTokenIgnoreCase(boneName, "_L", "_R", out mirrorName))
+            return true;
+        if (TryReplaceTokenIgnoreCase(boneName, "_R", "_L", out mirrorName))
+            return true;
+        if (TryReplaceTokenIgnoreCase(boneName, ".L", ".R", out mirrorName))
+            return true;
+        if (TryReplaceTokenIgnoreCase(boneName, ".R", ".L", out mirrorName))
+            return true;
+
+        mirrorName = string.Empty;
+        return false;
+    }
+
+    private static bool TryReplaceTokenIgnoreCase(string input, string from, string to, out string output)
+    {
+        var idx = input.IndexOf(from, StringComparison.OrdinalIgnoreCase);
+        if (idx < 0)
+        {
+            output = string.Empty;
+            return false;
+        }
+
+        output = input[..idx] + to + input[(idx + from.Length)..];
+        return true;
+    }
+
     private void SetSphereColor(int idx, Color color)
     {
         if (_jointSpheres[idx].Mesh is SphereMesh sm
@@ -1917,6 +1962,80 @@ public sealed partial class PosingEditorControl : SubViewportContainer
     }
 
     public IReadOnlyDictionary<string, JointConstraintData> Constraints => _constraints;
+
+    public string GetSelectedBoneName()
+    {
+        if (_skeleton is null || _selectedBoneIdx < 0 || _selectedBoneIdx >= _skeleton.GetBoneCount())
+            return string.Empty;
+        return NormBone(_skeleton.GetBoneName(_selectedBoneIdx));
+    }
+
+    public Vector3 GetSelectedBoneRotation()
+    {
+        if (_skeleton is null || _selectedBoneIdx < 0 || _selectedBoneIdx >= _skeleton.GetBoneCount())
+            return Vector3.Zero;
+        var q = _skeleton.GetBonePoseRotation(_selectedBoneIdx);
+        var deg = q.GetEuler() * (180f / Mathf.Pi);
+        return NormalizeRotationDegrees(deg);
+    }
+
+    public float GetSelectedBoneRotX() => GetSelectedBoneRotation().X;
+    public float GetSelectedBoneRotY() => GetSelectedBoneRotation().Y;
+    public float GetSelectedBoneRotZ() => GetSelectedBoneRotation().Z;
+
+    public bool SetSelectedBoneRot(float x, float y, float z)
+    {
+        if (_skeleton is null || _selectedBoneIdx < 0 || _selectedBoneIdx >= _skeleton.GetBoneCount())
+            return false;
+
+        var boneName = NormBone(_skeleton.GetBoneName(_selectedBoneIdx));
+        var constraint = GetConstraintOrDefault(boneName);
+        var clamped = ClampEulerByConstraint(new Vector3(x, y, z), constraint);
+        var q = Quaternion.FromEuler(clamped * (Mathf.Pi / 180f));
+        _skeleton.SetBonePoseRotation(_selectedBoneIdx, q);
+        FirePoseChangedForSelectedBone();
+        return true;
+    }
+
+    public JointConstraintData GetSelectedBoneConstraint()
+    {
+        var boneName = GetSelectedBoneName();
+        if (string.IsNullOrWhiteSpace(boneName))
+            return new JointConstraintData(string.Empty, -180f, 180f, -180f, 180f, -180f, 180f);
+        return GetConstraintOrDefault(boneName);
+    }
+
+    public float GetSelectedBoneMinX() => GetSelectedBoneConstraint().MinX;
+    public float GetSelectedBoneMaxX() => GetSelectedBoneConstraint().MaxX;
+    public float GetSelectedBoneMinY() => GetSelectedBoneConstraint().MinY;
+    public float GetSelectedBoneMaxY() => GetSelectedBoneConstraint().MaxY;
+    public float GetSelectedBoneMinZ() => GetSelectedBoneConstraint().MinZ;
+    public float GetSelectedBoneMaxZ() => GetSelectedBoneConstraint().MaxZ;
+
+    public bool SetSelectedBoneConstraint(
+        float minX, float maxX,
+        float minY, float maxY,
+        float minZ, float maxZ,
+        bool mirrorLeftRight = true)
+    {
+        var boneName = GetSelectedBoneName();
+        if (string.IsNullOrWhiteSpace(boneName))
+            return false;
+
+        var data = new JointConstraintData(boneName, minX, maxX, minY, maxY, minZ, maxZ);
+        _constraints[boneName] = data;
+
+        if (mirrorLeftRight && TryBuildLeftRightMirrorName(boneName, out var mirrorName))
+        {
+            var mirrorData = data with { BoneName = mirrorName };
+            _constraints[mirrorName] = mirrorData;
+        }
+
+        ApplyConstraintsToGizmo(boneName);
+        var rot = GetSelectedBoneRotation();
+        SetSelectedBoneRot(rot.X, rot.Y, rot.Z);
+        return true;
+    }
 
     // ── Pose API ──────────────────────────────────────────────────────────────
 

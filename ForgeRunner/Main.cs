@@ -468,6 +468,7 @@ public partial class Main : Node
 		RunnerLogger.Debug("UI", $"UI loaded from '{url}'.");
 		await InvokeUiReadyHandlersAsync();
 		await LoadRuntimePluginsAsync(url);
+		TryRestoreDockingStateOnly();
 		_smsUiRuntime?.InvokeReady();
 		ApplyDefaultHiddenPanels();
 
@@ -652,6 +653,7 @@ public partial class Main : Node
 			Runtime.Logging.RunnerLogger.Debug("UI", $"UI loaded from '{uiUrl}'.");
 			await InvokeUiReadyHandlersAsync();
 			await LoadRuntimePluginsAsync(uiUrl);
+			TryRestoreDockingStateOnly();
 			_smsUiRuntime?.InvokeReady();
 			ApplyDefaultHiddenPanels();
 		}
@@ -1896,6 +1898,22 @@ public partial class Main : Node
 		{
 			ApplyDockingState(_runtimeUiRoot, state.Docking);
 		}
+	}
+
+	private void TryRestoreDockingStateOnly()
+	{
+		if (_runtimeUiRoot is null || !ContainsDockingHost(_runtimeUiRoot))
+		{
+			return;
+		}
+
+		var state = LoadSessionState();
+		if (state?.Docking is null)
+		{
+			return;
+		}
+
+		ApplyDockingState(_runtimeUiRoot, state.Docking);
 	}
 
 	private void TrySaveSessionState()

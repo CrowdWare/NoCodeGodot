@@ -1903,6 +1903,39 @@ $"}}\n";
                 return NullValue.Instance;
             });
 
+            // Selected bone inspector API (pose-mode panel in SMS)
+            fields["getSelectedBoneName"] = new NativeFunctionValue(_ =>
+            {
+                return new StringValue(posingEditorExt.GetSelectedBoneName());
+            });
+            fields["getSelectedBoneRotX"] = new NativeFunctionValue(_ => new NumberValue(posingEditorExt.GetSelectedBoneRotX()));
+            fields["getSelectedBoneRotY"] = new NativeFunctionValue(_ => new NumberValue(posingEditorExt.GetSelectedBoneRotY()));
+            fields["getSelectedBoneRotZ"] = new NativeFunctionValue(_ => new NumberValue(posingEditorExt.GetSelectedBoneRotZ()));
+            fields["setSelectedBoneRot"] = new NativeFunctionValue(methodArgs =>
+            {
+                var x = ValueArgFloat(methodArgs, 0);
+                var y = ValueArgFloat(methodArgs, 1);
+                var z = ValueArgFloat(methodArgs, 2);
+                return new BooleanValue(posingEditorExt.SetSelectedBoneRot(x, y, z));
+            });
+            fields["getSelectedBoneMinX"] = new NativeFunctionValue(_ => new NumberValue(posingEditorExt.GetSelectedBoneMinX()));
+            fields["getSelectedBoneMaxX"] = new NativeFunctionValue(_ => new NumberValue(posingEditorExt.GetSelectedBoneMaxX()));
+            fields["getSelectedBoneMinY"] = new NativeFunctionValue(_ => new NumberValue(posingEditorExt.GetSelectedBoneMinY()));
+            fields["getSelectedBoneMaxY"] = new NativeFunctionValue(_ => new NumberValue(posingEditorExt.GetSelectedBoneMaxY()));
+            fields["getSelectedBoneMinZ"] = new NativeFunctionValue(_ => new NumberValue(posingEditorExt.GetSelectedBoneMinZ()));
+            fields["getSelectedBoneMaxZ"] = new NativeFunctionValue(_ => new NumberValue(posingEditorExt.GetSelectedBoneMaxZ()));
+            fields["setSelectedBoneConstraint"] = new NativeFunctionValue(methodArgs =>
+            {
+                var minX = ValueArgFloat(methodArgs, 0);
+                var maxX = ValueArgFloat(methodArgs, 1);
+                var minY = ValueArgFloat(methodArgs, 2);
+                var maxY = ValueArgFloat(methodArgs, 3);
+                var minZ = ValueArgFloat(methodArgs, 4);
+                var maxZ = ValueArgFloat(methodArgs, 5);
+                var mirror = methodArgs.Count > 6 ? ValueArgBool(methodArgs, 6) : true;
+                return new BooleanValue(posingEditorExt.SetSelectedBoneConstraint(minX, maxX, minY, maxY, minZ, maxZ, mirror));
+            });
+
             // loadProject(path) — reads .scene file and restores full project state
             fields["loadProject"] = new NativeFunctionValue(methodArgs =>
             {
