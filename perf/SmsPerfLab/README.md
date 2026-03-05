@@ -18,6 +18,22 @@ This lab is intentionally independent from `ForgeRunner` runtime/UI integration.
 
 ## Build Native Spike
 
+SML native parser:
+
+```bash
+cd SMLCore.Native
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+```
+
+Creates:
+
+- macOS: `SMLCore.Native/build/libsmlcore_native.dylib`
+- Linux: `SMLCore.Native/build/libsmlcore_native.so`
+- Windows: `SMLCore.Native/build/Release/smlcore_native.dll` (generator-dependent)
+
+SMS native interpreter:
+
 ```bash
 cd perf/SmsPerfLab/native
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -38,16 +54,32 @@ From repo root:
 dotnet run --project perf/SmsPerfLab/SmsPerfLab.csproj -- --iterations 200 --loop 20000
 ```
 
-With native library:
+With native libraries:
 
 ```bash
+SML_NATIVE_LIB_DIR="$(pwd)/SMLCore.Native/build" \
 SMS_NATIVE_LIB_DIR="$(pwd)/perf/SmsPerfLab/native/build" \
 dotnet run --project perf/SmsPerfLab/SmsPerfLab.csproj -- --iterations 200 --loop 20000
+```
+
+## Run SML Conformance (Managed vs Native AST)
+
+```bash
+SML_NATIVE_LIB_DIR="$(pwd)/SMLCore.Native/build" \
+dotnet run --project perf/SmsPerfLab/SmsPerfLab.csproj -- --conformance
+```
+
+Custom fixtures directory:
+
+```bash
+SML_NATIVE_LIB_DIR="$(pwd)/SMLCore.Native/build" \
+dotnet run --project perf/SmsPerfLab/SmsPerfLab.csproj -- --conformance --fixtures "$(pwd)/perf/SmsPerfLab/fixtures/sml_conformance"
 ```
 
 On Windows PowerShell:
 
 ```powershell
+$env:SML_NATIVE_LIB_DIR = "$pwd/SMLCore.Native/build/Release"
 $env:SMS_NATIVE_LIB_DIR = "$pwd/perf/SmsPerfLab/native/build/Release"
 dotnet run --project perf/SmsPerfLab/SmsPerfLab.csproj -- --iterations 200 --loop 20000
 ```
@@ -55,6 +87,6 @@ dotnet run --project perf/SmsPerfLab/SmsPerfLab.csproj -- --iterations 200 --loo
 ## Notes
 
 - The C++ implementation is a spike subset parser/interpreter for benchmark scripts.
-- SML native path currently benchmarks structural node scanning (hot-path approximation), not full SML semantics.
+- SML native path now exposes AST JSON for conformance comparison, currently with a scalar-only subset.
 - Native path is not feature-complete SMS/SML.
 - Goal is to estimate headroom and validate migration direction before deeper integration.

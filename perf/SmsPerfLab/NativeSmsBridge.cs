@@ -9,7 +9,6 @@ internal static class NativeSmsBridge
     private static bool _resolved;
     private static nint _libraryHandle;
     private static NativeExecuteFn? _executeFn;
-    private static NativeParseSmlFn? _parseSmlFn;
     private static string _lastError = string.Empty;
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -19,16 +18,8 @@ internal static class NativeSmsBridge
         StringBuilder error,
         int errorCapacity);
 
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    private delegate int NativeParseSmlFn(
-        [MarshalAs(UnmanagedType.LPUTF8Str)] string source,
-        out long nodeCount,
-        StringBuilder error,
-        int errorCapacity);
-
     public static bool IsAvailable => IsSmsAvailable;
     public static bool IsSmsAvailable => EnsureResolved() && _executeFn is not null;
-    public static bool IsSmlAvailable => EnsureResolved() && _parseSmlFn is not null;
     public static string LastError => _lastError;
 
     public static bool TryExecute(string source, out long result)
@@ -50,30 +41,11 @@ internal static class NativeSmsBridge
         return true;
     }
 
-    public static bool TryParseSml(string source, out long nodeCount)
-    {
-        nodeCount = 0;
-        if (!EnsureResolved() || _parseSmlFn is null)
-        {
-            return false;
-        }
-
-        var error = new StringBuilder(ErrorCapacity);
-        var rc = _parseSmlFn(source, out nodeCount, error, ErrorCapacity);
-        if (rc != 0)
-        {
-            _lastError = error.Length > 0 ? error.ToString() : $"native rc={rc}";
-            return false;
-        }
-
-        return true;
-    }
-
     private static bool EnsureResolved()
     {
         if (_resolved)
         {
-            return _executeFn is not null || _parseSmlFn is not null;
+            return _executeFn is not null;
         }
 
         _resolved = true;
@@ -90,12 +62,7 @@ internal static class NativeSmsBridge
                 _executeFn = Marshal.GetDelegateForFunctionPointer<NativeExecuteFn>(executePtr);
             }
 
-            if (NativeLibrary.TryGetExport(_libraryHandle, "sms_native_sml_parse", out var parseSmlPtr))
-            {
-                _parseSmlFn = Marshal.GetDelegateForFunctionPointer<NativeParseSmlFn>(parseSmlPtr);
-            }
-
-            if (_executeFn is not null || _parseSmlFn is not null)
+            if (_executeFn is not null)
             {
                 return true;
             }

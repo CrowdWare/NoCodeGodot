@@ -8,6 +8,11 @@ Here I will list things we need in general, like demos, tech previews-
 - [ ] Plugin Engine
 - [ ] UserDefined Controls
 
+## Native Core Track
+- [ ] SMLCore in C++ (standalone lib, independent from ForgeRunner) -> `CWUP/tasks/smlcore_cpp_native_runtime.md`
+- [ ] SMS in C++ (interpreter/runtime parity to current managed SMS) -> `CWUP/tasks/sms_cpp_native_runtime.md`
+- [ ] SMS language spec upgrade (2b): implement new spec features in native runtime and keep managed/native behavior aligned -> `CWUP/tasks/sms_language_spec_2026_native.md`
+
 ## Designer App
 - [ ] Edit SML/SMS/MD
 - [ ] Preview for MD, Zoom level

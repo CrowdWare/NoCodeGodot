@@ -8,6 +8,8 @@ internal static class Program
     {
         var iterations = 200;
         var loopCount = 20_000;
+        var runConformance = false;
+        var conformanceDir = Path.Combine(Directory.GetCurrentDirectory(), "perf", "SmsPerfLab", "fixtures", "sml_conformance");
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -22,7 +24,28 @@ internal static class Program
             {
                 loopCount = Math.Max(1, parsedLoop);
                 i++;
+                continue;
             }
+
+            if (args[i] == "--conformance")
+            {
+                runConformance = true;
+                continue;
+            }
+
+            if (args[i] == "--fixtures" && i + 1 < args.Length)
+            {
+                conformanceDir = args[i + 1];
+                i++;
+            }
+        }
+
+        if (runConformance)
+        {
+            Console.WriteLine("SmsPerfLab - SML Conformance");
+            Console.WriteLine($"  fixtures: {conformanceDir}");
+            Console.WriteLine();
+            return SmlConformance.Run(conformanceDir);
         }
 
         Console.WriteLine("SmsPerfLab");
@@ -38,11 +61,11 @@ internal static class Program
         _ = new SmlParser(smlSource).ParseDocument();
         var warmEngine = new ScriptEngine();
         _ = warmEngine.ExecuteAndGetDotNet(smsSource);
-        NativeSmsBridge.TryParseSml(smlSource, out _);
+        NativeSmlBridge.TryParseSml(smlSource, out _);
         NativeSmsBridge.TryExecute(smsSource, out _);
 
         var smlResult = BenchmarkSmlParsing(smlSource, iterations);
-        var hasSmlNative = NativeSmsBridge.IsSmlAvailable;
+        var hasSmlNative = NativeSmlBridge.IsAvailable;
         var smlNativeResult = hasSmlNative ? BenchmarkSmlNative(smlSource, iterations) : (ElapsedMs: -1.0, Nodes: 0L);
         var smsManagedResult = BenchmarkSmsManaged(smsSource, iterations);
         var hasSmsNative = NativeSmsBridge.IsSmsAvailable;
@@ -108,9 +131,9 @@ internal static class Program
         long nodes = 0;
         for (var i = 0; i < iterations; i++)
         {
-            if (!NativeSmsBridge.TryParseSml(source, out nodes))
+            if (!NativeSmlBridge.TryParseSml(source, out nodes))
             {
-                throw new InvalidOperationException($"Native SML error: {NativeSmsBridge.LastError}");
+                throw new InvalidOperationException($"Native SML error: {NativeSmlBridge.LastError}");
             }
         }
 
