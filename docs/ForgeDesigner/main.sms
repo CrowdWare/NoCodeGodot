@@ -4,7 +4,6 @@ var selectedPath = null
 var mainWindow = null
 
 fun ready() {
-    log.info("ready called")
     tree = ui.getObject("treeview")
     codeEdit = ui.getObject("codeEdit")
     mainWindow = ui.getObject("mainWindow")
@@ -17,7 +16,7 @@ fun ready() {
     codeEdit.onSave("codeEditOnSave")
     populateTree(tree, ".")
     
-    log.info("TreeView 'treeview' wurde mit Inhalten aus ProjectFS befüllt.")
+    log.success("ForgeDesigner is ready. Shape your interface.")
 }
 
 fun openFloatingWindow() {
@@ -58,7 +57,7 @@ fun populateTreeChildren(treeObj, parentHandle, dirPath) {
 
 on treeview.itemSelected() {
     var itemPath = tree.GetSelectedPath()
-    log.info("treeview.itemSelected -> path='${itemPath}'")
+    log.debug("treeview.itemSelected -> path='${itemPath}'")
 
     if (itemPath == null || itemPath == "") {
         return

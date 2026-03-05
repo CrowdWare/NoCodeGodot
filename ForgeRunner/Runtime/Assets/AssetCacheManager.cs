@@ -157,7 +157,7 @@ public sealed class AssetCacheManager
 
                     downloaded++;
                     downloadedBytes += new FileInfo(absolutePath).Length;
-                    RunnerLogger.Info("Assets", $"Downloaded '{asset.Id}' -> '{relativePath}'.");
+                    RunnerLogger.Debug("Assets", $"Downloaded '{asset.Id}' -> '{relativePath}'.");
                 }
                 catch (Exception ex)
                 {

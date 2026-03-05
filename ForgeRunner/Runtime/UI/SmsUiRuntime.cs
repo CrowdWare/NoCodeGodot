@@ -93,7 +93,7 @@ public sealed class SmsUiRuntime
         }
         catch (FileNotFoundException)
         {
-            RunnerLogger.Info("SMS", $"No companion SMS script found for '{_uiSmlUri}' (expected '{smsUri}').");
+            RunnerLogger.Debug("SMS", $"No companion SMS script found for '{_uiSmlUri}' (expected '{smsUri}').");
             return;
         }
         catch (Exception ex)
@@ -111,7 +111,7 @@ public sealed class SmsUiRuntime
         {
             _engine.Execute(source);
             IsLoaded = true;
-            RunnerLogger.Info("SMS", $"Loaded companion SMS script: '{smsUri}'.");
+            RunnerLogger.Debug("SMS", $"Loaded companion SMS script: '{smsUri}'.");
         }
         catch (Exception ex)
         {
@@ -421,7 +421,7 @@ public sealed class SmsUiRuntime
 
         if (boundCount > 0)
         {
-            RunnerLogger.Info("SMS", $"Auto-bound tree events for {boundCount} tree control(s) after ready().");
+            RunnerLogger.Debug("SMS", $"Auto-bound tree events for {boundCount} tree control(s) after ready().");
         }
     }
 
@@ -555,7 +555,7 @@ public sealed class SmsUiRuntime
 
         if (declared > 0)
         {
-            RunnerLogger.Info("SMS", $"Exposed {declared} window flag symbols as SMS globals.");
+            RunnerLogger.Debug("SMS", $"Exposed {declared} window flag symbols as SMS globals.");
         }
     }
 
@@ -2411,7 +2411,7 @@ $"}}\n";
                 if (!string.IsNullOrWhiteSpace(callbackName))
                 {
                     _codeEditSaveCallbacks[id] = callbackName;
-                    RunnerLogger.Info("SMS", $"Registered onSave callback '{callbackName}' for '{id}'.");
+                    RunnerLogger.Debug("SMS", $"Registered onSave callback '{callbackName}' for '{id}'.");
                 }
 
                 return NullValue.Instance;
@@ -3590,7 +3590,7 @@ $"}}\n";
 
         if (declared > 0)
         {
-            RunnerLogger.Info("SMS", $"Exposed {declared} UI id symbols as SMS globals.");
+            RunnerLogger.Debug("SMS", $"Exposed {declared} UI id symbols as SMS globals.");
         }
     }
 

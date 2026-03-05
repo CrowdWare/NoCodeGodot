@@ -280,7 +280,7 @@ fun ready() {
     updateKeyframeTree()
     updateInspectorFromSelection()
     bootstrapProjectChooser()
-    log.success("ForgePoser ready.")
+    log.success("ForgePoser is ready. Start posing.")
 }
 
 fun configureInspectorNumericFields() {

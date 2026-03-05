@@ -1,7 +1,7 @@
 SplashScreen {
     id: splashScreen
     size: 640, 480
-    duration: 11000
+    duration: 1000
     loadOnReady: "main.sml"
 
     TextureRect {

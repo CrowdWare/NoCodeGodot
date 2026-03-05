@@ -9,7 +9,7 @@ Strings {
     menuFileTitle: "Datei"
     menuFileSaveAs: "Speichern unter..."
 
-    captionDemo: "**Forge** - Docking Demonstration"
+    captionDemo: "**Forge** - Designer"
 
     tabProject: "Projekt"
     tabHierarchy: "Hierarchie"

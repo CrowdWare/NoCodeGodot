@@ -119,8 +119,8 @@ public partial class Main : Node
 		{
 			startupSettings.ShowDebugLogs = options.DebugOverride.Value;
 		}
-		RunnerLogger.Configure(startupSettings.IncludeStackTraces, startupSettings.ShowParserWarnings, startupSettings.ShowDebugLogs);
-		RunnerLogger.Info("Perf", $"[Ready] settings={sw.ElapsedMilliseconds}ms"); sw.Restart();
+		RunnerLogger.Configure(startupSettings.IncludeStackTraces, startupSettings.ShowParserWarnings, startupSettings.ShowDebugLogs, options.VerboseRequested);
+		RunnerLogger.Debug("Perf", $"[Ready] settings={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		var theme = GD.Load<Theme>("res://theme.tres");
 		if (theme is null)
@@ -130,10 +130,10 @@ public partial class Main : Node
 		else
 		{
 			GetWindow().Theme = theme;
-			RunnerLogger.Info("Startup", $"Theme loaded {theme}");
-			RunnerLogger.Info("Startup", $"Window.Theme now = {GetWindow().Theme}");
+			RunnerLogger.Debug("Startup", $"Theme loaded {theme}");
+			RunnerLogger.Debug("Startup", $"Window.Theme now = {GetWindow().Theme}");
 		}
-		RunnerLogger.Info("Perf", $"[Ready] theme={sw.ElapsedMilliseconds}ms"); sw.Restart();
+		RunnerLogger.Debug("Perf", $"[Ready] theme={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		if (!LoadUiOnStartup)
 		{
@@ -141,25 +141,25 @@ public partial class Main : Node
 		}
 
 		_resolvedStartupUiUrl = await ResolveEntryFileUrlAsync();
-		RunnerLogger.Info("Perf", $"[Ready] resolveEntryUrl={sw.ElapsedMilliseconds}ms url='{_resolvedStartupUiUrl}'"); sw.Restart();
+		RunnerLogger.Debug("Perf", $"[Ready] resolveEntryUrl={sw.ElapsedMilliseconds}ms url='{_resolvedStartupUiUrl}'"); sw.Restart();
 
 		await RunUiStartup();
-		RunnerLogger.Info("Perf", $"[Ready] runUiStartup={sw.ElapsedMilliseconds}ms"); sw.Restart();
+		RunnerLogger.Debug("Perf", $"[Ready] runUiStartup={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		// Phase 2: Restliche Assets laden (parallel zum SplashScreen-Timer)
 		if (_runtimeUiRoot is not null && IsSplashScreenRoot(_runtimeUiRoot))
 		{
 			await RunSplashFlowAsync(_runtimeUiRoot);
-			RunnerLogger.Info("Perf", $"[Ready] splashFlow={sw.ElapsedMilliseconds}ms");
+			RunnerLogger.Debug("Perf", $"[Ready] splashFlow={sw.ElapsedMilliseconds}ms");
 		}
 		else if (_startupManifest is not null)
 		{
 			// Kein SplashScreen → restliche Assets mit bestehendem Overlay nachladen
 			await SyncRemainingAssetsAsync(progressBar: null);
-			RunnerLogger.Info("Perf", $"[Ready] syncRemaining={sw.ElapsedMilliseconds}ms");
+			RunnerLogger.Debug("Perf", $"[Ready] syncRemaining={sw.ElapsedMilliseconds}ms");
 		}
 
-		RunnerLogger.Info("Perf", $"[Ready] TOTAL={totalSw.ElapsedMilliseconds}ms");
+		RunnerLogger.Debug("Perf", $"[Ready] TOTAL={totalSw.ElapsedMilliseconds}ms");
 	}
 
 	public override void _Notification(int what)
@@ -268,7 +268,7 @@ public partial class Main : Node
 			var kind = SmlUriResolver.ClassifyScheme(normalized);
 			if (SmlUriResolver.IsLocalScheme(kind))
 			{
-				RunnerLogger.Info("Startup", $"Local entry URL resolved directly: '{normalized}'");
+				RunnerLogger.Debug("Startup", $"Local entry URL resolved directly: '{normalized}'");
 				return normalized;
 			}
 		}
@@ -387,14 +387,14 @@ public partial class Main : Node
 		var syncTask  = SyncRemainingAssetsAsync(progressBar);
 
 		await Task.WhenAll(timerTask, syncTask);
-		RunnerLogger.Info("Perf", $"[SplashFlow] timer+sync={sw.ElapsedMilliseconds}ms (duration={durationMs}ms)"); sw.Restart();
+		RunnerLogger.Debug("Perf", $"[SplashFlow] timer+sync={sw.ElapsedMilliseconds}ms (duration={durationMs}ms)"); sw.Restart();
 
 		if (!string.IsNullOrEmpty(loadOnReady))
 		{
 			// Load the next document while the splash is still visible, then swap
 			// atomically — this avoids any black-screen gap between the two UIs.
 			await SwapToUiAsync(loadOnReady);
-			RunnerLogger.Info("Perf", $"[SplashFlow] swapToUi='{System.IO.Path.GetFileName(loadOnReady)}' {sw.ElapsedMilliseconds}ms");
+			RunnerLogger.Debug("Perf", $"[SplashFlow] swapToUi='{System.IO.Path.GetFileName(loadOnReady)}' {sw.ElapsedMilliseconds}ms");
 		}
 	}
 
@@ -408,7 +408,7 @@ public partial class Main : Node
 
 		var newRuntime = new SmsUiRuntime(_uriResolver, url);
 		await newRuntime.InitializeAsync();
-		RunnerLogger.Info("Perf", $"[SwapToUi] runtimeInit={sw.ElapsedMilliseconds}ms"); sw.Restart();
+		RunnerLogger.Debug("Perf", $"[SwapToUi] runtimeInit={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		var loader = new SmlUiLoader(
 			_nodeFactoryRegistry,
@@ -480,7 +480,7 @@ public partial class Main : Node
 			var splashWin = GetWindow();
 			splashWin.Size      = new Vector2I(1, 1);
 			splashWin.Position  = new Vector2I(-32000, -32000);
-			RunnerLogger.Info("UI", "Main app window revealed; splash window banished.");
+			RunnerLogger.Debug("UI", "Main app window revealed; splash window banished.");
 		}
 	}
 
@@ -685,7 +685,7 @@ public partial class Main : Node
 		var dockingContainers = CollectDockingContainers(_runtimeUiRoot).ToList();
 		if (dockingContainers.Count == 0)
 		{
-			RunnerLogger.Info("Plugin", $"Skipping plugin load for '{uiUrl}' (no docking containers in active UI root).");
+			RunnerLogger.Debug("Plugin", $"Skipping plugin load for '{uiUrl}' (no docking containers in active UI root).");
 			return;
 		}
 
@@ -1298,6 +1298,7 @@ public partial class Main : Node
 		var clearCache = false;
 		var resetStartUrl = false;
 		bool? debugOverride = null;
+		var verboseRequested = false;
 
 		for (var i = 0; i < args.Count; i++)
 		{
@@ -1309,6 +1310,11 @@ public partial class Main : Node
 				{
 					debugOverride = parsed;
 				}
+				continue;
+			}
+			if (arg == "--verbose")
+			{
+				verboseRequested = true;
 				continue;
 			}
 
@@ -1339,7 +1345,7 @@ public partial class Main : Node
 			}
 		}
 
-		return new StartupOptions(urlOverride, clearCache, resetStartUrl, debugOverride);
+		return new StartupOptions(urlOverride, clearCache, resetStartUrl, debugOverride, verboseRequested);
 	}
 
 	private static bool TryParseBoolArg(string raw, out bool value)
@@ -1440,7 +1446,7 @@ public partial class Main : Node
 		File.Move(temp, path);
 	}
 
-	private sealed record StartupOptions(string? UrlOverride, bool ClearCache, bool ResetStartUrl, bool? DebugOverride);
+	private sealed record StartupOptions(string? UrlOverride, bool ClearCache, bool ResetStartUrl, bool? DebugOverride, bool VerboseRequested);
 
 	private sealed class StartupSettings
 	{
@@ -2270,7 +2276,7 @@ public partial class Main : Node
 		{
 			var enabled = rootControl.GetMeta(NodePropertyMapper.MetaWindowExtendToTitle).AsBool();
 			window.SetFlag(Window.Flags.ExtendToTitle, enabled);
-			RunnerLogger.Info("UI", $"Window extendToTitle applied: {enabled}");
+			RunnerLogger.Debug("UI", $"Window extendToTitle applied: {enabled}");
 		}
 
 		if (rootControl.HasMeta(NodePropertyMapper.MetaWindowPosX)
@@ -2279,7 +2285,7 @@ public partial class Main : Node
 			var x = rootControl.GetMeta(NodePropertyMapper.MetaWindowPosX).AsInt32();
 			var y = rootControl.GetMeta(NodePropertyMapper.MetaWindowPosY).AsInt32();
 			window.Position = new Vector2I(x, y);
-			RunnerLogger.Info("UI", $"Window position applied: {window.Position.X},{window.Position.Y}");
+			RunnerLogger.Debug("UI", $"Window position applied: {window.Position.X},{window.Position.Y}");
 		}
 
 		if (!rootControl.HasMeta(NodePropertyMapper.MetaWindowMinSizeX)

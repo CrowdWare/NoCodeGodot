@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+# Copy this file to `run.local.sh` and customize it for your private workflow.
+# `run.local.sh` is ignored by git and loaded automatically by `run.sh`.
+#
+# Supported override modes:
+#   release, docs, test, publish, export, app, poser
+#
+# Contract:
+# - Return 0 if this local handler fully handled the mode.
+# - Return non-zero to fall back to the default `run.sh` behavior.
+
+forge_local_handle_mode() {
+  local mode="$1"
+  shift || true
+
+  case "$mode" in
+    release)
+      echo "[local] release override not configured yet."
+      return 1
+      ;;
+    docs)
+      echo "[local] docs override not configured yet."
+      return 1
+      ;;
+    test)
+      echo "[local] test override not configured yet."
+      return 1
+      ;;
+    publish)
+      echo "[local] publish override not configured yet."
+      return 1
+      ;;
+    export)
+      echo "[local] export override not configured yet."
+      return 1
+      ;;
+    app)
+      echo "[local] app override not configured yet."
+      return 1
+      ;;
+    poser)
+      echo "[local] poser override not configured yet."
+      return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}

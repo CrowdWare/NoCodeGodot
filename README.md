@@ -7,6 +7,8 @@ Today, creating software often requires navigating complex toolchains, fragile f
 
 Forge exists to change that.
 
+Built with love, coffee, and a stubborn focus on simplicity.
+
 ![screenprint](images/forge.png)
 
 ---
@@ -29,6 +31,18 @@ The Forge-Runner interprets this description and executes it on the target platf
 
 - Current Process: [CWUP/README.md](CWUP/README.md)
 - Backlog: [BACKLOG.md](CWUP/BACKLOG.md)
+- ForgePoser: [ForgePoser/README.md](ForgePoser/README.md)
+
+---
+
+## 💡 Feature Requests & Feedback
+
+If you have an idea, a workflow pain point, or a missing feature, please open an issue.
+
+- Feature request: Use the repository's GitHub `Issues` tab and prefix the title with `[Feature]`.
+- Bug report: Use the repository's GitHub `Issues` tab and prefix the title with `[Bug]`.
+
+Clear, concrete examples are the fastest way to shape Forge in the right direction.
 
 ---
 

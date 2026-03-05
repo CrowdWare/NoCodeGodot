@@ -20,6 +20,7 @@ fun ready() {
     //pageUpdates = ui.getObject("pageUpdates")
 
     activateTab(0)
+    log.success("ForgeRunner is ready. Start exploring.")
 }
 
 fun activateTab(index) {

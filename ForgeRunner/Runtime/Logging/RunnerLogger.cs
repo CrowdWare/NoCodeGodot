@@ -27,13 +27,15 @@ public static class RunnerLogger
     public static bool IncludeStackTraces { get; private set; }
     public static bool ShowParserWarnings { get; private set; } = true;
     public static bool ShowDebugLogs { get; private set; }
+    public static bool ShowWarningBacktraces { get; private set; }
 
-    public static void Configure(bool includeStackTraces, bool showParserWarnings, bool showDebugLogs)
+    public static void Configure(bool includeStackTraces, bool showParserWarnings, bool showDebugLogs, bool showWarningBacktraces)
     {
         IncludeStackTraces = includeStackTraces;
         ShowParserWarnings = showParserWarnings;
         ShowDebugLogs = showDebugLogs;
-        Info("Log", $"Logger configured: includeStackTraces={IncludeStackTraces}, showParserWarnings={ShowParserWarnings}, showDebugLogs={ShowDebugLogs}");
+        ShowWarningBacktraces = showWarningBacktraces;
+        Debug("Log", $"Logger configured: includeStackTraces={IncludeStackTraces}, showParserWarnings={ShowParserWarnings}, showDebugLogs={ShowDebugLogs}, showWarningBacktraces={ShowWarningBacktraces}");
     }
 
     public static void Info(string subsystem, string message)
@@ -43,7 +45,14 @@ public static class RunnerLogger
 
     public static void Warn(string subsystem, string message)
     {
-        GD.PushWarning($"WARNING ({subsystem}): {message}");
+        var formatted = $"WARNING ({subsystem}): {message}";
+        if (ShowWarningBacktraces)
+        {
+            GD.PushWarning(formatted);
+            return;
+        }
+
+        PrintRichColored(formatted, "yellow");
     }
 
     public static void Warn(string subsystem, string message, Exception ex)
@@ -54,13 +63,13 @@ public static class RunnerLogger
     public static void Error(string subsystem, string message)
     {
         var formatted = $"ERROR ({subsystem}): {message}";
-        if (OS.HasFeature("editor"))
+        if (ShowWarningBacktraces)
         {
             GD.PushError(formatted);
             return;
         }
 
-        GD.Print($"\u001b[31m{formatted}\u001b[0m");
+        PrintRichColored(formatted, "red");
     }
 
     public static void Success(string subsystem, string message)
@@ -120,6 +129,7 @@ public static class RunnerLogger
         {
             "lime" or "#70e000" => "\u001b[32m", // success green
             "yellow" or "#f1c40f" => "\u001b[33m", // warning yellow/orange
+            "red" or "#e74c3c" => "\u001b[31m", // error red
             _ => "\u001b[37m" // info/default white
         };
     }

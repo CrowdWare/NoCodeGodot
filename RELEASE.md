@@ -2,19 +2,12 @@
 
 ## Prerequisites
 
-```bash
-brew install gh
-gh auth login
-```
+Release publishing is currently maintained by the repository owner.
 
-## Quick Reference
+## Note For Users
 
-| Command | Result |
-|---|---|
-| `./run.sh release` | Pre-release (default) |
-| `./run.sh release alpha` | Pre-release, title "… (alpha)" |
-| `./run.sh release beta` | Pre-release, title "… (beta)" |
-| `./run.sh release stable` | Full release (no pre-release flag) |
+If you use Forge in your own repository, define your own release workflow.
+Do not run this repository's maintainer release flow against upstream by default.
 
 ## What `./run.sh release` does
 
@@ -39,8 +32,11 @@ gh auth login
    git push + git push origin v1.202.261430
    ```
 
-6. **Create GitHub Release** via `gh release create`
-   - Release notes are auto-generated from commits (`--generate-notes`)
+6. **Create GitHub Release**
+   - Manual notes are prepended from:
+     - `RELEASE_NOTES_PRE.md` for `pre`/default and `beta`
+     - `RELEASE_NOTES_ALPHA.md` for `alpha`
+   - GitHub notes/changelog are auto-generated from commits (`--generate-notes`)
    - DMG is attached as a release asset
    - Pre-release flag is set unless channel is `stable`
 
