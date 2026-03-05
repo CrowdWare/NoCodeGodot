@@ -3,7 +3,7 @@ using System.Globalization;
 
 internal static class SmsConformance
 {
-    public static int Run(string fixturesDir)
+    public static int Run(string fixturesDir, bool nativeOnly = false)
     {
         if (!Directory.Exists(fixturesDir))
         {
@@ -38,6 +38,20 @@ internal static class SmsConformance
                 continue;
             }
 
+            if (!NativeSmsBridge.TryExecute(source, out var native))
+            {
+                Console.WriteLine($"[FAIL] {label}");
+                Console.WriteLine($"  Native execute error: {NativeSmsBridge.LastError}");
+                continue;
+            }
+
+            if (nativeOnly)
+            {
+                Console.WriteLine($"[OK]   {label}");
+                pass++;
+                continue;
+            }
+
             long managed;
             try
             {
@@ -49,13 +63,6 @@ internal static class SmsConformance
             {
                 Console.WriteLine($"[FAIL] {label}");
                 Console.WriteLine($"  Managed execute error: {ex.Message}");
-                continue;
-            }
-
-            if (!NativeSmsBridge.TryExecute(source, out var native))
-            {
-                Console.WriteLine($"[FAIL] {label}");
-                Console.WriteLine($"  Native execute error: {NativeSmsBridge.LastError}");
                 continue;
             }
 
@@ -90,4 +97,3 @@ internal static class SmsConformance
         };
     }
 }
-

@@ -10,6 +10,7 @@ internal static class Program
         var loopCount = 20_000;
         var runSmlConformance = false;
         var runSmsConformance = false;
+        var runSmsConformanceNativeOnly = false;
         var smlConformanceDir = Path.Combine(Directory.GetCurrentDirectory(), "perf", "SmsPerfLab", "fixtures", "sml_conformance");
         var smsConformanceDir = Path.Combine(Directory.GetCurrentDirectory(), "perf", "SmsPerfLab", "fixtures", "sms_conformance");
 
@@ -41,6 +42,13 @@ internal static class Program
                 continue;
             }
 
+            if (args[i] == "--sms-conformance-native-only")
+            {
+                runSmsConformance = true;
+                runSmsConformanceNativeOnly = true;
+                continue;
+            }
+
             if (args[i] == "--fixtures" && i + 1 < args.Length)
             {
                 smlConformanceDir = args[i + 1];
@@ -67,8 +75,9 @@ internal static class Program
         {
             Console.WriteLine("SmsPerfLab - SMS Conformance");
             Console.WriteLine($"  fixtures: {smsConformanceDir}");
+            Console.WriteLine($"  nativeOnly: {runSmsConformanceNativeOnly}");
             Console.WriteLine();
-            return SmsConformance.Run(smsConformanceDir);
+            return SmsConformance.Run(smsConformanceDir, runSmsConformanceNativeOnly);
         }
 
         Console.WriteLine("SmsPerfLab");

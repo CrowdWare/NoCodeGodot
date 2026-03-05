@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -13,6 +14,14 @@
 #include <vector>
 
 namespace {
+
+struct SmsSessionState {
+    std::string source;
+};
+
+std::mutex g_sessions_mutex;
+std::unordered_map<std::int64_t, SmsSessionState> g_sessions;
+std::int64_t g_next_session_id = 1;
 
 enum class TokenType {
     Eof,
@@ -28,6 +37,7 @@ enum class TokenType {
     Fun,
     Data,
     Class,
+    On,
     Break,
     Continue,
     Return,
@@ -45,6 +55,9 @@ enum class TokenType {
     Increment,
     Minus,
     Decrement,
+    Star,
+    Slash,
+    Percent,
     Arrow,
     Less,
     Greater,
@@ -130,6 +143,15 @@ public:
                     } else {
                         out.push_back({TokenType::Minus, "-"});
                     }
+                    break;
+                case '*':
+                    out.push_back({TokenType::Star, "*"});
+                    break;
+                case '/':
+                    out.push_back({TokenType::Slash, "/"});
+                    break;
+                case '%':
+                    out.push_back({TokenType::Percent, "%"});
                     break;
                 case '<':
                     if (!is_at_end() && peek() == '=') {
@@ -231,6 +253,7 @@ private:
         if (text == "fun") return {TokenType::Fun, text};
         if (text == "data") return {TokenType::Data, text};
         if (text == "class") return {TokenType::Class, text};
+        if (text == "on") return {TokenType::On, text};
         if (text == "break") return {TokenType::Break, text};
         if (text == "continue") return {TokenType::Continue, text};
         if (text == "return") return {TokenType::Return, text};
@@ -243,12 +266,15 @@ private:
 
 struct FunctionDeclStmt;
 struct DataClassDeclStmt;
+struct EventHandlerDeclStmt;
 
 struct Value {
-    enum class Kind { Int, Array, Object, Null };
+    enum class Kind { Int, Bool, String, Array, Object, Null };
 
     Kind kind = Kind::Null;
     std::int64_t int_value = 0;
+    bool bool_value = false;
+    std::string string_value;
     std::shared_ptr<std::vector<Value>> array;
     std::string class_name;
     std::shared_ptr<std::unordered_map<std::string, Value>> object_fields;
@@ -257,6 +283,20 @@ struct Value {
         Value v;
         v.kind = Kind::Int;
         v.int_value = value;
+        return v;
+    }
+
+    static Value Bool(bool value) {
+        Value v;
+        v.kind = Kind::Bool;
+        v.bool_value = value;
+        return v;
+    }
+
+    static Value String(std::string value) {
+        Value v;
+        v.kind = Kind::String;
+        v.string_value = std::move(value);
         return v;
     }
 
@@ -281,16 +321,23 @@ struct Value {
 
     bool truthy() const {
         if (kind == Kind::Int) return int_value != 0;
+        if (kind == Kind::Bool) return bool_value;
+        if (kind == Kind::String) return !string_value.empty();
         if (kind == Kind::Array) return array && !array->empty();
         if (kind == Kind::Object) return object_fields && !object_fields->empty();
         return false;
     }
 
     std::int64_t as_int(const std::string& where) const {
-        if (kind != Kind::Int) {
-            throw std::runtime_error(where + " expects integer value.");
+        if (kind == Kind::Int) {
+            return int_value;
         }
-        return int_value;
+
+        if (kind == Kind::Bool) {
+            return bool_value ? 1 : 0;
+        }
+
+        throw std::runtime_error(where + " expects integer value.");
     }
 
     bool operator==(const Value& other) const {
@@ -301,6 +348,10 @@ struct Value {
         switch (kind) {
             case Kind::Int:
                 return int_value == other.int_value;
+            case Kind::Bool:
+                return bool_value == other.bool_value;
+            case Kind::String:
+                return string_value == other.string_value;
             case Kind::Null:
                 return true;
             case Kind::Array:
@@ -370,6 +421,16 @@ public:
         return it == r->data_classes_.end() ? nullptr : it->second;
     }
 
+    void define_event_handler(const std::string& key, const EventHandlerDeclStmt* decl) {
+        root()->event_handlers_[key] = decl;
+    }
+
+    const EventHandlerDeclStmt* get_event_handler(const std::string& key) const {
+        const auto* r = root();
+        const auto it = r->event_handlers_.find(key);
+        return it == r->event_handlers_.end() ? nullptr : it->second;
+    }
+
 private:
     Env* root() {
         return parent_ == nullptr ? this : parent_->root();
@@ -383,6 +444,7 @@ private:
     std::unordered_map<std::string, Value> vars_;
     std::unordered_map<std::string, const FunctionDeclStmt*> functions_;
     std::unordered_map<std::string, const DataClassDeclStmt*> data_classes_;
+    std::unordered_map<std::string, const EventHandlerDeclStmt*> event_handlers_;
 };
 
 struct ReturnSignal final : std::exception {
@@ -534,6 +596,17 @@ struct BinaryExpr final : Expr {
         switch (oper) {
             case TokenType::Plus: return Value::Int(left + right);
             case TokenType::Minus: return Value::Int(left - right);
+            case TokenType::Star: return Value::Int(left * right);
+            case TokenType::Slash:
+                if (right == 0) {
+                    throw std::runtime_error("Division by zero.");
+                }
+                return Value::Int(left / right);
+            case TokenType::Percent:
+                if (right == 0) {
+                    throw std::runtime_error("Modulo by zero.");
+                }
+                return Value::Int(left % right);
             case TokenType::Less: return Value::Int(left < right ? 1 : 0);
             case TokenType::LessEqual: return Value::Int(left <= right ? 1 : 0);
             case TokenType::Greater: return Value::Int(left > right ? 1 : 0);
@@ -690,6 +763,21 @@ struct DataClassDeclStmt final : Stmt {
 
     void execute(Env& env, Value&) const override {
         env.define_data_class(name, this);
+    }
+};
+
+struct EventHandlerDeclStmt final : Stmt {
+    std::string target_id;
+    std::string event_name;
+    std::vector<std::string> params;
+    std::vector<std::unique_ptr<Stmt>> body;
+
+    std::string key() const {
+        return target_id + "." + event_name;
+    }
+
+    void execute(Env& env, Value&) const override {
+        env.define_event_handler(key(), this);
     }
 };
 
@@ -943,6 +1031,7 @@ private:
         if (match(TokenType::While)) return parse_while();
         if (match(TokenType::If)) return parse_if();
         if (match(TokenType::Fun)) return parse_function_decl();
+        if (match(TokenType::On)) return parse_event_handler_decl();
         if (match(TokenType::Break)) return parse_break();
         if (match(TokenType::Continue)) return parse_continue();
         if (match(TokenType::Return)) return parse_return();
@@ -1077,6 +1166,29 @@ private:
         fn->params = std::move(params);
         fn->body = std::move(body);
         return fn;
+    }
+
+    std::unique_ptr<Stmt> parse_event_handler_decl() {
+        const auto target_id = consume(TokenType::Identifier, "Expected target id after on").text;
+        consume(TokenType::Dot, "Expected '.' after event target id");
+        const auto event_name = consume(TokenType::Identifier, "Expected event name after '.'").text;
+        consume(TokenType::LeftParen, "Expected '(' after event name");
+
+        std::vector<std::string> params;
+        if (!check(TokenType::RightParen)) {
+            do {
+                params.push_back(consume(TokenType::Identifier, "Expected parameter name").text);
+            } while (match(TokenType::Comma));
+        }
+        consume(TokenType::RightParen, "Expected ')' after event parameters");
+        auto body = parse_block();
+
+        auto handler = std::make_unique<EventHandlerDeclStmt>();
+        handler->target_id = target_id;
+        handler->event_name = event_name;
+        handler->params = std::move(params);
+        handler->body = std::move(body);
+        return handler;
     }
 
     std::unique_ptr<Stmt> parse_for() {
@@ -1230,16 +1342,39 @@ private:
     }
 
     std::unique_ptr<Expr> parse_term() {
-        auto expr = parse_unary();
+        auto expr = parse_factor();
         while (true) {
             if (match(TokenType::Plus)) {
-                auto rhs = parse_unary();
+                auto rhs = parse_factor();
                 expr = std::make_unique<BinaryExpr>(TokenType::Plus, std::move(expr), std::move(rhs));
                 continue;
             }
             if (match(TokenType::Minus)) {
-                auto rhs = parse_unary();
+                auto rhs = parse_factor();
                 expr = std::make_unique<BinaryExpr>(TokenType::Minus, std::move(expr), std::move(rhs));
+                continue;
+            }
+            break;
+        }
+        return expr;
+    }
+
+    std::unique_ptr<Expr> parse_factor() {
+        auto expr = parse_unary();
+        while (true) {
+            if (match(TokenType::Star)) {
+                auto rhs = parse_unary();
+                expr = std::make_unique<BinaryExpr>(TokenType::Star, std::move(expr), std::move(rhs));
+                continue;
+            }
+            if (match(TokenType::Slash)) {
+                auto rhs = parse_unary();
+                expr = std::make_unique<BinaryExpr>(TokenType::Slash, std::move(expr), std::move(rhs));
+                continue;
+            }
+            if (match(TokenType::Percent)) {
+                auto rhs = parse_unary();
+                expr = std::make_unique<BinaryExpr>(TokenType::Percent, std::move(expr), std::move(rhs));
                 continue;
             }
             break;
@@ -1509,9 +1644,7 @@ std::int64_t count_sml_nodes(const char* source) {
     return nodes;
 }
 
-} // namespace
-
-extern "C" int sms_native_execute(const char* source, std::int64_t* out_result, char* error, int error_capacity) {
+int execute_sms_source(const char* source, std::int64_t* out_result, char* error, int error_capacity) {
     if (source == nullptr || out_result == nullptr) {
         write_error(error, error_capacity, "source/out_result must not be null");
         return 2;
@@ -1533,18 +1666,25 @@ extern "C" int sms_native_execute(const char* source, std::int64_t* out_result, 
             }
             if (const auto* data = dynamic_cast<const DataClassDeclStmt*>(stmt.get())) {
                 env.define_data_class(data->name, data);
+                continue;
+            }
+            if (const auto* handler = dynamic_cast<const EventHandlerDeclStmt*>(stmt.get())) {
+                env.define_event_handler(handler->key(), handler);
             }
         }
 
         for (const auto& stmt : program) {
             if (dynamic_cast<const FunctionDeclStmt*>(stmt.get()) != nullptr
-                || dynamic_cast<const DataClassDeclStmt*>(stmt.get()) != nullptr) {
+                || dynamic_cast<const DataClassDeclStmt*>(stmt.get()) != nullptr
+                || dynamic_cast<const EventHandlerDeclStmt*>(stmt.get()) != nullptr) {
                 continue;
             }
             stmt->execute(env, last);
         }
 
-        *out_result = last.kind == Value::Kind::Int ? last.int_value : 0;
+        *out_result = last.kind == Value::Kind::Int
+            ? last.int_value
+            : (last.kind == Value::Kind::Bool ? (last.bool_value ? 1 : 0) : 0);
         return 0;
     } catch (const ReturnSignal&) {
         write_error(error, error_capacity, "return outside function");
@@ -1562,6 +1702,282 @@ extern "C" int sms_native_execute(const char* source, std::int64_t* out_result, 
         write_error(error, error_capacity, "unknown native exception");
         return 1;
     }
+}
+
+std::vector<Value> parse_event_args_json(const char* args_json) {
+    std::vector<Value> args;
+    if (args_json == nullptr) {
+        return args;
+    }
+
+    const std::string text(args_json);
+    std::size_t i = 0;
+    auto skip_ws = [&]() {
+        while (i < text.size() && std::isspace(static_cast<unsigned char>(text[i]))) {
+            i++;
+        }
+    };
+    auto starts_with = [&](const char* literal) {
+        const auto len = std::strlen(literal);
+        return i + len <= text.size() && text.compare(i, len, literal) == 0;
+    };
+    auto parse_int = [&]() -> Value {
+        const auto start = i;
+        if (i < text.size() && (text[i] == '-' || text[i] == '+')) {
+            i++;
+        }
+        bool has_digit = false;
+        while (i < text.size() && std::isdigit(static_cast<unsigned char>(text[i]))) {
+            has_digit = true;
+            i++;
+        }
+        if (!has_digit) {
+            throw std::runtime_error("Invalid numeric argument in args_json.");
+        }
+        return Value::Int(std::stoll(text.substr(start, i - start)));
+    };
+    auto parse_string = [&]() -> Value {
+        i++; // opening quote
+        std::string out;
+        bool escape = false;
+        while (i < text.size()) {
+            const char c = text[i++];
+            if (escape) {
+                switch (c) {
+                    case '"': out.push_back('"'); break;
+                    case '\\': out.push_back('\\'); break;
+                    case '/': out.push_back('/'); break;
+                    case 'b': out.push_back('\b'); break;
+                    case 'f': out.push_back('\f'); break;
+                    case 'n': out.push_back('\n'); break;
+                    case 'r': out.push_back('\r'); break;
+                    case 't': out.push_back('\t'); break;
+                    default: out.push_back(c); break;
+                }
+                escape = false;
+                continue;
+            }
+            if (c == '\\') {
+                escape = true;
+                continue;
+            }
+            if (c == '"') {
+                return Value::String(std::move(out));
+            }
+            out.push_back(c);
+        }
+        throw std::runtime_error("Unterminated string in args_json.");
+    };
+
+    skip_ws();
+    if (i >= text.size()) {
+        return args;
+    }
+    if (text[i] != '[') {
+        throw std::runtime_error("args_json must be a JSON array.");
+    }
+    i++;
+
+    while (true) {
+        skip_ws();
+        if (i >= text.size()) {
+            throw std::runtime_error("Unterminated args_json array.");
+        }
+        if (text[i] == ']') {
+            i++;
+            break;
+        }
+
+        Value value = Value::Null();
+        if (text[i] == '"') {
+            value = parse_string();
+        } else if (starts_with("true")) {
+            i += 4;
+            value = Value::Bool(true);
+        } else if (starts_with("false")) {
+            i += 5;
+            value = Value::Bool(false);
+        } else if (starts_with("null")) {
+            i += 4;
+            value = Value::Null();
+        } else {
+            value = parse_int();
+        }
+
+        args.push_back(value);
+        skip_ws();
+        if (i < text.size() && text[i] == ',') {
+            i++;
+            continue;
+        }
+        if (i < text.size() && text[i] == ']') {
+            i++;
+            break;
+        }
+        if (i >= text.size()) {
+            throw std::runtime_error("Unterminated args_json array.");
+        }
+        throw std::runtime_error("Expected ',' or ']' in args_json array.");
+    }
+
+    return args;
+}
+
+int invoke_sms_event(
+    const char* source,
+    const char* target_id,
+    const char* event_name,
+    const char* args_json,
+    std::int64_t* out_result,
+    char* error,
+    int error_capacity) {
+    if (source == nullptr || out_result == nullptr || target_id == nullptr || event_name == nullptr) {
+        write_error(error, error_capacity, "source/target_id/event_name/out_result must not be null");
+        return 2;
+    }
+
+    try {
+        Lexer lexer(source);
+        auto tokens = lexer.tokenize();
+        Parser parser(std::move(tokens));
+        auto program = parser.parse_program();
+
+        Env env;
+        Value last = Value::Null();
+
+        for (const auto& stmt : program) {
+            if (const auto* fn = dynamic_cast<const FunctionDeclStmt*>(stmt.get())) {
+                env.define_function(fn->name, fn);
+                continue;
+            }
+            if (const auto* data = dynamic_cast<const DataClassDeclStmt*>(stmt.get())) {
+                env.define_data_class(data->name, data);
+                continue;
+            }
+            if (const auto* handler = dynamic_cast<const EventHandlerDeclStmt*>(stmt.get())) {
+                env.define_event_handler(handler->key(), handler);
+            }
+        }
+
+        for (const auto& stmt : program) {
+            if (dynamic_cast<const FunctionDeclStmt*>(stmt.get()) != nullptr
+                || dynamic_cast<const DataClassDeclStmt*>(stmt.get()) != nullptr
+                || dynamic_cast<const EventHandlerDeclStmt*>(stmt.get()) != nullptr) {
+                continue;
+            }
+            stmt->execute(env, last);
+        }
+
+        const std::string key = std::string(target_id) + "." + std::string(event_name);
+        const auto* handler = env.get_event_handler(key);
+        if (handler == nullptr) {
+            write_error(error, error_capacity, "No SMS event handler found for '" + key + "'.");
+            return 1;
+        }
+
+        auto args = parse_event_args_json(args_json);
+        if (args.size() != handler->params.size()) {
+            write_error(error, error_capacity, "Event handler '" + key + "' expects "
+                + std::to_string(handler->params.size()) + " arg(s), got "
+                + std::to_string(args.size()) + ".");
+            return 1;
+        }
+
+        Env local(&env);
+        for (std::size_t idx = 0; idx < args.size(); idx++) {
+            local.define_var(handler->params[idx], args[idx]);
+        }
+
+        Value handler_last = Value::Null();
+        try {
+            execute_statements(handler->body, local, handler_last);
+        } catch (const ReturnSignal& ret) {
+            handler_last = ret.value;
+        }
+
+        *out_result = handler_last.kind == Value::Kind::Int
+            ? handler_last.int_value
+            : (handler_last.kind == Value::Kind::Bool ? (handler_last.bool_value ? 1 : 0) : 0);
+        return 0;
+    } catch (const std::exception& ex) {
+        write_error(error, error_capacity, ex.what());
+        return 1;
+    } catch (...) {
+        write_error(error, error_capacity, "unknown native exception");
+        return 1;
+    }
+}
+
+} // namespace
+
+extern "C" int sms_native_execute(const char* source, std::int64_t* out_result, char* error, int error_capacity) {
+    return execute_sms_source(source, out_result, error, error_capacity);
+}
+
+extern "C" int sms_native_session_create(std::int64_t* out_session, char* error, int error_capacity) {
+    if (out_session == nullptr) {
+        write_error(error, error_capacity, "out_session must not be null");
+        return 2;
+    }
+
+    std::lock_guard<std::mutex> lock(g_sessions_mutex);
+    const auto session_id = g_next_session_id++;
+    g_sessions.emplace(session_id, SmsSessionState{});
+    *out_session = session_id;
+    return 0;
+}
+
+extern "C" int sms_native_session_load(std::int64_t session, const char* source, char* error, int error_capacity) {
+    if (source == nullptr) {
+        write_error(error, error_capacity, "source must not be null");
+        return 2;
+    }
+
+    std::lock_guard<std::mutex> lock(g_sessions_mutex);
+    const auto it = g_sessions.find(session);
+    if (it == g_sessions.end()) {
+        write_error(error, error_capacity, "invalid session");
+        return 2;
+    }
+
+    it->second.source = source;
+    return 0;
+}
+
+extern "C" int sms_native_session_invoke(
+    std::int64_t session,
+    const char* target_id,
+    const char* event_name,
+    const char* args_json,
+    std::int64_t* out_result,
+    char* error,
+    int error_capacity) {
+    std::string source_copy;
+    {
+        std::lock_guard<std::mutex> lock(g_sessions_mutex);
+        const auto it = g_sessions.find(session);
+        if (it == g_sessions.end()) {
+            write_error(error, error_capacity, "invalid session");
+            return 2;
+        }
+        source_copy = it->second.source;
+    }
+
+    if (source_copy.empty()) {
+        write_error(error, error_capacity, "session has no loaded source");
+        return 2;
+    }
+
+    return invoke_sms_event(source_copy.c_str(), target_id, event_name, args_json, out_result, error, error_capacity);
+}
+
+extern "C" int sms_native_session_dispose(std::int64_t session, char* error, int error_capacity) {
+    std::lock_guard<std::mutex> lock(g_sessions_mutex);
+    if (g_sessions.erase(session) == 0) {
+        write_error(error, error_capacity, "invalid session");
+        return 2;
+    }
+    return 0;
 }
 
 extern "C" int sms_native_sml_parse(const char* source, std::int64_t* out_node_count, char* error, int error_capacity) {

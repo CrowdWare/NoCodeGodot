@@ -38,6 +38,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text;
 
 namespace Runtime.UI;
 
@@ -59,10 +60,13 @@ public sealed class SmsUiRuntime
     private readonly HashSet<ulong> _dynamicMenuPopupHooked = [];
     private readonly Dictionary<ulong, string> _windowCloseCallbacks = new();
     private readonly HashSet<ulong> _windowCloseHooked = [];
+    private readonly HashSet<string> _nativeFallbackWarnedEvents = new(StringComparer.Ordinal);
     private readonly Dictionary<Type, Dictionary<string, List<MethodInfo>>> _methodCache = [];
     private readonly Dictionary<long, object> _nativeObjects = [];
     private readonly Dictionary<string, NumericLineEditBehavior> _numericLineEdits = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Runtime.ThreeD.AnimationProjectData> _projectSnapshotByPath = new(StringComparer.OrdinalIgnoreCase);
+    private SmsNativeRuntime.Session? _nativeSession;
+    private string _nativeSessionSource = string.Empty;
     private long _nextNativeObjectId = 1;
     private int _nextTreeHandle = 1;
     private string? _projectRoot;
@@ -104,6 +108,7 @@ public sealed class SmsUiRuntime
         _localization = await LocalizationStore.LoadAsync(_uriResolver, _uiSmlUri, cancellationToken: cancellationToken);
         RegisterNativeFunctions();
         ExecuteBootstrapGlobals();
+        SyncNativeSessionSource(source, smsUri, append: false);
 
         try
         {
@@ -138,12 +143,45 @@ public sealed class SmsUiRuntime
         try
         {
             _engine.Execute(source);
+            SyncNativeSessionSource(source, smsUri, append: true);
             RunnerLogger.Debug("SMS", $"Loaded additional SMS script: '{smsUri}'.");
         }
         catch (Exception ex)
         {
             RunnerLogger.Warn("SMS", $"Failed executing additional SMS script '{smsUri}'.", ex);
         }
+    }
+
+    private void SyncNativeSessionSource(string source, string label, bool append)
+    {
+        if (!SmsNativeRuntime.Available)
+        {
+            return;
+        }
+
+        if (_nativeSession is null)
+        {
+            if (!SmsNativeRuntime.Session.TryCreate(out var session) || session is null)
+            {
+                RunnerLogger.Warn("SMS", $"Native session create failed for '{label}': {SmsNativeRuntime.LastError}");
+                return;
+            }
+
+            _nativeSession = session;
+            RunnerLogger.Info("SMS", "Native session created.");
+        }
+
+        _nativeSessionSource = append
+            ? string.Concat(_nativeSessionSource, System.Environment.NewLine, source ?? string.Empty)
+            : (source ?? string.Empty);
+
+        if (!_nativeSession.TryLoad(_nativeSessionSource))
+        {
+            RunnerLogger.Warn("SMS", $"Native session load failed for '{label}': {SmsNativeRuntime.LastError}");
+            return;
+        }
+
+        RunnerLogger.Debug("SMS", $"Native session synced: '{label}'.");
     }
 
     public void BindDispatcher(UiActionDispatcher dispatcher)
@@ -3524,18 +3562,129 @@ $"}}\n";
 
     private void TryInvokeEvent(string targetId, string eventName, bool warnIfMissing, params object?[] args)
     {
+        var eventKey = $"{targetId}.{eventName}";
+        if (_nativeSession is not null)
+        {
+            try
+            {
+                var argsJson = SerializeNativeEventArgs(args);
+                var ok = _nativeSession.TryInvoke(targetId, eventName, argsJson, out _);
+                if (ok)
+                {
+                    return;
+                }
+
+                var message = SmsNativeRuntime.LastError;
+                var isMissing = message.Contains("No SMS event handler found", StringComparison.Ordinal);
+                if (isMissing)
+                {
+                    if (warnIfMissing)
+                    {
+                        RunnerLogger.Warn("SMS", message);
+                    }
+                    return;
+                }
+
+                var isKnownParserGap = message.Contains("Unexpected character in source.", StringComparison.Ordinal);
+                if (isKnownParserGap)
+                {
+                    RunnerLogger.Debug("SMS", $"Native SMS fallback active for '{eventKey}': {message}");
+                }
+                else if (_nativeFallbackWarnedEvents.Add(eventKey))
+                {
+                    RunnerLogger.Warn("SMS", $"Native SMS event dispatch failed for '{eventKey}'. Falling back to managed runtime.: {message}");
+                }
+                else
+                {
+                    RunnerLogger.Debug("SMS", $"Native SMS fallback active for '{eventKey}': {message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                if (_nativeFallbackWarnedEvents.Add(eventKey))
+                {
+                    RunnerLogger.Warn("SMS", $"Native SMS event dispatch failed for '{eventKey}'. Falling back to managed runtime.", ex);
+                }
+                else
+                {
+                    RunnerLogger.Debug("SMS", $"Native SMS fallback active for '{eventKey}': {ex.Message}");
+                }
+            }
+        }
+
+        // Temporary compatibility fallback while native event/runtime surface catches up.
         try
         {
             var handled = _engine.InvokeEvent(targetId, eventName, args);
             if (!handled && warnIfMissing)
             {
-                RunnerLogger.Warn("SMS", $"No SMS event handler found for '{targetId}.{eventName}'.");
+                RunnerLogger.Warn("SMS", $"No SMS event handler found for '{eventKey}'.");
             }
         }
         catch (Exception ex)
         {
-            RunnerLogger.Warn("SMS", $"SMS event dispatch failed for '{targetId}.{eventName}'.", ex);
+            RunnerLogger.Warn("SMS", $"SMS event dispatch failed for '{eventKey}'.", ex);
         }
+    }
+
+    private static string SerializeNativeEventArgs(object?[] args)
+    {
+        if (args is null || args.Length == 0)
+        {
+            return "[]";
+        }
+
+        var sb = new StringBuilder();
+        sb.Append('[');
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (i > 0)
+            {
+                sb.Append(',');
+            }
+
+            var arg = args[i];
+            switch (arg)
+            {
+                case null:
+                    sb.Append("null");
+                    break;
+                case bool b:
+                    sb.Append(b ? "true" : "false");
+                    break;
+                case byte or sbyte or short or ushort or int or uint or long or ulong:
+                    sb.Append(Convert.ToInt64(arg, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture));
+                    break;
+                case float f:
+                    sb.Append(Convert.ToInt64(Math.Round(f, MidpointRounding.AwayFromZero), CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture));
+                    break;
+                case double d:
+                    sb.Append(Convert.ToInt64(Math.Round(d, MidpointRounding.AwayFromZero), CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture));
+                    break;
+                case decimal m:
+                    sb.Append(Convert.ToInt64(Math.Round(m, 0, MidpointRounding.AwayFromZero), CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture));
+                    break;
+                default:
+                    var text = arg.ToString() ?? string.Empty;
+                    sb.Append('"');
+                    foreach (var ch in text)
+                    {
+                        switch (ch)
+                        {
+                            case '\\': sb.Append("\\\\"); break;
+                            case '"': sb.Append("\\\""); break;
+                            case '\n': sb.Append("\\n"); break;
+                            case '\r': sb.Append("\\r"); break;
+                            case '\t': sb.Append("\\t"); break;
+                            default: sb.Append(ch); break;
+                        }
+                    }
+                    sb.Append('"');
+                    break;
+            }
+        }
+        sb.Append(']');
+        return sb.ToString();
     }
 
     private static bool ShouldSuppressMissingMenuHandler(string itemId)

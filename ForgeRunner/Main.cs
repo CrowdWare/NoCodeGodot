@@ -122,7 +122,13 @@ public partial class Main : Node
 		RunnerLogger.Configure(startupSettings.IncludeStackTraces, startupSettings.ShowParserWarnings, startupSettings.ShowDebugLogs, options.VerboseRequested);
 		SmlParseRuntime.Configure(options.SmlNativeProbeEnabled);
 		SmsNativeRuntime.Configure(options.SmsNativeProbeEnabled);
-		SmsNativeRuntime.EnsureProbed();
+		if (!SmsNativeRuntime.EnsureProbed())
+		{
+			RunnerLogger.Error("SMS", "Native runtime is required but unavailable. Set SMS_NATIVE_LIB_DIR correctly.");
+			GetTree().Quit(1);
+			return;
+		}
+		RunnerLogger.Info("SMS", $"Native status: available={SmsNativeRuntime.Available}, sessionApi={SmsNativeRuntime.SessionApiAvailable}");
 		RunnerLogger.Debug("Perf", $"[Ready] settings={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		var theme = GD.Load<Theme>("res://theme.tres");
@@ -1286,7 +1292,7 @@ public partial class Main : Node
 		bool? debugOverride = null;
 		var verboseRequested = false;
 		var smlNativeProbeEnabled = false;
-		var smsNativeProbeEnabled = false;
+		var smsNativeProbeEnabled = true;
 
 		for (var i = 0; i < args.Count; i++)
 		{
@@ -1317,9 +1323,9 @@ public partial class Main : Node
 			if (arg.StartsWith("--sms-native=", StringComparison.Ordinal))
 			{
 				var raw = arg.Substring("--sms-native=".Length);
-				if (TryParseBoolArg(raw, out var parsed))
+				if (TryParseBoolArg(raw, out var parsed) && parsed)
 				{
-					smsNativeProbeEnabled = parsed;
+					smsNativeProbeEnabled = true;
 				}
 				continue;
 			}

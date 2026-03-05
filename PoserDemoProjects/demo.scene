@@ -10,8 +10,8 @@
 
     Character {
         id: char1  name: "man"  src: "res:/assets/models/man.glb"
-        pos: 2.007977, -0.0487986, 0.6557043
-        rot: 9.999999, -56.55, 0.0
+        pos: 2.319911, -0.05384673, 0.6823035
+        rot: 9.999996, -56.55, 0.0
         scale: 1.0, 0.9999998, 1.0
 
         Animation {
@@ -19,7 +19,7 @@
     }
     Character {
         id: char2  name: "man"  src: "res:/assets/models/man.glb"
-        pos: -0.6677406, -0.05384673, 1.432694
+        pos: -0.6677406, -0.05889487, 1.459292
         rot: 0.0, 19.65, 0.0
         scale: 1.0, 1.0, 1.0
 
@@ -34,7 +34,7 @@
     }
     Asset {
         id: prop1  name: "tree"  src: "builtin:greybox/tree"
-        pos: 4.037174, 0.0, -3.477204
+        pos: 2.562767, -0.00000006, -3.477204
         rot: 0.0, 0.0, 0.0
         scale: 1.0, 1.0, 1.0
     }

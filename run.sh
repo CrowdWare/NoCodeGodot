@@ -156,7 +156,7 @@ generate_version() {
 }
 
 GODOT_ARGS=()
-FORGE_RUNNER_ARGS=()
+FORGE_RUNNER_ARGS=(--sms-native=true)
 SETUP_INSTALL="false"
 POSITIONAL_ARGS=()
 for arg in "$@"; do
@@ -171,7 +171,9 @@ for arg in "$@"; do
       FORGE_RUNNER_ARGS+=("$arg")
       ;;
     --sms-native=*)
-      FORGE_RUNNER_ARGS+=("$arg")
+      if [[ "$arg" != "--sms-native=true" ]]; then
+        echo "Ignoring $arg (native SMS is mandatory)."
+      fi
       ;;
     --install=true|--install)
       SETUP_INSTALL="true"
@@ -184,6 +186,12 @@ done
 
 MODE="${POSITIONAL_ARGS[0]:-}"
 load_local_run_include
+
+if [[ -z "${SMS_NATIVE_LIB_DIR:-}" ]]; then
+  if [[ -d "$REPO_ROOT/SMSCore.Native/build" ]]; then
+    export SMS_NATIVE_LIB_DIR="$REPO_ROOT/SMSCore.Native/build"
+  fi
+fi
 
 if [[ -z "$MODE" ]]; then
   echo "Bitte Modus wählen:"
@@ -409,7 +417,7 @@ case "$MODE" in
     setup_tools "$SETUP_INSTALL"
     ;;
   *)
-    echo "Usage: $0 [default|designer|poser|docking|none|setup|docs|theme|build|export|test|manifest|pub|app|release] [--debug=true] [--sml-native=true] [--sms-native=true] [--verbose] [--install=true]"
+    echo "Usage: $0 [default|designer|poser|docking|none|setup|docs|theme|build|export|test|manifest|pub|app|release] [--debug=true] [--sml-native=true] [--verbose] [--install=true]"
     exit 1
     ;;
 esac

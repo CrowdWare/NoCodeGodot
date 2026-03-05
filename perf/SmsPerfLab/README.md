@@ -91,6 +91,13 @@ SMS_NATIVE_LIB_DIR="$(pwd)/SMSCore.Native/build" \
 dotnet run --project perf/SmsPerfLab/SmsPerfLab.csproj -- --sms-conformance
 ```
 
+Native-only mode (for native-first rollout with features not yet in managed):
+
+```bash
+SMS_NATIVE_LIB_DIR="$(pwd)/SMSCore.Native/build" \
+dotnet run --project perf/SmsPerfLab/SmsPerfLab.csproj -- --sms-conformance-native-only
+```
+
 Custom fixtures directory:
 
 ```bash
