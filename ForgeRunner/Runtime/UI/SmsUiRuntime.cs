@@ -1352,7 +1352,7 @@ public sealed class SmsUiRuntime
         try
         {
             var text = File.ReadAllText(promptPath, System.Text.Encoding.UTF8);
-            var doc = new SmlParser(text).ParseDocument();
+            var doc = SmlParseRuntime.ParseDocument(text, context: "SmsUiRuntime");
             SmlNode? root = null;
             foreach (var node in doc.Roots)
             {

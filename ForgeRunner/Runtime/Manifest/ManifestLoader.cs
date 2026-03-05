@@ -62,8 +62,7 @@ public sealed class ManifestLoader
         schema.RegisterKnownNode("Asset");
         schema.WarnOnUnknownNodes = true;
 
-        var parser = new SmlParser(content, schema);
-        var document = parser.ParseDocument();
+        var document = SmlParseRuntime.ParseDocument(content, schema, context: "Manifest");
         foreach (var warning in document.Warnings)
         {
             RunnerLogger.Warn("Manifest", warning);

@@ -70,8 +70,7 @@ public sealed class SmlUiLoader
         var tFetch = sw.ElapsedMilliseconds; sw.Restart();
 
         var schema = SmlSchemaFactory.CreateDefault();
-        var parser = new SmlParser(content, schema);
-        var document = parser.ParseDocument();
+        var document = SmlParseRuntime.ParseDocument(content, schema, context: $"Ui:{System.IO.Path.GetFileName(normalizedUri)}");
         var tParse = sw.ElapsedMilliseconds; sw.Restart();
 
         var localization = await LocalizationStore.LoadAsync(_uriResolver, normalizedUri, cancellationToken: cancellationToken);
@@ -191,8 +190,7 @@ public sealed class SmlUiLoader
             }
 
             var schema = SmlSchemaFactory.CreateDefault();
-            var parser = new SmlParser(content, schema);
-            var doc = parser.ParseDocument();
+            var doc = SmlParseRuntime.ParseDocument(content, schema, context: $"Component:{relativePath}");
 
             foreach (var warning in doc.Warnings)
                 RunnerLogger.Warn("UI", $"[Component '{relativePath}'] {warning}");

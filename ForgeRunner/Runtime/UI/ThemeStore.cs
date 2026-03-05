@@ -163,8 +163,7 @@ public sealed class ThemeStore
         try
         {
             var source = await resolver.LoadTextAsync(relativeFile, baseUri, cancellationToken);
-            var parser = new SmlParser(source, SmlSchemaFactory.CreateDefault());
-            var doc = parser.ParseDocument();
+            var doc = SmlParseRuntime.ParseDocument(source, SmlSchemaFactory.CreateDefault(), context: "ThemeStore");
 
             if (doc.Resources.TryGetValue("Colors", out var colorsNode))
                 foreach (var (key, value) in colorsNode.Properties)

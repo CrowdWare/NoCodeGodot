@@ -55,8 +55,7 @@ public static class UiRuntimeApi
             sceneTree.Root.GuiEmbedSubwindows = false;
 
             var schema = SmlSchemaFactory.CreateDefault();
-            var parser = new SmlParser(smlText, schema);
-            var document = parser.ParseDocument();
+            var document = SmlParseRuntime.ParseDocument(smlText, schema, context: "UiRuntimeApi.CreateWindow");
 
             foreach (var warning in document.Warnings)
             {

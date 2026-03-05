@@ -167,6 +167,9 @@ for arg in "$@"; do
     --debug=*)
       FORGE_RUNNER_ARGS+=("$arg")
       ;;
+    --sml-native=*)
+      FORGE_RUNNER_ARGS+=("$arg")
+      ;;
     --install=true|--install)
       SETUP_INSTALL="true"
       ;;

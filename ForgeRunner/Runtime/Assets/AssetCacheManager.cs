@@ -320,8 +320,7 @@ public sealed class AssetCacheManager
         schema.RegisterKnownNode("Asset");
         schema.WarnOnUnknownNodes = true;
 
-        var parser = new SmlParser(content, schema);
-        var document = parser.ParseDocument();
+        var document = SmlParseRuntime.ParseDocument(content, schema, context: "ManifestCache");
         if (document.Roots.Count == 0)
         {
             return new AssetCacheMetadata();

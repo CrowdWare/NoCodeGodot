@@ -1641,7 +1641,7 @@ public sealed partial class DockingHostControl : Container
         SmlDocument doc;
         try
         {
-            doc = new SmlParser(content).ParseDocument();
+            doc = SmlParseRuntime.ParseDocument(content, context: "DockLayoutState");
         }
         catch (Exception)
         {

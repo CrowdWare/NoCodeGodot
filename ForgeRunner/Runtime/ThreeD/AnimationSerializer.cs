@@ -318,7 +318,7 @@ public static class AnimationSerializer
         SmlDocument doc;
         try
         {
-            doc = new SmlParser(sml).ParseDocument();
+            doc = SmlParseRuntime.ParseDocument(sml, context: "AnimationSerializer");
         }
         catch (Exception ex)
         {

@@ -119,6 +119,7 @@ public partial class Main : Node
 			startupSettings.ShowDebugLogs = options.DebugOverride.Value;
 		}
 		RunnerLogger.Configure(startupSettings.IncludeStackTraces, startupSettings.ShowParserWarnings, startupSettings.ShowDebugLogs, options.VerboseRequested);
+		SmlParseRuntime.Configure(options.SmlNativeProbeEnabled);
 		RunnerLogger.Debug("Perf", $"[Ready] settings={sw.ElapsedMilliseconds}ms"); sw.Restart();
 
 		var theme = GD.Load<Theme>("res://theme.tres");
@@ -822,7 +823,7 @@ public partial class Main : Node
 	private static RuntimePluginDescriptor? ParseRuntimePluginDescriptor(string descriptorPath)
 	{
 		var text = File.ReadAllText(descriptorPath, Encoding.UTF8);
-		var doc = new SmlParser(text).ParseDocument();
+		var doc = SmlParseRuntime.ParseDocument(text, context: "PluginDescriptor");
 		SmlNode? pluginNode = null;
 		foreach (var node in doc.Roots)
 		{
@@ -876,8 +877,7 @@ public partial class Main : Node
 	{
 		var content = File.ReadAllText(panelSmlPath, Encoding.UTF8);
 		var schema = SmlSchemaFactory.CreateDefault();
-		var parser = new SmlParser(content, schema);
-		var document = parser.ParseDocument();
+		var document = SmlParseRuntime.ParseDocument(content, schema, context: "PluginPanel");
 		foreach (var warning in document.Warnings)
 		{
 			RunnerLogger.ParserWarning(warning);
@@ -1300,6 +1300,7 @@ public partial class Main : Node
 		var resetStartUrl = false;
 		bool? debugOverride = null;
 		var verboseRequested = false;
+		var smlNativeProbeEnabled = false;
 
 		for (var i = 0; i < args.Count; i++)
 		{
@@ -1316,6 +1317,15 @@ public partial class Main : Node
 			if (arg == "--verbose")
 			{
 				verboseRequested = true;
+				continue;
+			}
+			if (arg.StartsWith("--sml-native=", StringComparison.Ordinal))
+			{
+				var raw = arg.Substring("--sml-native=".Length);
+				if (TryParseBoolArg(raw, out var parsed))
+				{
+					smlNativeProbeEnabled = parsed;
+				}
 				continue;
 			}
 
@@ -1346,7 +1356,7 @@ public partial class Main : Node
 			}
 		}
 
-		return new StartupOptions(urlOverride, clearCache, resetStartUrl, debugOverride, verboseRequested);
+		return new StartupOptions(urlOverride, clearCache, resetStartUrl, debugOverride, verboseRequested, smlNativeProbeEnabled);
 	}
 
 	private static bool TryParseBoolArg(string raw, out bool value)
@@ -1447,7 +1457,7 @@ public partial class Main : Node
 		File.Move(temp, path);
 	}
 
-	private sealed record StartupOptions(string? UrlOverride, bool ClearCache, bool ResetStartUrl, bool? DebugOverride, bool VerboseRequested);
+	private sealed record StartupOptions(string? UrlOverride, bool ClearCache, bool ResetStartUrl, bool? DebugOverride, bool VerboseRequested, bool SmlNativeProbeEnabled);
 
 	private sealed class StartupSettings
 	{
@@ -1464,8 +1474,7 @@ public partial class Main : Node
 		schema.RegisterKnownNode("StartupSettings");
 		schema.WarnOnUnknownNodes = true;
 
-		var parser = new SmlParser(content, schema);
-		var document = parser.ParseDocument();
+		var document = SmlParseRuntime.ParseDocument(content, schema, context: "StartupSettings");
 
 		if (document.Roots.Count == 0)
 		{
@@ -2309,7 +2318,7 @@ public partial class Main : Node
 		SmlDocument doc;
 		try
 		{
-			doc = new SmlParser(content).ParseDocument();
+			doc = SmlParseRuntime.ParseDocument(content, context: "UiSessionState");
 		}
 		catch
 		{

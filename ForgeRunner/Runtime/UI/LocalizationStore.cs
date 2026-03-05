@@ -109,8 +109,7 @@ public sealed class LocalizationStore
     private static Dictionary<string, string> ParseStringsMap(string source, string fileName)
     {
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var parser = new SmlParser(source, SmlSchemaFactory.CreateDefault());
-        var document = parser.ParseDocument();
+        var document = SmlParseRuntime.ParseDocument(source, SmlSchemaFactory.CreateDefault(), context: "LocalizationStore");
 
         // Strings blocks are parsed as resource namespaces (document.Resources), not roots.
         // Fall back to document.Roots for compatibility with plain-node strings files.
