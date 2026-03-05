@@ -6,8 +6,10 @@ on:
     branches: [main]
     paths:
       - "docs/**"
+      - "CWUP/**"
       - "scripts/generate_manifest.py"
       - "scripts/build_manifest.sh"
+      - ".github/workflows/generate-manifest.yml"
   workflow_dispatch:
 
 jobs:
