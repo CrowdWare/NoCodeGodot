@@ -29,4 +29,4 @@ jobs:
         run: bash build_manifest.sh
 
       - name: Check manifests are up to date
-        run: git diff --exit-code -- docs/SampleProject/manifest.sml docs/Default/manifest.sml
+        run: git diff --exit-code -- docs/Default/manifest.sml docs/ForgeDesigner/manifest.sml
