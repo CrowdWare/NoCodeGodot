@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -24,6 +25,8 @@ enum class TokenType {
     Else,
     While,
     Fun,
+    Data,
+    Class,
     Return,
     LeftParen,
     RightParen,
@@ -31,6 +34,7 @@ enum class TokenType {
     RightBrace,
     LeftBracket,
     RightBracket,
+    Dot,
     Comma,
     Semicolon,
     Assign,
@@ -81,6 +85,9 @@ public:
                     break;
                 case ']':
                     out.push_back({TokenType::RightBracket, "]"});
+                    break;
+                case '.':
+                    out.push_back({TokenType::Dot, "."});
                     break;
                 case ',':
                     out.push_back({TokenType::Comma, ","});
@@ -183,6 +190,8 @@ private:
         if (text == "else") return {TokenType::Else, text};
         if (text == "while") return {TokenType::While, text};
         if (text == "fun") return {TokenType::Fun, text};
+        if (text == "data") return {TokenType::Data, text};
+        if (text == "class") return {TokenType::Class, text};
         if (text == "return") return {TokenType::Return, text};
         return {TokenType::Identifier, text};
     }
@@ -192,13 +201,16 @@ private:
 };
 
 struct FunctionDeclStmt;
+struct DataClassDeclStmt;
 
 struct Value {
-    enum class Kind { Int, Array, Null };
+    enum class Kind { Int, Array, Object, Null };
 
     Kind kind = Kind::Null;
     std::int64_t int_value = 0;
     std::shared_ptr<std::vector<Value>> array;
+    std::string class_name;
+    std::shared_ptr<std::unordered_map<std::string, Value>> object_fields;
 
     static Value Int(std::int64_t value) {
         Value v;
@@ -218,9 +230,18 @@ struct Value {
         return Value{};
     }
 
+    static Value Object(std::string class_name, std::unordered_map<std::string, Value> fields) {
+        Value v;
+        v.kind = Kind::Object;
+        v.class_name = std::move(class_name);
+        v.object_fields = std::make_shared<std::unordered_map<std::string, Value>>(std::move(fields));
+        return v;
+    }
+
     bool truthy() const {
         if (kind == Kind::Int) return int_value != 0;
         if (kind == Kind::Array) return array && !array->empty();
+        if (kind == Kind::Object) return object_fields && !object_fields->empty();
         return false;
     }
 
@@ -229,6 +250,31 @@ struct Value {
             throw std::runtime_error(where + " expects integer value.");
         }
         return int_value;
+    }
+
+    bool operator==(const Value& other) const {
+        if (kind != other.kind) {
+            return false;
+        }
+
+        switch (kind) {
+            case Kind::Int:
+                return int_value == other.int_value;
+            case Kind::Null:
+                return true;
+            case Kind::Array:
+                if (!array || !other.array) {
+                    return array == other.array;
+                }
+                return *array == *other.array;
+            case Kind::Object:
+                if (!object_fields || !other.object_fields) {
+                    return object_fields == other.object_fields;
+                }
+                return class_name == other.class_name && *object_fields == *other.object_fields;
+        }
+
+        return false;
     }
 };
 
@@ -273,6 +319,16 @@ public:
         return it == r->functions_.end() ? nullptr : it->second;
     }
 
+    void define_data_class(const std::string& name, const DataClassDeclStmt* decl) {
+        root()->data_classes_[name] = decl;
+    }
+
+    const DataClassDeclStmt* get_data_class(const std::string& name) const {
+        const auto* r = root();
+        const auto it = r->data_classes_.find(name);
+        return it == r->data_classes_.end() ? nullptr : it->second;
+    }
+
 private:
     Env* root() {
         return parent_ == nullptr ? this : parent_->root();
@@ -285,6 +341,7 @@ private:
     Env* parent_ = nullptr;
     std::unordered_map<std::string, Value> vars_;
     std::unordered_map<std::string, const FunctionDeclStmt*> functions_;
+    std::unordered_map<std::string, const DataClassDeclStmt*> data_classes_;
 };
 
 struct ReturnSignal final : std::exception {
@@ -345,6 +402,84 @@ struct ArrayAccessExpr final : Expr {
     std::unique_ptr<Expr> index_;
 };
 
+struct MemberAccessExpr final : Expr {
+    MemberAccessExpr(std::unique_ptr<Expr> receiver, std::string member)
+        : receiver_(std::move(receiver)), member_(std::move(member)) {}
+
+    Value eval(Env& env) const override {
+        auto receiver = receiver_->eval(env);
+        if (receiver.kind == Value::Kind::Array && member_ == "size" && receiver.array) {
+            return Value::Int(static_cast<std::int64_t>(receiver.array->size()));
+        }
+
+        if (receiver.kind != Value::Kind::Object || !receiver.object_fields) {
+            throw std::runtime_error("Member access expects object receiver.");
+        }
+
+        const auto it = receiver.object_fields->find(member_);
+        if (it == receiver.object_fields->end()) {
+            return Value::Null();
+        }
+        return it->second;
+    }
+
+    std::unique_ptr<Expr> receiver_;
+    std::string member_;
+};
+
+struct MethodCallExpr final : Expr {
+    MethodCallExpr(std::unique_ptr<Expr> receiver, std::string method, std::vector<std::unique_ptr<Expr>> args)
+        : receiver_(std::move(receiver)), method_(std::move(method)), args_(std::move(args)) {}
+
+    Value eval(Env& env) const override {
+        auto receiver = receiver_->eval(env);
+        std::vector<Value> args;
+        args.reserve(args_.size());
+        for (const auto& arg : args_) {
+            args.push_back(arg->eval(env));
+        }
+
+        if (receiver.kind == Value::Kind::Array && receiver.array) {
+            if (method_ == "add" && args.size() == 1) {
+                receiver.array->push_back(args[0]);
+                return Value::Null();
+            }
+
+            if (method_ == "remove" && args.size() == 1) {
+                const auto it = std::find(receiver.array->begin(), receiver.array->end(), args[0]);
+                if (it == receiver.array->end()) {
+                    return Value::Int(0);
+                }
+                receiver.array->erase(it);
+                return Value::Int(1);
+            }
+
+            if (method_ == "removeAt" && args.size() == 1) {
+                const auto index = args[0].as_int("removeAt index");
+                if (index < 0 || static_cast<std::size_t>(index) >= receiver.array->size()) {
+                    return Value::Null();
+                }
+                auto value = (*receiver.array)[static_cast<std::size_t>(index)];
+                receiver.array->erase(receiver.array->begin() + static_cast<std::ptrdiff_t>(index));
+                return value;
+            }
+
+            if (method_ == "contains" && args.size() == 1) {
+                const auto it = std::find(receiver.array->begin(), receiver.array->end(), args[0]);
+                return Value::Int(it != receiver.array->end() ? 1 : 0);
+            }
+
+            throw std::runtime_error("Unknown array method: " + method_);
+        }
+
+        throw std::runtime_error("Method call expects supported receiver.");
+    }
+
+    std::unique_ptr<Expr> receiver_;
+    std::string method_;
+    std::vector<std::unique_ptr<Expr>> args_;
+};
+
 struct BinaryExpr final : Expr {
     BinaryExpr(TokenType op, std::unique_ptr<Expr> left, std::unique_ptr<Expr> right)
         : oper(op), left_(std::move(left)), right_(std::move(right)) {}
@@ -392,6 +527,15 @@ struct FunctionDeclStmt final : Stmt {
     }
 };
 
+struct DataClassDeclStmt final : Stmt {
+    std::string name;
+    std::vector<std::string> fields;
+
+    void execute(Env& env, Value&) const override {
+        env.define_data_class(name, this);
+    }
+};
+
 struct CallExpr final : Expr {
     CallExpr(std::string n, std::vector<std::unique_ptr<Expr>> args)
         : name(std::move(n)), args_(std::move(args)) {}
@@ -410,7 +554,23 @@ struct CallExpr final : Expr {
 
         const auto* fn = env.get_function(name);
         if (fn == nullptr) {
-            throw std::runtime_error("Unknown function: " + name);
+            const auto* data_class = env.get_data_class(name);
+            if (data_class == nullptr) {
+                throw std::runtime_error("Unknown function: " + name);
+            }
+
+            if (args_.size() != data_class->fields.size()) {
+                throw std::runtime_error("Data class '" + name + "' expects "
+                    + std::to_string(data_class->fields.size()) + " arg(s), got "
+                    + std::to_string(args_.size()) + ".");
+            }
+
+            std::unordered_map<std::string, Value> fields;
+            fields.reserve(data_class->fields.size());
+            for (std::size_t i = 0; i < args_.size(); i++) {
+                fields[data_class->fields[i]] = args_[i]->eval(env);
+            }
+            return Value::Object(data_class->name, std::move(fields));
         }
 
         if (args_.size() != fn->params.size()) {
@@ -447,49 +607,52 @@ struct VarDeclStmt final : Stmt {
     std::unique_ptr<Expr> value;
 };
 
-enum class AssignTargetKind {
-    Variable,
-    ArrayElement
-};
-
 struct AssignStmt final : Stmt {
-    AssignStmt(AssignTargetKind kind, std::string name, std::unique_ptr<Expr> index, std::unique_ptr<Expr> value)
-        : target_kind(kind), target_name(std::move(name)), index_expr(std::move(index)), value_expr(std::move(value)) {}
+    AssignStmt(std::unique_ptr<Expr> target, std::unique_ptr<Expr> value)
+        : target_expr(std::move(target)), value_expr(std::move(value)) {}
 
     void execute(Env& env, Value&) const override {
         const auto value = value_expr->eval(env);
-
-        if (target_kind == AssignTargetKind::Variable) {
-            if (!env.assign_var(target_name, value)) {
-                throw std::runtime_error("Assignment to unknown variable: " + target_name);
+        if (const auto* variable = dynamic_cast<const VarExpr*>(target_expr.get())) {
+            if (!env.assign_var(variable->name, value)) {
+                throw std::runtime_error("Assignment to unknown variable: " + variable->name);
             }
             return;
         }
 
-        auto receiver = env.get_var(target_name);
-        if (receiver.kind != Value::Kind::Array || !receiver.array) {
-            throw std::runtime_error("Array assignment expects array receiver: " + target_name);
+        if (const auto* member = dynamic_cast<const MemberAccessExpr*>(target_expr.get())) {
+            auto receiver = member->receiver_->eval(env);
+            if (receiver.kind != Value::Kind::Object || !receiver.object_fields) {
+                throw std::runtime_error("Member assignment expects object receiver.");
+            }
+            (*receiver.object_fields)[member->member_] = value;
+            return;
         }
 
-        const auto idx = index_expr->eval(env).as_int("Array assignment index");
-        if (idx < 0) {
-            throw std::runtime_error("Array assignment index must be >= 0.");
+        if (const auto* array_access = dynamic_cast<const ArrayAccessExpr*>(target_expr.get())) {
+            auto receiver = array_access->receiver_->eval(env);
+            if (receiver.kind != Value::Kind::Array || !receiver.array) {
+                throw std::runtime_error("Array assignment expects array receiver.");
+            }
+
+            const auto idx = array_access->index_->eval(env).as_int("Array assignment index");
+            if (idx < 0) {
+                throw std::runtime_error("Array assignment index must be >= 0.");
+            }
+
+            const auto target = static_cast<std::size_t>(idx);
+            if (target >= receiver.array->size()) {
+                receiver.array->resize(target + 1, Value::Null());
+            }
+
+            (*receiver.array)[target] = value;
+            return;
         }
 
-        const auto target = static_cast<std::size_t>(idx);
-        if (target >= receiver.array->size()) {
-            receiver.array->resize(target + 1, Value::Null());
-        }
-
-        (*receiver.array)[target] = value;
-        if (!env.assign_var(target_name, receiver)) {
-            throw std::runtime_error("Assignment to unknown array variable: " + target_name);
-        }
+        throw std::runtime_error("Invalid assignment target.");
     }
 
-    AssignTargetKind target_kind;
-    std::string target_name;
-    std::unique_ptr<Expr> index_expr;
+    std::unique_ptr<Expr> target_expr;
     std::unique_ptr<Expr> value_expr;
 };
 
@@ -587,6 +750,7 @@ public:
 private:
     std::unique_ptr<Stmt> parse_statement() {
         if (match(TokenType::Var)) return parse_var_decl(false);
+        if (match(TokenType::Data)) return parse_data_class_decl();
         if (match(TokenType::For)) return parse_for();
         if (match(TokenType::While)) return parse_while();
         if (match(TokenType::If)) return parse_if();
@@ -615,23 +779,66 @@ private:
         return std::make_unique<VarDeclStmt>(name, std::move(value));
     }
 
-    std::unique_ptr<Stmt> parse_assignment(bool inside_for_clause) {
-        const auto name = consume(TokenType::Identifier, "Expected assignment target").text;
+    std::unique_ptr<Stmt> parse_data_class_decl() {
+        consume(TokenType::Class, "Expected 'class' after 'data'");
+        const auto name = consume(TokenType::Identifier, "Expected data class name").text;
+        consume(TokenType::LeftParen, "Expected '(' after data class name");
 
-        AssignTargetKind kind = AssignTargetKind::Variable;
-        std::unique_ptr<Expr> index;
-        if (match(TokenType::LeftBracket)) {
-            kind = AssignTargetKind::ArrayElement;
-            index = parse_expression();
-            consume(TokenType::RightBracket, "Expected ']' after assignment index");
+        std::vector<std::string> fields;
+        if (!check(TokenType::RightParen)) {
+            do {
+                fields.push_back(consume(TokenType::Identifier, "Expected field name").text);
+            } while (match(TokenType::Comma));
         }
+
+        consume(TokenType::RightParen, "Expected ')' after data class fields");
+        match(TokenType::Semicolon);
+
+        auto data = std::make_unique<DataClassDeclStmt>();
+        data->name = name;
+        data->fields = std::move(fields);
+        return data;
+    }
+
+    std::unique_ptr<Stmt> parse_assignment(bool inside_for_clause) {
+        auto target = parse_assignment_target();
 
         consume(TokenType::Assign, "Expected '=' in assignment");
         auto value = parse_expression();
         if (!inside_for_clause) {
             match(TokenType::Semicolon);
         }
-        return std::make_unique<AssignStmt>(kind, name, std::move(index), std::move(value));
+        return std::make_unique<AssignStmt>(std::move(target), std::move(value));
+    }
+
+    std::unique_ptr<Expr> parse_assignment_target() {
+        std::unique_ptr<Expr> target =
+            std::make_unique<VarExpr>(consume(TokenType::Identifier, "Expected assignment target").text);
+
+        while (true) {
+            if (match(TokenType::Dot)) {
+                const auto member = consume(TokenType::Identifier, "Expected property name after '.'").text;
+                target = std::make_unique<MemberAccessExpr>(std::move(target), member);
+                continue;
+            }
+
+            if (match(TokenType::LeftBracket)) {
+                auto index = parse_expression();
+                consume(TokenType::RightBracket, "Expected ']' after assignment index");
+                target = std::make_unique<ArrayAccessExpr>(std::move(target), std::move(index));
+                continue;
+            }
+
+            break;
+        }
+
+        if (!dynamic_cast<VarExpr*>(target.get())
+            && !dynamic_cast<MemberAccessExpr*>(target.get())
+            && !dynamic_cast<ArrayAccessExpr*>(target.get())) {
+            throw std::runtime_error("Invalid assignment target.");
+        }
+
+        return target;
     }
 
     std::unique_ptr<Stmt> parse_expr_stmt() {
@@ -832,6 +1039,17 @@ private:
                     expr = std::make_unique<CallExpr>(var->name, std::move(args));
                 } else {
                     throw std::runtime_error("Invalid call target.");
+                }
+                continue;
+            }
+
+            if (match(TokenType::Dot)) {
+                const auto member = consume(TokenType::Identifier, "Expected property name after '.'").text;
+                if (match(TokenType::LeftParen)) {
+                    auto args = parse_arguments();
+                    expr = std::make_unique<MethodCallExpr>(std::move(expr), member, std::move(args));
+                } else {
+                    expr = std::make_unique<MemberAccessExpr>(std::move(expr), member);
                 }
                 continue;
             }
@@ -1041,11 +1259,16 @@ extern "C" int sms_native_execute(const char* source, std::int64_t* out_result, 
         for (const auto& stmt : program) {
             if (const auto* fn = dynamic_cast<const FunctionDeclStmt*>(stmt.get())) {
                 env.define_function(fn->name, fn);
+                continue;
+            }
+            if (const auto* data = dynamic_cast<const DataClassDeclStmt*>(stmt.get())) {
+                env.define_data_class(data->name, data);
             }
         }
 
         for (const auto& stmt : program) {
-            if (dynamic_cast<const FunctionDeclStmt*>(stmt.get()) != nullptr) {
+            if (dynamic_cast<const FunctionDeclStmt*>(stmt.get()) != nullptr
+                || dynamic_cast<const DataClassDeclStmt*>(stmt.get()) != nullptr) {
                 continue;
             }
             stmt->execute(env, last);
