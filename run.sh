@@ -135,7 +135,7 @@ try_local_mode_override() {
   fi
 
   case "$MODE" in
-    release|docs|test|publish|export|app|poser)
+    release|docs|test|export|app|poser)
       forge_local_handle_mode "$MODE" "${POSITIONAL_ARGS[@]:1}"
       return $?
       ;;
@@ -193,7 +193,7 @@ if [[ -z "$MODE" ]]; then
   echo " 10) export    -> macOS Release bauen (Godot export)"
   echo " 11) test      -> ForgeCli Build + alle UnitTests"
   echo " 12) manifest  -> manifest.sml für alle Docs generieren"
-  echo " 13) publish   -> manifest + git commit + git push"
+  echo " 13) pub       -> manifest + git commit + git push (msg required)"
   echo " 14) app       -> ForgeRunner.app starten (Release)"
   echo " 15) release   -> version setzen + export + tag + GitHub Release (default: pre)"
   read -r -p "Auswahl [1-15]: " CHOICE
@@ -211,7 +211,7 @@ if [[ -z "$MODE" ]]; then
     10) MODE="export" ;;
     11) MODE="test" ;;
     12) MODE="manifest" ;;
-    13) MODE="publish" ;;
+    13) MODE="pub" ;;
     14) MODE="app" ;;
     15) MODE="release" ;;
     *)
@@ -295,11 +295,17 @@ case "$MODE" in
   manifest)
     bash "$REPO_ROOT/scripts/build_manifest.sh"
     ;;
-  publish)
+  pub)
+    if [[ -z "${POSITIONAL_ARGS[1]:-}" ]]; then
+      echo "ERROR: Missing commit message." >&2
+      echo "Usage: ./run.sh pub \"something has changed\"" >&2
+      exit 1
+    fi
+
     bash "$REPO_ROOT/scripts/build_manifest.sh"
 
     cd "$REPO_ROOT"
-    COMMIT_MSG="${POSITIONAL_ARGS[1]:-"manifest: rebuild $(date +%Y-%m-%d)"}"
+    COMMIT_MSG="${POSITIONAL_ARGS[1]}"
     git add .
     git commit -m "$COMMIT_MSG"
     git push
@@ -397,7 +403,7 @@ case "$MODE" in
     setup_tools "$SETUP_INSTALL"
     ;;
   *)
-    echo "Usage: $0 [default|designer|poser|docking|none|setup|docs|theme|build|export|test|manifest|publish|app|release] [--debug=true] [--verbose] [--install=true]"
+    echo "Usage: $0 [default|designer|poser|docking|none|setup|docs|theme|build|export|test|manifest|pub|app|release] [--debug=true] [--verbose] [--install=true]"
     exit 1
     ;;
 esac
