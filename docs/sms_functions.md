@@ -43,6 +43,9 @@ Returns the translation for the given key in the current locale. Falls back to t
 
 ## Logging
 
+### log.debug(message: String)
+Logs a debug message when debug logging is enabled in startup settings.
+
 ### log.error(message: String)
 Logs an error message.
 
@@ -57,11 +60,17 @@ Logs a warning message.
 
 ## OS
 
+### os.callStatic(assemblyPath: String, typeName: String, methodName: String, ...args)
+Loads a .NET assembly and invokes a static method by reflection. Returns the method result converted to an SMS value.
+
 ### os.getArch()
 Returns the current process architecture (for example: arm64 or x64).
 
 ### os.getCountry()
 Returns the current two-letter ISO country code (for example: DE).
+
+### os.getEnv(name: String)
+Returns the process environment variable value or empty string if unset.
 
 ### os.getLanguage()
 Returns the current two-letter ISO language code (for example: de).
@@ -86,6 +95,12 @@ Returns true when running on a mobile platform (currently android), otherwise fa
 
 ### os.now()
 Returns the current Unix epoch time in milliseconds.
+
+### os.resolvePath(path: String)
+Resolves res:/, user:/ and relative paths to an absolute filesystem path.
+
+### os.setEnv(name: String, value: String)
+Sets a process-level environment variable for the running app session. Not persisted system-wide.
 
 ## UI
 

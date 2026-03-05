@@ -2,12 +2,16 @@
 
 Standalone performance lab for:
 
-- `SML` parsing (managed baseline)
-- `SMS` interpreting in C# (`SMSCore`)
+- `SML` parsing (managed baseline from external `SMLCore` repo)
+- `SMS` interpreting in C# (managed baseline from external `SMSCore` repo)
 - `SML` parsing in C++ (native spike)
 - `SMS` interpreting in C++ (native spike)
 
 This lab is intentionally independent from `ForgeRunner` runtime/UI integration.
+
+Managed baseline dependency note:
+- `perf/SmsPerfLab/SmsPerfLab.csproj` references `../../SMLCore/SMLCore.csproj` and `../../SMSCore/SMSCore.csproj`.
+- Expected layout: `SMLCore` and `SMSCore` live inside the `Forge` repository root.
 
 ## Structure
 

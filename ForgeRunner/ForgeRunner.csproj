@@ -14,8 +14,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ForgeAiLib\ForgeAiLib.csproj" />
-    <ProjectReference Include="..\SMLCore\SMLCore.csproj" />
-    <ProjectReference Include="..\SMSCore\SMSCore.csproj" />
+    <ProjectReference Include="..\..\SMLCore\SMLCore.csproj" />
+    <ProjectReference Include="..\..\SMSCore\SMSCore.csproj" />
   </ItemGroup>
 
   <ItemGroup>

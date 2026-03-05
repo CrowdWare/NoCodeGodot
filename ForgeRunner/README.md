@@ -318,7 +318,7 @@ This keeps SML declarative while wiring behavior centrally in C#.
 
 ## URI Resolver (SMLCore + Runner)
 
-The runtime now uses a shared URI resolver core in `SMLCore` (`SmlUriResolver`) and a Runner adapter (`RunnerUriResolver`) for I/O and caching.
+The runtime uses the shared URI resolver core from the external `SMLCore` repo (`SmlUriResolver`) and a Runner adapter (`RunnerUriResolver`) for I/O and caching.
 
 ### Supported URI schemes
 
@@ -377,7 +377,7 @@ The first backlog task is now implemented in the Runner as a startup pipeline:
 
 ### New runtime components
 
-- `Runtime/Sml/SmlParser.cs` – lightweight SML parser (C++ parser semantics adapted to C#)
+- `Runtime/Sml/SmlParseRuntime.cs` – Runner-side parse/probe runtime that integrates with the shared `SMLCore` parser
 - `Runtime/Manifest/ManifestLoader.cs` – HTTP fetch + manifest validation
 - `Runtime/Assets/AssetCacheManager.cs` – cache diff, delta download, metadata persistence
 - `Runtime/Logging/RunnerLogger.cs` – structured subsystem logging wrapper

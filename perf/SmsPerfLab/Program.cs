@@ -124,7 +124,8 @@ internal static class Program
         }
         else
         {
-            Console.WriteLine("  SML parse (native C++): skipped (symbol not found)");
+            var reason = string.IsNullOrWhiteSpace(NativeSmlBridge.LastError) ? "symbol not found" : NativeSmlBridge.LastError;
+            Console.WriteLine($"  SML parse (native C++): skipped ({reason})");
         }
 
         PrintRow("SMS interpret (managed)", smsManagedResult.ElapsedMs, iterations);
@@ -136,7 +137,8 @@ internal static class Program
         }
         else
         {
-            Console.WriteLine("  SMS interpret (native C++): skipped (library not found)");
+            var reason = string.IsNullOrWhiteSpace(NativeSmsBridge.LastError) ? "library not found" : NativeSmsBridge.LastError;
+            Console.WriteLine($"  SMS interpret (native C++): skipped ({reason})");
             Console.WriteLine("  set SMS_NATIVE_LIB_DIR to enable native benchmark");
         }
 
