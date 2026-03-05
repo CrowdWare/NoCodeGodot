@@ -19,6 +19,7 @@ enum class TokenType {
     Number,
     Var,
     For,
+    In,
     If,
     Else,
     While,
@@ -28,6 +29,8 @@ enum class TokenType {
     RightParen,
     LeftBrace,
     RightBrace,
+    LeftBracket,
+    RightBracket,
     Comma,
     Semicolon,
     Assign,
@@ -72,6 +75,12 @@ public:
                     break;
                 case '}':
                     out.push_back({TokenType::RightBrace, "}"});
+                    break;
+                case '[':
+                    out.push_back({TokenType::LeftBracket, "["});
+                    break;
+                case ']':
+                    out.push_back({TokenType::RightBracket, "]"});
                     break;
                 case ',':
                     out.push_back({TokenType::Comma, ","});
@@ -132,9 +141,7 @@ public:
 
 private:
     bool is_at_end() const { return index_ >= source_.size(); }
-
     char advance() { return source_[index_++]; }
-
     char peek() const { return is_at_end() ? '\0' : source_[index_]; }
 
     void skip_whitespace() {
@@ -171,6 +178,7 @@ private:
 
         if (text == "var") return {TokenType::Var, text};
         if (text == "for") return {TokenType::For, text};
+        if (text == "in") return {TokenType::In, text};
         if (text == "if") return {TokenType::If, text};
         if (text == "else") return {TokenType::Else, text};
         if (text == "while") return {TokenType::While, text};
@@ -185,15 +193,54 @@ private:
 
 struct FunctionDeclStmt;
 
+struct Value {
+    enum class Kind { Int, Array, Null };
+
+    Kind kind = Kind::Null;
+    std::int64_t int_value = 0;
+    std::shared_ptr<std::vector<Value>> array;
+
+    static Value Int(std::int64_t value) {
+        Value v;
+        v.kind = Kind::Int;
+        v.int_value = value;
+        return v;
+    }
+
+    static Value Array(std::vector<Value> elements) {
+        Value v;
+        v.kind = Kind::Array;
+        v.array = std::make_shared<std::vector<Value>>(std::move(elements));
+        return v;
+    }
+
+    static Value Null() {
+        return Value{};
+    }
+
+    bool truthy() const {
+        if (kind == Kind::Int) return int_value != 0;
+        if (kind == Kind::Array) return array && !array->empty();
+        return false;
+    }
+
+    std::int64_t as_int(const std::string& where) const {
+        if (kind != Kind::Int) {
+            throw std::runtime_error(where + " expects integer value.");
+        }
+        return int_value;
+    }
+};
+
 class Env {
 public:
     explicit Env(Env* parent = nullptr) : parent_(parent) {}
 
-    void define_var(const std::string& name, std::int64_t value) {
+    void define_var(const std::string& name, const Value& value) {
         vars_[name] = value;
     }
 
-    std::int64_t get_var(const std::string& name) const {
+    Value get_var(const std::string& name) const {
         const auto it = vars_.find(name);
         if (it != vars_.end()) {
             return it->second;
@@ -204,7 +251,7 @@ public:
         throw std::runtime_error("Unknown variable: " + name);
     }
 
-    bool assign_var(const std::string& name, std::int64_t value) {
+    bool assign_var(const std::string& name, const Value& value) {
         const auto it = vars_.find(name);
         if (it != vars_.end()) {
             it->second = value;
@@ -236,63 +283,100 @@ private:
     }
 
     Env* parent_ = nullptr;
-    std::unordered_map<std::string, std::int64_t> vars_;
+    std::unordered_map<std::string, Value> vars_;
     std::unordered_map<std::string, const FunctionDeclStmt*> functions_;
 };
 
 struct ReturnSignal final : std::exception {
-    explicit ReturnSignal(std::int64_t v) : value(v) {}
-    std::int64_t value;
+    explicit ReturnSignal(Value v) : value(std::move(v)) {}
+    Value value;
 };
 
 struct Expr {
     virtual ~Expr() = default;
-    virtual std::int64_t eval(Env& env) const = 0;
+    virtual Value eval(Env& env) const = 0;
 };
 
 struct NumberExpr final : Expr {
     explicit NumberExpr(std::int64_t v) : value(v) {}
-    std::int64_t eval(Env&) const override { return value; }
+    Value eval(Env&) const override { return Value::Int(value); }
     std::int64_t value;
 };
 
 struct VarExpr final : Expr {
     explicit VarExpr(std::string n) : name(std::move(n)) {}
-    std::int64_t eval(Env& env) const override { return env.get_var(name); }
+    Value eval(Env& env) const override { return env.get_var(name); }
     std::string name;
 };
 
-struct BinaryExpr final : Expr {
-    BinaryExpr(TokenType op, std::unique_ptr<Expr> l, std::unique_ptr<Expr> r)
-        : oper(op), left(std::move(l)), right(std::move(r)) {}
+struct ArrayLiteralExpr final : Expr {
+    explicit ArrayLiteralExpr(std::vector<std::unique_ptr<Expr>> elements)
+        : elements_(std::move(elements)) {}
 
-    std::int64_t eval(Env& env) const override {
-        const auto lv = left->eval(env);
-        const auto rv = right->eval(env);
+    Value eval(Env& env) const override {
+        std::vector<Value> out;
+        out.reserve(elements_.size());
+        for (const auto& expr : elements_) {
+            out.push_back(expr->eval(env));
+        }
+        return Value::Array(std::move(out));
+    }
+
+    std::vector<std::unique_ptr<Expr>> elements_;
+};
+
+struct ArrayAccessExpr final : Expr {
+    ArrayAccessExpr(std::unique_ptr<Expr> receiver, std::unique_ptr<Expr> index)
+        : receiver_(std::move(receiver)), index_(std::move(index)) {}
+
+    Value eval(Env& env) const override {
+        auto receiver = receiver_->eval(env);
+        auto index = index_->eval(env).as_int("Array index");
+        if (receiver.kind != Value::Kind::Array || !receiver.array) {
+            throw std::runtime_error("Array access expects array receiver.");
+        }
+        if (index < 0 || static_cast<std::size_t>(index) >= receiver.array->size()) {
+            return Value::Null();
+        }
+        return (*receiver.array)[static_cast<std::size_t>(index)];
+    }
+
+    std::unique_ptr<Expr> receiver_;
+    std::unique_ptr<Expr> index_;
+};
+
+struct BinaryExpr final : Expr {
+    BinaryExpr(TokenType op, std::unique_ptr<Expr> left, std::unique_ptr<Expr> right)
+        : oper(op), left_(std::move(left)), right_(std::move(right)) {}
+
+    Value eval(Env& env) const override {
+        const auto left = left_->eval(env).as_int("Binary expression");
+        const auto right = right_->eval(env).as_int("Binary expression");
         switch (oper) {
-            case TokenType::Plus: return lv + rv;
-            case TokenType::Minus: return lv - rv;
-            case TokenType::Less: return lv < rv ? 1 : 0;
-            case TokenType::LessEqual: return lv <= rv ? 1 : 0;
-            case TokenType::Greater: return lv > rv ? 1 : 0;
-            case TokenType::GreaterEqual: return lv >= rv ? 1 : 0;
-            case TokenType::EqualEqual: return lv == rv ? 1 : 0;
-            case TokenType::BangEqual: return lv != rv ? 1 : 0;
-            default: throw std::runtime_error("Unsupported operator.");
+            case TokenType::Plus: return Value::Int(left + right);
+            case TokenType::Minus: return Value::Int(left - right);
+            case TokenType::Less: return Value::Int(left < right ? 1 : 0);
+            case TokenType::LessEqual: return Value::Int(left <= right ? 1 : 0);
+            case TokenType::Greater: return Value::Int(left > right ? 1 : 0);
+            case TokenType::GreaterEqual: return Value::Int(left >= right ? 1 : 0);
+            case TokenType::EqualEqual: return Value::Int(left == right ? 1 : 0);
+            case TokenType::BangEqual: return Value::Int(left != right ? 1 : 0);
+            default:
+                throw std::runtime_error("Unsupported operator.");
         }
     }
 
     TokenType oper;
-    std::unique_ptr<Expr> left;
-    std::unique_ptr<Expr> right;
+    std::unique_ptr<Expr> left_;
+    std::unique_ptr<Expr> right_;
 };
 
 struct Stmt {
     virtual ~Stmt() = default;
-    virtual void execute(Env& env, std::int64_t& last) const = 0;
+    virtual void execute(Env& env, Value& last) const = 0;
 };
 
-static void execute_statements(const std::vector<std::unique_ptr<Stmt>>& body, Env& env, std::int64_t& last) {
+static void execute_statements(const std::vector<std::unique_ptr<Stmt>>& body, Env& env, Value& last) {
     for (const auto& stmt : body) {
         stmt->execute(env, last);
     }
@@ -303,33 +387,44 @@ struct FunctionDeclStmt final : Stmt {
     std::vector<std::string> params;
     std::vector<std::unique_ptr<Stmt>> body;
 
-    void execute(Env& env, std::int64_t&) const override {
+    void execute(Env& env, Value&) const override {
         env.define_function(name, this);
     }
 };
 
 struct CallExpr final : Expr {
-    CallExpr(std::string n, std::vector<std::unique_ptr<Expr>> a)
-        : name(std::move(n)), args(std::move(a)) {}
+    CallExpr(std::string n, std::vector<std::unique_ptr<Expr>> args)
+        : name(std::move(n)), args_(std::move(args)) {}
 
-    std::int64_t eval(Env& env) const override {
+    Value eval(Env& env) const override {
+        if (name == "size") {
+            if (args_.size() != 1) {
+                throw std::runtime_error("size expects 1 argument.");
+            }
+            auto value = args_[0]->eval(env);
+            if (value.kind != Value::Kind::Array || !value.array) {
+                return Value::Int(0);
+            }
+            return Value::Int(static_cast<std::int64_t>(value.array->size()));
+        }
+
         const auto* fn = env.get_function(name);
         if (fn == nullptr) {
             throw std::runtime_error("Unknown function: " + name);
         }
 
-        if (args.size() != fn->params.size()) {
+        if (args_.size() != fn->params.size()) {
             throw std::runtime_error("Function '" + name + "' expects "
                 + std::to_string(fn->params.size()) + " arg(s), got "
-                + std::to_string(args.size()) + ".");
+                + std::to_string(args_.size()) + ".");
         }
 
         Env local(&env);
-        for (std::size_t i = 0; i < args.size(); i++) {
-            local.define_var(fn->params[i], args[i]->eval(env));
+        for (std::size_t i = 0; i < args_.size(); i++) {
+            local.define_var(fn->params[i], args_[i]->eval(env));
         }
 
-        std::int64_t last = 0;
+        Value last = Value::Null();
         try {
             execute_statements(fn->body, local, last);
             return last;
@@ -339,43 +434,80 @@ struct CallExpr final : Expr {
     }
 
     std::string name;
-    std::vector<std::unique_ptr<Expr>> args;
+    std::vector<std::unique_ptr<Expr>> args_;
 };
 
 struct VarDeclStmt final : Stmt {
     VarDeclStmt(std::string n, std::unique_ptr<Expr> v) : name(std::move(n)), value(std::move(v)) {}
-    void execute(Env& env, std::int64_t&) const override {
+    void execute(Env& env, Value&) const override {
         env.define_var(name, value->eval(env));
     }
+
     std::string name;
     std::unique_ptr<Expr> value;
 };
 
+enum class AssignTargetKind {
+    Variable,
+    ArrayElement
+};
+
 struct AssignStmt final : Stmt {
-    AssignStmt(std::string n, std::unique_ptr<Expr> v) : name(std::move(n)), value(std::move(v)) {}
-    void execute(Env& env, std::int64_t&) const override {
-        if (!env.assign_var(name, value->eval(env))) {
-            throw std::runtime_error("Assignment to unknown variable: " + name);
+    AssignStmt(AssignTargetKind kind, std::string name, std::unique_ptr<Expr> index, std::unique_ptr<Expr> value)
+        : target_kind(kind), target_name(std::move(name)), index_expr(std::move(index)), value_expr(std::move(value)) {}
+
+    void execute(Env& env, Value&) const override {
+        const auto value = value_expr->eval(env);
+
+        if (target_kind == AssignTargetKind::Variable) {
+            if (!env.assign_var(target_name, value)) {
+                throw std::runtime_error("Assignment to unknown variable: " + target_name);
+            }
+            return;
+        }
+
+        auto receiver = env.get_var(target_name);
+        if (receiver.kind != Value::Kind::Array || !receiver.array) {
+            throw std::runtime_error("Array assignment expects array receiver: " + target_name);
+        }
+
+        const auto idx = index_expr->eval(env).as_int("Array assignment index");
+        if (idx < 0) {
+            throw std::runtime_error("Array assignment index must be >= 0.");
+        }
+
+        const auto target = static_cast<std::size_t>(idx);
+        if (target >= receiver.array->size()) {
+            receiver.array->resize(target + 1, Value::Null());
+        }
+
+        (*receiver.array)[target] = value;
+        if (!env.assign_var(target_name, receiver)) {
+            throw std::runtime_error("Assignment to unknown array variable: " + target_name);
         }
     }
-    std::string name;
-    std::unique_ptr<Expr> value;
+
+    AssignTargetKind target_kind;
+    std::string target_name;
+    std::unique_ptr<Expr> index_expr;
+    std::unique_ptr<Expr> value_expr;
 };
 
 struct ReturnStmt final : Stmt {
     explicit ReturnStmt(std::unique_ptr<Expr> v) : value(std::move(v)) {}
-    void execute(Env& env, std::int64_t&) const override {
-        const auto out = value ? value->eval(env) : 0;
-        throw ReturnSignal(out);
+    void execute(Env& env, Value&) const override {
+        throw ReturnSignal(value ? value->eval(env) : Value::Null());
     }
+
     std::unique_ptr<Expr> value;
 };
 
 struct ExprStmt final : Stmt {
     explicit ExprStmt(std::unique_ptr<Expr> v) : value(std::move(v)) {}
-    void execute(Env& env, std::int64_t& last) const override {
+    void execute(Env& env, Value& last) const override {
         last = value->eval(env);
     }
+
     std::unique_ptr<Expr> value;
 };
 
@@ -385,11 +517,31 @@ struct ForStmt final : Stmt {
     std::unique_ptr<Stmt> update;
     std::vector<std::unique_ptr<Stmt>> body;
 
-    void execute(Env& env, std::int64_t& last) const override {
+    void execute(Env& env, Value& last) const override {
         init->execute(env, last);
-        while (condition->eval(env) != 0) {
+        while (condition->eval(env).truthy()) {
             execute_statements(body, env, last);
             update->execute(env, last);
+        }
+    }
+};
+
+struct ForInStmt final : Stmt {
+    std::string variable;
+    std::unique_ptr<Expr> iterable;
+    std::vector<std::unique_ptr<Stmt>> body;
+
+    void execute(Env& env, Value& last) const override {
+        auto value = iterable->eval(env);
+        if (value.kind != Value::Kind::Array || !value.array) {
+            throw std::runtime_error("for-in requires an array");
+        }
+
+        for (const auto& element : *value.array) {
+            if (!env.assign_var(variable, element)) {
+                env.define_var(variable, element);
+            }
+            execute_statements(body, env, last);
         }
     }
 };
@@ -398,8 +550,8 @@ struct WhileStmt final : Stmt {
     std::unique_ptr<Expr> condition;
     std::vector<std::unique_ptr<Stmt>> body;
 
-    void execute(Env& env, std::int64_t& last) const override {
-        while (condition->eval(env) != 0) {
+    void execute(Env& env, Value& last) const override {
+        while (condition->eval(env).truthy()) {
             execute_statements(body, env, last);
         }
     }
@@ -410,8 +562,8 @@ struct IfStmt final : Stmt {
     std::vector<std::unique_ptr<Stmt>> then_body;
     std::vector<std::unique_ptr<Stmt>> else_body;
 
-    void execute(Env& env, std::int64_t& last) const override {
-        if (condition->eval(env) != 0) {
+    void execute(Env& env, Value& last) const override {
+        if (condition->eval(env).truthy()) {
             execute_statements(then_body, env, last);
         } else {
             execute_statements(else_body, env, last);
@@ -440,7 +592,16 @@ private:
         if (match(TokenType::If)) return parse_if();
         if (match(TokenType::Fun)) return parse_function_decl();
         if (match(TokenType::Return)) return parse_return();
-        if (check(TokenType::Identifier) && check_next(TokenType::Assign)) return parse_assignment(false);
+
+        if (check(TokenType::Identifier)) {
+            const auto checkpoint = current_;
+            try {
+                return parse_assignment(false);
+            } catch (const std::runtime_error&) {
+                current_ = checkpoint;
+            }
+        }
+
         return parse_expr_stmt();
     }
 
@@ -455,13 +616,22 @@ private:
     }
 
     std::unique_ptr<Stmt> parse_assignment(bool inside_for_clause) {
-        const auto name = consume(TokenType::Identifier, "Expected variable name").text;
-        consume(TokenType::Assign, "Expected '='");
+        const auto name = consume(TokenType::Identifier, "Expected assignment target").text;
+
+        AssignTargetKind kind = AssignTargetKind::Variable;
+        std::unique_ptr<Expr> index;
+        if (match(TokenType::LeftBracket)) {
+            kind = AssignTargetKind::ArrayElement;
+            index = parse_expression();
+            consume(TokenType::RightBracket, "Expected ']' after assignment index");
+        }
+
+        consume(TokenType::Assign, "Expected '=' in assignment");
         auto value = parse_expression();
         if (!inside_for_clause) {
             match(TokenType::Semicolon);
         }
-        return std::make_unique<AssignStmt>(name, std::move(value));
+        return std::make_unique<AssignStmt>(kind, name, std::move(index), std::move(value));
     }
 
     std::unique_ptr<Stmt> parse_expr_stmt() {
@@ -504,6 +674,24 @@ private:
 
     std::unique_ptr<Stmt> parse_for() {
         consume(TokenType::LeftParen, "Expected '(' after for");
+
+        if (check(TokenType::Identifier)) {
+            const auto checkpoint = current_;
+            const auto variable = advance().text;
+            if (match(TokenType::In)) {
+                auto iterable = parse_expression();
+                consume(TokenType::RightParen, "Expected ')' after for-in");
+                auto body = parse_block();
+
+                auto stmt = std::make_unique<ForInStmt>();
+                stmt->variable = variable;
+                stmt->iterable = std::move(iterable);
+                stmt->body = std::move(body);
+                return stmt;
+            }
+            current_ = checkpoint;
+        }
+
         std::unique_ptr<Stmt> init;
         if (match(TokenType::Var)) {
             init = parse_var_decl(true);
@@ -617,15 +805,15 @@ private:
     }
 
     std::unique_ptr<Expr> parse_term() {
-        auto expr = parse_primary();
+        auto expr = parse_postfix();
         while (true) {
             if (match(TokenType::Plus)) {
-                auto rhs = parse_primary();
+                auto rhs = parse_postfix();
                 expr = std::make_unique<BinaryExpr>(TokenType::Plus, std::move(expr), std::move(rhs));
                 continue;
             }
             if (match(TokenType::Minus)) {
-                auto rhs = parse_primary();
+                auto rhs = parse_postfix();
                 expr = std::make_unique<BinaryExpr>(TokenType::Minus, std::move(expr), std::move(rhs));
                 continue;
             }
@@ -634,56 +822,109 @@ private:
         return expr;
     }
 
-    std::unique_ptr<Expr> parse_primary() {
-        if (match(TokenType::Number)) {
-            const auto& text = previous().text;
-            return std::make_unique<NumberExpr>(std::stoll(text));
-        }
-        if (match(TokenType::Identifier)) {
-            const auto name = previous().text;
+    std::unique_ptr<Expr> parse_postfix() {
+        auto expr = parse_primary();
+
+        while (true) {
             if (match(TokenType::LeftParen)) {
-                std::vector<std::unique_ptr<Expr>> args;
-                if (!check(TokenType::RightParen)) {
-                    do {
-                        args.push_back(parse_expression());
-                    } while (match(TokenType::Comma));
+                auto args = parse_arguments();
+                if (auto* var = dynamic_cast<VarExpr*>(expr.get())) {
+                    expr = std::make_unique<CallExpr>(var->name, std::move(args));
+                } else {
+                    throw std::runtime_error("Invalid call target.");
                 }
-                consume(TokenType::RightParen, "Expected ')' after call arguments");
-                return std::make_unique<CallExpr>(name, std::move(args));
+                continue;
             }
 
-            return std::make_unique<VarExpr>(name);
+            if (match(TokenType::LeftBracket)) {
+                auto index = parse_expression();
+                consume(TokenType::RightBracket, "Expected ']' after array index");
+                expr = std::make_unique<ArrayAccessExpr>(std::move(expr), std::move(index));
+                continue;
+            }
+
+            break;
         }
+
+        return expr;
+    }
+
+    std::vector<std::unique_ptr<Expr>> parse_arguments() {
+        std::vector<std::unique_ptr<Expr>> args;
+        if (!check(TokenType::RightParen)) {
+            do {
+                args.push_back(parse_expression());
+            } while (match(TokenType::Comma));
+        }
+        consume(TokenType::RightParen, "Expected ')' after arguments");
+        return args;
+    }
+
+    std::unique_ptr<Expr> parse_primary() {
+        if (match(TokenType::Number)) {
+            return std::make_unique<NumberExpr>(std::stoll(previous().text));
+        }
+
+        if (match(TokenType::Identifier)) {
+            return std::make_unique<VarExpr>(previous().text);
+        }
+
+        if (match(TokenType::LeftParen)) {
+            auto inner = parse_expression();
+            consume(TokenType::RightParen, "Expected ')' after expression");
+            return inner;
+        }
+
+        if (match(TokenType::LeftBracket)) {
+            std::vector<std::unique_ptr<Expr>> elements;
+            if (!check(TokenType::RightBracket)) {
+                do {
+                    elements.push_back(parse_expression());
+                } while (match(TokenType::Comma));
+            }
+            consume(TokenType::RightBracket, "Expected ']' after array elements");
+            return std::make_unique<ArrayLiteralExpr>(std::move(elements));
+        }
+
         throw std::runtime_error("Expected expression.");
     }
 
     bool match(TokenType type) {
-        if (!check(type)) return false;
+        if (!check(type)) {
+            return false;
+        }
         advance();
         return true;
     }
 
     bool check(TokenType type) const {
-        if (is_at_end()) return type == TokenType::Eof;
+        if (is_at_end()) {
+            return type == TokenType::Eof;
+        }
         return tokens_[current_].type == type;
     }
 
     bool check_next(TokenType type) const {
-        if (current_ + 1 >= tokens_.size()) return false;
+        if (current_ + 1 >= tokens_.size()) {
+            return false;
+        }
         return tokens_[current_ + 1].type == type;
     }
 
     const Token& advance() {
-        if (!is_at_end()) current_++;
+        if (!is_at_end()) {
+            current_++;
+        }
         return previous();
     }
 
     bool is_at_end() const { return tokens_[current_].type == TokenType::Eof; }
-
     const Token& previous() const { return tokens_[current_ - 1]; }
 
     Token consume(TokenType type, const char* message) {
-        if (check(type)) return advance();
+        if (check(type)) {
+            return advance();
+        }
         throw std::runtime_error(message);
     }
 
@@ -795,7 +1036,7 @@ extern "C" int sms_native_execute(const char* source, std::int64_t* out_result, 
         auto program = parser.parse_program();
 
         Env env;
-        std::int64_t last = 0;
+        Value last = Value::Null();
 
         for (const auto& stmt : program) {
             if (const auto* fn = dynamic_cast<const FunctionDeclStmt*>(stmt.get())) {
@@ -810,7 +1051,7 @@ extern "C" int sms_native_execute(const char* source, std::int64_t* out_result, 
             stmt->execute(env, last);
         }
 
-        *out_result = last;
+        *out_result = last.kind == Value::Kind::Int ? last.int_value : 0;
         return 0;
     } catch (const ReturnSignal&) {
         write_error(error, error_capacity, "return outside function");
