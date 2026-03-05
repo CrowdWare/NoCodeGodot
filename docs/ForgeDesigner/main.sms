@@ -2,7 +2,8 @@ var tree = null
 var codeEdit = null
 var selectedPath = null
 var mainWindow = null
-var previewWindow = null
+var isLoadingEditor = false
+var lastFlushedText = ""
 
 fun ready() {
     tree = ui.getObject("treeview")
@@ -14,7 +15,6 @@ fun ready() {
         return
     }
 
-    codeEdit.onSave("codeEditOnSave")
     populateTree(tree, ".")
     
     log.success("ForgeDesigner is ready. Shape your interface.")
@@ -35,44 +35,28 @@ fun onSettingsWindowClosed() {
     log.warning("TODO - Redock panel")
 }
 
-fun codeEditOnSave(editorId) {
-    var editor = ui.getObject(editorId)
-    if (editor == null) {
-        log.warning("onSave ignored: editor '${editorId}' not found.")
-        return
-    }
-
-    var path = editor.GetPath()
+fun flushEditorToDiskAndPreview() {
+    var path = codeEdit.GetPath()
     if (path == null || path == "") {
-        log.warning("onSave ignored: no file path set on editor.")
         return
     }
 
-    var content = editor.GetText()
+    var content = codeEdit.GetText()
+    if (content == lastFlushedText) {
+        return
+    }
+
     fs.writeText(path, content)
-    log.success("Saved: ${path}")
+    lastFlushedText = content
 
     hotReloadPreviewFromEditor(content)
 }
 
 fun hotReloadPreviewFromEditor(smlContent) {
-    if (previewWindow != null) {
-        previewWindow.close()
-        previewWindow = null
+    var ok = ui.renderSmlPreview("preview", smlContent)
+    if (ok) {
+        log.info("HotReload preview updated in dock panel.")
     }
-
-    var window = ui.CreateWindow(smlContent)
-    if (window == null) {
-        return
-    }
-
-    previewWindow = window
-    previewWindow.onClose("onPreviewWindowClosed")
-    log.info("HotReload preview updated.")
-}
-
-fun onPreviewWindowClosed() {
-    previewWindow = null
 }
 
 
@@ -106,9 +90,36 @@ on treeview.itemSelected() {
 
     if (fs.exists(itemPath)) {
         selectedPath = itemPath
+        isLoadingEditor = true
         codeEdit.SetPath(itemPath)
         codeEdit.SetText(fs.readText(itemPath))
+        isLoadingEditor = false
+        lastFlushedText = codeEdit.GetText()
+        hotReloadPreviewFromEditor(lastFlushedText)
     }
+}
+
+on codeEdit.textChanged(text) {
+    if (isLoadingEditor) {
+        return
+    }
+
+    flushEditorToDiskAndPreview()
+}
+
+on saveAs.clicked() {
+    ui.openSaveFileDialog("onDesignerSaveAsSelected", "*.sml,*.sms,*.md,*.txt")
+}
+
+fun onDesignerSaveAsSelected(path) {
+    if (path == null || path == "") {
+        return
+    }
+
+    selectedPath = path
+    codeEdit.SetPath(path)
+    flushEditorToDiskAndPreview()
+    log.success("Saved As: ${path}")
 }
 
 on settings.clicked() {

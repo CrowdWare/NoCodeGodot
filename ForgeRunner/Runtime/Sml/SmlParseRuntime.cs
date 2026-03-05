@@ -31,6 +31,9 @@ public static class SmlParseRuntime
     private const int ErrorCapacity = 1024;
     private static bool _nativeProbeEnabled;
     private static bool _nativeUnavailableWarningShown;
+    private static string _lastNativeSyntaxError = string.Empty;
+
+    public static string LastNativeSyntaxError => _lastNativeSyntaxError;
 
     public static void Configure(bool nativeProbeEnabled)
     {
@@ -86,6 +89,25 @@ public static class SmlParseRuntime
         }
 
         return doc;
+    }
+
+    public static bool ValidateSyntaxNative(string content)
+    {
+        _lastNativeSyntaxError = string.Empty;
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return true;
+        }
+
+        if (NativeSmlProbe.TryParse(content, out _))
+        {
+            return true;
+        }
+
+        _lastNativeSyntaxError = string.IsNullOrWhiteSpace(NativeSmlProbe.LastError)
+            ? "Unknown native SML parse error."
+            : NativeSmlProbe.LastError;
+        return false;
     }
 
     private static long CountNodes(SmlDocument doc)

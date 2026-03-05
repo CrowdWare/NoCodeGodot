@@ -1366,6 +1366,42 @@ public sealed class SmlUiBuilder
                     ClickedIdValue: default
                 ));
             };
+
+            textEdit.FocusEntered += () =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    return;
+                }
+
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "lineEditFocusEntered",
+                    Clicked: string.Empty,
+                    ClickedIdValue: default
+                ));
+            };
+
+            textEdit.FocusExited += () =>
+            {
+                var id = GetMetaString(control, NodePropertyMapper.MetaId);
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    return;
+                }
+
+                _actionDispatcher.Dispatch(new UiActionContext(
+                    Source: control,
+                    SourceId: id,
+                    SourceIdValue: GetMetaId(control, NodePropertyMapper.MetaIdValue),
+                    Action: "lineEditFocusExited",
+                    Clicked: string.Empty,
+                    ClickedIdValue: default
+                ));
+            };
         }
 
         if (control is Runtime.ThreeD.PosingEditorControl posingEditor)

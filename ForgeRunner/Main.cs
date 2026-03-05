@@ -982,26 +982,8 @@ public partial class Main : Node
 
 	private void ApplyDefaultHiddenPanels()
 	{
-		if (_runtimeUiRoot is null)
-		{
-			return;
-		}
-
-		var stack = new Stack<Node>();
-		stack.Push(_runtimeUiRoot);
-		while (stack.Count > 0)
-		{
-			var current = stack.Pop();
-			if (current is DockingHostControl host)
-			{
-				host.HidePanelById("sourcePanel");
-			}
-
-			for (var i = current.GetChildCount() - 1; i >= 0; i--)
-			{
-				stack.Push(current.GetChild(i));
-			}
-		}
+		// Intentionally left empty.
+		// Source-like panels must not be hidden globally by default.
 	}
 
 	private static string GetSmlString(SmlNode node, string key, string fallback)

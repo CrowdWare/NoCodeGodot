@@ -103,6 +103,65 @@ public static class UiRuntimeApi
     }
 
     /// <summary>
+    /// Renders inline SML content into an existing control container (by id).
+    /// Existing children are removed and replaced by the newly built control tree.
+    /// </summary>
+    public static bool RenderSmlPreviewInto(string targetId, string smlText)
+    {
+        if (string.IsNullOrWhiteSpace(targetId))
+        {
+            RunnerLogger.Warn("UI", "RenderSmlPreviewInto failed: target id is empty.");
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(smlText))
+        {
+            RunnerLogger.Warn("UI", $"RenderSmlPreviewInto failed: SML text is empty for target '{targetId}'.");
+            return false;
+        }
+
+        if (GetObjectById(targetId) is not Control target)
+        {
+            RunnerLogger.Warn("UI", $"RenderSmlPreviewInto failed: target '{targetId}' not found or not a Control.");
+            return false;
+        }
+
+        try
+        {
+            var schema = SmlSchemaFactory.CreateDefault();
+            var document = SmlParseRuntime.ParseDocument(smlText, schema, context: $"UiRuntimeApi.RenderPreview:{targetId}");
+            foreach (var warning in document.Warnings)
+            {
+                RunnerLogger.ParserWarning(warning);
+            }
+
+            var builder = new SmlUiBuilder(
+                new NodeFactoryRegistry(),
+                new NodePropertyMapper(),
+                animationApi: new Runtime.ThreeD.AnimationControlApi());
+
+            var previewRoot = builder.Build(document);
+            PrepareContentForEmbeddedPreview(previewRoot);
+
+            while (target.GetChildCount() > 0)
+            {
+                var child = target.GetChild(0);
+                target.RemoveChild(child);
+                child.QueueFree();
+            }
+
+            target.AddChild(previewRoot);
+            RunnerLogger.Info("UI", $"SML preview rendered into '{targetId}'.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            RunnerLogger.Warn("UI", $"RenderSmlPreviewInto failed for '{targetId}'.", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Finds an SML node by its unique SML id (Meta: sml_id) in the current scene tree.
     /// Returns null if no node is found.
     /// </summary>
@@ -265,6 +324,15 @@ public static class UiRuntimeApi
     }
 
     private static void PrepareContentForFloatingWindow(Control content)
+    {
+        content.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        content.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+        content.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        content.SetOffsetsPreset(Control.LayoutPreset.FullRect);
+        content.Position = Vector2.Zero;
+    }
+
+    private static void PrepareContentForEmbeddedPreview(Control content)
     {
         content.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         content.SizeFlagsVertical = Control.SizeFlags.ExpandFill;

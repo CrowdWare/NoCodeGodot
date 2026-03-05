@@ -62,13 +62,11 @@ public sealed class SmsUiRuntime
     private readonly Dictionary<Type, Dictionary<string, List<MethodInfo>>> _methodCache = [];
     private readonly Dictionary<long, object> _nativeObjects = [];
     private readonly Dictionary<string, NumericLineEditBehavior> _numericLineEdits = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, int> _textChangedDebounceSeqById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Runtime.ThreeD.AnimationProjectData> _projectSnapshotByPath = new(StringComparer.OrdinalIgnoreCase);
     private long _nextNativeObjectId = 1;
     private int _nextTreeHandle = 1;
     private string? _projectRoot;
     private string? _activeProjectRoot;
-    private const double SourceEditorTextChangedDebounceSeconds = 0.18;
 
     public SmsUiRuntime(RunnerUriResolver uriResolver, string uiSmlUri)
     {
@@ -182,52 +180,28 @@ public sealed class SmsUiRuntime
             var sourceId = ResolveSourceId(ctx);
             if (string.IsNullOrWhiteSpace(sourceId)) return;
             var text = ctx.Clicked ?? string.Empty;
-            if (!string.Equals(sourceId, "sourceEditor", StringComparison.OrdinalIgnoreCase))
-            {
-                TryInvokeEvent(sourceId, "textChanged", false, text);
-                return;
-            }
-
-            if (Engine.GetMainLoop() is not SceneTree sceneTree || sceneTree.Root is null)
-            {
-                TryInvokeEvent(sourceId, "textChanged", false, text);
-                return;
-            }
-
             var sourceTextEdit = ctx.Source as TextEdit;
-
-            var seq = _textChangedDebounceSeqById.TryGetValue(sourceId, out var previous)
-                ? previous + 1
-                : 1;
-            _textChangedDebounceSeqById[sourceId] = seq;
-
-            var timer = sceneTree.CreateTimer(SourceEditorTextChangedDebounceSeconds);
-            timer.Timeout += () =>
+            if (sourceTextEdit is null || !GodotObject.IsInstanceValid(sourceTextEdit))
             {
-                if (!_textChangedDebounceSeqById.TryGetValue(sourceId, out var currentSeq) || currentSeq != seq)
-                {
-                    return;
-                }
-
-                if (sourceTextEdit is null || !GodotObject.IsInstanceValid(sourceTextEdit))
-                {
-                    TryInvokeEvent(sourceId, "textChanged", false, text);
-                    return;
-                }
-
-                var savedCaretLine = sourceTextEdit.GetCaretLine();
-                var savedCaretColumn = sourceTextEdit.GetCaretColumn();
-
                 TryInvokeEvent(sourceId, "textChanged", false, text);
+                return;
+            }
 
-                // Keep the editing caret stable even if downstream handlers touched focus/state.
+            var savedCaretLine = sourceTextEdit.GetCaretLine();
+            var savedCaretColumn = sourceTextEdit.GetCaretColumn();
+
+            TryInvokeEvent(sourceId, "textChanged", false, text);
+
+            // Keep the editing caret stable even if downstream handlers touched focus/state.
+            if (string.Equals(sourceId, "sourceEditor", StringComparison.OrdinalIgnoreCase))
+            {
                 var lineCount = Math.Max(1, sourceTextEdit.GetLineCount());
                 var safeLine = Math.Clamp(savedCaretLine, 0, lineCount - 1);
                 sourceTextEdit.SetCaretLine(safeLine, adjustViewport: false);
                 var lineText = sourceTextEdit.GetLine(safeLine) ?? string.Empty;
                 var safeColumn = Math.Clamp(savedCaretColumn, 0, lineText.Length);
                 sourceTextEdit.SetCaretColumn(safeColumn, adjustViewport: false);
-            };
+            }
         });
 
         dispatcher.RegisterActionHandler("lineEditTextSubmitted", ctx =>
@@ -235,6 +209,20 @@ public sealed class SmsUiRuntime
             var sourceId = ResolveSourceId(ctx);
             if (string.IsNullOrWhiteSpace(sourceId)) return;
             TryInvokeEvent(sourceId, "textSubmitted", false, ctx.Clicked ?? string.Empty);
+        });
+
+        dispatcher.RegisterActionHandler("lineEditFocusEntered", ctx =>
+        {
+            var sourceId = ResolveSourceId(ctx);
+            if (string.IsNullOrWhiteSpace(sourceId)) return;
+            TryInvokeEvent(sourceId, "focusEntered", false);
+        });
+
+        dispatcher.RegisterActionHandler("lineEditFocusExited", ctx =>
+        {
+            var sourceId = ResolveSourceId(ctx);
+            if (string.IsNullOrWhiteSpace(sourceId)) return;
+            TryInvokeEvent(sourceId, "focusExited", false);
         });
 
         dispatcher.RegisterActionHandler("treeItemToggled", ctx =>
@@ -284,7 +272,7 @@ public sealed class SmsUiRuntime
             }
             else
             {
-                RunnerLogger.Warn("SMS", $"No onSave callback registered for editor '{editorId}'.");
+                RunnerLogger.Debug("SMS", $"No onSave callback registered for editor '{editorId}'.");
             }
         });
 
@@ -370,8 +358,11 @@ public sealed class SmsUiRuntime
         dispatcher.RegisterActionHandler("objectMoved", ctx =>
         {
             var srcId = ResolveSourceId(ctx);
-            if (!string.IsNullOrWhiteSpace(srcId))
-                TryInvokeEvent(srcId, "objectMoved", false, (int)(ctx.NumericValue ?? 0), ctx.Clicked ?? string.Empty);
+            if (string.IsNullOrWhiteSpace(srcId))
+            {
+                return;
+            }
+            TryInvokeEvent(srcId, "objectMoved", false, (int)(ctx.NumericValue ?? 0), ctx.Clicked ?? string.Empty);
         });
 
         dispatcher.RegisterActionHandler("exportProgress", ctx =>
@@ -1159,6 +1150,84 @@ public sealed class SmsUiRuntime
                         : string.Empty,
                     window);
             }),
+            ["renderSmlPreview"] = new NativeFunctionValue(methodArgs =>
+            {
+                var targetId = ValueArgString(methodArgs, 0);
+                var sml = ValueArgString(methodArgs, 1);
+                var ok = UiRuntimeApi.RenderSmlPreviewInto(targetId, sml);
+                return new BooleanValue(ok);
+            }),
+            ["RenderSmlPreview"] = new NativeFunctionValue(methodArgs =>
+            {
+                var targetId = ValueArgString(methodArgs, 0);
+                var sml = ValueArgString(methodArgs, 1);
+                var ok = UiRuntimeApi.RenderSmlPreviewInto(targetId, sml);
+                return new BooleanValue(ok);
+            }),
+            ["setTimeout"] = new NativeFunctionValue(methodArgs =>
+            {
+                var callbackName = ValueArgString(methodArgs, 0);
+                var delayMs = methodArgs.Count > 1 ? ValueArgInt(methodArgs, 1) : 0;
+                if (string.IsNullOrWhiteSpace(callbackName))
+                {
+                    return new BooleanValue(false);
+                }
+
+                if (Engine.GetMainLoop() is not SceneTree sceneTree || sceneTree.Root is null)
+                {
+                    RunnerLogger.Warn("SMS", "ui.setTimeout: scene tree not available.");
+                    return new BooleanValue(false);
+                }
+
+                var delaySeconds = Math.Max(0, delayMs) / 1000.0;
+                var timer = sceneTree.CreateTimer(delaySeconds);
+                timer.Timeout += () =>
+                {
+                    ExecuteCall($"{callbackName}()");
+                };
+
+                return new BooleanValue(true);
+            }),
+            ["SetTimeout"] = new NativeFunctionValue(methodArgs =>
+            {
+                var callbackName = ValueArgString(methodArgs, 0);
+                var delayMs = methodArgs.Count > 1 ? ValueArgInt(methodArgs, 1) : 0;
+                if (string.IsNullOrWhiteSpace(callbackName))
+                {
+                    return new BooleanValue(false);
+                }
+
+                if (Engine.GetMainLoop() is not SceneTree sceneTree || sceneTree.Root is null)
+                {
+                    RunnerLogger.Warn("SMS", "ui.SetTimeout: scene tree not available.");
+                    return new BooleanValue(false);
+                }
+
+                var delaySeconds = Math.Max(0, delayMs) / 1000.0;
+                var timer = sceneTree.CreateTimer(delaySeconds);
+                timer.Timeout += () =>
+                {
+                    ExecuteCall($"{callbackName}()");
+                };
+
+                return new BooleanValue(true);
+            }),
+            ["validateSmlSyntax"] = new NativeFunctionValue(methodArgs =>
+            {
+                var sml = ValueArgString(methodArgs, 0);
+                var ok = SmlParseRuntime.ValidateSyntaxNative(sml);
+                return new BooleanValue(ok);
+            }),
+            ["ValidateSmlSyntax"] = new NativeFunctionValue(methodArgs =>
+            {
+                var sml = ValueArgString(methodArgs, 0);
+                var ok = SmlParseRuntime.ValidateSyntaxNative(sml);
+                return new BooleanValue(ok);
+            }),
+            ["getLastSmlSyntaxError"] = new NativeFunctionValue(_ =>
+                new StringValue(SmlParseRuntime.LastNativeSyntaxError ?? string.Empty)),
+            ["GetLastSmlSyntaxError"] = new NativeFunctionValue(_ =>
+                new StringValue(SmlParseRuntime.LastNativeSyntaxError ?? string.Empty)),
             ["openSaveFileDialog"] = new NativeFunctionValue(methodArgs =>
             {
                 var callbackName = ValueArgString(methodArgs, 0);
@@ -2052,9 +2121,8 @@ $"}}\n";
                     _projectSnapshotByPath[path] = CloneProjectData(currentData);
                 }
 
-                if (HasStructuralEqualityForFastProjectTextApply(currentData, data))
+                if (TryApplyProjectDataInPlace(posingEditorExt, timeline, currentData, data, projectDirectory))
                 {
-                    posingEditorExt.ReplaceProjectProperties(data.SceneProperties);
                     _projectSnapshotByPath[path] = CloneProjectData(data);
                     return new BooleanValue(true);
                 }
@@ -2420,6 +2488,12 @@ $"}}\n";
 
         if (runtimeObject is CodeEdit editor)
         {
+            fields["hasFocus"] = new NativeFunctionValue(_ =>
+            {
+                return new BooleanValue(editor.HasFocus());
+            });
+            fields["HasFocus"] = fields["hasFocus"];
+
             fields["SetPath"] = new NativeFunctionValue(methodArgs =>
             {
                 var path = ValueArgString(methodArgs, 0);
@@ -2447,6 +2521,21 @@ $"}}\n";
 
                 return NullValue.Instance;
             });
+            fields["setTextPreserveCursor"] = new NativeFunctionValue(methodArgs =>
+            {
+                var text = ValueArgString(methodArgs, 0);
+                var savedLine = editor.GetCaretLine();
+                var savedColumn = editor.GetCaretColumn();
+                editor.Text = text;
+                var lineCount = Math.Max(1, editor.GetLineCount());
+                var safeLine = Math.Clamp(savedLine, 0, lineCount - 1);
+                editor.SetCaretLine(safeLine, adjustViewport: false);
+                var lineText = editor.GetLine(safeLine) ?? string.Empty;
+                var safeColumn = Math.Clamp(savedColumn, 0, lineText.Length);
+                editor.SetCaretColumn(safeColumn, adjustViewport: false);
+                return NullValue.Instance;
+            });
+            fields["SetTextPreserveCursor"] = fields["setTextPreserveCursor"];
         }
 
         if (runtimeObject is Control markdownControl && IsMarkdownControl(markdownControl))
@@ -2764,6 +2853,130 @@ $"}}\n";
         }
 
         return AreKeyframesEqual(current.Keyframes, incoming.Keyframes);
+    }
+
+    private static bool TryApplyProjectDataInPlace(
+        Runtime.ThreeD.PosingEditorControl editor,
+        Runtime.ThreeD.TimelineControl timeline,
+        Runtime.ThreeD.AnimationProjectData current,
+        Runtime.ThreeD.AnimationProjectData incoming,
+        string projectDirectory)
+    {
+        if (editor is null || timeline is null)
+        {
+            return false;
+        }
+
+        var incomingCharacters = new List<Runtime.ThreeD.SceneAssetData>();
+        var incomingProps = new List<Runtime.ThreeD.SceneAssetData>();
+        for (var i = 0; i < incoming.SceneAssets.Count; i++)
+        {
+            var asset = incoming.SceneAssets[i];
+            if (asset.Primary)
+            {
+                incomingCharacters.Add(asset);
+            }
+            else
+            {
+                incomingProps.Add(asset);
+            }
+        }
+
+        if (incomingCharacters.Count != editor.GetSceneCharacterCount()
+            || incomingProps.Count != editor.GetScenePropCount())
+        {
+            return false;
+        }
+
+        // If sources changed, we must rebuild scene nodes; in-place only handles property deltas.
+        for (var i = 0; i < incomingCharacters.Count; i++)
+        {
+            var expected = NormalizeComparablePath(incomingCharacters[i].Src, projectDirectory);
+            var actual = NormalizeComparablePath(editor.GetSceneCharacterPath(i), projectDirectory);
+            if (!string.Equals(expected, actual, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        for (var i = 0; i < incomingProps.Count; i++)
+        {
+            var expected = NormalizeComparablePath(incomingProps[i].Src, projectDirectory);
+            var actual = NormalizeComparablePath(editor.GetScenePropPath(i), projectDirectory);
+            if (!string.Equals(expected, actual, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        for (var i = 0; i < incomingCharacters.Count; i++)
+        {
+            var asset = incomingCharacters[i];
+            editor.SetSceneCharacterName(i, asset.Name);
+            editor.SetSceneCharacterPos(i, asset.PosX, asset.PosY, asset.PosZ);
+            editor.SetSceneCharacterRot(i, asset.RotX, asset.RotY, asset.RotZ);
+            editor.SetSceneCharacterScale(i, asset.ScaleX, asset.ScaleY, asset.ScaleZ);
+        }
+
+        for (var i = 0; i < incomingProps.Count; i++)
+        {
+            var asset = incomingProps[i];
+            editor.SetScenePropName(i, asset.Name);
+            editor.SetScenePropPos(i, asset.PosX, asset.PosY, asset.PosZ);
+            editor.SetScenePropRot(i, asset.RotX, asset.RotY, asset.RotZ);
+            editor.SetScenePropScale(i, asset.ScaleX, asset.ScaleY, asset.ScaleZ);
+        }
+
+        editor.ReplaceProjectProperties(incoming.SceneProperties);
+
+        timeline.Fps = incoming.Fps;
+        timeline.TotalFrames = incoming.TotalFrames;
+        if (!AreKeyframesEqual(current.Keyframes, incoming.Keyframes))
+        {
+            timeline.ClearAllKeyframes();
+            foreach (var (frame, bones) in incoming.Keyframes)
+            {
+                timeline.SetKeyframe(frame, bones);
+            }
+        }
+
+        return true;
+    }
+
+    private static string NormalizeComparablePath(string path, string projectDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        var normalized = path.Trim().Replace('\\', '/');
+        if (normalized.StartsWith("res:/", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized["res:/".Length..].TrimStart('/');
+            if (!string.IsNullOrWhiteSpace(projectDirectory))
+            {
+                return Path.GetFullPath(Path.Combine(projectDirectory, normalized));
+            }
+            return normalized;
+        }
+
+        if (normalized.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+        {
+            return normalized;
+        }
+
+        if (Path.IsPathRooted(normalized))
+        {
+            return Path.GetFullPath(normalized);
+        }
+
+        if (!string.IsNullOrWhiteSpace(projectDirectory))
+        {
+            return Path.GetFullPath(Path.Combine(projectDirectory, normalized));
+        }
+
+        return normalized;
     }
 
     private static bool AreSceneAssetsEqual(

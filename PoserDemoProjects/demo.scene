@@ -10,37 +10,20 @@
 
     Character {
         id: char1  name: "man"  src: "res:/assets/models/man.glb"
-        pos: 2.007977, -0.02355795, 0.5227083
-        rot: 5.7, -56.55, 0.0
+        pos: 2.007977, -0.0487986, 0.6557043
+        rot: 9.999999, -56.55, 0.0
         scale: 1.0, 0.9999998, 1.0
 
         Animation {
-            Key { frame: 0
-                Bone { name: "mixamorig1_LeftArm" x: 0.4910468 y: 0.0197618 z: -0.08403588 w: 0.8668452 }
-                Bone { name: "mixamorig1_RightArm" x: 0.5174004 y: -0.02048415 z: 0.09174133 w: 0.850565 }
-            }
         }
     }
     Character {
         id: char2  name: "man"  src: "res:/assets/models/man.glb"
-        pos: -0.6677406, -0.02860608, 1.299704
-        rot: 0.0, 19.65002, 0.0
+        pos: -0.6677406, -0.05384673, 1.432694
+        rot: 0.0, 19.65, 0.0
         scale: 1.0, 1.0, 1.0
 
         Animation {
-            Key { frame: 0
-                Bone { name: "mixamorig1_LeftArm" x: 0.4502784 y: -0.4973163 z: -0.3389139 w: 0.6595933 }
-                Bone { name: "mixamorig1_RightArm" x: 0.5360882 y: 0.0320878 z: -0.02170766 w: 0.8432725 }
-                Bone { name: "mixamorig1_Head" x: 0.07404958 y: 0.11462 z: -0.008568026 w: 0.9906087 }
-                Bone { name: "mixamorig1_Spine" x: 0.7542794 y: 0.0 z: 0.0 w: 0.6565536 }
-                Bone { name: "mixamorig1_Hips" x: -0.7738402 y: 0.0 z: 0.0 w: 0.6333809 }
-                Bone { name: "mixamorig1_Spine1" x: 0.2714404 y: 0.0 z: 0.0 w: 0.9624553 }
-                Bone { name: "mixamorig1_Spine2" x: 0.3139925 y: 0.0 z: 0.0 w: 0.9494255 }
-            }
-            Key { frame: 20
-                Bone { name: "mixamorig1_LeftArm" x: 0.4502784 y: -0.4973163 z: -0.3389139 w: 0.6595933 }
-                Bone { name: "mixamorig1_RightArm" x: 0.05991394 y: 0.526589 z: -0.6359935 w: 0.5609159 }
-            }
         }
     }
     Asset {
@@ -59,6 +42,6 @@
         id: prop2  name: "wall"  src: "builtin:greybox/wall"
         pos: 2.0, 0.0, -4.162365
         rot: 0.0, 0.0, 0.0
-        scale: 10.0, 10.0, 1.0
+        scale: 1.0, 1.0, 1.0
     }
 }

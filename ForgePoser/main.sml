@@ -247,6 +247,7 @@ Window {
                         sizeFlagsHorizontal: expandFill
                         sizeFlagsVertical: expandFill
                         syntax: "sml"
+                        guttersDrawLineNumbers: true
                         wrapMode: 0
                     }
                 }

@@ -118,13 +118,13 @@ Window {
 
             VBoxContainer {
                 id: preview
-                rightDock.title: @Strings.tabPortrait
+                rightDock.title: "SML Preview"
                 Markdown {
                     bgColor: "#1A1A2E"
                     borderColor: "#4A90D9"
                     borderWidth: 1
                     borderRadius: 4
-                    text: "# Portrait Preview"
+                    text: "# SML Preview\nSave in editor to reload here."
                 }
             }
 
