@@ -1,5 +1,7 @@
 # 🧭 The Forge Vision
 
+[![Manifest CI](https://img.shields.io/github/actions/workflow/status/crowdware/Forge/generate-manifest.yml?branch=main&label=manifest%20ci)](https://github.com/crowdware/Forge/actions/workflows/generate-manifest.yml) [![Release](https://img.shields.io/github/v/release/crowdware/Forge?label=release)](https://github.com/crowdware/Forge/releases) [![License](https://img.shields.io/github/license/crowdware/Forge)](https://github.com/crowdware/Forge/blob/main/LICENSE)
+
 Forge is not about avoiding code.
 It is about removing unnecessary barriers between ideas and reality.
 
