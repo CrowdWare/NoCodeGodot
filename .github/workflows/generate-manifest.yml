@@ -7,7 +7,7 @@ on:
     paths:
       - "docs/**"
       - "scripts/generate_manifest.py"
-      - "build_manifest.sh"
+      - "scripts/build_manifest.sh"
   workflow_dispatch:
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
           python-version: "3.x"
 
       - name: Generate manifests
-        run: bash build_manifest.sh
+        run: bash scripts/build_manifest.sh
 
       - name: Check manifests are up to date
         run: git diff --exit-code -- docs/Default/manifest.sml docs/ForgeDesigner/manifest.sml
