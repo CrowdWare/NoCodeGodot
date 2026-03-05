@@ -83,7 +83,7 @@
 - [x] tasks/sms_parser_multiline_function_calls.md
 - [x] tasks/toolbar.md
 - [x] tasks/rotate_gizmo.md
-- [ ] tasks/viewport_code.md
+- [x] tasks/viewport_code.md
 
 
 
