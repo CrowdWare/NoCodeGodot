@@ -3,6 +3,20 @@ set -euo pipefail
 
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 OS_NAME="$(uname -s)"
+LOCAL_RUN_INCLUDE="$REPO_ROOT/run.local.sh"
+LOCAL_GODOT_CPP_PATH_FILE="$REPO_ROOT/.godot_cpp_dir"
+
+# Load optional local overrides/env (git-ignored).
+if [[ -f "$LOCAL_RUN_INCLUDE" ]]; then
+  # shellcheck source=/dev/null
+  source "$LOCAL_RUN_INCLUDE"
+fi
+
+# Allow persisting GODOT_CPP_DIR in a git-ignored local file.
+if [[ -z "${GODOT_CPP_DIR:-}" && -f "$LOCAL_GODOT_CPP_PATH_FILE" ]]; then
+  GODOT_CPP_DIR="$(head -n 1 "$LOCAL_GODOT_CPP_PATH_FILE" | tr -d '\r')"
+  export GODOT_CPP_DIR
+fi
 
 build_native_lib() {
   local name="$1"
@@ -39,6 +53,7 @@ build_forge_runner_native_host() {
   if [[ -z "${GODOT_CPP_DIR:-}" ]]; then
     echo "ERROR: GODOT_CPP_DIR is required to build ForgeRunner.Native." >&2
     echo "       Example: export GODOT_CPP_DIR=/absolute/path/to/godot-cpp" >&2
+    echo "       Or store it once in $LOCAL_GODOT_CPP_PATH_FILE" >&2
     return 1
   fi
 
@@ -95,6 +110,7 @@ Usage:
 Environment:
   FORGE_RUNNER_NATIVE_BIN     Optional explicit native runner executable path
   GODOT_CPP_DIR               Required for build-host/build
+  ./.godot_cpp_dir            Optional file with one line: absolute GODOT_CPP_DIR
 USAGE
 }
 

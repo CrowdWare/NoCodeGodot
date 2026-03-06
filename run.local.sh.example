@@ -10,6 +10,9 @@
 # - Return 0 if this local handler fully handled the mode.
 # - Return non-zero to fall back to the default `run.sh` behavior.
 
+# Optional: set local machine paths/env here (git-ignored in run.local.sh).
+# export GODOT_CPP_DIR="/absolute/path/to/godot-cpp"
+
 forge_local_handle_mode() {
   local mode="$1"
   shift || true

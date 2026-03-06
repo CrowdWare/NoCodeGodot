@@ -19,9 +19,9 @@ Small startup demos for validating root-specific download progress behavior.
 Example (from repository root):
 
 ```bash
-./run.sh none --url "file://$PWD/docs/TechDemos/DownloadSplashDemo/app.sml"
-./run.sh none --url "file://$PWD/docs/TechDemos/DownloadWindowOverlayDemo/app.sml"
-./run.sh none --url "file://$PWD/docs/TechDemos/DownloadTerminalDemo/app.sml"
+./run.sh --url "file://$PWD/docs/TechDemos/DownloadSplashDemo/app.sml"
+./run.sh --url "file://$PWD/docs/TechDemos/DownloadWindowOverlayDemo/app.sml"
+./run.sh --url "file://$PWD/docs/TechDemos/DownloadTerminalDemo/app.sml"
 ```
 
 ## Notes
@@ -35,3 +35,5 @@ Example (from repository root):
 - Root ready event convention:
   - Alias hooks exist for roots: `window.ready()`, `terminal.ready()`, `splash.ready()`.
   - Preferred hook is root-id based: `on <rootId>.ready()`.
+- Local `file://` runs are treated as pre-deploy checks in native runner mode (no startup download/sync).  
+  Progress behavior is validated when loading hosted manifests (e.g. `https://.../manifest.sml`).
