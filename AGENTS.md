@@ -60,6 +60,7 @@ Repository guidance for coding agents working in Forge.
 - Use clear names over clever abstractions.
 - Keep comments concise and only where they add value.
 - Keep naming and APIs explicit/deterministic for tool and AI generation workflows.
+- Native C++ code must remain portable C++17 (avoid compiler-/platform-specific language extensions unless explicitly approved).
 
 ## Safety
 - Avoid destructive actions (mass deletes, hard resets) unless explicitly requested.

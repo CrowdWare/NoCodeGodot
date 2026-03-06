@@ -17,7 +17,7 @@ fun ready() {
         return
     }
 
-    populateTree(tree, ".").gitignore
+    populateTree(tree, ".")
     log.success("ForgeDesigner is ready. Shape your interface.")
 }
 

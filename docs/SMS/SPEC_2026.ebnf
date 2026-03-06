@@ -1,0 +1,128 @@
+(* SMS Grammar 2026 (Draft, normative target) *)
+
+program             = { top_level_stmt } EOF ;
+
+top_level_stmt      = import_decl
+                    | export_decl
+                    | fun_decl
+                    | event_decl
+                    | var_decl
+                    | stmt ;
+
+(* Import path policy (normative in SPEC_2026.md):
+   - allow res:/..., appRes:/..., optional user:/...
+   - forbid relative imports (./..., ../...)
+   - forbid any '//' in import path text
+*)
+import_decl         = "import" string_lit [ "as" identifier ] line_end ;
+export_decl         = "export" ( fun_decl | var_decl ) ;
+
+fun_decl            = "fun" identifier "(" [ param_list ] ")" [ ":" type_ref ] block ;
+event_decl          = "on" identifier "." identifier "(" [ param_list ] ")" block ;
+
+param_list          = param_decl { "," param_decl } ;
+param_decl          = identifier [ ":" type_ref ] [ "=" expr ] ;
+
+var_decl            = "var" identifier [ ":" type_ref ] "=" expr line_end ;
+
+stmt                = var_decl
+                    | assign_stmt
+                    | expr_stmt
+                    | if_stmt
+                    | when_stmt
+                    | while_stmt
+                    | for_stmt
+                    | return_stmt
+                    | break_stmt
+                    | continue_stmt
+                    | block ;
+
+assign_stmt         = lvalue "=" expr line_end ;
+lvalue              = identifier { "." identifier } [ "[" expr "]" ] ;
+
+expr_stmt           = expr line_end ;
+
+if_stmt             = "if" "(" expr ")" block [ "else" ( block | if_stmt ) ] ;
+
+when_stmt           = "when" [ "(" expr ")" ] "{" { when_case } [ when_else ] "}" ;
+when_case           = expr "->" stmt_or_block ;
+when_else           = "else" "->" stmt_or_block ;
+stmt_or_block       = block | stmt ;
+
+while_stmt          = "while" "(" expr ")" block ;
+
+for_stmt            = "for" "(" for_init ";" [ expr ] ";" [ assign_core ] ")" block
+                    | "for" "(" identifier [ ":" type_ref ] "in" expr ")" block ;
+
+for_init            = [ "var" identifier [ ":" type_ref ] "=" expr
+                    | assign_core
+                    | empty ] ;
+assign_core         = lvalue "=" expr ;
+
+return_stmt         = "return" [ expr ] line_end ;
+break_stmt          = "break" line_end ;
+continue_stmt       = "continue" line_end ;
+
+block               = "{" { stmt } "}" ;
+
+expr                = logic_or ;
+logic_or            = logic_and { "||" logic_and } ;
+logic_and           = equality { "&&" equality } ;
+equality            = comparison { ( "==" | "!=" ) comparison } ;
+comparison          = term { ( "<" | "<=" | ">" | ">=" ) term } ;
+term                = factor { ( "+" | "-" ) factor } ;
+factor              = unary { ( "*" | "/" | "%" ) unary } ;
+unary               = ( "!" | "-" ) unary | call ;
+
+call                = primary { call_suffix } ;
+call_suffix         = "." identifier
+                    | "(" [ arg_list ] ")"
+                    | "[" expr "]" ;
+
+arg_list            = positional_args [ "," named_args ]
+                    | named_args ;
+
+(* Normative named-arg rule:
+   positional args first; after first named arg, all remaining args must be named.
+*)
+positional_args     = expr { "," expr } ;
+named_args          = named_arg { "," named_arg } ;
+named_arg           = identifier "=" expr ;
+
+primary             = number_lit
+                    | string_lit
+                    | bool_lit
+                    | "null"
+                    | identifier
+                    | "(" expr ")"
+                    | string_template
+                    | array_lit ;
+
+array_lit           = "[" [ expr { "," expr } ] "]" ;
+
+type_ref            = identifier ;
+
+bool_lit            = "true" | "false" ;
+
+line_end            = ";" | newline ;
+
+(* Lexical *)
+identifier          = ident_start { ident_part } ;
+ident_start         = letter | "_" ;
+ident_part          = letter | digit | "_" ;
+
+number_lit          = int_lit | float_lit ;
+int_lit             = digit { digit } ;
+float_lit           = digit { digit } "." digit { digit } ;
+
+string_lit          = "\"" { string_char } "\"" ;
+string_template     = "\"" { string_char | template_hole } "\"" ;
+template_hole       = "${" expr "}" ;
+
+string_char         = ? any char except " and \ unless escaped ? ;
+
+letter              = "A"..."Z" | "a"..."z" ;
+digit               = "0"..."9" ;
+newline             = "\n" | "\r\n" ;
+EOF                 = ? end of input ? ;
+empty               = ;

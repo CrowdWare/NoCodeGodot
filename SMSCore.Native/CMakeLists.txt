@@ -13,3 +13,54 @@ target_include_directories(sms_native PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(sms_native_spec_tests
+        tests/spec_2026_tests.cpp
+    )
+    target_link_libraries(sms_native_spec_tests PRIVATE sms_native)
+    set(SMS_SPEC_CASES
+        import_res_scheme
+        import_appres_scheme
+        import_user_scheme
+        import_forbid_double_slash
+        import_forbid_relative
+        export_function_named_args_and_defaults
+        data_class_named_args_and_defaults
+        for_in_typed_variable
+        named_then_positional_rejected
+        unknown_named_function_argument
+        duplicate_named_function_argument
+        missing_required_function_argument
+        unknown_named_dataclass_argument
+        duplicate_named_dataclass_argument
+        missing_required_dataclass_argument
+        invalid_import_scheme
+    )
+    foreach(CASE_NAME IN LISTS SMS_SPEC_CASES)
+        add_test(NAME sms_native_spec_${CASE_NAME} COMMAND sms_native_spec_tests ${CASE_NAME})
+    endforeach()
+
+    add_executable(sms_native_parser_events_tests
+        tests/parser_events_tests.cpp
+    )
+    target_link_libraries(sms_native_parser_events_tests PRIVATE sms_native)
+    set(SMS_EVENTS_PARSER_CASES
+        sms_events_parse_with_event_handlers_parses_top_level_handlers
+        sms_events_parse_with_invalid_event_syntax_rejected_empty_param_comma
+        sms_events_parse_with_invalid_event_syntax_rejected_missing_comma
+        sms_events_parse_with_duplicate_event_handlers_throws
+        sms_events_runtime_invoke_event_with_no_handler_returns_error
+        sms_events_runtime_invoke_event_binds_args_and_executes_body
+        sms_events_runtime_invoke_event_with_arg_count_mismatch_throws
+        sms_parser_multiline_global_function_call_parses
+        sms_parser_multiline_method_call_parses
+        sms_parser_multiline_nested_calls_parses
+        sms_parser_integer_literal_uses_integer_runtime_value
+        sms_parser_double_literals_are_rejected_in_native_subset
+        sms_parser_exponentials_are_rejected
+    )
+    foreach(CASE_NAME IN LISTS SMS_EVENTS_PARSER_CASES)
+        add_test(NAME ${CASE_NAME} COMMAND sms_native_parser_events_tests ${CASE_NAME})
+    endforeach()
+endif()

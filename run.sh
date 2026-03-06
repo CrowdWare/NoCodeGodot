@@ -309,14 +309,41 @@ case "$MODE" in
     ;;
   build)
     echo "Building the app..."
-    build_native_lib "SMLCore.Native" "$REPO_ROOT/SMLCore.Native" "$REPO_ROOT/SMLCore.Native/build"
-    build_native_lib "SMSCore.Native" "$REPO_ROOT/SMSCore.Native" "$REPO_ROOT/SMSCore.Native/build"
+    if ! command -v cmake >/dev/null 2>&1; then
+      echo "ERROR: cmake not found. Install cmake to build native libraries." >&2
+      exit 1
+    fi
+
+    echo "Configuring SMLCore.Native (with tests)..."
+    cmake -S "$REPO_ROOT/SMLCore.Native" -B "$REPO_ROOT/SMLCore.Native/build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+    echo "Building SMLCore.Native..."
+    cmake --build "$REPO_ROOT/SMLCore.Native/build" --config Release
+
+    echo "Configuring SMSCore.Native (with tests)..."
+    cmake -S "$REPO_ROOT/SMSCore.Native" -B "$REPO_ROOT/SMSCore.Native/build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+    echo "Building SMSCore.Native..."
+    cmake --build "$REPO_ROOT/SMSCore.Native/build" --config Release
     dotnet build "$REPO_ROOT/ForgeRunner/ForgeRunner.csproj"
     echo "Building ForgeCli.Native..."
     cmake -S "$REPO_ROOT/ForgeCli.Native" -B "$REPO_ROOT/ForgeCli.Native/build" -DCMAKE_BUILD_TYPE=Release
     cmake --build "$REPO_ROOT/ForgeCli.Native/build" --config Release
     ;;
   test)
+    if [[ ! -f "$REPO_ROOT/SMLCore.Native/build/CTestTestfile.cmake" ]]; then
+      echo "ERROR: SMLCore.Native tests are not configured. Run './run.sh build' first." >&2
+      exit 1
+    fi
+    if [[ ! -f "$REPO_ROOT/SMSCore.Native/build/CTestTestfile.cmake" ]]; then
+      echo "ERROR: SMSCore.Native tests are not configured. Run './run.sh build' first." >&2
+      exit 1
+    fi
+
+    echo "Running SMLCore.Native spec tests..."
+    ctest --test-dir "$REPO_ROOT/SMLCore.Native/build" --output-on-failure
+
+    echo "Running SMSCore.Native spec tests..."
+    ctest --test-dir "$REPO_ROOT/SMSCore.Native/build" --output-on-failure
+
     echo "Running ForgeRunner unit tests..."
     dotnet test "$REPO_ROOT/ForgeRunner.Tests/ForgeRunner.Tests.csproj"
 

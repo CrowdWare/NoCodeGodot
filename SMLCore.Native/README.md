@@ -24,6 +24,19 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
 
+## Run Native Spec Tests
+
+```bash
+cd SMLCore.Native
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build build --config Release
+ctest --test-dir build --output-on-failure
+```
+
+Test suites include:
+- `smlcore_native_spec_*` (core parser/API coverage)
+- `sml_parser_*` (ported parser cases from `SMLCore.Native.Test`, limited to native parser scope)
+
 ## Output
 
 - macOS: `build/libsmlcore_native.dylib`

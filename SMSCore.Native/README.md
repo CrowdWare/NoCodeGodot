@@ -21,9 +21,21 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
 
+## Run Native Spec Tests
+
+```bash
+cd SMSCore.Native
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build build --config Release
+ctest --test-dir build --output-on-failure
+```
+
+Test suites include:
+- `sms_native_spec_*` (SPEC_2026 coverage)
+- `sms_parser_*` / `sms_events_*` (ported parser/runtime cases from `SMSCore.Native.Test`, limited to native runtime scope)
+
 ## Output
 
 - macOS: `build/libsms_native.dylib`
 - Linux: `build/libsms_native.so`
 - Windows: `build/Release/sms_native.dll`
-

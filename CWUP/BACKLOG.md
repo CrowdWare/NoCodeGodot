@@ -94,6 +94,7 @@
 
 ## Future Tasks
 - [ ] Texture-Cache in `NodePropertyMapper` einbauen: `Dictionary<string, Texture2D>` nach resolved path, geteilt über alle Controls. Nur umsetzen wenn Ladezeiten > 1 Sekunde messbar sind.
+- [ ] tasks/stackwide_single_slash_uri_scheme_policy.md
 
 ## Tasks for Forge-Designer
 - [ ] Lifecycle-Template für neue Scripts einführen (OnInit / OnReadyAsync sichtbar als optionaler Einstieg)

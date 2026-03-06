@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -39,6 +40,9 @@ enum class TokenType {
     Identifier,
     Number,
     String,
+    Import,
+    Export,
+    As,
     Var,
     For,
     In,
@@ -64,6 +68,7 @@ enum class TokenType {
     RightBracket,
     Dot,
     Comma,
+    Colon,
     Semicolon,
     Assign,
     Plus,
@@ -128,6 +133,9 @@ public:
                     break;
                 case ',':
                     out.push_back({TokenType::Comma, ","});
+                    break;
+                case ':':
+                    out.push_back({TokenType::Colon, ":"});
                     break;
                 case ';':
                     out.push_back({TokenType::Semicolon, ";"});
@@ -322,6 +330,9 @@ private:
             break;
         }
 
+        if (text == "import") return {TokenType::Import, text};
+        if (text == "export") return {TokenType::Export, text};
+        if (text == "as") return {TokenType::As, text};
         if (text == "var") return {TokenType::Var, text};
         if (text == "for") return {TokenType::For, text};
         if (text == "in") return {TokenType::In, text};
@@ -974,8 +985,13 @@ struct MemberAccessExpr final : Expr {
     std::string member_;
 };
 
+struct CallArgumentExpr {
+    std::string name;
+    std::unique_ptr<Expr> value;
+};
+
 struct MethodCallExpr final : Expr {
-    MethodCallExpr(std::unique_ptr<Expr> receiver, std::string method, std::vector<std::unique_ptr<Expr>> args)
+    MethodCallExpr(std::unique_ptr<Expr> receiver, std::string method, std::vector<CallArgumentExpr> args)
         : receiver_(std::move(receiver)), method_(std::move(method)), args_(std::move(args)) {}
 
     Value eval(Env& env) const override {
@@ -983,7 +999,10 @@ struct MethodCallExpr final : Expr {
         std::vector<Value> args;
         args.reserve(args_.size());
         for (const auto& arg : args_) {
-            args.push_back(arg->eval(env));
+            if (!arg.name.empty()) {
+                throw std::runtime_error("Named arguments are not supported for method calls.");
+            }
+            args.push_back(arg.value->eval(env));
         }
 
         if (receiver.kind == Value::Kind::Object && receiver.class_name == "log") {
@@ -1302,7 +1321,7 @@ struct MethodCallExpr final : Expr {
 
     std::unique_ptr<Expr> receiver_;
     std::string method_;
-    std::vector<std::unique_ptr<Expr>> args_;
+    std::vector<CallArgumentExpr> args_;
 };
 
 struct BinaryExpr final : Expr {
@@ -1438,6 +1457,12 @@ struct WhenBranch {
     bool is_else = false;
 };
 
+struct ParameterDecl {
+    std::string name;
+    std::string type_name;
+    std::unique_ptr<Expr> default_value;
+};
+
 struct WhenExpr final : Expr {
     explicit WhenExpr(std::unique_ptr<Expr> subject, std::vector<WhenBranch> branches)
         : subject_(std::move(subject)), branches_(std::move(branches)) {}
@@ -1480,7 +1505,8 @@ static void execute_statements(const std::vector<std::unique_ptr<Stmt>>& body, E
 
 struct FunctionDeclStmt final : Stmt {
     std::string name;
-    std::vector<std::string> params;
+    std::vector<ParameterDecl> params;
+    std::string return_type;
     std::vector<std::unique_ptr<Stmt>> body;
 
     void execute(Env& env, Value&) const override {
@@ -1490,7 +1516,7 @@ struct FunctionDeclStmt final : Stmt {
 
 struct DataClassDeclStmt final : Stmt {
     std::string name;
-    std::vector<std::string> fields;
+    std::vector<ParameterDecl> fields;
 
     void execute(Env& env, Value&) const override {
         env.define_data_class(name, this);
@@ -1512,8 +1538,18 @@ struct EventHandlerDeclStmt final : Stmt {
     }
 };
 
+struct ImportDeclStmt final : Stmt {
+    std::string path;
+    std::string alias;
+
+    void execute(Env&, Value&) const override {
+        // Module linking is handled by higher-level runtime integration.
+        // Native parser/runtime keeps import declarations as validated no-ops for now.
+    }
+};
+
 struct CallExpr final : Expr {
-    CallExpr(std::string n, std::vector<std::unique_ptr<Expr>> args)
+    CallExpr(std::string n, std::vector<CallArgumentExpr> args)
         : name(std::move(n)), args_(std::move(args)) {}
 
     Value eval(Env& env) const override {
@@ -1521,7 +1557,10 @@ struct CallExpr final : Expr {
             if (args_.size() != 1) {
                 throw std::runtime_error("size expects 1 argument.");
             }
-            auto value = args_[0]->eval(env);
+            if (!args_[0].name.empty()) {
+                throw std::runtime_error("Named arguments are not supported for size.");
+            }
+            auto value = args_[0].value->eval(env);
             if (value.kind != Value::Kind::Array || !value.array) {
                 return Value::Int(0);
             }
@@ -1535,29 +1574,102 @@ struct CallExpr final : Expr {
                 throw std::runtime_error("Unknown function: " + name);
             }
 
-            if (args_.size() != data_class->fields.size()) {
-                throw std::runtime_error("Data class '" + name + "' expects "
-                    + std::to_string(data_class->fields.size()) + " arg(s), got "
-                    + std::to_string(args_.size()) + ".");
-            }
-
             std::unordered_map<std::string, Value> fields;
             fields.reserve(data_class->fields.size());
-            for (std::size_t i = 0; i < args_.size(); i++) {
-                fields[data_class->fields[i]] = args_[i]->eval(env);
+            std::vector<Value> bound_args(data_class->fields.size(), Value::Null());
+            std::vector<bool> assigned(data_class->fields.size(), false);
+            std::size_t next_positional = 0;
+
+            for (const auto& arg : args_) {
+                if (arg.name.empty()) {
+                    while (next_positional < data_class->fields.size() && assigned[next_positional]) {
+                        next_positional++;
+                    }
+                    if (next_positional >= data_class->fields.size()) {
+                        throw std::runtime_error("Data class '" + name + "' expects at most "
+                            + std::to_string(data_class->fields.size()) + " arg(s), got "
+                            + std::to_string(args_.size()) + ".");
+                    }
+                    bound_args[next_positional] = arg.value->eval(env);
+                    assigned[next_positional] = true;
+                    next_positional++;
+                    continue;
+                }
+
+                const auto it = std::find_if(data_class->fields.begin(), data_class->fields.end(),
+                    [&](const ParameterDecl& field) { return field.name == arg.name; });
+                if (it == data_class->fields.end()) {
+                    throw std::runtime_error("Unknown named argument '" + arg.name + "' for data class '" + name + "'.");
+                }
+
+                const auto idx = static_cast<std::size_t>(std::distance(data_class->fields.begin(), it));
+                if (assigned[idx]) {
+                    throw std::runtime_error("Duplicate named argument '" + arg.name + "' for data class '" + name + "'.");
+                }
+                bound_args[idx] = arg.value->eval(env);
+                assigned[idx] = true;
+            }
+
+            for (std::size_t i = 0; i < data_class->fields.size(); i++) {
+                if (assigned[i]) {
+                    fields[data_class->fields[i].name] = bound_args[i];
+                    continue;
+                }
+
+                if (!data_class->fields[i].default_value) {
+                    throw std::runtime_error("Missing required argument '" + data_class->fields[i].name
+                        + "' for data class '" + name + "'.");
+                }
+                fields[data_class->fields[i].name] = data_class->fields[i].default_value->eval(env);
             }
             return Value::Object(data_class->name, std::move(fields));
         }
 
-        if (args_.size() != fn->params.size()) {
-            throw std::runtime_error("Function '" + name + "' expects "
-                + std::to_string(fn->params.size()) + " arg(s), got "
-                + std::to_string(args_.size()) + ".");
+        Env local(&env);
+        std::vector<Value> bound_args(fn->params.size(), Value::Null());
+        std::vector<bool> assigned(fn->params.size(), false);
+        std::size_t next_positional = 0;
+
+        for (const auto& arg : args_) {
+            if (arg.name.empty()) {
+                while (next_positional < fn->params.size() && assigned[next_positional]) {
+                    next_positional++;
+                }
+                if (next_positional >= fn->params.size()) {
+                    throw std::runtime_error("Function '" + name + "' expects at most "
+                        + std::to_string(fn->params.size()) + " arg(s), got "
+                        + std::to_string(args_.size()) + ".");
+                }
+                bound_args[next_positional] = arg.value->eval(env);
+                assigned[next_positional] = true;
+                next_positional++;
+                continue;
+            }
+
+            const auto it = std::find_if(fn->params.begin(), fn->params.end(),
+                [&](const ParameterDecl& param) { return param.name == arg.name; });
+            if (it == fn->params.end()) {
+                throw std::runtime_error("Unknown named argument '" + arg.name + "' for function '" + name + "'.");
+            }
+
+            const auto idx = static_cast<std::size_t>(std::distance(fn->params.begin(), it));
+            if (assigned[idx]) {
+                throw std::runtime_error("Duplicate named argument '" + arg.name + "' for function '" + name + "'.");
+            }
+            bound_args[idx] = arg.value->eval(env);
+            assigned[idx] = true;
         }
 
-        Env local(&env);
-        for (std::size_t i = 0; i < args_.size(); i++) {
-            local.define_var(fn->params[i], args_[i]->eval(env));
+        for (std::size_t i = 0; i < fn->params.size(); i++) {
+            if (!assigned[i]) {
+                if (!fn->params[i].default_value) {
+                    throw std::runtime_error("Missing required argument '" + fn->params[i].name
+                        + "' for function '" + name + "'.");
+                }
+                bound_args[i] = fn->params[i].default_value->eval(local);
+                assigned[i] = true;
+            }
+            local.define_var(fn->params[i].name, bound_args[i]);
         }
 
         Value last = Value::Null();
@@ -1570,7 +1682,7 @@ struct CallExpr final : Expr {
     }
 
     std::string name;
-    std::vector<std::unique_ptr<Expr>> args_;
+    std::vector<CallArgumentExpr> args_;
 };
 
 struct VarDeclStmt final : Stmt {
@@ -1770,8 +1882,16 @@ public:
 
     std::vector<std::unique_ptr<Stmt>> parse_program() {
         std::vector<std::unique_ptr<Stmt>> out;
+        std::unordered_set<std::string> event_keys;
         while (!check(TokenType::Eof)) {
-            out.push_back(parse_statement());
+            auto stmt = parse_statement();
+            if (const auto* handler = dynamic_cast<const EventHandlerDeclStmt*>(stmt.get())) {
+                const auto key = handler->key();
+                if (!event_keys.insert(key).second) {
+                    throw std::runtime_error("Duplicate event handler '" + key + "'");
+                }
+            }
+            out.push_back(std::move(stmt));
             match(TokenType::Semicolon);
         }
         return out;
@@ -1779,6 +1899,8 @@ public:
 
 private:
     std::unique_ptr<Stmt> parse_statement() {
+        if (match(TokenType::Import)) return parse_import_decl();
+        if (match(TokenType::Export)) return parse_export_decl();
         if (match(TokenType::Var)) return parse_var_decl(false);
         if (match(TokenType::Data)) return parse_data_class_decl();
         if (match(TokenType::For)) return parse_for();
@@ -1804,6 +1926,9 @@ private:
 
     std::unique_ptr<Stmt> parse_var_decl(bool inside_for_clause) {
         const auto name = consume(TokenType::Identifier, "Expected variable name").text;
+        if (match(TokenType::Colon)) {
+            consume(TokenType::Identifier, "Expected type name after ':'");
+        }
         consume(TokenType::Assign, "Expected '=' after variable name");
         auto value = parse_expression();
         if (!inside_for_clause) {
@@ -1817,10 +1942,10 @@ private:
         const auto name = consume(TokenType::Identifier, "Expected data class name").text;
         consume(TokenType::LeftParen, "Expected '(' after data class name");
 
-        std::vector<std::string> fields;
+        std::vector<ParameterDecl> fields;
         if (!check(TokenType::RightParen)) {
             do {
-                fields.push_back(consume(TokenType::Identifier, "Expected field name").text);
+                fields.push_back(parse_parameter_decl());
             } while (match(TokenType::Comma));
         }
 
@@ -1910,19 +2035,24 @@ private:
         const auto name = consume(TokenType::Identifier, "Expected function name").text;
         consume(TokenType::LeftParen, "Expected '(' after function name");
 
-        std::vector<std::string> params;
+        std::vector<ParameterDecl> params;
         if (!check(TokenType::RightParen)) {
             do {
-                params.push_back(consume(TokenType::Identifier, "Expected parameter name").text);
+                params.push_back(parse_parameter_decl());
             } while (match(TokenType::Comma));
         }
 
         consume(TokenType::RightParen, "Expected ')' after function parameters");
+        std::string return_type;
+        if (match(TokenType::Colon)) {
+            return_type = consume(TokenType::Identifier, "Expected return type name").text;
+        }
         auto body = parse_block();
 
         auto fn = std::make_unique<FunctionDeclStmt>();
         fn->name = name;
         fn->params = std::move(params);
+        fn->return_type = std::move(return_type);
         fn->body = std::move(body);
         return fn;
     }
@@ -1936,7 +2066,8 @@ private:
         std::vector<std::string> params;
         if (!check(TokenType::RightParen)) {
             do {
-                params.push_back(consume(TokenType::Identifier, "Expected parameter name").text);
+                auto param = parse_parameter_decl();
+                params.push_back(std::move(param.name));
             } while (match(TokenType::Comma));
         }
         consume(TokenType::RightParen, "Expected ')' after event parameters");
@@ -1956,6 +2087,9 @@ private:
         if (check(TokenType::Identifier)) {
             const auto checkpoint = current_;
             const auto variable = advance().text;
+            if (match(TokenType::Colon)) {
+                consume(TokenType::Identifier, "Expected type name after ':' in for-in variable");
+            }
             if (match(TokenType::In)) {
                 auto iterable = parse_expression();
                 consume(TokenType::RightParen, "Expected ')' after for-in");
@@ -2201,15 +2335,81 @@ private:
         return expr;
     }
 
-    std::vector<std::unique_ptr<Expr>> parse_arguments() {
-        std::vector<std::unique_ptr<Expr>> args;
+    std::vector<CallArgumentExpr> parse_arguments() {
+        std::vector<CallArgumentExpr> args;
+        bool named_args_started = false;
         if (!check(TokenType::RightParen)) {
             do {
-                args.push_back(parse_expression());
+                if (check(TokenType::Identifier) && check_next(TokenType::Assign)) {
+                    named_args_started = true;
+                    auto name = consume(TokenType::Identifier, "Expected argument name").text;
+                    consume(TokenType::Assign, "Expected '=' after named argument name");
+                    CallArgumentExpr arg;
+                    arg.name = std::move(name);
+                    arg.value = parse_expression();
+                    args.push_back(std::move(arg));
+                } else {
+                    if (named_args_started) {
+                        throw std::runtime_error("Positional argument is not allowed after named argument.");
+                    }
+                    CallArgumentExpr arg;
+                    arg.value = parse_expression();
+                    args.push_back(std::move(arg));
+                }
             } while (match(TokenType::Comma));
         }
         consume(TokenType::RightParen, "Expected ')' after arguments");
         return args;
+    }
+
+    std::unique_ptr<Stmt> parse_import_decl() {
+        const auto path = consume(TokenType::String, "Expected import path string").text;
+        validate_import_path(path);
+        std::string alias;
+        if (match(TokenType::As)) {
+            alias = consume(TokenType::Identifier, "Expected alias after 'as'").text;
+        }
+
+        auto stmt = std::make_unique<ImportDeclStmt>();
+        stmt->path = path;
+        stmt->alias = alias;
+        return stmt;
+    }
+
+    std::unique_ptr<Stmt> parse_export_decl() {
+        if (match(TokenType::Fun)) {
+            return parse_function_decl();
+        }
+        if (match(TokenType::Var)) {
+            return parse_var_decl(false);
+        }
+        throw std::runtime_error("Expected 'fun' or 'var' after 'export'.");
+    }
+
+    ParameterDecl parse_parameter_decl() {
+        ParameterDecl param;
+        param.name = consume(TokenType::Identifier, "Expected parameter name").text;
+        if (match(TokenType::Colon)) {
+            param.type_name = consume(TokenType::Identifier, "Expected type name after ':'").text;
+        }
+        if (match(TokenType::Assign)) {
+            param.default_value = parse_expression();
+        }
+        return param;
+    }
+
+    void validate_import_path(const std::string& path) const {
+        if (path.find("//") != std::string::npos) {
+            throw std::runtime_error("Import paths must not contain '//'.");
+        }
+        if (path.rfind("./", 0) == 0 || path.rfind("../", 0) == 0) {
+            throw std::runtime_error("Relative import paths are not allowed.");
+        }
+        if (path.rfind("res:/", 0) != 0
+            && path.rfind("appRes:/", 0) != 0
+            && path.rfind("user:/", 0) != 0) {
+            throw std::runtime_error("Import path must start with res:/, appRes:/, or user:/");
+        }
     }
 
     std::unique_ptr<Expr> parse_primary() {
