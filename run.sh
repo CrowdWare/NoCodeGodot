@@ -312,16 +312,13 @@ case "$MODE" in
     build_native_lib "SMLCore.Native" "$REPO_ROOT/SMLCore.Native" "$REPO_ROOT/SMLCore.Native/build"
     build_native_lib "SMSCore.Native" "$REPO_ROOT/SMSCore.Native" "$REPO_ROOT/SMSCore.Native/build"
     dotnet build "$REPO_ROOT/ForgeRunner/ForgeRunner.csproj"
+    echo "Building ForgeCli.Native..."
+    cmake -S "$REPO_ROOT/ForgeCli.Native" -B "$REPO_ROOT/ForgeCli.Native/build" -DCMAKE_BUILD_TYPE=Release
+    cmake --build "$REPO_ROOT/ForgeCli.Native/build" --config Release
     ;;
   test)
     echo "Building ForgeCli..."
     dotnet build "$REPO_ROOT/ForgeCli/ForgeCli.csproj"
-
-    echo "Running SMLCore unit tests..."
-    dotnet test "$REPO_ROOT/SMLCore.Tests/SMLCore.Tests.csproj"
-
-    echo "Running SMSCore unit tests..."
-    dotnet test "$REPO_ROOT/SMSCore.Tests/SMSCore.Tests.csproj"
 
     echo "Running ForgeRunner unit tests..."
     dotnet test "$REPO_ROOT/ForgeRunner.Tests/ForgeRunner.Tests.csproj"
@@ -420,7 +417,7 @@ case "$MODE" in
     hdiutil create -volname "ForgeRunner" -srcfolder "$TMP_DMG_DIR" -ov -format UDZO "$DMG" >/dev/null
 
     echo "Committing version bump + tagging $TAG..."
-    git add ForgeRunner/ForgeRunner.csproj SMLCore/SMLCore.csproj SMSCore/SMSCore.csproj
+    git add ForgeRunner/ForgeRunner.csproj
     git commit -m "release: $TAG [$CHANNEL]"
     git tag "$TAG"
     git push

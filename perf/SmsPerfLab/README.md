@@ -10,8 +10,8 @@ Standalone performance lab for:
 This lab is intentionally independent from `ForgeRunner` runtime/UI integration.
 
 Managed baseline dependency note:
-- `perf/SmsPerfLab/SmsPerfLab.csproj` references `../../SMLCore/SMLCore.csproj` and `../../SMSCore/SMSCore.csproj`.
-- Expected layout: `SMLCore` and `SMSCore` live inside the `Forge` repository root.
+- `perf/SmsPerfLab/SmsPerfLab.csproj` references `../../../SMLCore/SMLCore.csproj` and `../../../SMSCore/SMSCore.csproj`.
+- Expected layout: `Forge`, `SMLCore`, and `SMSCore` are sibling directories under the same parent folder.
 
 ## Structure
 

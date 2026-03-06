@@ -8,7 +8,21 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../SMLCore/SMLCore.csproj" />
-    <ProjectReference Include="../../SMSCore/SMSCore.csproj" />
+    <Reference Include="SMLCore" Condition="'$(Configuration)' == 'Release'">
+      <HintPath>../../../SMLCore/bin/Release/net8.0/SMLCore.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="SMLCore" Condition="'$(Configuration)' != 'Release'">
+      <HintPath>../../../SMLCore/bin/Debug/net8.0/SMLCore.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="SMSCore" Condition="'$(Configuration)' == 'Release'">
+      <HintPath>../../../SMSCore/bin/Release/net8.0/SMSCore.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="SMSCore" Condition="'$(Configuration)' != 'Release'">
+      <HintPath>../../../SMSCore/bin/Debug/net8.0/SMSCore.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 </Project>
