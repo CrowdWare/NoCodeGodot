@@ -84,6 +84,9 @@
 - [x] tasks/toolbar.md
 - [x] tasks/rotate_gizmo.md
 - [x] tasks/viewport_code.md
+- [x] tasks/smlcore_cpp_native_runtime.md
+- [x] tasks/sms_cpp_native_runtime.md
+- [ ] tasks/sms_language_spec_2026_native.md
 
 
 

@@ -233,7 +233,7 @@ if [[ -z "$MODE" ]]; then
   echo "  8) theme     -> theme.tres aus theme.sml generieren (headless)"
   echo "  9) build     -> App bauen"
   echo " 10) export    -> macOS Release bauen (Godot export)"
-  echo " 11) test      -> ForgeCli Build + alle UnitTests"
+  echo " 11) test      -> UnitTests"
   echo " 12) manifest  -> manifest.sml für alle Docs generieren"
   echo " 13) pub       -> manifest + git commit + git push (msg required)"
   echo " 14) app       -> ForgeRunner.app starten (Release)"
@@ -317,9 +317,6 @@ case "$MODE" in
     cmake --build "$REPO_ROOT/ForgeCli.Native/build" --config Release
     ;;
   test)
-    echo "Building ForgeCli..."
-    dotnet build "$REPO_ROOT/ForgeCli/ForgeCli.csproj"
-
     echo "Running ForgeRunner unit tests..."
     dotnet test "$REPO_ROOT/ForgeRunner.Tests/ForgeRunner.Tests.csproj"
 

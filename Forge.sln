@@ -4,8 +4,6 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ForgeRunner", "ForgeRunner\ForgeRunner.csproj", "{B5A4A809-2D41-7A00-3F8D-6E87C9F87F29}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ForgeCli", "ForgeCli\ForgeCli.csproj", "{19A3CBF4-0297-4E70-AFD3-D51563D83B49}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ForgeAiLib", "ForgeAiLib\ForgeAiLib.csproj", "{D2FEB00C-FA58-4EEA-B551-E46E017470E0}"
 EndProject
 Global
@@ -18,10 +16,6 @@ Global
 		{B5A4A809-2D41-7A00-3F8D-6E87C9F87F29}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B5A4A809-2D41-7A00-3F8D-6E87C9F87F29}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B5A4A809-2D41-7A00-3F8D-6E87C9F87F29}.Release|Any CPU.Build.0 = Release|Any CPU
-		{19A3CBF4-0297-4E70-AFD3-D51563D83B49}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{19A3CBF4-0297-4E70-AFD3-D51563D83B49}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{19A3CBF4-0297-4E70-AFD3-D51563D83B49}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{19A3CBF4-0297-4E70-AFD3-D51563D83B49}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D2FEB00C-FA58-4EEA-B551-E46E017470E0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D2FEB00C-FA58-4EEA-B551-E46E017470E0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D2FEB00C-FA58-4EEA-B551-E46E017470E0}.Release|Any CPU.ActiveCfg = Release|Any CPU
