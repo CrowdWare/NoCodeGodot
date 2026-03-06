@@ -83,7 +83,9 @@ build_forge_runner_native_host() {
 usage() {
   cat <<USAGE
 Usage:
-  ./run.sh none               Run ForgeRunner.Native without arguments
+  ./run.sh [runner-args...]   Run ForgeRunner.Native with passed arguments (for example --url ...)
+  ./run.sh run [runner-args]  Same as above (explicit mode)
+  ./run.sh none               Run ForgeRunner.Native without arguments (runtime may restore last URL)
   ./run.sh build              Build native stack (default)
   ./run.sh build-native       Same as build
   ./run.sh build-host         Build ForgeRunner.Native only
@@ -114,11 +116,21 @@ resolve_native_runner_bin() {
 }
 
 MODE="${1:-}"
-shift || true
+if [[ -n "$MODE" ]]; then
+  shift || true
+fi
+
+RUNNER_ARGS=()
+if [[ -n "$MODE" && "${MODE:0:1}" == "-" ]]; then
+  RUNNER_ARGS+=("$MODE" "$@")
+  MODE="run"
+elif [[ "$MODE" == "run" ]]; then
+  RUNNER_ARGS=("$@")
+fi
 
 if [[ -z "$MODE" ]]; then
   echo "Bitte Modus wählen (Native):"
-  echo "  1) none          -> ForgeRunner.Native ohne Argumente starten"
+  echo "  1) none          -> ForgeRunner.Native ohne Argumente starten (letzte URL durch Runtime)"
   echo "  2) build         -> Native Stack bauen (SMLCore.Native, SMSCore.Native, ForgeCli.Native, ForgeRunner.Native)"
   echo "  3) build-host    -> nur ForgeRunner.Native bauen"
   echo "  4) test          -> Native Tests (SMLCore.Native + SMSCore.Native)"
@@ -141,11 +153,24 @@ if [[ -z "$MODE" ]]; then
       echo "Ungültige Auswahl. Abbruch."
       exit 1
       ;;
-  esac
+esac
 fi
 
 case "$MODE" in
+  run)
+    native_runner_bin="$(resolve_native_runner_bin)"
+    if [[ ! -x "$native_runner_bin" ]]; then
+      echo "ERROR: ForgeRunner.Native executable not found: $native_runner_bin" >&2
+      echo "Build it via './run.sh build-host' or set FORGE_RUNNER_NATIVE_BIN explicitly." >&2
+      exit 1
+    fi
+    echo "Starting ForgeRunner.Native with arguments: ${RUNNER_ARGS[*]}"
+    exec "$native_runner_bin" "${RUNNER_ARGS[@]}"
+    ;;
   none)
+    if [[ $# -gt 0 ]]; then
+      echo "WARNING: mode 'none' ignores runner arguments: $*" >&2
+    fi
     native_runner_bin="$(resolve_native_runner_bin)"
     if [[ ! -x "$native_runner_bin" ]]; then
       echo "ERROR: ForgeRunner.Native executable not found: $native_runner_bin" >&2

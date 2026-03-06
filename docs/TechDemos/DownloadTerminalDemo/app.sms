@@ -1,3 +1,3 @@
 on techDemoTerminal.ready() {
-    log.success("ForgeTerminal is ready. Start hacking.")
+    log.success("ForgeTerminal is ready. Start to live free.")
 }
