@@ -15,6 +15,31 @@ struct ExecResult {
     std::string error;
 };
 
+struct ScopedSandboxCallback {
+    explicit ScopedSandboxCallback(sms_native_sandbox_path_allow_fn fn) {
+        sms_native_set_sandbox_path_callback(fn, nullptr, 0);
+    }
+
+    ~ScopedSandboxCallback() {
+        sms_native_set_sandbox_path_callback(nullptr, nullptr, 0);
+    }
+};
+
+int strict_scheme_only_sandbox_callback(const char*, const char* uri_path, char* error, int error_capacity) {
+    const std::string path = uri_path != nullptr ? uri_path : "";
+    const bool allowed_scheme = path.rfind("res:/", 0) == 0
+        || path.rfind("appRes:/", 0) == 0
+        || path.rfind("user:/", 0) == 0;
+    if (allowed_scheme) {
+        return 0;
+    }
+    if (error != nullptr && error_capacity > 0) {
+        std::strncpy(error, "path rejected by strict test sandbox policy: unsupported URI scheme", static_cast<std::size_t>(error_capacity - 1));
+        error[error_capacity - 1] = '\0';
+    }
+    return 1;
+}
+
 ExecResult execute(const std::string& source) {
     char error[1024] = {0};
     std::int64_t value = 0;
@@ -68,6 +93,41 @@ void test_import_forbid_double_slash() {
 
 void test_import_forbid_relative() {
     expect_error_contains("import_forbid_relative", "import \"./math.sms\"; 1;", "Relative import paths are not allowed");
+}
+
+void test_import_forbid_parent_traversal_after_scheme() {
+    expect_error_contains(
+        "import_forbid_parent_traversal_after_scheme",
+        "import \"res:/../math.sms\"; 1;",
+        "must not contain '..' segments");
+}
+
+void test_import_forbid_deep_parent_traversal_after_scheme() {
+    expect_error_contains(
+        "import_forbid_deep_parent_traversal_after_scheme",
+        "import \"res:/mein_spezieller/pfad/aus/dem/ich/ausbreche/../../../../../../make_nonsense.sms\"; 1;",
+        "must not contain '..' segments");
+}
+
+void test_try_catch_handles_runtime_error() {
+    expect_ok_value(
+        "try_catch_handles_runtime_error",
+        "try { 1 / 0; 0; } catch (e) { if (e.type == \"RuntimeException\" && e.message != \"\") { 1; } else { 0; } }",
+        1);
+}
+
+void test_try_catch_skips_catch_when_no_error() {
+    expect_ok_value(
+        "try_catch_skips_catch_when_no_error",
+        "var x = 0; try { x = 2; } catch (e) { x = 9; } x;",
+        2);
+}
+
+void test_try_catch_does_not_swallow_return() {
+    expect_ok_value(
+        "try_catch_does_not_swallow_return",
+        "fun run() { try { return 7; } catch (e) { return 1; } } run();",
+        7);
 }
 
 void test_export_function_named_args_and_defaults() {
@@ -152,6 +212,29 @@ void test_invalid_import_scheme() {
         "Import path must start with");
 }
 
+void test_os_file_exists_rejects_non_sandbox_path() {
+    ScopedSandboxCallback callback(&strict_scheme_only_sandbox_callback);
+    expect_error_contains(
+        "os_file_exists_rejects_non_sandbox_path",
+        "os.fileExists(\"/tmp/file.txt\");",
+        "unsupported URI scheme");
+}
+
+void test_fs_read_text_rejects_non_sandbox_path() {
+    ScopedSandboxCallback callback(&strict_scheme_only_sandbox_callback);
+    expect_error_contains(
+        "fs_read_text_rejects_non_sandbox_path",
+        "fs.readText(\"file://tmp/file.txt\");",
+        "unsupported URI scheme");
+}
+
+void test_os_file_exists_trusted_fallback_without_sandbox_policy_callback() {
+    expect_error_contains(
+        "os_file_exists_trusted_fallback_without_sandbox_policy_callback",
+        "os.fileExists(\"res:/safe/file.txt\");",
+        "ui invoke bridge unavailable");
+}
+
 const std::vector<TestCase>& all_tests() {
     static const std::vector<TestCase> tests = {
         {"import_res_scheme", test_import_res_scheme},
@@ -159,6 +242,11 @@ const std::vector<TestCase>& all_tests() {
         {"import_user_scheme", test_import_user_scheme},
         {"import_forbid_double_slash", test_import_forbid_double_slash},
         {"import_forbid_relative", test_import_forbid_relative},
+        {"import_forbid_parent_traversal_after_scheme", test_import_forbid_parent_traversal_after_scheme},
+        {"import_forbid_deep_parent_traversal_after_scheme", test_import_forbid_deep_parent_traversal_after_scheme},
+        {"try_catch_handles_runtime_error", test_try_catch_handles_runtime_error},
+        {"try_catch_skips_catch_when_no_error", test_try_catch_skips_catch_when_no_error},
+        {"try_catch_does_not_swallow_return", test_try_catch_does_not_swallow_return},
         {"export_function_named_args_and_defaults", test_export_function_named_args_and_defaults},
         {"data_class_named_args_and_defaults", test_data_class_named_args_and_defaults},
         {"for_in_typed_variable", test_for_in_typed_variable},
@@ -170,6 +258,9 @@ const std::vector<TestCase>& all_tests() {
         {"duplicate_named_dataclass_argument", test_duplicate_named_dataclass_argument},
         {"missing_required_dataclass_argument", test_missing_required_dataclass_argument},
         {"invalid_import_scheme", test_invalid_import_scheme},
+        {"os_file_exists_rejects_non_sandbox_path", test_os_file_exists_rejects_non_sandbox_path},
+        {"fs_read_text_rejects_non_sandbox_path", test_fs_read_text_rejects_non_sandbox_path},
+        {"os_file_exists_trusted_fallback_without_sandbox_policy_callback", test_os_file_exists_trusted_fallback_without_sandbox_policy_callback},
     };
     return tests;
 }

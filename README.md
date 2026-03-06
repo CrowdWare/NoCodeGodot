@@ -157,7 +157,7 @@ This is one of Forge's strongest UX advantages:
 
 Forge enforces a strict separation:
 	•	Structure & UI → SML
-	•	Behavior & Logic → native C# code
+	•	Behavior & Logic → runtime host code (currently C#, native C++ migration in progress)
 	•	Execution → Forge-Runner
 
 This prevents the common collapse where UI, logic, and state become tangled and unmaintainable.

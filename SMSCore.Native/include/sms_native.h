@@ -33,6 +33,12 @@ typedef int (*sms_native_ui_invoke_fn)(
     char* error,
     int error_capacity);
 
+typedef int (*sms_native_sandbox_path_allow_fn)(
+    const char* owner,
+    const char* uri_path,
+    char* error,
+    int error_capacity);
+
 SMS_EXPORT int sms_native_execute(const char* source, std::int64_t* out_result, char* error, int error_capacity);
 SMS_EXPORT int sms_native_sml_parse(const char* source, std::int64_t* out_node_count, char* error, int error_capacity);
 SMS_EXPORT int sms_native_session_create(std::int64_t* out_session, char* error, int error_capacity);
@@ -50,6 +56,10 @@ SMS_EXPORT int sms_native_set_ui_callbacks(
     sms_native_ui_get_prop_fn get_prop,
     sms_native_ui_set_prop_fn set_prop,
     sms_native_ui_invoke_fn invoke,
+    char* error,
+    int error_capacity);
+SMS_EXPORT int sms_native_set_sandbox_path_callback(
+    sms_native_sandbox_path_allow_fn allow_path,
     char* error,
     int error_capacity);
 }

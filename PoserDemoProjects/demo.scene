@@ -10,7 +10,7 @@
 
     Character {
         id: char1  name: "man"  src: "res:/assets/models/man.glb"
-        pos: 2.513659, -0.06562571, 0.7443683
+        pos: 2.246849, -0.06730843, 0.7532347
         rot: 9.999996, -56.55, 0.0
         scale: 1.0, 0.9999998, 1.0
 
@@ -27,7 +27,7 @@
     }
     Character {
         id: char2  name: "man"  src: "res:/assets/models/man.glb"
-        pos: -0.6677406, -0.07067386, 1.521354
+        pos: -0.6677406, -0.07235657, 1.53022
         rot: 0.0, 19.65, 0.0
         scale: 1.0, 1.0, 1.0
 

@@ -5,6 +5,7 @@ var mainWindow = null
 var isLoadingEditor = false
 var lastFlushedText = ""
 var treeVisitedPaths = []
+var treeDirectoryPaths = []
 var treeMaxDepth = 8
 
 fun ready() {
@@ -50,7 +51,7 @@ fun flushEditorToDiskAndPreview() {
     fs.writeText(path, content)
     lastFlushedText = content
 
-    hotReloadPreviewFromEditor(content)
+    // Auto-preview disabled for mixed file types (sml/sms/md/txt) to avoid SML parse warnings.
 }
 
 fun hotReloadPreviewFromEditor(smlContent) {
@@ -64,6 +65,7 @@ fun hotReloadPreviewFromEditor(smlContent) {
 fun populateTree(treeObj, rootPath) {
     treeObj.Clear()
     treeVisitedPaths = []
+    treeDirectoryPaths = [rootPath]
     var root = treeObj.CreateRoot(rootPath, rootPath)
     populateTreeChildren(treeObj, root, rootPath, 0)
 }
@@ -85,6 +87,7 @@ fun populateTreeChildren(treeObj, parentHandle, dirPath, depth) {
 
         var child = treeObj.CreateChild(parentHandle, entry.Name, entry.Path, entry.IsDirectory)
         if (entry.IsDirectory) {
+            treeDirectoryPaths.add(entry.Path)
             populateTreeChildren(treeObj, child, entry.Path, depth + 1)
         }
     }
@@ -98,6 +101,10 @@ on treeview.itemSelected() {
         return
     }
 
+    if (treeDirectoryPaths.contains(itemPath)) {
+        return
+    }
+
     if (fs.exists(itemPath)) {
         selectedPath = itemPath
         isLoadingEditor = true
@@ -105,7 +112,6 @@ on treeview.itemSelected() {
         codeEdit.SetText(fs.readText(itemPath))
         isLoadingEditor = false
         lastFlushedText = codeEdit.GetText()
-        hotReloadPreviewFromEditor(lastFlushedText)
     }
 }
 

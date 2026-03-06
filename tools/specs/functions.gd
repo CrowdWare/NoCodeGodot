@@ -120,19 +120,19 @@ const FUNCTIONS := {
     "fs.list": {
         "category": "File System",
         "signature": "fs.list(path: String)",
-        "description": "Lists files in a directory and returns an array of file names."
+        "description": "Lists files in a directory and returns an array of file names. Path must use res:/, appRes:/, or user:/ (single slash, no '..' traversal segments). When a host sandbox callback is registered, host trust policy is enforced."
     },
 
     "fs.writeText": {
         "category": "File System",
         "signature": "fs.writeText(path: String, content: String)",
-        "description": "Writes text content to a file."
+        "description": "Writes text content to a file. Path must use res:/, appRes:/, or user:/ (single slash, no '..' traversal segments). When a host sandbox callback is registered, host trust policy is enforced."
     },
 
     "fs.readText": {
         "category": "File System",
         "signature": "fs.readText(path: String)",
-        "description": "Reads text content from a file and returns it as a String."
+        "description": "Reads text content from a file and returns it as a String. Path must use res:/, appRes:/, or user:/ (single slash, no '..' traversal segments). When a host sandbox callback is registered, host trust policy is enforced."
     },
 
     "i18n.tr": {

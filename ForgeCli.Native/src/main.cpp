@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "sandbox_policy.h"
+
 #if defined(_WIN32)
 #include <windows.h>
 #else
@@ -18,6 +20,14 @@ using SmlParseFn = int (*)(const char*, std::int64_t*, char*, int);
 using SmsSessionCreateFn = int (*)(std::int64_t*, char*, int);
 using SmsSessionLoadFn = int (*)(std::int64_t, const char*, char*, int);
 using SmsSessionDisposeFn = int (*)(std::int64_t, char*, int);
+using SmsSandboxPathAllowFn = int (*)(const char*, const char*, char*, int);
+using SmsSetSandboxPathCallbackFn = int (*)(SmsSandboxPathAllowFn, char*, int);
+
+static forgecli::SandboxRoots g_sandbox_roots;
+
+static int sandbox_allow_path(const char* owner, const char* uri_path, char* error, int error_capacity) {
+    return forgecli::sandbox_allow_path(g_sandbox_roots, owner, uri_path, error, error_capacity);
+}
 
 static void* load_symbol(void* lib, const char* name) {
 #if defined(_WIN32)
@@ -230,8 +240,21 @@ static int cmd_validate(const std::vector<std::string>& args) {
     auto sms_create = reinterpret_cast<SmsSessionCreateFn>(load_symbol(sms_lib, "sms_native_session_create"));
     auto sms_load = reinterpret_cast<SmsSessionLoadFn>(load_symbol(sms_lib, "sms_native_session_load"));
     auto sms_dispose = reinterpret_cast<SmsSessionDisposeFn>(load_symbol(sms_lib, "sms_native_session_dispose"));
-    if (!sml_parse || !sms_create || !sms_load || !sms_dispose) {
+    auto sms_set_sandbox = reinterpret_cast<SmsSetSandboxPathCallbackFn>(load_symbol(sms_lib, "sms_native_set_sandbox_path_callback"));
+    if (!sml_parse || !sms_create || !sms_load || !sms_dispose || !sms_set_sandbox) {
         std::cerr << "Missing native symbol(s).\n";
+        return 1;
+    }
+
+    std::string sandbox_init_error;
+    if (!forgecli::initialize_sandbox_roots(project, g_sandbox_roots, sandbox_init_error)) {
+        std::cerr << sandbox_init_error << "\n";
+        return 1;
+    }
+
+    char sandbox_error[2048] = {0};
+    if (sms_set_sandbox(&sandbox_allow_path, sandbox_error, static_cast<int>(sizeof(sandbox_error))) != 0) {
+        std::cerr << (sandbox_error[0] ? sandbox_error : "Failed to register SMS sandbox callback.") << "\n";
         return 1;
     }
 

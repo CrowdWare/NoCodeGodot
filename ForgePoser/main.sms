@@ -413,6 +413,12 @@ fun scheduleInspectorRefresh() {
 
 fun onInspectorRefreshTimer() {
     inspectorRefreshArmed = false
+    if (editor == null) {
+        editor = ui.getObject("editor")
+    }
+    if (editor == null) {
+        return
+    }
     updateInspectorFromSelection()
 }
 
@@ -673,6 +679,10 @@ fun applyInspectorTransformLive() {
 }
 
 fun updateInspectorFromSelection() {
+    if (editor == null) {
+        setRightPanels("none")
+        return
+    }
     var sel = selectedSceneAssetIndex
     var charCount = editor.getSceneCharacterCount()
     if (sel < 0) {
@@ -1524,7 +1534,7 @@ on btnToggleJoints.clicked() {
 
 on btnChooserOpenLast.clicked() {
     var last = readLastProjectPath()
-    if (last == "" || !os.fileExists(last)) {
+    if (last == "") {
         showProjectChooser("Last project not found. Choose Open or Create.")
         return
     }

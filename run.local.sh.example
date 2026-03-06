@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Copy this file to `run.local.sh` and customize it for your private workflow.
-# `run.local.sh` is ignored by git and loaded automatically by `run.sh`.
+# `run.local.sh` is ignored by git and loaded automatically by `runLegacy.sh`.
 #
 # Supported override modes:
 #   release, docs, test, publish, export, app, poser

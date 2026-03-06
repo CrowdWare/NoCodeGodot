@@ -26,39 +26,34 @@ var pluginVideoModel = "grok-imagine-video"
 var promptPluginAssemblyPath = ""
 
 fun getPromptPluginAssemblyPath() {
-    var c0 = os.resolvePath("res:/ForgePoser/plugins/prompt/net8.0/PromptPlugin.dll")
+    var c0 = "res:/ForgePoser/plugins/prompt/net8.0/PromptPlugin.dll"
     if (os.fileExists(c0)) {
-        return c0
+        return os.resolvePath(c0)
     }
 
-    var c0b = os.resolvePath("res:/ForgePoser/plugins/prompt/PromptPlugin.dll")
+    var c0b = "res:/ForgePoser/plugins/prompt/PromptPlugin.dll"
     if (os.fileExists(c0b)) {
-        return c0b
+        return os.resolvePath(c0b)
     }
 
-    var c1 = os.resolvePath("plugins/prompt/net8.0/PromptPlugin.dll")
+    var c1 = "res:/plugins/prompt/net8.0/PromptPlugin.dll"
     if (os.fileExists(c1)) {
-        return c1
+        return os.resolvePath(c1)
     }
 
-    var c2 = os.resolvePath("plugins/prompt/PromptPlugin.dll")
+    var c2 = "res:/plugins/prompt/PromptPlugin.dll"
     if (os.fileExists(c2)) {
-        return c2
+        return os.resolvePath(c2)
     }
 
-    var c3 = os.resolvePath("plugins/prompt/PromptPlugin/bin/Debug/net8.0/PromptPlugin.dll")
+    var c3 = "res:/plugins/prompt/PromptPlugin/bin/Debug/net8.0/PromptPlugin.dll"
     if (os.fileExists(c3)) {
-        return c3
+        return os.resolvePath(c3)
     }
 
-    var c4 = os.resolvePath("plugins/prompt/PromptPlugin/obj/Debug/net8.0/PromptPlugin.dll")
+    var c4 = "res:/plugins/prompt/PromptPlugin/obj/Debug/net8.0/PromptPlugin.dll"
     if (os.fileExists(c4)) {
-        return c4
-    }
-
-    var c5 = os.resolvePath("res:/plugins/prompt/net8.0/PromptPlugin.dll")
-    if (os.fileExists(c5)) {
-        return c5
+        return os.resolvePath(c4)
     }
 
     return ""

@@ -27,6 +27,8 @@ internal static class SmsSyntaxRules
         "var",
         "if",
         "else",
+        "try",
+        "catch",
         "while",
         "for",
         "in",

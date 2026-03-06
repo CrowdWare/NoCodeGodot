@@ -7,7 +7,6 @@
 #include <cstring>
 #include <chrono>
 #include <cstdlib>
-#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -33,7 +32,73 @@ std::int64_t g_next_session_id = 1;
 sms_native_ui_get_prop_fn g_ui_get_prop = nullptr;
 sms_native_ui_set_prop_fn g_ui_set_prop = nullptr;
 sms_native_ui_invoke_fn g_ui_invoke = nullptr;
+sms_native_sandbox_path_allow_fn g_sandbox_path_allow = nullptr;
 constexpr int kBridgeJsonBufferSize = 65536;
+
+bool has_parent_traversal_segment(const std::string& path) {
+    std::size_t start = 0;
+    while (start <= path.size()) {
+        std::size_t end = path.find('/', start);
+        if (end == std::string::npos) {
+            end = path.size();
+        }
+        if (end > start) {
+            const auto segment = path.substr(start, end - start);
+            if (segment == "..") {
+                return true;
+            }
+        }
+        if (end == path.size()) {
+            break;
+        }
+        start = end + 1;
+    }
+    return false;
+}
+
+void validate_sandbox_uri_path(const std::string& path, const char* owner) {
+    if (path.empty()) {
+        throw std::runtime_error(std::string(owner) + " path must not be empty.");
+    }
+    if (path.find("//") != std::string::npos) {
+        throw std::runtime_error(std::string(owner) + " path must not contain '//'.");
+    }
+    const bool allowed_scheme = path.rfind("res:/", 0) == 0
+        || path.rfind("appRes:/", 0) == 0
+        || path.rfind("user:/", 0) == 0;
+    if (!allowed_scheme) {
+        throw std::runtime_error(
+            std::string(owner) + " path must start with res:/, appRes:/, or user:/");
+    }
+    const auto slash = path.find('/');
+    if (slash != std::string::npos && has_parent_traversal_segment(path.substr(slash + 1))) {
+        throw std::runtime_error(std::string(owner) + " path must not contain '..' segments.");
+    }
+}
+
+void validate_and_authorize_sandbox_uri_path(const std::string& path, const char* owner) {
+    const bool is_sandbox_uri = path.rfind("res:/", 0) == 0
+        || path.rfind("appRes:/", 0) == 0
+        || path.rfind("user:/", 0) == 0;
+
+    if (is_sandbox_uri) {
+        validate_sandbox_uri_path(path, owner);
+    }
+
+    // Backward-compatible trusted-local default:
+    // - no callback registered -> allow host bridge to decide, preserving existing local workflows.
+    // - callback registered -> callback enforces trust mode (local-trusted vs remote-sandboxed).
+    if (g_sandbox_path_allow != nullptr) {
+        char error[1024] = {0};
+        const int rc = g_sandbox_path_allow(owner, path.c_str(), error, static_cast<int>(sizeof(error)));
+        if (rc != 0) {
+            if (error[0] != '\0') {
+                throw std::runtime_error(error);
+            }
+            throw std::runtime_error(std::string(owner) + " path rejected by sandbox policy.");
+        }
+    }
+}
 
 enum class TokenType {
     Eof,
@@ -50,6 +115,8 @@ enum class TokenType {
     Else,
     When,
     While,
+    Try,
+    Catch,
     Fun,
     Data,
     Class,
@@ -340,6 +407,8 @@ private:
         if (text == "else") return {TokenType::Else, text};
         if (text == "when") return {TokenType::When, text};
         if (text == "while") return {TokenType::While, text};
+        if (text == "try") return {TokenType::Try, text};
+        if (text == "catch") return {TokenType::Catch, text};
         if (text == "fun") return {TokenType::Fun, text};
         if (text == "data") return {TokenType::Data, text};
         if (text == "class") return {TokenType::Class, text};
@@ -1045,15 +1114,6 @@ struct MethodCallExpr final : Expr {
                 return Value::Int(static_cast<std::int64_t>(epoch_ms));
             }
 
-            if (method_ == "fileExists" && args.size() == 1) {
-                const auto path = value_to_string(args[0]);
-                if (path.empty()) {
-                    return Value::Int(0);
-                }
-                const auto exists = std::filesystem::exists(std::filesystem::path(path));
-                return Value::Int(exists ? 1 : 0);
-            }
-
             if (method_ == "getEnv" && args.size() == 1) {
                 const auto key = value_to_string(args[0]);
                 if (key.empty()) {
@@ -1064,6 +1124,10 @@ struct MethodCallExpr final : Expr {
                     return Value::Null();
                 }
                 return Value::String(value);
+            }
+
+            if (method_ == "fileExists" && args.size() == 1) {
+                validate_and_authorize_sandbox_uri_path(value_to_string(args[0]), "os.fileExists");
             }
 
             if (g_ui_invoke == nullptr) {
@@ -1097,6 +1161,10 @@ struct MethodCallExpr final : Expr {
         }
 
         if (receiver.kind == Value::Kind::Object && receiver.class_name == "fs") {
+            if ((method_ == "list" || method_ == "readText" || method_ == "writeText") && !args.empty()) {
+                const std::string owner = "fs." + method_;
+                validate_and_authorize_sandbox_uri_path(value_to_string(args[0]), owner.c_str());
+            }
             if (g_ui_invoke == nullptr) {
                 throw std::runtime_error("ui invoke bridge unavailable.");
             }
@@ -1876,6 +1944,25 @@ struct IfStmt final : Stmt {
     }
 };
 
+struct TryCatchStmt final : Stmt {
+    std::vector<std::unique_ptr<Stmt>> try_body;
+    std::string error_var;
+    std::vector<std::unique_ptr<Stmt>> catch_body;
+
+    void execute(Env& env, Value& last) const override {
+        try {
+            execute_statements(try_body, env, last);
+        } catch (const std::runtime_error& ex) {
+            Env catch_env(&env);
+            std::unordered_map<std::string, Value> fields;
+            fields.emplace("type", Value::String("RuntimeException"));
+            fields.emplace("message", Value::String(ex.what()));
+            catch_env.define_var(error_var, Value::Object("Exception", std::move(fields)));
+            execute_statements(catch_body, catch_env, last);
+        }
+    }
+};
+
 class Parser {
 public:
     explicit Parser(std::vector<Token> tokens) : tokens_(std::move(tokens)) {}
@@ -1905,6 +1992,7 @@ private:
         if (match(TokenType::Data)) return parse_data_class_decl();
         if (match(TokenType::For)) return parse_for();
         if (match(TokenType::While)) return parse_while();
+        if (match(TokenType::Try)) return parse_try_catch();
         if (match(TokenType::If)) return parse_if();
         if (match(TokenType::Fun)) return parse_function_decl();
         if (match(TokenType::On)) return parse_event_handler_decl();
@@ -2162,6 +2250,21 @@ private:
         return if_stmt;
     }
 
+    std::unique_ptr<Stmt> parse_try_catch() {
+        auto try_body = parse_block();
+        consume(TokenType::Catch, "Expected 'catch' after try block");
+        consume(TokenType::LeftParen, "Expected '(' after catch");
+        const auto error_var = consume(TokenType::Identifier, "Expected catch variable name").text;
+        consume(TokenType::RightParen, "Expected ')' after catch variable");
+        auto catch_body = parse_block();
+
+        auto stmt = std::make_unique<TryCatchStmt>();
+        stmt->try_body = std::move(try_body);
+        stmt->error_var = error_var;
+        stmt->catch_body = std::move(catch_body);
+        return stmt;
+    }
+
     std::vector<std::unique_ptr<Stmt>> parse_block() {
         consume(TokenType::LeftBrace, "Expected '{' before block");
         std::vector<std::unique_ptr<Stmt>> body;
@@ -2409,6 +2512,10 @@ private:
             && path.rfind("appRes:/", 0) != 0
             && path.rfind("user:/", 0) != 0) {
             throw std::runtime_error("Import path must start with res:/, appRes:/, or user:/");
+        }
+        const auto slash = path.find('/');
+        if (slash != std::string::npos && has_parent_traversal_segment(path.substr(slash + 1))) {
+            throw std::runtime_error("Import path must not contain '..' segments.");
         }
     }
 
@@ -3010,6 +3117,14 @@ extern "C" int sms_native_set_ui_callbacks(
     g_ui_get_prop = get_prop;
     g_ui_set_prop = set_prop;
     g_ui_invoke = invoke;
+    return 0;
+}
+
+extern "C" int sms_native_set_sandbox_path_callback(
+    sms_native_sandbox_path_allow_fn allow_path,
+    char*,
+    int) {
+    g_sandbox_path_allow = allow_path;
     return 0;
 }
 

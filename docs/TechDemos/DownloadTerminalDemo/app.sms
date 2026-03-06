@@ -1,0 +1,3 @@
+on techDemoTerminal.ready() {
+    log.success("ForgeTerminal is ready. Start hacking.")
+}

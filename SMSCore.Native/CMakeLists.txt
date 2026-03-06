@@ -25,6 +25,11 @@ if(BUILD_TESTING)
         import_user_scheme
         import_forbid_double_slash
         import_forbid_relative
+        import_forbid_parent_traversal_after_scheme
+        import_forbid_deep_parent_traversal_after_scheme
+        try_catch_handles_runtime_error
+        try_catch_skips_catch_when_no_error
+        try_catch_does_not_swallow_return
         export_function_named_args_and_defaults
         data_class_named_args_and_defaults
         for_in_typed_variable
@@ -36,6 +41,9 @@ if(BUILD_TESTING)
         duplicate_named_dataclass_argument
         missing_required_dataclass_argument
         invalid_import_scheme
+        os_file_exists_rejects_non_sandbox_path
+        fs_read_text_rejects_non_sandbox_path
+        os_file_exists_trusted_fallback_without_sandbox_policy_callback
     )
     foreach(CASE_NAME IN LISTS SMS_SPEC_CASES)
         add_test(NAME sms_native_spec_${CASE_NAME} COMMAND sms_native_spec_tests ${CASE_NAME})

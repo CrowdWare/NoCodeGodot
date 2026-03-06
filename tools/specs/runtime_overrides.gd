@@ -169,6 +169,13 @@ func get_spec() -> Dictionary:
                     "description": "Font weight for fontFace. Named aliases (unquoted): thin, extraLight, light, regular, medium, semiBold, bold, extraBold, black. Numeric: 100–900."
                 },
                 {
+                    "sml": "horizontalAlignment",
+                    "godot": "horizontal_alignment",
+                    "type": "enum or int",
+                    "default": "0",
+                    "description": "Horizontal text alignment. Aliases (unquoted): left/begin/start, center, right/end, fill/justify. Integer values remain supported."
+                },
+                {
                     "sml": "bgColor",
                     "godot": "normal StyleBoxFlat (theme override)",
                     "type": "color",
@@ -232,6 +239,13 @@ func get_spec() -> Dictionary:
                     "type": "identifier or int",
                     "default": "regular",
                     "description": "Font weight for fontFace. Named aliases (unquoted): thin, extraLight, light, regular, medium, semiBold, bold, extraBold, black. Numeric: 100–900."
+                },
+                {
+                    "sml": "horizontalAlignment",
+                    "godot": "horizontal_alignment",
+                    "type": "enum or int",
+                    "default": "0",
+                    "description": "Horizontal text alignment. Aliases (unquoted): left/begin/start, center, right/end, fill/justify. Integer values remain supported."
                 }
             ],
             "Button": [
