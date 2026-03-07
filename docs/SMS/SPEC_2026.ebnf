@@ -29,7 +29,6 @@ stmt                = var_decl
                     | assign_stmt
                     | expr_stmt
                     | if_stmt
-                    | try_stmt
                     | when_stmt
                     | while_stmt
                     | for_stmt
@@ -45,7 +44,7 @@ expr_stmt           = expr line_end ;
 
 if_stmt             = "if" "(" expr ")" block [ "else" ( block | if_stmt ) ] ;
 
-try_stmt            = "try" block "catch" "(" identifier ")" block ;
+(* try/catch intentionally absent — see SPEC_2026.md §3.4.3 *)
 
 when_stmt           = "when" [ "(" expr ")" ] "{" { when_case } [ when_else ] "}" ;
 when_case           = expr "->" stmt_or_block ;
