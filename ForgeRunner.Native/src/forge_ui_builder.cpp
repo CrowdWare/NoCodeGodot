@@ -802,13 +802,12 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
             ctrl->set_h_size_flags(Control::SIZE_EXPAND_FILL);
             ctrl->set_v_size_flags(Control::SIZE_EXPAND_FILL);
         } else {
-            ctrl->set_h_size_flags(Control::SIZE_SHRINK_BEGIN);
+            ctrl->set_h_size_flags(Control::SIZE_FILL);
             ctrl->set_v_size_flags(Control::SIZE_EXPAND_FILL);
         }
-        if (node.has_property("fixedWidth")) {
-            float w = static_cast<float>(parse_int(node.get_value("fixedWidth")));
-            ctrl->set_custom_minimum_size(Vector2(w, ctrl->get_custom_minimum_size().y));
-        }
+        // DockingHost manages column widths — do NOT enforce fixedWidth as minimum size
+        // (set_size would clamp to it, preventing resize handles from working)
+        ctrl->set_custom_minimum_size(Vector2(0.f, ctrl->get_custom_minimum_size().y));
         if (auto* tc = Object::cast_to<TabContainer>(ctrl)) {
             if (node.has_property("dragToRearrangeEnabled"))
                 tc->set_drag_to_rearrange_enabled(parse_bool(node.get_value("dragToRearrangeEnabled")));
