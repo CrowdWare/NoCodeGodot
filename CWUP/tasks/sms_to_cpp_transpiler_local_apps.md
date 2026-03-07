@@ -27,7 +27,7 @@ Generated .cpp + .h
 Native binary — no interpreter in hot path
 ```
 
-If a future JVM / Kotlin backend is ever needed, it adds a second consumer of
+If a future additional backend is ever needed, it adds a second consumer of
 the same SMS AST — not a consumer of a custom IL.
 
 ## Why Not IL
@@ -50,7 +50,7 @@ the same SMS AST — not a consumer of a custom IL.
 
 ## Non-Goals
 - No IL format, no IL spec, no IL versioning.
-- No JVM / Kotlin backend in this task (add as a separate AST consumer if needed).
+- No additional language backends (Compose/JVM path is deprecated).
 - No JIT.
 - No remote/HTTP deployment transpilation.
 - No changes to the SMS authoring language.
