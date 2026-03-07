@@ -5,6 +5,7 @@ REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 OS_NAME="$(uname -s)"
 LOCAL_RUN_INCLUDE="$REPO_ROOT/run.local.sh"
 LOCAL_GODOT_CPP_PATH_FILE="$REPO_ROOT/.godot_cpp_dir"
+NATIVE_HOST_DIR="$REPO_ROOT/ForgeRunner.Native/host"
 
 # Load optional local overrides/env (git-ignored).
 if [[ -f "$LOCAL_RUN_INCLUDE" ]]; then
@@ -49,6 +50,7 @@ build_forge_runner_native_host() {
   local src_dir="$REPO_ROOT/ForgeRunner.Native"
   local build_dir="$src_dir/build"
   local out_dir="$src_dir/dist"
+  local host_dir="$src_dir/host"
 
   if [[ -z "${GODOT_CPP_DIR:-}" ]]; then
     echo "ERROR: GODOT_CPP_DIR is required to build ForgeRunner.Native." >&2
@@ -84,6 +86,9 @@ build_forge_runner_native_host() {
 
   cp "$artifact" "$out_dir/"
   echo "ForgeRunner.Native artifact copied to $out_dir/$(basename "$artifact")"
+  mkdir -p "$host_dir"
+  cp "$artifact" "$host_dir/"
+  echo "ForgeRunner.Native artifact copied to $host_dir/$(basename "$artifact")"
 
   if [[ ! -f "$exe_artifact" ]]; then
     echo "ERROR: ForgeRunner.Native executable not found: $exe_artifact" >&2
@@ -101,6 +106,11 @@ Usage:
   ./run.sh [runner-args...]   Run ForgeRunner.Native with passed arguments (for example --url ...)
   ./run.sh run [runner-args]  Same as above (explicit mode)
   ./run.sh none               Run ForgeRunner.Native without arguments (runtime may restore last URL)
+  ./run.sh default            Run local Default app (file://)
+  ./run.sh designer           Run local ForgeDesigner app (file://)
+  ./run.sh remote-default     Run hosted Default app (AppServer manifest)
+  ./run.sh remote-designer    Run hosted ForgeDesigner app (AppServer manifest)
+  ./run.sh poser              Run local ForgePoser app
   ./run.sh build              Build native stack (default)
   ./run.sh build-native       Same as build
   ./run.sh build-host         Build ForgeRunner.Native only
@@ -111,6 +121,7 @@ Environment:
   FORGE_RUNNER_NATIVE_BIN     Optional explicit native runner executable path
   GODOT_CPP_DIR               Required for build-host/build
   ./.godot_cpp_dir            Optional file with one line: absolute GODOT_CPP_DIR
+  FORGE_APP_SERVER_BASE_URL   Base URL for hosted app manifests (default: https://crowdware.github.io/Forge)
 USAGE
 }
 
@@ -131,6 +142,95 @@ resolve_native_runner_bin() {
   esac
 }
 
+resolve_native_host_lib() {
+  local src_dir="$REPO_ROOT/ForgeRunner.Native"
+  case "$OS_NAME" in
+    Darwin)
+      if [[ -f "$src_dir/dist/libforge_runner_native.dylib" ]]; then
+        echo "$src_dir/dist/libforge_runner_native.dylib"
+      else
+        echo "$src_dir/build/libforge_runner_native.dylib"
+      fi
+      ;;
+    Linux)
+      if [[ -f "$src_dir/dist/libforge_runner_native.so" ]]; then
+        echo "$src_dir/dist/libforge_runner_native.so"
+      else
+        echo "$src_dir/build/libforge_runner_native.so"
+      fi
+      ;;
+    *)
+      if [[ -f "$src_dir/dist/forge_runner_native.dll" ]]; then
+        echo "$src_dir/dist/forge_runner_native.dll"
+      else
+        echo "$src_dir/build/forge_runner_native.dll"
+      fi
+      ;;
+  esac
+}
+
+resolve_godot_bin() {
+  if [[ -n "${GODOT_BIN:-}" && -x "$GODOT_BIN" ]]; then
+    echo "$GODOT_BIN"
+    return 0
+  fi
+  if command -v godot4 >/dev/null 2>&1; then
+    command -v godot4
+    return 0
+  fi
+  if command -v godot >/dev/null 2>&1; then
+    command -v godot
+    return 0
+  fi
+  if [[ -x "/Applications/Godot.app/Contents/MacOS/Godot" ]]; then
+    echo "/Applications/Godot.app/Contents/MacOS/Godot"
+    return 0
+  fi
+  if [[ -x "/Applications/Godot_mono.app/Contents/MacOS/Godot" ]]; then
+    echo "/Applications/Godot_mono.app/Contents/MacOS/Godot"
+    return 0
+  fi
+  if [[ -x "$HOME/Applications/Godot.app/Contents/MacOS/Godot" ]]; then
+    echo "$HOME/Applications/Godot.app/Contents/MacOS/Godot"
+    return 0
+  fi
+  if [[ -x "$HOME/Applications/Godot_mono.app/Contents/MacOS/Godot" ]]; then
+    echo "$HOME/Applications/Godot_mono.app/Contents/MacOS/Godot"
+    return 0
+  fi
+  return 1
+}
+
+run_native_window_host() {
+  local url="$1"
+  if [[ ! -d "$NATIVE_HOST_DIR" ]]; then
+    echo "ERROR: Native host project not found: $NATIVE_HOST_DIR" >&2
+    return 1
+  fi
+
+  local host_lib
+  host_lib="$(resolve_native_host_lib)"
+  if [[ ! -f "$host_lib" ]]; then
+    echo "ERROR: ForgeRunner.Native host library not found: $host_lib" >&2
+    echo "Build it via './run.sh build-host' first." >&2
+    return 1
+  fi
+
+  cp "$host_lib" "$NATIVE_HOST_DIR/" || true
+
+  local godot_bin
+  if ! godot_bin="$(resolve_godot_bin)"; then
+    echo "ERROR: Godot binary not found." >&2
+    echo "Set GODOT_BIN or install a 'godot4'/'godot' executable in PATH." >&2
+    return 1
+  fi
+
+  echo "Starting ForgeRunner.Native window host with url: $url"
+  FORGE_RUNNER_URL="$url" \
+  FORGE_RUNNER_APPRES_ROOT="$REPO_ROOT/ForgeRunner.Native" \
+    exec "$godot_bin" --path "$NATIVE_HOST_DIR"
+}
+
 MODE="${1:-}"
 if [[ -n "$MODE" ]]; then
   shift || true
@@ -147,12 +247,17 @@ fi
 if [[ -z "$MODE" ]]; then
   echo "Bitte Modus wählen (Native):"
   echo "  1) none          -> ForgeRunner.Native ohne Argumente starten (letzte URL durch Runtime)"
-  echo "  2) build         -> Native Stack bauen (SMLCore.Native, SMSCore.Native, ForgeCli.Native, ForgeRunner.Native)"
-  echo "  3) build-host    -> nur ForgeRunner.Native bauen"
-  echo "  4) test          -> Native Tests (SMLCore.Native + SMSCore.Native)"
-  echo "  5) clean         -> Native Build-Artefakte entfernen"
-  echo "  6) help          -> Hilfe anzeigen"
-  read -r -p "Auswahl [1-6] (Default 1): " CHOICE || true
+  echo "  2) default         -> Lokales Default (file://)"
+  echo "  3) designer        -> Lokales ForgeDesigner (file://)"
+  echo "  4) poser           -> Lokales ForgePoser (file://)"
+  echo "  5) remote-default  -> Hosted Default (AppServer)"
+  echo "  6) remote-designer -> Hosted ForgeDesigner (AppServer)"
+  echo "  7) build           -> Native Stack bauen (SMLCore.Native, SMSCore.Native, ForgeCli.Native, ForgeRunner.Native)"
+  echo "  8) build-host      -> nur ForgeRunner.Native bauen"
+  echo "  9) test            -> Native Tests (SMLCore.Native + SMSCore.Native)"
+  echo " 10) clean           -> Native Build-Artefakte entfernen"
+  echo " 11) help            -> Hilfe anzeigen"
+  read -r -p "Auswahl [1-11] (Default 1): " CHOICE || true
   CHOICE="$(printf '%s' "${CHOICE:-}" | tr -d '[:space:]')"
   if [[ -z "$CHOICE" ]]; then
     CHOICE="1"
@@ -160,11 +265,16 @@ if [[ -z "$MODE" ]]; then
 
   case "$CHOICE" in
     1|none) MODE="none" ;;
-    2|build|build-native) MODE="build" ;;
-    3|build-host|build-native-host) MODE="build-host" ;;
-    4|test|test-native) MODE="test" ;;
-    5|clean) MODE="clean" ;;
-    6|help|-h|--help) MODE="help" ;;
+    2|default) MODE="default" ;;
+    3|designer) MODE="designer" ;;
+    4|poser) MODE="poser" ;;
+    5|remote-default) MODE="remote-default" ;;
+    6|remote-designer) MODE="remote-designer" ;;
+    7|build|build-native) MODE="build" ;;
+    8|build-host|build-native-host) MODE="build-host" ;;
+    9|test|test-native) MODE="test" ;;
+   10|clean) MODE="clean" ;;
+   11|help|-h|--help) MODE="help" ;;
     *)
       echo "Ungültige Auswahl. Abbruch."
       exit 1
@@ -195,6 +305,28 @@ case "$MODE" in
     fi
     echo "Starting ForgeRunner.Native (no arguments)..."
     exec "$native_runner_bin"
+    ;;
+  default)
+    default_url="file://$REPO_ROOT/docs/Default/app.sml"
+    run_native_window_host "$default_url"
+    ;;
+  designer)
+    designer_url="file://$REPO_ROOT/docs/ForgeDesigner/app.sml"
+    run_native_window_host "$designer_url"
+    ;;
+  remote-default)
+    app_server_base_url="${FORGE_APP_SERVER_BASE_URL:-https://crowdware.github.io/Forge}"
+    default_manifest_url="${app_server_base_url%/}/Default/manifest.sml"
+    run_native_window_host "$default_manifest_url"
+    ;;
+  remote-designer)
+    app_server_base_url="${FORGE_APP_SERVER_BASE_URL:-https://crowdware.github.io/Forge}"
+    designer_manifest_url="${app_server_base_url%/}/ForgeDesigner/manifest.sml"
+    run_native_window_host "$designer_manifest_url"
+    ;;
+  poser)
+    poser_url="file://$REPO_ROOT/ForgePoser/app.sml"
+    run_native_window_host "$poser_url"
     ;;
   build|build-native)
     build_native_lib "SMLCore.Native" "$REPO_ROOT/SMLCore.Native" "$REPO_ROOT/SMLCore.Native/build" true

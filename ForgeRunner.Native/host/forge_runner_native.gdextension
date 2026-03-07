@@ -1,0 +1,12 @@
+[configuration]
+entry_symbol = "forge_runner_native_library_init"
+compatibility_minimum = "4.2"
+
+[libraries]
+macos.debug = "res://libforge_runner_native.dylib"
+macos.release = "res://libforge_runner_native.dylib"
+linux.debug = "res://libforge_runner_native.so"
+linux.release = "res://libforge_runner_native.so"
+windows.debug.x86_64 = "res://forge_runner_native.dll"
+windows.release.x86_64 = "res://forge_runner_native.dll"
+

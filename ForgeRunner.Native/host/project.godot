@@ -1,0 +1,19 @@
+; Engine configuration file.
+; Minimal native window host for ForgeRunner.Native.
+
+config_version=5
+
+[application]
+config/name="ForgeRunner.Native Host"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.6")
+config/icon="res://icon.svg"
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=800
+window/size/mode=0
+
+[rendering]
+renderer/rendering_method="forward_plus"
+
