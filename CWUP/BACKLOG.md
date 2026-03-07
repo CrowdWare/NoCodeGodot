@@ -88,7 +88,16 @@
 - [x] tasks/sms_cpp_native_runtime.md
 - [x] tasks/sms_language_spec_2026_native.md
 - [ ] tasks/forgerunner_cpp_native_runtime.md
+- [ ] tasks/native_sms_ui_bridge.md
+- [ ] tasks/native_splash_main_transition.md
+- [ ] tasks/native_theme_localization.md
+- [ ] tasks/native_bg_containers.md
+- [ ] tasks/native_post_build_pass.md
+- [ ] tasks/native_asset_download_cache.md
 - [ ] tasks/native_docking_improvements.md
+- [ ] tasks/native_markdown_container.md
+- [ ] tasks/native_syntax_highlighting.md
+- [ ] tasks/native_3d_tools_port.md
 - [ ] tasks/sms_to_cpp_transpiler_local_apps.md
 
 
