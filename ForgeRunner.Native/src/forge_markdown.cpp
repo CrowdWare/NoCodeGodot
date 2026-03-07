@@ -205,24 +205,74 @@ std::vector<MarkdownBlock> parse_markdown(const std::string& md) {
 }
 
 // ---------------------------------------------------------------------------
+// replace_emoji
+// ---------------------------------------------------------------------------
+
+static std::string replace_emoji(const std::string& src) {
+    struct Entry { const char* key; const char* utf8; };
+    static const Entry map[] = {
+        { "smile",   "\xF0\x9F\x98\x84" },   // 😄
+        { "warning", "\xE2\x9A\xA0\xEF\xB8\x8F" }, // ⚠️
+        { "rocket",  "\xF0\x9F\x9A\x80" },   // 🚀
+        { "heart",   "\xE2\x9D\xA4\xEF\xB8\x8F" }, // ❤️
+    };
+    std::string out;
+    std::size_t i = 0;
+    const std::size_t n = src.size();
+    while (i < n) {
+        if (src[i] == ':') {
+            std::size_t end = src.find(':', i + 1);
+            if (end != std::string::npos && end > i + 1) {
+                std::string key = src.substr(i + 1, end - i - 1);
+                bool found = false;
+                for (const auto& e : map) {
+                    if (key == e.key) {
+                        out += e.utf8;
+                        i = end + 1;
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) continue;
+            }
+        }
+        out += src[i++];
+    }
+    return out;
+}
+
+// ---------------------------------------------------------------------------
 // inline_to_bbcode
 // ---------------------------------------------------------------------------
 
-std::string inline_to_bbcode(const std::string& src) {
+std::string inline_to_bbcode(const std::string& raw) {
+    const std::string src = replace_emoji(raw);
     std::string out;
     out.reserve(src.size() * 2);
     std::size_t i = 0;
     const std::size_t n = src.size();
 
     while (i < n) {
-        // Inline code: `...`
+        // Inline code: `...` (no further parsing inside)
         if (src[i] == '`') {
             std::size_t end = src.find('`', i + 1);
             if (end != std::string::npos) {
                 out += "[code]";
-                out += src.substr(i + 1, end - i - 1);
+                for (std::size_t j = i + 1; j < end; ++j) out += src[j];
                 out += "[/code]";
                 i = end + 1;
+                continue;
+            }
+        }
+
+        // Bold+Italic: ***...***  (must check before ** and *)
+        if (i + 2 < n && src[i] == '*' && src[i+1] == '*' && src[i+2] == '*') {
+            std::size_t end = src.find("***", i + 3);
+            if (end != std::string::npos) {
+                out += "[b][i]";
+                out += inline_to_bbcode(src.substr(i + 3, end - i - 3));
+                out += "[/i][/b]";
+                i = end + 3;
                 continue;
             }
         }
@@ -235,6 +285,18 @@ std::string inline_to_bbcode(const std::string& src) {
                 out += inline_to_bbcode(src.substr(i + 2, end - i - 2));
                 out += "[/b]";
                 i = end + 2;
+                continue;
+            }
+        }
+
+        // Italic: *...* (single asterisk)
+        if (src[i] == '*') {
+            std::size_t end = src.find('*', i + 1);
+            if (end != std::string::npos) {
+                out += "[i]";
+                out += inline_to_bbcode(src.substr(i + 1, end - i - 1));
+                out += "[/i]";
+                i = end + 1;
                 continue;
             }
         }
@@ -265,6 +327,16 @@ std::string inline_to_bbcode(const std::string& src) {
                     continue;
                 }
             }
+            // Not a link — escape bracket
+            out += "\\[";
+            ++i;
+            continue;
+        }
+
+        if (src[i] == ']') {
+            out += "\\]";
+            ++i;
+            continue;
         }
 
         out += src[i++];

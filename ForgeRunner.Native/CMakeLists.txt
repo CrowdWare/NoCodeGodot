@@ -46,6 +46,7 @@ endif()
 # ---------------------------------------------------------------------------
 add_library(forge_runner_native SHARED
     src/forge_asset_cache.cpp
+    src/forge_markdown.cpp
     src/forge_runner_extension.cpp
     src/forge_runner_main.cpp
     src/forge_sms_bridge.cpp

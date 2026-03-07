@@ -498,6 +498,15 @@ Control* UiBuilder::create_control(const std::string& nl) {
         return memnew(TabContainer);
     }
 
+    // Markdown container
+    if (nl == "markdown") {
+        Variant v = ClassDB::instantiate("ForgeMarkdownContainer");
+        if (v.get_type() != Variant::NIL) {
+            if (auto* c = Object::cast_to<Control>(static_cast<Object*>(v))) return c;
+        }
+        return memnew(VBoxContainer);
+    }
+
     // Dotted node names (components, ui.NavTab, etc.) → Button placeholder
     if (nl.find('.') != std::string::npos) return memnew(Button);
 
@@ -806,6 +815,25 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
             if (node.has_property("tabsRearrangeGroup"))
                 tc->set_tabs_rearrange_group(parse_int(node.get_value("tabsRearrangeGroup")));
         }
+    }
+
+    // --- MarkdownContainer ---
+    if (nl == "markdown") {
+        if (node.has_property("fontSize") && ctrl->has_method("set_base_font_size"))
+            ctrl->call("set_base_font_size", (double)parse_float(node.get_value("fontSize")));
+        if (node.has_property("bgColor") && ctrl->has_method("set_bg_style")) {
+            float r, g, b, a = 1.0f;
+            if (parse_color(resolve_value(node.get_value("bgColor")), r, g, b, a)) {
+                Ref<StyleBoxFlat> sb;
+                sb.instantiate();
+                sb->set_bg_color(Color(r, g, b, a));
+                ctrl->call("set_bg_style", sb);
+            }
+        }
+        if (node.has_property("src") && ctrl->has_method("set_src"))
+            ctrl->call("set_src", String(resolve_asset_path(node.get_value("src")).c_str()));
+        else if (node.has_property("text") && ctrl->has_method("set_markdown"))
+            ctrl->call("set_markdown", String(resolve_value(node.get_value("text")).c_str()));
     }
 
     // --- Styling: color (font_color) ---

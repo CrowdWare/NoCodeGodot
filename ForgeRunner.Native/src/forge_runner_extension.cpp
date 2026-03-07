@@ -1012,7 +1012,7 @@ private:
 
     void _add_heading(const forge::MarkdownBlock& b) {
         Label* lbl = memnew(Label);
-        lbl->set_text(String(b.text.c_str()));
+        lbl->set_text(String::utf8(b.text.c_str()));
         lbl->add_theme_font_size_override("font_size",
             (int)(base_font_size_ * heading_scale(b.level)));
         lbl->set_h_size_flags(Control::SIZE_EXPAND_FILL);
@@ -1023,7 +1023,7 @@ private:
     void _add_paragraph(const forge::MarkdownBlock& b) {
         RichTextLabel* rtl = memnew(RichTextLabel);
         rtl->set_use_bbcode(true);
-        rtl->set_bbcode(String(forge::inline_to_bbcode(b.text).c_str()));
+        rtl->set_text(String::utf8(forge::inline_to_bbcode(b.text).c_str()));
         rtl->set_fit_content(true);
         rtl->set_h_size_flags(Control::SIZE_EXPAND_FILL);
         rtl->add_theme_font_size_override("normal_font_size", (int)base_font_size_);
@@ -1039,13 +1039,22 @@ private:
         panel->add_theme_stylebox_override("panel", style);
         panel->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 
-        CodeEdit* edit = memnew(CodeEdit);
-        edit->set_text(String(b.text.c_str()));
-        edit->set_editable(false);
-        edit->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-        edit->add_theme_font_size_override("font_size",
-            (int)(base_font_size_ * 0.9f));
-        panel->add_child(edit);
+        // Escape BBCode brackets in code text, then wrap in [code]
+        std::string escaped;
+        for (char c : b.text) {
+            if      (c == '[') escaped += "\\[";
+            else if (c == ']') escaped += "\\]";
+            else               escaped += c;
+        }
+
+        RichTextLabel* rtl = memnew(RichTextLabel);
+        rtl->set_use_bbcode(true);
+        rtl->set_text(String::utf8(("[code]" + escaped + "[/code]").c_str()));
+        rtl->set_fit_content(true);
+        rtl->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+        rtl->add_theme_font_size_override("mono_font_size",   (int)(base_font_size_ * 0.9f));
+        rtl->add_theme_font_size_override("normal_font_size", (int)(base_font_size_ * 0.9f));
+        panel->add_child(rtl);
         add_child(panel);
     }
 
@@ -1054,14 +1063,14 @@ private:
         hbox->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 
         Label* bullet = memnew(Label);
-        bullet->set_text("•");
+        bullet->set_text(String::chr(0x2022));
         bullet->add_theme_font_size_override("font_size", (int)base_font_size_);
         bullet->set_v_size_flags(Control::SIZE_SHRINK_BEGIN);
         hbox->add_child(bullet);
 
         RichTextLabel* rtl = memnew(RichTextLabel);
         rtl->set_use_bbcode(true);
-        rtl->set_bbcode(String(forge::inline_to_bbcode(b.text).c_str()));
+        rtl->set_text(String::utf8(forge::inline_to_bbcode(b.text).c_str()));
         rtl->set_fit_content(true);
         rtl->set_h_size_flags(Control::SIZE_EXPAND_FILL);
         rtl->add_theme_font_size_override("normal_font_size", (int)base_font_size_);
