@@ -50,9 +50,22 @@ private:
     std::unordered_map<std::string, std::string> layouts_;
     // elevation name → list of (property, resolved_value)
     std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> elevations_;
+    // "FaceName-Weight" or "FaceName" → asset path (from Fonts {} block in SML)
+    std::unordered_map<std::string, std::string> fonts_;
+
+    // Deferred font resolution (fontFace / fontWeight collected during apply_props)
+    struct FontDeferred {
+        godot::Control* ctrl;
+        std::string     face;    // empty if fontWeight-only
+        std::string     weight;  // "Regular", "Bold", "700", …
+    };
+    std::vector<FontDeferred> font_deferred_;
 
     void load_strings();
     void load_theme();
+
+    /// Apply deferred operations that require the full tree to be built.
+    void post_build_pass();
 
     godot::Control* build_node(const smlcore::Node& node);
     godot::Control* create_control(const std::string& name_lower);

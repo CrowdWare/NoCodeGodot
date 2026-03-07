@@ -39,6 +39,8 @@
 #include <godot_cpp/classes/rich_text_label.hpp>
 #include <godot_cpp/classes/scroll_container.hpp>
 #include <godot_cpp/classes/spin_box.hpp>
+#include <godot_cpp/classes/font_file.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/classes/system_font.hpp>
 #include <godot_cpp/classes/tab_bar.hpp>
@@ -87,11 +89,24 @@ UiBuilder::UiBuilder(const std::string& base_dir, const std::string& appres_root
 
 Control* UiBuilder::build(const smlcore::Document& doc, WindowConfig& out_window) {
     forge::SmsBridge::id_map().clear();
+    font_deferred_.clear();
+    fonts_.clear();
 
     if (doc.roots.empty()) return memnew(Control);
 
     const auto& root = doc.roots[0];
     apply_window_props(root, out_window);
+
+    // Extract Fonts block: "FaceName-Weight" or "FaceName" → asset path
+    for (const auto& r : doc.roots) {
+        std::string rl = r.name;
+        std::transform(rl.begin(), rl.end(), rl.begin(),
+                       [](unsigned char c){ return std::tolower(c); });
+        if (rl == "fonts") {
+            for (const auto& prop : r.properties)
+                fonts_[prop.name] = prop.value;
+        }
+    }
 
     auto* ctrl = build_node(root);
     if (!ctrl) ctrl = memnew(Control);
@@ -101,6 +116,8 @@ Control* UiBuilder::build(const smlcore::Document& doc, WindowConfig& out_window
     ctrl->set_anchor_and_offset(SIDE_TOP,    0.0f, 0.0f);
     ctrl->set_anchor_and_offset(SIDE_RIGHT,  1.0f, 0.0f);
     ctrl->set_anchor_and_offset(SIDE_BOTTOM, 1.0f, 0.0f);
+
+    post_build_pass();
 
     return ctrl;
 }
@@ -806,19 +823,34 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
         ctrl->add_theme_font_size_override("font_size",
             parse_int(resolve_value(node.get_value("fontSize"))));
 
-    // --- Styling: fontWeight ---
-    if (node.has_property("fontWeight") && node.get_value("fontWeight") == "bold") {
-        Ref<SystemFont> font;
-        font.instantiate();
-        font->set_font_weight(700);
-        ctrl->add_theme_font_override("font", font);
+    // --- fontFace + fontWeight (deferred — resolved after full tree is built) ---
+    if (node.has_property("fontFace") || node.has_property("fontWeight")) {
+        FontDeferred d;
+        d.ctrl   = ctrl;
+        d.face   = node.has_property("fontFace")   ? node.get_value("fontFace")   : "";
+        d.weight = node.has_property("fontWeight") ? node.get_value("fontWeight") : "Regular";
+        font_deferred_.push_back(d);
     }
 
-    // --- shrinkH / shrinkV (generic controls) ---
-    if (node.has_property("shrinkH") && !Object::cast_to<TextureRect>(ctrl))
-        ctrl->set_h_size_flags(Control::SIZE_SHRINK_CENTER);
-    if (node.has_property("shrinkV") && !Object::cast_to<TextureRect>(ctrl))
-        ctrl->set_v_size_flags(Control::SIZE_SHRINK_CENTER);
+    // --- shrinkH / shrinkV (combined with expand when both are present) ---
+    const bool has_expand = node.has_property("expand") && parse_bool(node.get_value("expand"));
+    if (node.has_property("shrinkH") && !Object::cast_to<TextureRect>(ctrl)) {
+        int f = Control::SIZE_SHRINK_CENTER;
+        if (has_expand) f |= Control::SIZE_EXPAND;
+        ctrl->set_h_size_flags(static_cast<Control::SizeFlags>(f));
+    }
+    if (node.has_property("shrinkV") && !Object::cast_to<TextureRect>(ctrl)) {
+        int f = Control::SIZE_SHRINK_CENTER;
+        if (has_expand) f |= Control::SIZE_EXPAND;
+        ctrl->set_v_size_flags(static_cast<Control::SizeFlags>(f));
+    }
+    // expand without shrink: OR SIZE_EXPAND into existing flags
+    if (has_expand && !node.has_property("shrinkH") && !node.has_property("shrinkV")) {
+        ctrl->set_h_size_flags(static_cast<Control::SizeFlags>(
+            ctrl->get_h_size_flags() | Control::SIZE_EXPAND));
+        ctrl->set_v_size_flags(static_cast<Control::SizeFlags>(
+            ctrl->get_v_size_flags() | Control::SIZE_EXPAND));
+    }
 
     // --- Generic Godot property fallback via schema_properties.h ---
     // For properties not handled by specific cases above, attempt ctrl->set()
@@ -833,7 +865,7 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
             static constexpr const char* kHandled[] = {
                 "text", "disabled", "toggleMode", "buttonPressed", "flat",
                 "placeholderText", "editable", "wrap", "align", "fitContent",
-                "src", "shrinkH", "shrinkV", "textureNormal", "texturePressed",
+                "src", "textureNormal", "texturePressed",
                 "textureHover", "ignoreTextureSize", "fitToLongestItem",
                 "min", "max", "value", "showPercentage", "hideRoot",
                 "visible", "id", "spacing", "padding", "paddingLeft",
@@ -843,7 +875,8 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
                 "anchorLeft", "anchorRight", "anchorTop", "anchorBottom", "anchors",
                 "offsetLeft", "offsetTop", "offsetRight", "offsetBottom",
                 "top", "left", "right", "bottom",
-                "color", "fontSize", "fontWeight",
+                "color", "fontSize", "fontFace", "fontWeight",
+                "expand", "shrinkH", "shrinkV",
                 "bgColor", "borderRadius", "borderColor", "borderWidth",
                 "borderTop", "borderBottom", "borderLeft", "borderRight", "elevation",
                 "shadowColor", "shadowSize", "shadowOffsetX", "shadowOffsetY",
@@ -991,6 +1024,76 @@ void UiBuilder::build_menubar_children(Control* menu_bar, const smlcore::Node& n
 // ---------------------------------------------------------------------------
 // Text / asset resolution
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Post-build pass
+// ---------------------------------------------------------------------------
+
+static int weight_name_to_int(const std::string& w) {
+    std::string wl = w;
+    std::transform(wl.begin(), wl.end(), wl.begin(),
+                   [](unsigned char c){ return std::tolower(c); });
+    if (wl == "thin")       return 100;
+    if (wl == "extralight") return 200;
+    if (wl == "light")      return 300;
+    if (wl == "regular")    return 400;
+    if (wl == "medium")     return 500;
+    if (wl == "semibold")   return 600;
+    if (wl == "bold")       return 700;
+    if (wl == "extrabold")  return 800;
+    if (wl == "black")      return 900;
+    try { return std::stoi(w); } catch (...) { return 400; }
+}
+
+static Ref<Font> try_load_font_file(const std::string& path) {
+    if (path.empty()) return {};
+    // res:// path → ResourceLoader
+    if (path.size() > 6 && path.substr(0, 6) == "res://") {
+        Ref<Resource> res = ResourceLoader::get_singleton()->load(String(path.c_str()));
+        return Ref<Font>(Object::cast_to<Font>(res.ptr()));
+    }
+    // Absolute path → FontFile::load_dynamic_font
+    Ref<FontFile> f; f.instantiate();
+    if (f->load_dynamic_font(String(path.c_str())) == Error::OK) return f;
+    return {};
+}
+
+void UiBuilder::post_build_pass() {
+    for (const auto& d : font_deferred_) {
+        if (!d.ctrl) continue;
+        const std::string weight = d.weight.empty() ? "Regular" : d.weight;
+
+        if (!d.face.empty()) {
+            // Try "FaceName-Weight", then "FaceName" in the Fonts block
+            Ref<Font> font;
+            for (const auto& key : {d.face + "-" + weight, d.face}) {
+                auto it = fonts_.find(key);
+                if (it == fonts_.end()) continue;
+                const auto path = resolve_asset_path(it->second);
+                font = try_load_font_file(path);
+                if (font.is_valid()) break;
+                UtilityFunctions::push_warning(String(
+                    ("[ForgeRunner] Cannot load font file: " + path).c_str()));
+            }
+            if (font.is_valid()) {
+                d.ctrl->add_theme_font_override("font", font);
+            } else {
+                UtilityFunctions::push_warning(String(
+                    ("[ForgeRunner] Font '" + d.face + "-" + weight +
+                     "' not found in Fonts block — using system font fallback").c_str()));
+                Ref<SystemFont> sf; sf.instantiate();
+                sf->set_font_weight(weight_name_to_int(weight));
+                d.ctrl->add_theme_font_override("font", sf);
+            }
+        } else {
+            // fontWeight only → SystemFont
+            Ref<SystemFont> sf; sf.instantiate();
+            sf->set_font_weight(weight_name_to_int(weight));
+            d.ctrl->add_theme_font_override("font", sf);
+        }
+    }
+    font_deferred_.clear();
+}
 
 std::string UiBuilder::resolve_at_ref(const std::string& ref) const {
     // ref is like "@Colors.accent", "@Layouts.gap", "@Strings.key"
