@@ -148,6 +148,129 @@ class PosingEditorControl:
 			_model_node = mi
 			return
 
+class DockingHostControl:
+	extends Container
+
+	const META_DOCK_SIDE := "forge_dock_side"
+	const META_DOCK_FIXED_WIDTH := "forge_dock_fixed_width"
+	const META_DOCK_FIXED_HEIGHT := "forge_dock_fixed_height"
+	const META_DOCK_HEIGHT_PERCENT := "forge_dock_height_percent"
+	const META_DOCK_FLEX := "forge_dock_flex"
+	const META_DOCK_GAP := "forge_dock_gap"
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_SORT_CHILDREN:
+			_arrange_children()
+
+	func _arrange_children() -> void:
+		var left_top: Control = null
+		var left_bottom: Control = null
+		var center_nodes: Array[Control] = []
+		var right_top: Control = null
+		var right_bottom: Control = null
+
+		for i in range(get_child_count()):
+			var child := get_child(i)
+			if not (child is Control):
+				continue
+			var c := child as Control
+			if not c.visible:
+				continue
+			var side := _dock_side_of(c)
+			match side:
+				"left":
+					left_top = c
+				"leftbottom":
+					left_bottom = c
+				"right":
+					right_top = c
+				"rightbottom":
+					right_bottom = c
+				_:
+					center_nodes.append(c)
+
+		var gap := 0.0
+		if has_meta(META_DOCK_GAP):
+			gap = maxf(0.0, float(get_meta(META_DOCK_GAP)))
+
+		var total_w := size.x
+		var total_h := size.y
+		var has_left := left_top != null or left_bottom != null
+		var has_right := right_top != null or right_bottom != null
+
+		var left_w := 0.0
+		if has_left:
+			left_w = _column_width(left_top, left_bottom, 240.0)
+		var right_w := 0.0
+		if has_right:
+			right_w = _column_width(right_top, right_bottom, 240.0)
+
+		var used_gap := 0.0
+		if has_left:
+			used_gap += gap
+		if has_right:
+			used_gap += gap
+
+		var center_w := maxf(0.0, total_w - left_w - right_w - used_gap)
+		var x := 0.0
+		if has_left:
+			_layout_column(left_top, left_bottom, Rect2(x, 0.0, left_w, total_h), gap)
+			x += left_w + gap
+		if center_nodes.size() > 0:
+			var center_rect := Rect2(x, 0.0, center_w, total_h)
+			var first_center: Control = center_nodes[0]
+			fit_child_in_rect(first_center, center_rect)
+			for idx in range(1, center_nodes.size()):
+				var hidden_center: Control = center_nodes[idx]
+				fit_child_in_rect(hidden_center, Rect2(center_rect.position, Vector2(0.0, 0.0)))
+			x += center_w + (gap if has_right else 0.0)
+		if has_right:
+			_layout_column(right_top, right_bottom, Rect2(x, 0.0, right_w, total_h), gap)
+
+	func _layout_column(top: Control, bottom: Control, rect: Rect2, gap: float) -> void:
+		if top != null and bottom != null:
+			var bottom_h := _resolved_bottom_height(bottom, rect.size.y)
+			var top_h := maxf(0.0, rect.size.y - bottom_h - gap)
+			bottom_h = maxf(0.0, rect.size.y - top_h - gap)
+			fit_child_in_rect(top, Rect2(rect.position, Vector2(rect.size.x, top_h)))
+			var by := rect.position.y + top_h + gap
+			fit_child_in_rect(bottom, Rect2(Vector2(rect.position.x, by), Vector2(rect.size.x, bottom_h)))
+			return
+		if top != null:
+			fit_child_in_rect(top, rect)
+			return
+		if bottom != null:
+			fit_child_in_rect(bottom, rect)
+
+	func _resolved_bottom_height(container: Control, total_h: float) -> float:
+		var fixed_h := _dock_number_of(container, META_DOCK_FIXED_HEIGHT, -1.0)
+		if fixed_h > 0.0:
+			return minf(total_h, fixed_h)
+		var percent := _dock_number_of(container, META_DOCK_HEIGHT_PERCENT, -1.0)
+		if percent > 0.0:
+			return clampf(total_h * (percent / 100.0), 0.0, total_h)
+		return total_h * 0.42
+
+	func _column_width(top: Control, bottom: Control, fallback: float) -> float:
+		var width := fallback
+		if top != null:
+			width = _dock_number_of(top, META_DOCK_FIXED_WIDTH, width)
+		if bottom != null:
+			width = _dock_number_of(bottom, META_DOCK_FIXED_WIDTH, width)
+		return maxf(1.0, width)
+
+	func _dock_side_of(control: Control) -> String:
+		if control.has_meta(META_DOCK_SIDE):
+			return String(control.get_meta(META_DOCK_SIDE)).to_lower().strip_edges()
+		return "center"
+
+	func _dock_number_of(control: Control, key: String, fallback: float) -> float:
+		if not control.has_meta(key):
+			return fallback
+		return float(control.get_meta(key))
+
+class DockingContainerControl:
+	extends TabContainer
 class SmlNode:
 	var name: String = ""
 	var props: Dictionary = {}
@@ -300,39 +423,17 @@ func _build_ui_tree(node: SmlNode, base_dir: String) -> Control:
 	_apply_specific_properties(control, node, base_dir)
 
 	var name_lower := node.name.to_lower()
-	if name_lower == "dockinghost" and control is HBoxContainer:
-		var host: HBoxContainer = control
-		var normal_nodes: Array = []
-		var right_nodes: Array = []
-		for c in node.children:
-			if not (c is SmlNode):
+	if name_lower == "dockinghost" and control is DockingHostControl:
+		for child in node.children:
+			if not (child is SmlNode):
 				continue
-			var side := String(c.props.get("dockSide", "")).to_lower().strip_edges()
-			if side == "right" or side == "rightbottom":
-				right_nodes.append(c)
-			else:
-				normal_nodes.append(c)
-		for child_node in normal_nodes:
-			var child_control := _build_ui_tree(child_node, base_dir)
+			var child_control := _build_ui_tree(child, base_dir)
 			if child_control != null:
-				_auto_layout_child(host, child_node, child_control)
-				host.add_child(child_control)
-		if right_nodes.size() > 0:
-			var right_stack := VBoxContainer.new()
-			right_stack.name = "DockRightStack"
-			right_stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
-			right_stack.add_theme_constant_override("separation", 0)
-			host.add_child(right_stack)
-			for child_node in right_nodes:
-				var child_control := _build_ui_tree(child_node, base_dir)
-				if child_control != null:
-					child_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
-					_auto_layout_child(right_stack, child_node, child_control)
-					right_stack.add_child(child_control)
+				control.add_child(child_control)
 		return control
 
-	if name_lower == "dockingcontainer" and control is TabContainer:
-		var tabs: TabContainer = control
+	if name_lower == "dockingcontainer" and control is DockingContainerControl:
+		var tabs: DockingContainerControl = control
 		var docking_id := String(node.props.get("id", ""))
 		var tab_index := 0
 		for child in node.children:
@@ -445,9 +546,9 @@ func _create_control_for_node(node: SmlNode) -> Control:
 		"popupmenu":
 			return Control.new()
 		"dockinghost":
-			return HBoxContainer.new()
+			return DockingHostControl.new()
 		"dockingcontainer":
-			return TabContainer.new()
+			return DockingContainerControl.new()
 		"timeline":
 			return VBoxContainer.new()
 		"posingeditor":
@@ -607,13 +708,20 @@ func _apply_specific_properties(control: Control, node: SmlNode, base_dir: Strin
 	if node_name == "dockinghost":
 		control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		control.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		if node.props.has("gap") and control is BoxContainer:
-			(control as BoxContainer).add_theme_constant_override("separation", int(String(node.props["gap"])))
+		if node.props.has("gap"):
+			control.set_meta(DockingHostControl.META_DOCK_GAP, float(String(node.props["gap"])))
 	elif node_name == "dockingcontainer":
 		if node.props.has("fixedWidth"):
 			var w: int = maxi(0, int(String(node.props["fixedWidth"])))
 			control.custom_minimum_size = Vector2(float(w), control.custom_minimum_size.y)
-		var side := String(node.props.get("dockSide", "")).to_lower().strip_edges()
+			control.set_meta(DockingHostControl.META_DOCK_FIXED_WIDTH, float(w))
+		if node.props.has("fixedHeight"):
+			control.set_meta(DockingHostControl.META_DOCK_FIXED_HEIGHT, float(maxi(0, int(String(node.props["fixedHeight"])))))
+		if node.props.has("heightPercent"):
+			control.set_meta(DockingHostControl.META_DOCK_HEIGHT_PERCENT, float(String(node.props["heightPercent"])))
+		var side := String(node.props.get("dockSide", "center")).to_lower().strip_edges()
+		control.set_meta(DockingHostControl.META_DOCK_SIDE, side)
+		control.set_meta(DockingHostControl.META_DOCK_FLEX, _parse_bool(String(node.props.get("flex", "false")), false))
 		if side == "center":
 			control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			control.size_flags_vertical = Control.SIZE_EXPAND_FILL
