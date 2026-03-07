@@ -1,7 +1,10 @@
 #include "forge_runner_main.h"
 #include "forge_ui_builder.h"
 
+#include <algorithm>
+#include <cctype>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -9,15 +12,20 @@
 
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/control.hpp>
+#include <godot_cpp/classes/h_box_container.hpp>
+#include <godot_cpp/classes/http_request.hpp>
 #include <godot_cpp/classes/item_list.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/line_edit.hpp>
+#include <godot_cpp/classes/margin_container.hpp>
 #include <godot_cpp/classes/option_button.hpp>
+#include <godot_cpp/classes/progress_bar.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/classes/slider.hpp>
 #include <godot_cpp/classes/spin_box.hpp>
 #include <godot_cpp/classes/text_edit.hpp>
 #include <godot_cpp/classes/timer.hpp>
+#include <godot_cpp/classes/v_box_container.hpp>
 #include <godot_cpp/classes/window.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/callable.hpp>
@@ -59,8 +67,14 @@ void ForgeRunnerNativeMain::_ready() {
     }
 
     const std::string url(env_url);
-    const std::string path = file_url_to_path(url);
 
+    if (is_http_url(url)) {
+        show_loading_screen();
+        start_manifest_download(url);
+        return;
+    }
+
+    const std::string path = file_url_to_path(url);
     if (path.empty()) {
         show_error("Unsupported URL scheme (only file:// is supported locally): " + url);
         return;
@@ -214,6 +228,16 @@ void ForgeRunnerNativeMain::show_sml(const std::string& path) {
 
 void ForgeRunnerNativeMain::clear_content() {
     stop_sms();
+    if (http_request_) {
+        http_request_->cancel_request();
+        http_request_->queue_free();
+        http_request_ = nullptr;
+    }
+    splash_progress_ = nullptr;
+    download_queue_.clear();
+    cached_asset_hashes_.clear();
+    download_queue_idx_ = 0;
+    download_retry_     = 0;
     if (content_root_) {
         content_root_->queue_free();
         content_root_ = nullptr;
@@ -396,4 +420,532 @@ void ForgeRunnerNativeMain::on_sms_item_event(int index, String object_id, Strin
     std::snprintf(buf, sizeof(buf), "%d", index);
     sms_bridge_.dispatch_event(sms_session_,
         object_id.utf8().get_data(), event_name.utf8().get_data(), buf);
+}
+
+// ---------------------------------------------------------------------------
+// HTTP / Manifest download
+// ---------------------------------------------------------------------------
+
+bool ForgeRunnerNativeMain::is_http_url(const std::string& url) {
+    return url.substr(0, 7) == "http://" || url.substr(0, 8) == "https://";
+}
+
+std::string ForgeRunnerNativeMain::per_manifest_cache_root(const std::string& manifest_url) {
+    const auto url_hash = forge::AssetCache::sha256_of(
+        std::vector<uint8_t>(manifest_url.begin(), manifest_url.end()));
+    return forge::forge_cache_dir() + "/" + url_hash;
+}
+
+std::string ForgeRunnerNativeMain::resolve_asset_url(const std::string& manifest_url,
+                                                      const std::string& base_url,
+                                                      const std::string& raw_url) {
+    if (raw_url.find("://") != std::string::npos) return raw_url;  // already absolute
+    const auto& ref  = base_url.empty() ? manifest_url : base_url;
+    const auto  last = ref.rfind('/');
+    if (last == std::string::npos) return raw_url;
+    return ref.substr(0, last + 1) + raw_url;
+}
+
+std::string ForgeRunnerNativeMain::normalize_asset_path(const std::string& path) {
+    std::string out;
+    out.reserve(path.size());
+    for (char c : path) out += (c == '\\') ? '/' : c;
+    // Strip leading slashes
+    while (!out.empty() && out[0] == '/') out.erase(out.begin());
+    // Reject path traversal
+    std::istringstream ss(out);
+    std::string seg;
+    while (std::getline(ss, seg, '/')) {
+        if (seg == "..") return {};
+    }
+    return out;
+}
+
+bool ForgeRunnerNativeMain::save_file_atomic(const std::string& path,
+                                              const void* data, std::size_t size) {
+    std::error_code ec;
+    fs::create_directories(fs::path(path).parent_path(), ec);
+    if (ec) return false;
+    const std::string tmp = path + ".tmp";
+    {
+        std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
+        if (!f.is_open()) return false;
+        if (size > 0)
+            f.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
+        if (!f.good()) return false;
+    }
+    if (fs::exists(path)) fs::remove(path, ec);
+    fs::rename(tmp, path, ec);
+    return !ec;
+}
+
+// ---------------------------------------------------------------------------
+// Manifest metadata (index of downloaded assets for delta detection)
+// Format: simple line-based key/value + Asset { } blocks
+// ---------------------------------------------------------------------------
+
+static std::string meta_extract_quoted(const std::string& line, const std::string& key) {
+    const std::string prefix = key + ": \"";
+    const auto pos = line.find(prefix);
+    if (pos == std::string::npos) return {};
+    const auto start = pos + prefix.size();
+    size_t end = start;
+    while (end < line.size()) {
+        if (line[end] == '"' && (end == start || line[end - 1] != '\\')) break;
+        ++end;
+    }
+    if (end >= line.size()) return {};
+    // Unescape
+    std::string out;
+    for (size_t i = start; i < end; ++i) {
+        if (line[i] == '\\' && i + 1 < end) { ++i; out += line[i]; }
+        else out += line[i];
+    }
+    return out;
+}
+
+static std::string meta_escape(const std::string& s) {
+    std::string out;
+    for (unsigned char c : s) {
+        if      (c == '"')  out += "\\\"";
+        else if (c == '\\') out += "\\\\";
+        else                out += static_cast<char>(c);
+    }
+    return out;
+}
+
+bool ForgeRunnerNativeMain::load_manifest_meta(
+    const std::string& cache_root,
+    std::string& out_manifest_sha256,
+    std::string& out_entry_point,
+    std::unordered_map<std::string, std::string>& out_hashes)
+{
+    out_manifest_sha256.clear();
+    out_entry_point = "app.sml";
+    out_hashes.clear();
+
+    std::ifstream f(cache_root + "/metadata.sml");
+    if (!f.is_open()) return false;
+
+    bool        in_asset = false;
+    std::string cur_path, cur_sha256;
+    std::string line;
+
+    while (std::getline(f, line)) {
+        size_t i = 0;
+        while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) ++i;
+        const auto tl = line.substr(i);
+
+        if (tl.find("Asset {") != std::string::npos) {
+            in_asset = true;
+            cur_path.clear(); cur_sha256.clear();
+        } else if (in_asset && tl == "}") {
+            if (!cur_path.empty() && !cur_sha256.empty())
+                out_hashes[cur_path] = cur_sha256;
+            in_asset = false;
+        } else if (in_asset) {
+            if      (tl.rfind("path:",   0) == 0) cur_path   = meta_extract_quoted(tl, "path");
+            else if (tl.rfind("sha256:", 0) == 0) cur_sha256 = meta_extract_quoted(tl, "sha256");
+        } else {
+            if      (tl.rfind("manifestSha256:", 0) == 0)
+                out_manifest_sha256 = meta_extract_quoted(tl, "manifestSha256");
+            else if (tl.rfind("entryPoint:", 0) == 0)
+                out_entry_point = meta_extract_quoted(tl, "entryPoint");
+        }
+    }
+    return !out_manifest_sha256.empty();
+}
+
+void ForgeRunnerNativeMain::save_manifest_meta(
+    const std::string& cache_root,
+    const std::string& manifest_sha256,
+    const std::string& entry_point,
+    const std::vector<ManifestAsset>& assets)
+{
+    std::error_code ec;
+    fs::create_directories(cache_root, ec);
+
+    const std::string path = cache_root + "/metadata.sml";
+    const std::string tmp  = path + ".tmp";
+    {
+        std::ofstream f(tmp);
+        if (!f.is_open()) return;
+        f << "ManifestMeta {\n";
+        f << "    manifestSha256: \"" << meta_escape(manifest_sha256) << "\"\n";
+        f << "    entryPoint: \""     << meta_escape(entry_point)     << "\"\n";
+        for (const auto& a : assets) {
+            f << "    Asset {\n";
+            f << "        path: \""   << meta_escape(a.path)   << "\"\n";
+            f << "        sha256: \"" << meta_escape(a.sha256) << "\"\n";
+            f << "    }\n";
+        }
+        f << "}\n";
+    }
+    if (fs::exists(path)) fs::remove(path, ec);
+    fs::rename(tmp, path, ec);
+}
+
+// ---------------------------------------------------------------------------
+// Loading screen (shown while manifest/assets are being downloaded)
+// ---------------------------------------------------------------------------
+
+void ForgeRunnerNativeMain::show_loading_screen() {
+    clear_content();
+
+    auto* root_ctrl = memnew(Control);
+    root_ctrl->set_anchor_and_offset(SIDE_LEFT,   0.0f, 0.0f);
+    root_ctrl->set_anchor_and_offset(SIDE_TOP,    0.0f, 0.0f);
+    root_ctrl->set_anchor_and_offset(SIDE_RIGHT,  1.0f, 0.0f);
+    root_ctrl->set_anchor_and_offset(SIDE_BOTTOM, 1.0f, 0.0f);
+
+    auto* margin = memnew(MarginContainer);
+    margin->set_anchor_and_offset(SIDE_LEFT,   0.0f, 0.0f);
+    margin->set_anchor_and_offset(SIDE_TOP,    0.0f, 0.0f);
+    margin->set_anchor_and_offset(SIDE_RIGHT,  1.0f, 0.0f);
+    margin->set_anchor_and_offset(SIDE_BOTTOM, 1.0f, 0.0f);
+    margin->add_theme_constant_override("margin_left",   32);
+    margin->add_theme_constant_override("margin_right",  32);
+    margin->add_theme_constant_override("margin_top",    32);
+    margin->add_theme_constant_override("margin_bottom", 32);
+    root_ctrl->add_child(margin);
+
+    auto* vbox = memnew(VBoxContainer);
+    vbox->set_alignment(BoxContainer::ALIGNMENT_CENTER);
+    vbox->set_anchors_preset(Control::PRESET_CENTER);
+    vbox->set_custom_minimum_size(Vector2(400, 80));
+    margin->add_child(vbox);
+
+    auto* lbl = memnew(Label);
+    lbl->set_text("Loading application...");
+    lbl->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+    vbox->add_child(lbl);
+
+    auto* progress = memnew(ProgressBar);
+    progress->set_min(0.0);
+    progress->set_max(1.0);
+    progress->set_value(0.0);
+    progress->set_custom_minimum_size(Vector2(400, 20));
+    vbox->add_child(progress);
+
+    add_child(root_ctrl);
+    content_root_    = root_ctrl;
+    splash_progress_ = progress;
+}
+
+void ForgeRunnerNativeMain::update_download_progress(std::size_t done, std::size_t total,
+                                                      const std::string& /*current_file*/) {
+    if (!splash_progress_) return;
+    const double ratio = (total > 0) ? (static_cast<double>(done) / static_cast<double>(total))
+                                      : 0.0;
+    splash_progress_->set_value(ratio);
+}
+
+// ---------------------------------------------------------------------------
+// Manifest download
+// ---------------------------------------------------------------------------
+
+void ForgeRunnerNativeMain::start_manifest_download(const std::string& manifest_url) {
+    manifest_url_    = manifest_url;
+    per_manifest_dir_ = per_manifest_cache_root(manifest_url);
+
+    http_request_ = memnew(HTTPRequest);
+    add_child(http_request_);
+    http_request_->connect("request_completed",
+        callable_mp(this, &ForgeRunnerNativeMain::on_manifest_downloaded));
+
+    if (http_request_->request(String(manifest_url.c_str())) != Error::OK) {
+        show_error("Failed to initiate manifest download: " + manifest_url);
+        http_request_->queue_free();
+        http_request_ = nullptr;
+    }
+    UtilityFunctions::print(String(("[ForgeRunner.Native] Downloading manifest: " +
+                                    manifest_url).c_str()));
+}
+
+void ForgeRunnerNativeMain::on_manifest_downloaded(int result, int code,
+                                                    PackedStringArray /*headers*/,
+                                                    PackedByteArray body) {
+    if (http_request_) {
+        http_request_->queue_free();
+        http_request_ = nullptr;
+    }
+
+    if (result != HTTPRequest::RESULT_SUCCESS || (code != 200 && code != 0)) {
+        // Try cached version if available
+        std::string cached_sha256, cached_entry;
+        std::unordered_map<std::string, std::string> cached_hashes;
+        if (load_manifest_meta(per_manifest_dir_, cached_sha256, cached_entry, cached_hashes)) {
+            const std::string cached_entry_path =
+                per_manifest_dir_ + "/files/" + cached_entry;
+            if (fs::exists(cached_entry_path)) {
+                UtilityFunctions::push_warning(String(
+                    ("[ForgeRunner.Native] Manifest download failed (HTTP " +
+                     std::to_string(code) + "), using cached version.").c_str()));
+                show_sml(cached_entry_path);
+                return;
+            }
+        }
+        show_error("Manifest download failed (HTTP " + std::to_string(code) +
+                   "): " + manifest_url_);
+        return;
+    }
+
+    // Convert body to string for parsing
+    std::string content(body.size(), '\0');
+    for (int64_t i = 0; i < body.size(); ++i)
+        content[static_cast<std::size_t>(i)] = static_cast<char>(body[i]);
+
+    // Compute manifest SHA-256 for delta detection
+    const std::string manifest_sha256 = forge::AssetCache::sha256_of(
+        std::vector<uint8_t>(content.begin(), content.end()));
+
+    // Check if manifest is unchanged and all cached files still exist
+    std::string cached_sha256, cached_entry;
+    std::unordered_map<std::string, std::string> cached_hashes;
+    if (load_manifest_meta(per_manifest_dir_, cached_sha256, cached_entry, cached_hashes)) {
+        if (cached_sha256 == manifest_sha256) {
+            const std::string entry_path = per_manifest_dir_ + "/files/" + cached_entry;
+            if (fs::exists(entry_path)) {
+                UtilityFunctions::print("[ForgeRunner.Native] Manifest unchanged, using cache.");
+                show_sml(entry_path);
+                return;
+            }
+        }
+    }
+
+    // Parse manifest with smlcore
+    smlcore::Document doc;
+    try {
+        doc = smlcore::parse_document(content);
+    } catch (const std::exception& ex) {
+        show_error(std::string("Manifest parse error: ") + ex.what());
+        return;
+    }
+    if (doc.roots.empty()) {
+        show_error("Empty manifest: " + manifest_url_);
+        return;
+    }
+
+    auto lower_str = [](std::string s) {
+        std::transform(s.begin(), s.end(), s.begin(),
+                       [](unsigned char c){ return std::tolower(c); });
+        return s;
+    };
+
+    if (lower_str(doc.roots[0].name) != "manifest") {
+        show_error("Manifest root must be 'Manifest', got '" + doc.roots[0].name + "'");
+        return;
+    }
+
+    const auto& root = doc.roots[0];
+    std::string entry_point = "app.sml";
+    std::string base_url;
+
+    for (const auto& prop : root.properties) {
+        const auto k = lower_str(prop.name);
+        if      (k == "entry" || k == "entrypoint") entry_point = prop.value;
+        else if (k == "baseurl")                    base_url    = prop.value;
+    }
+
+    manifest_entry_relative_ = entry_point;
+    download_queue_.clear();
+
+    for (const auto& child : root.children) {
+        if (lower_str(child.name) != "files") continue;
+        for (const auto& file_node : child.children) {
+            if (lower_str(file_node.name) != "file") continue;
+
+            ManifestAsset asset;
+            for (const auto& prop : file_node.properties) {
+                const auto k = lower_str(prop.name);
+                if      (k == "path") asset.path   = prop.value;
+                else if (k == "hash") asset.sha256  = prop.value;
+                else if (k == "url")  asset.url     = prop.value;
+            }
+            if (asset.url.empty()) asset.url = asset.path;
+            asset.url  = resolve_asset_url(manifest_url_, base_url, asset.url);
+            asset.path = normalize_asset_path(asset.path);
+
+            if (!asset.path.empty() && !asset.sha256.empty())
+                download_queue_.push_back(asset);
+        }
+    }
+
+    // Store manifest content and sha256 for later metadata save
+    // (saved after all assets are done in on_all_assets_ready)
+    // Keep cached_hashes around to skip already-valid files.
+    // We store sha256 in a temporary member — reuse per_manifest_dir_ as key.
+    // Pass manifest_sha256 through the static save at the end.
+    // Store it as a member for use in on_all_assets_ready.
+    manifest_sha256_ = manifest_sha256;
+
+    cached_asset_hashes_ = cached_hashes;  // for delta skip in start_next_asset_download
+    download_queue_idx_ = 0;
+    download_retry_     = 0;
+
+    if (download_queue_.empty()) {
+        // No assets to download — go straight to entry point
+        const std::string entry_path = per_manifest_dir_ + "/files/" + manifest_entry_relative_;
+        if (fs::exists(entry_path)) {
+            show_sml(entry_path);
+        } else {
+            show_error("Manifest has no downloadable assets and entry point is not cached.");
+        }
+        return;
+    }
+
+    update_download_progress(0, download_queue_.size(), "");
+    start_next_asset_download();
+}
+
+// ---------------------------------------------------------------------------
+// Asset download loop
+// ---------------------------------------------------------------------------
+
+void ForgeRunnerNativeMain::start_next_asset_download() {
+    // Skip assets whose cached file matches the expected hash from metadata
+    while (download_queue_idx_ < download_queue_.size()) {
+        const auto& asset    = download_queue_[download_queue_idx_];
+        const auto  dst_path = per_manifest_dir_ + "/files/" + asset.path;
+
+        if (fs::exists(dst_path)) {
+            const auto meta_it = cached_asset_hashes_.find(asset.path);
+            // Hashes stored in metadata may carry "sha256:" prefix — normalize both
+            auto strip_prefix = [](const std::string& h) {
+                const std::string pfx = "sha256:";
+                return (h.size() > pfx.size() && h.substr(0, pfx.size()) == pfx)
+                       ? h.substr(pfx.size()) : h;
+            };
+            const bool hash_ok = (meta_it != cached_asset_hashes_.end()) &&
+                                 (strip_prefix(meta_it->second) == strip_prefix(asset.sha256));
+            if (hash_ok) {
+                ++download_queue_idx_;
+                update_download_progress(download_queue_idx_, download_queue_.size(), "");
+                continue;
+            }
+        }
+
+        // Need to download
+        update_download_progress(download_queue_idx_, download_queue_.size(), asset.path);
+
+        http_request_ = memnew(HTTPRequest);
+        add_child(http_request_);
+        http_request_->connect("request_completed",
+            callable_mp(this, &ForgeRunnerNativeMain::on_asset_downloaded));
+
+        if (http_request_->request(String(asset.url.c_str())) != Error::OK) {
+            UtilityFunctions::push_error(String(
+                ("[ForgeRunner.Native] Failed to start asset download: " + asset.url).c_str()));
+            http_request_->queue_free();
+            http_request_ = nullptr;
+            ++download_queue_idx_;
+            download_retry_ = 0;
+            continue;
+        }
+
+        UtilityFunctions::print(String(
+            ("[ForgeRunner.Native] Downloading asset: " + asset.path).c_str()));
+        return;  // wait for on_asset_downloaded callback
+    }
+
+    // All assets processed
+    on_all_assets_ready();
+}
+
+void ForgeRunnerNativeMain::on_asset_downloaded(int result, int code,
+                                                 PackedStringArray /*headers*/,
+                                                 PackedByteArray body) {
+    if (http_request_) {
+        http_request_->queue_free();
+        http_request_ = nullptr;
+    }
+
+    const auto& asset    = download_queue_[download_queue_idx_];
+    const auto  dst_path = per_manifest_dir_ + "/files/" + asset.path;
+
+    if (result == HTTPRequest::RESULT_SUCCESS && (code == 200 || code == 206)) {
+        const std::vector<uint8_t> data(body.ptr(), body.ptr() + body.size());
+
+        // Verify hash if manifest provided one
+        if (!asset.sha256.empty()) {
+            auto strip = [](const std::string& h) {
+                const std::string pfx = "sha256:";
+                return (h.size() > pfx.size() && h.substr(0, pfx.size()) == pfx)
+                       ? h.substr(pfx.size()) : h;
+            };
+            const auto actual = forge::AssetCache::sha256_of(data);
+            if (strip(actual) != strip(asset.sha256)) {
+                UtilityFunctions::push_warning(String(
+                    ("[ForgeRunner.Native] Hash mismatch for " + asset.path +
+                     " (expected " + strip(asset.sha256) +
+                     " got " + actual + ")").c_str()));
+                // Treat as failed download → retry path below
+                if (download_retry_ < 2) {
+                    ++download_retry_;
+                    http_request_ = memnew(HTTPRequest);
+                    add_child(http_request_);
+                    http_request_->connect("request_completed",
+                        callable_mp(this, &ForgeRunnerNativeMain::on_asset_downloaded));
+                    http_request_->request(String(asset.url.c_str()));
+                    return;
+                }
+                UtilityFunctions::push_error(String(
+                    ("[ForgeRunner.Native] Hash mismatch after retries, skipping: " +
+                     asset.path).c_str()));
+                download_retry_ = 0;
+                ++download_queue_idx_;
+                start_next_asset_download();
+                return;
+            }
+        }
+
+        // Save asset at its original relative path (preserves directory structure)
+        if (!save_file_atomic(dst_path, data.data(), data.size())) {
+            UtilityFunctions::push_warning(String(
+                ("[ForgeRunner.Native] Failed to cache asset: " + asset.path).c_str()));
+        }
+        download_retry_ = 0;
+        ++download_queue_idx_;
+    } else if (download_retry_ < 2) {
+        // One retry on failure
+        ++download_retry_;
+        UtilityFunctions::push_warning(String(
+            ("[ForgeRunner.Native] Asset download failed (HTTP " + std::to_string(code) +
+             "), retry " + std::to_string(download_retry_) + ": " + asset.url).c_str()));
+
+        http_request_ = memnew(HTTPRequest);
+        add_child(http_request_);
+        http_request_->connect("request_completed",
+            callable_mp(this, &ForgeRunnerNativeMain::on_asset_downloaded));
+        http_request_->request(String(asset.url.c_str()));
+        return;
+    } else {
+        UtilityFunctions::push_error(String(
+            ("[ForgeRunner.Native] Asset download failed after retries: " + asset.url).c_str()));
+        download_retry_ = 0;
+        ++download_queue_idx_;
+    }
+
+    update_download_progress(download_queue_idx_, download_queue_.size(),
+                             download_queue_idx_ < download_queue_.size()
+                                 ? download_queue_[download_queue_idx_].path : "");
+    start_next_asset_download();
+}
+
+void ForgeRunnerNativeMain::on_all_assets_ready() {
+    // Save manifest metadata for delta detection on next run
+    save_manifest_meta(per_manifest_dir_, manifest_sha256_,
+                       manifest_entry_relative_, download_queue_);
+
+    const std::string entry_path =
+        per_manifest_dir_ + "/files/" + manifest_entry_relative_;
+
+    if (!fs::exists(entry_path)) {
+        show_error("Entry point not found after download: " + manifest_entry_relative_);
+        return;
+    }
+
+    UtilityFunctions::print(String(
+        ("[ForgeRunner.Native] All assets ready, showing: " + entry_path).c_str()));
+    show_sml(entry_path);
 }

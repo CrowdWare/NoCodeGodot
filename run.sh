@@ -122,6 +122,7 @@ Usage:
   ./run.sh remote-default     Run hosted Default app (AppServer manifest)
   ./run.sh remote-designer    Run hosted ForgeDesigner app (AppServer manifest)
   ./run.sh poser              Run local ForgePoser app
+  ./run.sh url <url>          Run any app by URL (file:// or http(s)://)
   ./run.sh docs               Generate SML/SMS documentation (headless Godot)
   ./run.sh build              Build native stack (default)
   ./run.sh build-native       Same as build
@@ -341,6 +342,13 @@ case "$MODE" in
   poser)
     poser_url="file://$REPO_ROOT/ForgePoser/app.sml"
     run_native_window_host "$poser_url"
+    ;;
+  url)
+    if [[ $# -lt 1 ]]; then
+      echo "ERROR: 'url' mode requires a URL argument, e.g. ./run.sh url http://localhost:8765/manifest.sml" >&2
+      exit 1
+    fi
+    run_native_window_host "$1"
     ;;
   docs)
     docs_godot_bin=""

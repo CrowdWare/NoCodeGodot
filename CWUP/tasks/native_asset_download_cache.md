@@ -50,6 +50,36 @@ and cannot fetch `http://` / `https://` manifests at all.
 - Hash mismatch forces re-download.
 - Progress is forwarded to the splash-screen progress bar.
 
+## Implementation Status
+
+- [x] `forge_asset_cache.h` — API skeleton (AssetCache: resolve, store, sha256_of)
+- [x] `forge_asset_cache.cpp` — Full implementation:
+  - `forge_cache_dir()` (OS-appropriate: XDG/HOME/.cache/forge-runner, LOCALAPPDATA)
+  - `AssetCache::resolve()` with SHA-256 prefix normalization
+  - `AssetCache::store()` — atomic write + flat URL→hash-named index
+  - `AssetCache::sha256_of()` — via Godot `HashingContext`
+  - `load_index()` / `save_index()` — SML-format CacheIndex with atomic rename
+- [x] `forge_runner_main.cpp` — HTTP manifest support:
+  - `is_http_url()` — detect `http://` / `https://` URLs
+  - `show_loading_screen()` — built-in loading UI with ProgressBar
+  - `start_manifest_download()` — via Godot `HTTPRequest` node
+  - `on_manifest_downloaded()` — smlcore parse, manifest SHA check, delta list
+  - `start_next_asset_download()` — sequential asset download with hash-delta skip
+  - `on_asset_downloaded()` — atomic file save with 2 retry attempts on error
+  - `on_all_assets_ready()` — metadata save + `show_sml(entry_path)`
+  - `load_manifest_meta()` / `save_manifest_meta()` — per-app metadata.sml
+  - `normalize_asset_path()` — security: reject `..` traversal
+  - `save_file_atomic()` — write .tmp → rename
+- [x] `CMakeLists.txt` — forge_asset_cache.cpp added to GDExtension sources
+- [ ] Tests: mockup web server integration test
+
+### Architecture Notes
+- Per-manifest cache: `~/.cache/forge-runner/{sha256_of_url}/files/{asset.path}`
+  - Preserves original directory structure → relative SML references work
+- Flat URL cache (`AssetCache`): used for individual ad-hoc URL assets
+- Delta download: second run skips unchanged files (manifest SHA + per-asset hash check)
+- `HTTPRequest` node used (Godot-native, no libcurl dependency)
+
 ## Test Strategy — Mockup Web Server
 
 For unit / integration tests a lightweight mock HTTP server should be set up
