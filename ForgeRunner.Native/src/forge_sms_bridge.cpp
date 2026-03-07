@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <limits>
 #include <sstream>
 
@@ -354,6 +355,17 @@ void SmsBridge::unload() {
 std::int64_t SmsBridge::start_session(const std::string& script_path) {
     if (!loaded_) return -1;
 
+    // sms_native_session_load expects script SOURCE, not a file path.
+    std::ifstream f(script_path);
+    if (!f.is_open()) {
+        UtilityFunctions::push_warning(String((
+            "[ForgeRunner.Native] SMS cannot open script: " + script_path).c_str()));
+        return -1;
+    }
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    const std::string source = ss.str();
+
     std::int64_t session = -1;
     char err[512] = {};
     if (create_fn_(&session, err, static_cast<int>(sizeof(err))) != 0 || session < 0) {
@@ -361,7 +373,7 @@ std::int64_t SmsBridge::start_session(const std::string& script_path) {
             "[ForgeRunner.Native] SMS session create failed: " + std::string(err)).c_str()));
         return -1;
     }
-    if (load_fn_(session, script_path.c_str(), err, static_cast<int>(sizeof(err))) != 0) {
+    if (load_fn_(session, source.c_str(), err, static_cast<int>(sizeof(err))) != 0) {
         UtilityFunctions::push_warning(String((
             "[ForgeRunner.Native] SMS session load failed: " + std::string(err)).c_str()));
         dispose_fn_(session, nullptr, 0);

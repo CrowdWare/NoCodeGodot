@@ -257,9 +257,18 @@ void ForgeRunnerNativeMain::start_sms(const std::string& sml_path, const std::st
     script.replace_extension(".sms");
     if (!fs::exists(script)) return;
 
-    // Resolve repo root (two levels up from the Godot project root)
-    String proj_root = ProjectSettings::get_singleton()->globalize_path("res://");
-    const std::string repo_root = fs::path(proj_root.utf8().get_data()).parent_path().parent_path().string();
+    // Resolve repo root via FORGE_RUNNER_APPRES_ROOT (set by run.sh to
+    // <repo>/ForgeRunner.Native), so parent_path() gives us <repo>.
+    // Fall back to two levels above res:// if the env var is absent.
+    std::string repo_root;
+    const char* env_appres = std::getenv("FORGE_RUNNER_APPRES_ROOT");
+    if (env_appres && env_appres[0] != '\0') {
+        repo_root = fs::path(env_appres).parent_path().string();
+    } else {
+        String proj_root = ProjectSettings::get_singleton()->globalize_path("res://");
+        repo_root = fs::path(proj_root.utf8().get_data())
+                        .lexically_normal().parent_path().parent_path().string();
+    }
 
     if (!sms_bridge_.load(repo_root)) return;
 
