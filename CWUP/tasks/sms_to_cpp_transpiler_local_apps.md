@@ -66,7 +66,7 @@ The first version targets the constructs actually used in practice:
 | `fun` (top-level functions) | ✅ |
 | `when` (event handler registration) | ✅ |
 | Native function calls (`ui.*`, `os.*`, `log.*`) | ✅ via generated glue |
-| Closures / first-class functions | ❌ compile-time error |
+| Closures / first-class functions | — (not in SMS language) |
 | Dynamic `ui.getObject()` with runtime id | ⚠️ supported with warning |
 | `Array`, `Dictionary` literals | ✅ |
 | Recursive functions | ✅ |
