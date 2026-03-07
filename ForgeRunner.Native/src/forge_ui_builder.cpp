@@ -78,6 +78,7 @@ namespace forge {
 UiBuilder::UiBuilder(const std::string& base_dir, const std::string& appres_root)
     : base_dir_(base_dir), appres_root_(appres_root) {
     load_strings();
+    load_theme();
 }
 
 // ---------------------------------------------------------------------------
@@ -105,29 +106,121 @@ Control* UiBuilder::build(const smlcore::Document& doc, WindowConfig& out_window
 }
 
 // ---------------------------------------------------------------------------
-// strings.sml
+// Language detection
 // ---------------------------------------------------------------------------
 
-void UiBuilder::load_strings() {
-    const auto path = base_dir_ + "/strings.sml";
-    std::ifstream f(path);
-    if (!f.is_open()) return;
-
-    std::ostringstream ss;
-    ss << f.rdbuf();
-    const auto src = ss.str();
-
-    try {
-        auto doc = smlcore::parse_document(src);
-        for (const auto& root : doc.roots) {
-            // Accept any root node name (Strings, strings, etc.)
-            for (const auto& prop : root.properties) {
-                strings_[prop.name] = prop.value;
-            }
+static std::string detect_lang() {
+    for (const char* var : {"LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"}) {
+        const char* v = std::getenv(var);
+        if (!v || v[0] == '\0') continue;
+        const std::string s(v);
+        // "C" / "POSIX" / "C.UTF-8" → skip
+        if (s[0] == 'C' && (s.size() == 1 || s[1] == '.' || s[1] == '_')) continue;
+        // Extract two-char code: "de_DE.UTF-8" → "de"
+        if (s.size() >= 2 && std::isalpha(static_cast<unsigned char>(s[0]))
+                          && std::isalpha(static_cast<unsigned char>(s[1]))) {
+            char a = static_cast<char>(std::tolower(static_cast<unsigned char>(s[0])));
+            char b = static_cast<char>(std::tolower(static_cast<unsigned char>(s[1])));
+            std::string lang; lang += a; lang += b;
+            return lang;
         }
-    } catch (...) {
-        UtilityFunctions::push_warning("[ForgeRunner] Failed to parse strings.sml");
     }
+    return {};
+}
+
+// ---------------------------------------------------------------------------
+// strings.sml (+ language overlay)
+// ---------------------------------------------------------------------------
+
+static void load_strings_from_dir(
+    const std::string& dir, const std::string& lang,
+    std::unordered_map<std::string, std::string>& out)
+{
+    auto try_load = [&](const std::string& path) {
+        std::ifstream f(path);
+        if (!f.is_open()) return;
+        std::ostringstream ss; ss << f.rdbuf();
+        try {
+            auto doc = smlcore::parse_document(ss.str());
+            for (const auto& root : doc.roots)
+                for (const auto& prop : root.properties)
+                    out[prop.name] = prop.value;
+        } catch (...) {
+            UtilityFunctions::push_warning(String(("[ForgeRunner] Failed to parse " + path).c_str()));
+        }
+    };
+
+    try_load(dir + "/strings.sml");
+    if (!lang.empty() && lang != "en")
+        try_load(dir + "/strings-" + lang + ".sml");
+}
+
+void UiBuilder::load_strings() {
+    const auto lang = detect_lang();
+    // Default layer (ForgeRunner built-in), then app layer (wins)
+    if (!appres_root_.empty())
+        load_strings_from_dir(appres_root_, lang, strings_);
+    load_strings_from_dir(base_dir_, lang, strings_);
+}
+
+// ---------------------------------------------------------------------------
+// theme.sml (Colors / Layouts / Elevations)
+// ---------------------------------------------------------------------------
+
+void UiBuilder::load_theme() {
+    auto load_one = [&](const std::string& dir) {
+        const auto path = dir + "/theme.sml";
+        std::ifstream f(path);
+        if (!f.is_open()) return;
+        std::ostringstream ss; ss << f.rdbuf();
+        try {
+            auto doc = smlcore::parse_document(ss.str());
+            for (const auto& root : doc.roots) {
+                std::string rl = root.name;
+                std::transform(rl.begin(), rl.end(), rl.begin(),
+                               [](unsigned char c){ return std::tolower(c); });
+
+                if (rl == "colors") {
+                    for (const auto& prop : root.properties)
+                        colors_[prop.name] = prop.value;
+                } else if (rl == "layouts") {
+                    for (const auto& prop : root.properties)
+                        layouts_[prop.name] = prop.value;
+                } else if (rl == "elevations") {
+                    for (const auto& child : root.children) {
+                        auto& ev = elevations_[child.name];
+                        ev.clear();
+                        for (const auto& prop : child.properties) {
+                            // Resolve @Colors.* / @Layouts.* eagerly
+                            std::string val = prop.value;
+                            if (!val.empty() && val[0] == '@') {
+                                const auto dot = val.find('.', 1);
+                                if (dot != std::string::npos) {
+                                    std::string ns = val.substr(1, dot - 1);
+                                    std::transform(ns.begin(), ns.end(), ns.begin(),
+                                                   [](unsigned char c){ return std::tolower(c); });
+                                    const auto key = val.substr(dot + 1);
+                                    if (ns == "colors") {
+                                        auto it = colors_.find(key);
+                                        if (it != colors_.end()) val = it->second;
+                                    } else if (ns == "layouts") {
+                                        auto it = layouts_.find(key);
+                                        if (it != layouts_.end()) val = it->second;
+                                    }
+                                }
+                            }
+                            ev.emplace_back(prop.name, val);
+                        }
+                    }
+                }
+            }
+        } catch (...) {
+            UtilityFunctions::push_warning(String(("[ForgeRunner] Failed to parse " + path).c_str()));
+        }
+    };
+
+    if (!appres_root_.empty()) load_one(appres_root_);
+    load_one(base_dir_);
 }
 
 // ---------------------------------------------------------------------------
@@ -142,7 +235,7 @@ void UiBuilder::apply_window_props(const smlcore::Node& root, WindowConfig& out)
     out.is_splash = (nl == "splashscreen");
 
     if (const auto* p = root.find_property("title")) {
-        out.title = resolve_text(*p);
+        out.title = resolve_ref(*p);
     }
     if (out.title.empty() && !out.is_splash) out.title = "ForgeRunner";
 
@@ -531,7 +624,7 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
     // --- Label ---
     if (auto* lbl = Object::cast_to<Label>(ctrl)) {
         if (const auto* p = node.find_property("text"))
-            lbl->set_text(String(resolve_text(*p).c_str()));
+            lbl->set_text(String(resolve_ref(*p).c_str()));
         if (node.has_property("wrap") && parse_bool(node.get_value("wrap")))
             lbl->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
         if (node.has_property("align")) {
@@ -544,7 +637,7 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
     // --- RichTextLabel ---
     if (auto* rtl = Object::cast_to<RichTextLabel>(ctrl)) {
         if (const auto* p = node.find_property("text"))
-            rtl->set_text(String(resolve_text(*p).c_str()));
+            rtl->set_text(String(resolve_ref(*p).c_str()));
         rtl->set_fit_content(node.has_property("fitContent")
                              ? parse_bool(node.get_value("fitContent")) : false);
     }
@@ -552,7 +645,7 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
     // --- Button / LinkButton / CheckBox / CheckButton ---
     if (auto* btn = Object::cast_to<Button>(ctrl)) {
         if (const auto* p = node.find_property("text"))
-            btn->set_text(String(resolve_text(*p).c_str()));
+            btn->set_text(String(resolve_ref(*p).c_str()));
         if (node.has_property("toggleMode"))
             btn->set_toggle_mode(parse_bool(node.get_value("toggleMode")));
         if (node.has_property("buttonPressed"))
@@ -566,15 +659,15 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
     // --- LinkButton ---
     if (auto* lbtn = Object::cast_to<LinkButton>(ctrl)) {
         if (const auto* p = node.find_property("text"))
-            lbtn->set_text(String(resolve_text(*p).c_str()));
+            lbtn->set_text(String(resolve_ref(*p).c_str()));
     }
 
     // --- LineEdit ---
     if (auto* le = Object::cast_to<LineEdit>(ctrl)) {
         if (const auto* p = node.find_property("text"))
-            le->set_text(String(resolve_text(*p).c_str()));
+            le->set_text(String(resolve_ref(*p).c_str()));
         if (const auto* p = node.find_property("placeholderText"))
-            le->set_placeholder(String(resolve_text(*p).c_str()));
+            le->set_placeholder(String(resolve_ref(*p).c_str()));
         if (node.has_property("editable"))
             le->set_editable(parse_bool(node.get_value("editable"), true));
     }
@@ -582,7 +675,7 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
     // --- TextEdit ---
     if (auto* te = Object::cast_to<TextEdit>(ctrl)) {
         if (const auto* p = node.find_property("text"))
-            te->set_text(String(resolve_text(*p).c_str()));
+            te->set_text(String(resolve_ref(*p).c_str()));
     }
 
     // --- TextureRect ---
@@ -687,9 +780,9 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
     }
 
     // --- Styling: color (font_color) ---
-    if (node.has_property("color")) {
+    if (const auto* p = node.find_property("color")) {
         float r, g, b, a = 1.0f;
-        if (parse_color(node.get_value("color"), r, g, b, a)) {
+        if (parse_color(resolve_ref(*p), r, g, b, a)) {
             Color c(r, g, b, a);
             ctrl->add_theme_color_override("font_color", c);
             ctrl->add_theme_color_override("font_uneditable_color", c);
@@ -698,7 +791,8 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
 
     // --- Styling: fontSize ---
     if (node.has_property("fontSize"))
-        ctrl->add_theme_font_size_override("font_size", parse_int(node.get_value("fontSize")));
+        ctrl->add_theme_font_size_override("font_size",
+            parse_int(resolve_value(node.get_value("fontSize"))));
 
     // --- Styling: fontWeight ---
     if (node.has_property("fontWeight") && node.get_value("fontWeight") == "bold") {
@@ -758,44 +852,59 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
         node.has_property("borderTop") || node.has_property("borderBottom") ||
         node.has_property("borderLeft") || node.has_property("borderRight") ||
         node.has_property("elevation")) {
+
+        // Collect effective style properties: elevation profile first, node overrides second.
+        std::unordered_map<std::string, std::string> sp;
+
+        if (node.has_property("elevation")) {
+            const auto ev_name = node.get_value("elevation");
+            auto it = elevations_.find(ev_name);
+            if (it != elevations_.end()) {
+                for (const auto& [k, v] : it->second)
+                    sp[k] = v;
+            } else {
+                UtilityFunctions::push_warning(String(
+                    ("[ForgeRunner] elevation '" + ev_name + "' not found").c_str()));
+            }
+        }
+
+        // Node-level properties override elevation
+        for (const char* key : {"bgColor", "borderRadius", "borderColor", "borderWidth",
+                                 "borderTop", "borderBottom", "borderLeft", "borderRight"}) {
+            if (const auto* p = node.find_property(key))
+                sp[key] = resolve_ref(*p);
+        }
+
         Ref<StyleBoxFlat> style;
         style.instantiate();
 
-        // Elevation baseline colors (dark theme defaults)
-        if (node.has_property("elevation")) {
-            const auto ev = node.get_value("elevation");
-            if (ev == "raised")
-                style->set_bg_color(Color(0.10f, 0.12f, 0.19f, 1.0f));
-            else if (ev == "elevated")
-                style->set_bg_color(Color(0.14f, 0.16f, 0.24f, 1.0f));
-        }
+        auto get_sp = [&](const char* k) -> std::string {
+            auto it = sp.find(k); return it != sp.end() ? it->second : "";
+        };
 
-        if (node.has_property("bgColor")) {
+        if (!get_sp("bgColor").empty()) {
             float r, g, b, a = 1.0f;
-            if (parse_color(node.get_value("bgColor"), r, g, b, a))
+            if (parse_color(get_sp("bgColor"), r, g, b, a))
                 style->set_bg_color(Color(r, g, b, a));
         }
-        if (node.has_property("borderRadius")) {
-            int rad = parse_int(node.get_value("borderRadius"));
-            style->set_corner_radius_all(rad);
-        }
-        if (node.has_property("borderColor")) {
+        if (!get_sp("borderRadius").empty())
+            style->set_corner_radius_all(parse_int(get_sp("borderRadius")));
+        if (!get_sp("borderColor").empty()) {
             float r, g, b, a = 1.0f;
-            if (parse_color(node.get_value("borderColor"), r, g, b, a))
+            if (parse_color(get_sp("borderColor"), r, g, b, a))
                 style->set_border_color(Color(r, g, b, a));
         }
-        if (node.has_property("borderWidth")) {
-            int w = parse_int(node.get_value("borderWidth"));
-            style->set_border_width_all(w);
-        }
-        if (node.has_property("borderTop"))
-            style->set_border_width(SIDE_TOP,    parse_int(node.get_value("borderTop")));
-        if (node.has_property("borderBottom"))
-            style->set_border_width(SIDE_BOTTOM, parse_int(node.get_value("borderBottom")));
-        if (node.has_property("borderLeft"))
-            style->set_border_width(SIDE_LEFT,   parse_int(node.get_value("borderLeft")));
-        if (node.has_property("borderRight"))
-            style->set_border_width(SIDE_RIGHT,  parse_int(node.get_value("borderRight")));
+        if (!get_sp("borderWidth").empty())
+            style->set_border_width_all(parse_int(get_sp("borderWidth")));
+        if (!get_sp("borderTop").empty())
+            style->set_border_width(SIDE_TOP,    parse_int(get_sp("borderTop")));
+        if (!get_sp("borderBottom").empty())
+            style->set_border_width(SIDE_BOTTOM, parse_int(get_sp("borderBottom")));
+        if (!get_sp("borderLeft").empty())
+            style->set_border_width(SIDE_LEFT,   parse_int(get_sp("borderLeft")));
+        if (!get_sp("borderRight").empty())
+            style->set_border_width(SIDE_RIGHT,  parse_int(get_sp("borderRight")));
+
         ctrl->add_theme_stylebox_override("panel", style);
         ctrl->add_theme_stylebox_override("normal", style);
     }
@@ -830,7 +939,7 @@ void UiBuilder::build_menubar_children(Control* menu_bar, const smlcore::Node& n
             if (inl != "item") continue;
 
             const auto* tp = item.find_property("text");
-            std::string text = tp ? resolve_text(*tp) : "Item";
+            std::string text = tp ? resolve_ref(*tp) : "Item";
             popup->add_item(String(text.c_str()), item_id++);
         }
         mb->add_child(popup);
@@ -841,27 +950,59 @@ void UiBuilder::build_menubar_children(Control* menu_bar, const smlcore::Node& n
 // Text / asset resolution
 // ---------------------------------------------------------------------------
 
-std::string UiBuilder::resolve_text(const smlcore::Property& prop) const {
+std::string UiBuilder::resolve_at_ref(const std::string& ref) const {
+    // ref is like "@Colors.accent", "@Layouts.gap", "@Strings.key"
+    const auto dot = ref.find('.', 1);
+    if (dot == std::string::npos) return {};
+
+    std::string ns = ref.substr(1, dot - 1);
+    std::transform(ns.begin(), ns.end(), ns.begin(),
+                   [](unsigned char c){ return std::tolower(c); });
+    const auto key = ref.substr(dot + 1);
+
+    if (ns == "colors") {
+        auto it = colors_.find(key);
+        if (it != colors_.end()) return it->second;
+        UtilityFunctions::push_warning(String(("[ForgeRunner] @Colors." + key + " not found").c_str()));
+        return {};
+    }
+    if (ns == "layouts") {
+        auto it = layouts_.find(key);
+        if (it != layouts_.end()) return it->second;
+        UtilityFunctions::push_warning(String(("[ForgeRunner] @Layouts." + key + " not found").c_str()));
+        return {};
+    }
+    if (ns == "strings") {
+        auto it = strings_.find(key);
+        if (it != strings_.end()) return it->second;
+        return {};
+    }
+    return {};
+}
+
+std::string UiBuilder::resolve_value(const std::string& v) const {
+    if (!v.empty() && v[0] == '@') {
+        const auto resolved = resolve_at_ref(v);
+        return resolved.empty() ? v : resolved;
+    }
+    return v;
+}
+
+std::string UiBuilder::resolve_ref(const smlcore::Property& prop) const {
     const auto& v = prop.value;
 
     // Tuple: "@Strings.key, \"Fallback\"" — try the ref first, use fallback if not found
     if (prop.kind == smlcore::ValueKind::Tuple) {
         const auto comma = v.find(',');
         const auto ref   = (comma != std::string::npos) ? v.substr(0, comma) : v;
-        // trim whitespace from ref
         std::string key_part = ref;
         key_part.erase(0, key_part.find_first_not_of(" \t\""));
         key_part.erase(key_part.find_last_not_of(" \t\"") + 1);
 
         std::string resolved;
-        if (!key_part.empty() && key_part[0] == '@') {
-            const auto dot = key_part.find('.', 1);
-            if (dot != std::string::npos) {
-                const auto key = key_part.substr(dot + 1);
-                auto it = strings_.find(key);
-                if (it != strings_.end()) resolved = it->second;
-            }
-        }
+        if (!key_part.empty() && key_part[0] == '@')
+            resolved = resolve_at_ref(key_part);
+
         if (!resolved.empty()) return resolved;
 
         // Use fallback (second tuple element, strip quotes)
@@ -874,16 +1015,13 @@ std::string UiBuilder::resolve_text(const smlcore::Property& prop) const {
         return key_part;
     }
 
-    // Single string reference: @Namespace.key
+    // Single reference: @Namespace.key
     if (prop.kind == smlcore::ValueKind::Identifier && !v.empty() && v[0] == '@') {
+        const auto resolved = resolve_at_ref(v);
+        if (!resolved.empty()) return resolved;
+        // Fallback: strip the @Namespace. prefix and return the key
         const auto dot = v.find('.', 1);
-        if (dot != std::string::npos) {
-            const auto key = v.substr(dot + 1);
-            auto it = strings_.find(key);
-            if (it != strings_.end()) return it->second;
-            return key;
-        }
-        return v.substr(1);
+        return (dot != std::string::npos) ? v.substr(dot + 1) : v.substr(1);
     }
     return v;
 }

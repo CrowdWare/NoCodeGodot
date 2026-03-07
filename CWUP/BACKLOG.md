@@ -91,8 +91,8 @@
 - [x] tasks/native_schema_codegen.md
 - [x] tasks/native_sms_ui_bridge.md
 - [ ] tasks/native_plugin_hosting.md
-- [ ] tasks/native_splash_main_transition.md
-- [ ] tasks/native_theme_localization.md
+- [x] tasks/native_splash_main_transition.md
+- [x] tasks/native_theme_localization.md
 - [ ] tasks/native_bg_containers.md
 - [ ] tasks/native_post_build_pass.md
 - [ ] tasks/native_asset_download_cache.md

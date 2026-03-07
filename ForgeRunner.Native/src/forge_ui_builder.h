@@ -4,6 +4,8 @@
 
 #include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace godot {
 class Control;
@@ -41,9 +43,16 @@ public:
 private:
     std::string base_dir_;
     std::string appres_root_;
+
+    // Design tokens
     std::unordered_map<std::string, std::string> strings_;
+    std::unordered_map<std::string, std::string> colors_;
+    std::unordered_map<std::string, std::string> layouts_;
+    // elevation name → list of (property, resolved_value)
+    std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> elevations_;
 
     void load_strings();
+    void load_theme();
 
     godot::Control* build_node(const smlcore::Node& node);
     godot::Control* create_control(const std::string& name_lower);
@@ -51,7 +60,13 @@ private:
     void            apply_window_props(const smlcore::Node& root, WindowConfig& out);
     void            build_menubar_children(godot::Control* menu_bar, const smlcore::Node& node);
 
-    std::string resolve_text(const smlcore::Property& prop) const;
+    /// Resolve a property value that may be a @Namespace.key reference or Tuple.
+    std::string resolve_ref(const smlcore::Property& prop) const;
+    /// Resolve a raw value string that may be a bare @Namespace.key reference.
+    std::string resolve_value(const std::string& v) const;
+    /// Resolve a single @Namespace.key reference. Returns "" if not found.
+    std::string resolve_at_ref(const std::string& ref) const;
+
     std::string resolve_asset_path(const std::string& raw) const;
 
     static bool  parse_bool(const std::string& v, bool fallback = false);
