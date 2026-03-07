@@ -140,7 +140,7 @@ void UiBuilder::apply_window_props(const smlcore::Node& root, WindowConfig& out)
     if (const auto* p = root.find_property("title")) {
         out.title = resolve_text(*p);
     }
-    if (out.title.empty()) out.title = "ForgeRunner";
+    if (out.title.empty() && !out.is_splash) out.title = "ForgeRunner";
 
     const auto sz = root.get_value("size");
     if (!sz.empty()) {
@@ -158,7 +158,14 @@ void UiBuilder::apply_window_props(const smlcore::Node& root, WindowConfig& out)
             out.min_height = parse_int(msz.substr(comma + 1), 0);
         }
     }
-    out.extend_to_title = parse_bool(root.get_value("extendToTitle", "false"), false);
+    if (!out.is_splash) {
+        // Window node: read SML flags and centre on screen.
+        // Splash flags (borderless, always_on_top, extend_to_title) come from
+        // project.godot and are reset by forge_runner_main when leaving splash.
+        out.extend_to_title  = parse_bool(root.get_value("extendToTitle", "false"), false);
+        out.borderless       = parse_bool(root.get_value("borderless",     "false"), false);
+        out.center_on_screen = true;
+    }
 
     if (out.is_splash) {
         out.splash_duration_ms   = parse_int(root.get_value("duration", "3000"), 3000);

@@ -132,14 +132,31 @@ void ForgeRunnerNativeMain::show_sml(const std::string& path) {
     // Apply window settings
     Window* win = get_window();
     if (win) {
-        if (!win_cfg.title.empty())
-            win->set_title(String(win_cfg.title.c_str()));
-        if (win_cfg.width > 0 && win_cfg.height > 0)
-            win->set_size(Vector2i(win_cfg.width, win_cfg.height));
-        if (win_cfg.min_width > 0 && win_cfg.min_height > 0)
-            win->set_min_size(Vector2i(win_cfg.min_width, win_cfg.min_height));
-        if (win_cfg.extend_to_title)
-            win->set_flag(Window::FLAG_EXTEND_TO_TITLE, true);
+        if (win_cfg.is_splash) {
+            // Splash: project.godot sets extend_to_title, always_on_top,
+            // transparent, resizable=false. Only hide minimize+maximize so
+            // just the red close button remains visible.
+            win->set_flag(Window::FLAG_MINIMIZE_DISABLED, true);
+            win->set_flag(Window::FLAG_MAXIMIZE_DISABLED, true);
+            if (win_cfg.width > 0 && win_cfg.height > 0)
+                win->set_size(Vector2i(win_cfg.width, win_cfg.height));
+        } else {
+            // Window: reset splash-mode flags, then apply SML-specified values.
+            win->set_flag(Window::FLAG_MINIMIZE_DISABLED, false);
+            win->set_flag(Window::FLAG_MAXIMIZE_DISABLED, false);
+            win->set_flag(Window::FLAG_ALWAYS_ON_TOP,   false);
+            win->set_flag(Window::FLAG_RESIZE_DISABLED, false);
+            win->set_flag(Window::FLAG_EXTEND_TO_TITLE, win_cfg.extend_to_title);
+            win->set_flag(Window::FLAG_BORDERLESS,      win_cfg.borderless);
+            if (!win_cfg.title.empty())
+                win->set_title(String(win_cfg.title.c_str()));
+            if (win_cfg.width > 0 && win_cfg.height > 0)
+                win->set_size(Vector2i(win_cfg.width, win_cfg.height));
+            if (win_cfg.min_width > 0 && win_cfg.min_height > 0)
+                win->set_min_size(Vector2i(win_cfg.min_width, win_cfg.min_height));
+            if (win_cfg.center_on_screen)
+                win->move_to_center();
+        }
     }
 
     add_child(ui);

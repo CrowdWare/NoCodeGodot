@@ -2,7 +2,7 @@ Window {
     id: mainWindow
     title: @Strings.windowTitle
     minSize: 900, 580
-    size: 960, 660
+    size: 1920, 1080
     extendToTitle: true
 
     // Drag area behind title bar content
