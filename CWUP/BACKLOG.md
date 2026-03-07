@@ -93,7 +93,7 @@
 - [ ] tasks/native_plugin_hosting.md
 - [x] tasks/native_splash_main_transition.md
 - [x] tasks/native_theme_localization.md
-- [ ] tasks/native_bg_containers.md
+- [x] tasks/native_bg_containers.md
 - [ ] tasks/native_post_build_pass.md
 - [ ] tasks/native_asset_download_cache.md
 - [ ] tasks/native_docking_improvements.md

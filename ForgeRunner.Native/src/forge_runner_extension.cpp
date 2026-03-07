@@ -668,12 +668,88 @@ public:
 };
 
 // ---------------------------------------------------------------------------
+// ForgeBgVBoxContainer / ForgeBgHBoxContainer
+// VBoxContainer / HBoxContainer with custom _draw() for bgColor support.
+// StyleBoxFlat is set via set_bg_style(); it handles bg, border, radius, shadow.
+// ---------------------------------------------------------------------------
+
+class ForgeBgVBoxContainer : public VBoxContainer {
+    GDCLASS(ForgeBgVBoxContainer, VBoxContainer);
+    Ref<StyleBoxFlat> bg_style_;
+    Color             highlight_color_;
+    bool              has_highlight_ = false;
+
+protected:
+    static void _bind_methods() {
+        ClassDB::bind_method(D_METHOD("set_bg_style",       "style"), &ForgeBgVBoxContainer::set_bg_style);
+        ClassDB::bind_method(D_METHOD("set_highlight_color","color"), &ForgeBgVBoxContainer::set_highlight_color);
+    }
+
+public:
+    void set_bg_style(Ref<StyleBoxFlat> style) {
+        bg_style_ = style;
+        queue_redraw();
+    }
+    void set_highlight_color(Color color) {
+        highlight_color_ = color;
+        has_highlight_ = true;
+        queue_redraw();
+    }
+    void _draw() override {
+        if (bg_style_.is_valid())
+            draw_style_box(bg_style_, Rect2(Vector2(), get_size()));
+        if (has_highlight_) {
+            float r = bg_style_.is_valid() ? (float)bg_style_->get_corner_radius(CORNER_TOP_LEFT) : 0.0f;
+            Vector2 sz = get_size();
+            draw_line(Vector2(r, 0.5f), Vector2(sz.x - r, 0.5f), highlight_color_);
+            draw_line(Vector2(0.5f, r), Vector2(0.5f, sz.y - r), highlight_color_);
+        }
+    }
+};
+
+class ForgeBgHBoxContainer : public HBoxContainer {
+    GDCLASS(ForgeBgHBoxContainer, HBoxContainer);
+    Ref<StyleBoxFlat> bg_style_;
+    Color             highlight_color_;
+    bool              has_highlight_ = false;
+
+protected:
+    static void _bind_methods() {
+        ClassDB::bind_method(D_METHOD("set_bg_style",       "style"), &ForgeBgHBoxContainer::set_bg_style);
+        ClassDB::bind_method(D_METHOD("set_highlight_color","color"), &ForgeBgHBoxContainer::set_highlight_color);
+    }
+
+public:
+    void set_bg_style(Ref<StyleBoxFlat> style) {
+        bg_style_ = style;
+        queue_redraw();
+    }
+    void set_highlight_color(Color color) {
+        highlight_color_ = color;
+        has_highlight_ = true;
+        queue_redraw();
+    }
+    void _draw() override {
+        if (bg_style_.is_valid())
+            draw_style_box(bg_style_, Rect2(Vector2(), get_size()));
+        if (has_highlight_) {
+            float r = bg_style_.is_valid() ? (float)bg_style_->get_corner_radius(CORNER_TOP_LEFT) : 0.0f;
+            Vector2 sz = get_size();
+            draw_line(Vector2(r, 0.5f), Vector2(sz.x - r, 0.5f), highlight_color_);
+            draw_line(Vector2(0.5f, r), Vector2(0.5f, sz.y - r), highlight_color_);
+        }
+    }
+};
+
+// ---------------------------------------------------------------------------
 // GDExtension entry points
 // ---------------------------------------------------------------------------
 
 void initialize_forge_runner_native(ModuleInitializationLevel p_level) {
     fprintf(stderr, "[FRN] initialize_forge_runner_native level=%d\n", (int)p_level);
     if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) return;
+    ClassDB::register_class<ForgeBgVBoxContainer>();
+    ClassDB::register_class<ForgeBgHBoxContainer>();
     ClassDB::register_class<ForgeWindowDragControl>();
     ClassDB::register_class<ForgeDockingHostControl>();
     ClassDB::register_class<ForgeDockingContainerControl>();

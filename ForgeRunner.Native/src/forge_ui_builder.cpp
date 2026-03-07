@@ -406,8 +406,20 @@ Control* UiBuilder::create_control(const std::string& nl) {
     if (nl == "window" || nl == "splashscreen") return memnew(Panel);
     if (nl == "panel")             return memnew(Panel);
     if (nl == "panelcontainer")    return memnew(PanelContainer);
-    if (nl == "vboxcontainer")     return memnew(VBoxContainer);
-    if (nl == "hboxcontainer")     return memnew(HBoxContainer);
+    if (nl == "vboxcontainer") {
+        Variant v = ClassDB::instantiate("ForgeBgVBoxContainer");
+        if (v.get_type() != Variant::NIL) {
+            if (auto* c = Object::cast_to<Control>(static_cast<Object*>(v))) return c;
+        }
+        return memnew(VBoxContainer);
+    }
+    if (nl == "hboxcontainer") {
+        Variant v = ClassDB::instantiate("ForgeBgHBoxContainer");
+        if (v.get_type() != Variant::NIL) {
+            if (auto* c = Object::cast_to<Control>(static_cast<Object*>(v))) return c;
+        }
+        return memnew(HBoxContainer);
+    }
     if (nl == "centercontainer")   return memnew(CenterContainer);
     if (nl == "margincontainer")   return memnew(MarginContainer);
     if (nl == "scrollcontainer")   return memnew(ScrollContainer);
@@ -834,6 +846,8 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
                 "color", "fontSize", "fontWeight",
                 "bgColor", "borderRadius", "borderColor", "borderWidth",
                 "borderTop", "borderBottom", "borderLeft", "borderRight", "elevation",
+                "shadowColor", "shadowSize", "shadowOffsetX", "shadowOffsetY",
+                "highlightColor",
                 nullptr
             };
             bool already_handled = false;
@@ -846,11 +860,13 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
         }
     }
 
-    // --- Styling: bgColor / border / elevation ---
+    // --- Styling: bgColor / border / shadow / elevation ---
     if (node.has_property("bgColor") || node.has_property("borderRadius") ||
         node.has_property("borderColor") || node.has_property("borderWidth") ||
         node.has_property("borderTop") || node.has_property("borderBottom") ||
         node.has_property("borderLeft") || node.has_property("borderRight") ||
+        node.has_property("shadowColor") || node.has_property("shadowSize") ||
+        node.has_property("shadowOffsetX") || node.has_property("shadowOffsetY") ||
         node.has_property("elevation")) {
 
         // Collect effective style properties: elevation profile first, node overrides second.
@@ -870,7 +886,8 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
 
         // Node-level properties override elevation
         for (const char* key : {"bgColor", "borderRadius", "borderColor", "borderWidth",
-                                 "borderTop", "borderBottom", "borderLeft", "borderRight"}) {
+                                 "borderTop", "borderBottom", "borderLeft", "borderRight",
+                                 "shadowColor", "shadowSize", "shadowOffsetX", "shadowOffsetY"}) {
             if (const auto* p = node.find_property(key))
                 sp[key] = resolve_ref(*p);
         }
@@ -904,9 +921,34 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
             style->set_border_width(SIDE_LEFT,   parse_int(get_sp("borderLeft")));
         if (!get_sp("borderRight").empty())
             style->set_border_width(SIDE_RIGHT,  parse_int(get_sp("borderRight")));
+        if (!get_sp("shadowSize").empty())
+            style->set_shadow_size(parse_int(get_sp("shadowSize")));
+        if (!get_sp("shadowColor").empty()) {
+            float r, g, b, a = 1.0f;
+            if (parse_color(get_sp("shadowColor"), r, g, b, a))
+                style->set_shadow_color(Color(r, g, b, a));
+        }
+        {
+            float ox = parse_float(get_sp("shadowOffsetX"));
+            float oy = parse_float(get_sp("shadowOffsetY"));
+            if (ox != 0.0f || oy != 0.0f)
+                style->set_shadow_offset(Vector2(ox, oy));
+        }
 
-        ctrl->add_theme_stylebox_override("panel", style);
-        ctrl->add_theme_stylebox_override("normal", style);
+        // Bg variants (VBox/HBox) use custom _draw(); Panel/PanelContainer use theme slot.
+        if (ctrl->has_method("set_bg_style")) {
+            ctrl->call("set_bg_style", style);
+        } else {
+            ctrl->add_theme_stylebox_override("panel", style);
+            ctrl->add_theme_stylebox_override("normal", style);
+        }
+    }
+
+    // --- highlightColor ---
+    if (node.has_property("highlightColor") && ctrl->has_method("set_highlight_color")) {
+        float r, g, b, a = 1.0f;
+        if (parse_color(resolve_value(node.get_value("highlightColor")), r, g, b, a))
+            ctrl->call("set_highlight_color", Color(r, g, b, a));
     }
 }
 
