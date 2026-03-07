@@ -12,7 +12,7 @@ SplashScreen {
 
         TextureRect {
             id: logo
-            src: "appRes://logo.png"
+            src: "appRes:/assets/images/logo.png"
             width: 350
             height: 175
             sizeFlagsHorizontal: shrinkCenter
