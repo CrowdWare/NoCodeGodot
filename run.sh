@@ -59,7 +59,18 @@ build_forge_runner_native_host() {
     return 1
   fi
 
-  build_native_lib "ForgeRunner.Native" "$src_dir" "$build_dir" false
+  if ! command -v cmake >/dev/null 2>&1; then
+    echo "ERROR: cmake not found." >&2
+    return 1
+  fi
+
+  mkdir -p "$build_dir"
+  echo "Configuring ForgeRunner.Native..."
+  cmake -S "$src_dir" -B "$build_dir" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DGODOT_CPP_DIR="$GODOT_CPP_DIR"
+  echo "Building ForgeRunner.Native..."
+  cmake --build "$build_dir" --config Release
 
   mkdir -p "$out_dir"
   local artifact=""
@@ -227,7 +238,7 @@ run_native_window_host() {
 
   echo "Starting ForgeRunner.Native window host with url: $url"
   FORGE_RUNNER_URL="$url" \
-  FORGE_RUNNER_APPRES_ROOT="$REPO_ROOT/ForgeRunner.Native" \
+  FORGE_RUNNER_APPRES_ROOT="$REPO_ROOT/ForgeRunner" \
     exec "$godot_bin" --path "$NATIVE_HOST_DIR"
 }
 
