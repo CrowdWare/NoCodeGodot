@@ -1,9 +1,15 @@
 #include "forge_runner_main.h"
+#include "forge_markdown.h"
 
 #include <cstdio>
 #include <map>
 #include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/code_edit.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
+#include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/rich_text_label.hpp>
+#include <godot_cpp/classes/text_server.hpp>
+#include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/classes/container.hpp>
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
@@ -927,6 +933,154 @@ public:
 };
 
 // ---------------------------------------------------------------------------
+// ForgeMarkdownContainer — VBoxContainer that renders a markdown string
+// ---------------------------------------------------------------------------
+
+class ForgeMarkdownContainer : public VBoxContainer {
+    GDCLASS(ForgeMarkdownContainer, VBoxContainer);
+
+    Ref<StyleBoxFlat> bg_style_;
+    float             base_font_size_ = 16.f;
+
+    // Heading font-size multipliers for levels 1–6
+    static float heading_scale(int level) {
+        static const float S[7] = {1.f, 2.0f, 1.6f, 1.3f, 1.1f, 1.0f, 0.9f};
+        return S[(level >= 1 && level <= 6) ? level : 1];
+    }
+
+protected:
+    static void _bind_methods() {
+        ClassDB::bind_method(D_METHOD("set_bg_style", "style"),       &ForgeMarkdownContainer::set_bg_style);
+        ClassDB::bind_method(D_METHOD("set_markdown",  "text"),       &ForgeMarkdownContainer::set_markdown);
+        ClassDB::bind_method(D_METHOD("set_src",       "path"),       &ForgeMarkdownContainer::set_src);
+        ClassDB::bind_method(D_METHOD("set_base_font_size", "size"),  &ForgeMarkdownContainer::set_base_font_size);
+    }
+
+public:
+    void set_bg_style(Ref<StyleBoxFlat> style) { bg_style_ = style; queue_redraw(); }
+
+    void set_base_font_size(double size) {
+        base_font_size_ = (float)size;
+        // No lazy rebuild here — caller must call set_markdown again if needed.
+    }
+
+    void set_markdown(const String& text) {
+        _clear_children();
+        if (text.is_empty()) return;
+        const std::vector<forge::MarkdownBlock> blocks =
+            forge::parse_markdown(text.utf8().get_data());
+        for (const auto& b : blocks) _add_block(b);
+    }
+
+    void set_src(const String& path) {
+        Ref<FileAccess> fa = FileAccess::open(path, FileAccess::READ);
+        if (fa.is_valid())
+            set_markdown(fa->get_as_text());
+        else
+            set_markdown(String("[i]Could not load: ") + path + "[/i]");
+    }
+
+    void _draw() override {
+        if (bg_style_.is_valid())
+            draw_style_box(bg_style_, Rect2(Vector2(), get_size()));
+    }
+
+private:
+    void _clear_children() {
+        for (int i = get_child_count() - 1; i >= 0; --i) {
+            Node* c = get_child(i);
+            remove_child(c);
+            c->queue_free();
+        }
+    }
+
+    void _add_block(const forge::MarkdownBlock& b) {
+        switch (b.kind) {
+            case forge::BlockKind::Heading:   _add_heading(b);    break;
+            case forge::BlockKind::Paragraph: _add_paragraph(b);  break;
+            case forge::BlockKind::CodeBlock: _add_code_block(b); break;
+            case forge::BlockKind::ListItem:  _add_list_item(b);  break;
+            case forge::BlockKind::Image:     _add_image(b);      break;
+            case forge::BlockKind::HRule: {
+                HSeparator* sep = memnew(HSeparator);
+                sep->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+                add_child(sep);
+                break;
+            }
+        }
+    }
+
+    void _add_heading(const forge::MarkdownBlock& b) {
+        Label* lbl = memnew(Label);
+        lbl->set_text(String(b.text.c_str()));
+        lbl->add_theme_font_size_override("font_size",
+            (int)(base_font_size_ * heading_scale(b.level)));
+        lbl->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+        lbl->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
+        add_child(lbl);
+    }
+
+    void _add_paragraph(const forge::MarkdownBlock& b) {
+        RichTextLabel* rtl = memnew(RichTextLabel);
+        rtl->set_use_bbcode(true);
+        rtl->set_bbcode(String(forge::inline_to_bbcode(b.text).c_str()));
+        rtl->set_fit_content(true);
+        rtl->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+        rtl->add_theme_font_size_override("normal_font_size", (int)base_font_size_);
+        add_child(rtl);
+    }
+
+    void _add_code_block(const forge::MarkdownBlock& b) {
+        PanelContainer* panel = memnew(PanelContainer);
+        Ref<StyleBoxFlat> style; style.instantiate();
+        style->set_bg_color(Color(0.10f, 0.10f, 0.12f, 1.f));
+        style->set_corner_radius_all(4);
+        style->set_content_margin_all(8.f);
+        panel->add_theme_stylebox_override("panel", style);
+        panel->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+
+        CodeEdit* edit = memnew(CodeEdit);
+        edit->set_text(String(b.text.c_str()));
+        edit->set_editable(false);
+        edit->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+        edit->add_theme_font_size_override("font_size",
+            (int)(base_font_size_ * 0.9f));
+        panel->add_child(edit);
+        add_child(panel);
+    }
+
+    void _add_list_item(const forge::MarkdownBlock& b) {
+        HBoxContainer* hbox = memnew(HBoxContainer);
+        hbox->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+
+        Label* bullet = memnew(Label);
+        bullet->set_text("•");
+        bullet->add_theme_font_size_override("font_size", (int)base_font_size_);
+        bullet->set_v_size_flags(Control::SIZE_SHRINK_BEGIN);
+        hbox->add_child(bullet);
+
+        RichTextLabel* rtl = memnew(RichTextLabel);
+        rtl->set_use_bbcode(true);
+        rtl->set_bbcode(String(forge::inline_to_bbcode(b.text).c_str()));
+        rtl->set_fit_content(true);
+        rtl->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+        rtl->add_theme_font_size_override("normal_font_size", (int)base_font_size_);
+        hbox->add_child(rtl);
+
+        add_child(hbox);
+    }
+
+    void _add_image(const forge::MarkdownBlock& b) {
+        TextureRect* img = memnew(TextureRect);
+        img->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+        img->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
+        // Texture loading is handled by the UI builder (same as src: on TextureRect)
+        img->set_meta("pending_src", String(b.src.c_str()));
+        add_child(img);
+    }
+};
+
+// ---------------------------------------------------------------------------
 // GDExtension entry points
 // ---------------------------------------------------------------------------
 
@@ -935,6 +1089,7 @@ void initialize_forge_runner_native(ModuleInitializationLevel p_level) {
     if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) return;
     ClassDB::register_class<ForgeBgVBoxContainer>();
     ClassDB::register_class<ForgeBgHBoxContainer>();
+    ClassDB::register_class<ForgeMarkdownContainer>();
     ClassDB::register_class<ForgeWindowDragControl>();
     ClassDB::register_class<ForgeDockingHostControl>();
     ClassDB::register_class<ForgeDockingContainerControl>();

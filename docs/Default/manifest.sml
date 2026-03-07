@@ -17,7 +17,7 @@ Manifest {
         File { path: "strings-de.sml" hash: "sha256:1077a743597ba2be04ba870df4015dc0ec36a07da2cc47c170cea81819ca30c8" size: 480 }
         File { path: "strings-es.sml" hash: "sha256:18508aa453bff9c01117d8fd3d06aea4cd0a4ad8311b7d6be1934ac37a8d7227" size: 493 }
         File { path: "strings.sml" hash: "sha256:4305020ecd9d7a9dc8ca283fee62785084595849228b73aba0f06fc457463334" size: 1403 }
-        File { path: "theme.sml" hash: "sha256:edad98c96b0876b9be97149d4a8e7578ce2c60aded6d3e539c74dd5da99d6c08" size: 203 }
-        File { path: "ui/NavTab.sml" hash: "sha256:6509baee852c00ac4b81881019e8cd4b77f38c292e794d2dd148c6a725efcd29" size: 720 }
+        File { path: "theme.sml" hash: "sha256:edad98c96b0876b9be97149d4a8e7578ce2c60aded6d3e539c74dd5da99d6c08" size: 203 }   
+        
     }
 }

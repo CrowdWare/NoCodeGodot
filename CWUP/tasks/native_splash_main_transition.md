@@ -1,5 +1,7 @@
 # Native Splash → Main Window Transition
 
+> Anmerkung von Art: Ich glaube die Transition haben wir bereits vorgezogen, weil es mich gestört hatte.
+
 ## Goal
 Port the two-window Splash → Main pattern from `Main.cs` to `ForgeRunner.Native`
 so that the root window shows a borderless splash screen, then transitions to a
