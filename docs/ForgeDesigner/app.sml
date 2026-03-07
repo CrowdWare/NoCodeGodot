@@ -1,6 +1,6 @@
 SplashScreen {
     id: splashScreen
-    size: 640, 480
+    size: 960, 480
     duration: 1000
     loadOnReady: "main.sml"
 
@@ -12,7 +12,7 @@ SplashScreen {
 
         TextureRect {
             id: logo
-            src: "appRes:/assets/images/logo.png"
+            src: "appRes:/assets/images/splash3d.png"
             width: 350
             height: 175
             sizeFlagsHorizontal: shrinkCenter
