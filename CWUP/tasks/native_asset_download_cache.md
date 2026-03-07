@@ -50,6 +50,24 @@ and cannot fetch `http://` / `https://` manifests at all.
 - Hash mismatch forces re-download.
 - Progress is forwarded to the splash-screen progress bar.
 
+## Test Strategy — Mockup Web Server
+
+For unit / integration tests a lightweight mock HTTP server should be set up
+that serves static SML files and assets without requiring network access:
+
+- Use Python's built-in `http.server` (one-liner) or a tiny C++ or Go server.
+- Start it on a random port before each test run; shut it down after.
+- Serve a fixture directory (`tests/fixtures/remote_app/`) containing:
+  - `app.sml` — a minimal SML document
+  - `manifest.sml` — a manifest referencing a small image and a CSS-like layout
+  - `icon.png` — small test asset
+- Test cases:
+  1. First run: all files are downloaded and cached (index populated).
+  2. Second run: no HTTP requests made (hashes match).
+  3. Hash mismatch: stale cache entry is evicted and re-downloaded.
+  4. Server unavailable: graceful error message, no crash.
+- The server URL is passed via `FORGE_RUNNER_URL=http://localhost:{port}/app.sml`.
+
 ## Reference
 - C#: `ForgeRunner/Runtime/Assets/AssetCacheManager.cs`
 - C#: `ForgeRunner/Runtime/Assets/RunnerUriResolver.cs`
