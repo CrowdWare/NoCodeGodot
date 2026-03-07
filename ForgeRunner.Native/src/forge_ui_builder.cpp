@@ -1,4 +1,5 @@
 #include "forge_ui_builder.h"
+#include "generated/schema_properties.h"
 
 #include <algorithm>
 #include <cctype>
@@ -707,6 +708,44 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
         ctrl->set_h_size_flags(Control::SIZE_SHRINK_CENTER);
     if (node.has_property("shrinkV") && !Object::cast_to<TextureRect>(ctrl))
         ctrl->set_v_size_flags(Control::SIZE_SHRINK_CENTER);
+
+    // --- Generic Godot property fallback via schema_properties.h ---
+    // For properties not handled by specific cases above, attempt ctrl->set()
+    // using the Godot property name from the generated schema.
+    {
+        std::string type_name = ctrl->get_class().utf8().get_data();
+        for (const auto& def : kSchemaProperties) {
+            if (def.type_name != type_name) continue;
+            const std::string sml_key(def.sml_name);
+            if (!node.has_property(sml_key)) continue;
+            // Skip properties already handled by specific code above.
+            static constexpr const char* kHandled[] = {
+                "text", "disabled", "toggleMode", "buttonPressed", "flat",
+                "placeholderText", "editable", "wrap", "align", "fitContent",
+                "src", "shrinkH", "shrinkV", "textureNormal", "texturePressed",
+                "textureHover", "ignoreTextureSize", "fitToLongestItem",
+                "min", "max", "value", "showPercentage", "hideRoot",
+                "visible", "id", "spacing", "padding", "paddingLeft",
+                "paddingTop", "paddingRight", "paddingBottom", "columns",
+                "sizeFlagsHorizontal", "sizeFlagsVertical", "mouseFilter",
+                "customMinimumSize", "fixedWidth", "fixedHeight", "width", "height",
+                "anchorLeft", "anchorRight", "anchorTop", "anchorBottom", "anchors",
+                "offsetLeft", "offsetTop", "offsetRight", "offsetBottom",
+                "top", "left", "right", "bottom",
+                "color", "fontSize", "fontWeight",
+                "bgColor", "borderRadius", "borderColor", "borderWidth",
+                "borderTop", "borderBottom", "borderLeft", "borderRight", "elevation",
+                nullptr
+            };
+            bool already_handled = false;
+            for (int i = 0; kHandled[i] != nullptr; ++i) {
+                if (sml_key == kHandled[i]) { already_handled = true; break; }
+            }
+            if (already_handled) continue;
+            const std::string godot_name(def.godot_name);
+            ctrl->set(String(godot_name.c_str()), String(node.get_value(sml_key).c_str()));
+        }
+    }
 
     // --- Styling: bgColor / border / elevation ---
     if (node.has_property("bgColor") || node.has_property("borderRadius") ||
