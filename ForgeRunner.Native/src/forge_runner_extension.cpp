@@ -3,11 +3,13 @@
 #include <cstdio>
 #include <map>
 #include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/container.hpp>
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
 #include <godot_cpp/classes/h_separator.hpp>
 #include <godot_cpp/classes/input_event_mouse_button.hpp>
+#include <godot_cpp/classes/input_event_mouse_motion.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/menu_button.hpp>
 #include <godot_cpp/classes/panel_container.hpp>
@@ -91,7 +93,7 @@ public:
     }
 
     void _on_about_to_popup() {
-        popup_->hide();
+        popup_->call_deferred("hide");  // deferred: avoids swallowing the next click
         _ensure_dialog();
         _update_dock_buttons();
 
@@ -164,11 +166,22 @@ public:
         Control* content = get_tab_control(idx);
         if (!content) return;
 
+        // Make target visible BEFORE add_child so TabContainer lays out immediately
+        target->set_visible(true);
+
         remove_child(content);
+        // TabContainer hides non-current tabs on remove — restore before re-adding
+        content->set_visible(true);
         target->add_child(content);
         target->set_tab_title(target->get_tab_count() - 1, title);
         target->set_current_tab(target->get_tab_count() - 1);
         content->set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT);
+
+        // Collapse source if now empty
+        if (get_tab_count() == 0) set_visible(false);
+        // Immediate host reflow so the new column gets its correct size right away
+        auto* host = Object::cast_to<Container>(get_parent());
+        if (host) host->notification(Container::NOTIFICATION_SORT_CHILDREN);
     }
 
     // -----------------------------------------------------------------------
@@ -195,25 +208,29 @@ public:
         win->set_size(Vector2i(
             (int)global_rect.size.x > 220 ? (int)global_rect.size.x : 220,
             (int)global_rect.size.y > 140 ? (int)global_rect.size.y : 140));
-        win->set_transient(false);
-
         content->set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT);
         win->add_child(content);
 
         SceneTree* tree = get_tree();
         if (!tree) { win->queue_free(); add_child(content); return; }
 
-        // Ensure subwindows are not embedded so the window can move to other monitors
         Window* root = tree->get_root();
         if (root->is_embedding_subwindows())
             root->set_embedding_subwindows(false);
+
+        // get_window() returns the Window node this control lives in — that is
+        // _mainAppWindow, the real visible app window.  Making our float window
+        // transient to it establishes the correct macOS parent/child relationship.
+        Window* owner = get_window();
+        if (!owner) owner = root;
 
         float_entries_.push_back({win, content, title});
         win->connect("close_requested",
             callable_mp(this, &ForgeDockingContainerControl::_return_from_float)
                 .bind(Variant(static_cast<int64_t>(win->get_instance_id()))));
 
-        root->add_child(win);
+        win->set_transient(true);
+        owner->add_child(win);
         win->show();
     }
 
@@ -253,7 +270,11 @@ public:
         if (!content) return;
         remove_child(content);
         content->set_visible(false);
-        if (get_tab_count() == 0) set_visible(false);
+        if (get_tab_count() == 0) {
+            set_visible(false);
+            auto* host = Object::cast_to<Container>(get_parent());
+            if (host) host->notification(Container::NOTIFICATION_SORT_CHILDREN);
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -476,14 +497,24 @@ private:
 class ForgeDockingHostControl : public Container {
     GDCLASS(ForgeDockingHostControl, Container);
 
+    struct DragState { bool active = false; float origin = 0.f; float initial = 0.f; };
+
+    static constexpr int   MAX_H     = 4;     // horizontal gap handles (up to 4 column gaps)
+    static constexpr int   MAX_V     = 4;     // vertical split handles (farleft,left,right,farright)
+    static constexpr float MIN_COL_W = 60.f;
+
 protected:
     static void _bind_methods() {
         ClassDB::bind_method(D_METHOD("set_gap", "value"), &ForgeDockingHostControl::set_gap);
         ClassDB::bind_method(D_METHOD("get_gap"),          &ForgeDockingHostControl::get_gap);
+        ClassDB::bind_method(D_METHOD("_on_h_handle_input", "event", "idx"),
+                             &ForgeDockingHostControl::_on_h_handle_input);
+        ClassDB::bind_method(D_METHOD("_on_v_handle_input", "event", "idx"),
+                             &ForgeDockingHostControl::_on_v_handle_input);
     }
 
 public:
-    void   set_gap(double v) { gap_ = static_cast<float>(v < 0.0 ? 0.0 : v); queue_sort(); }
+    void   set_gap(double v) { gap_ = (float)(v < 0.0 ? 0.0 : v); queue_sort(); }
     double get_gap()   const { return gap_; }
 
     void _ready() override {
@@ -495,95 +526,245 @@ public:
         if (what == NOTIFICATION_SORT_CHILDREN) arrange_children();
     }
 
-private:
-    static float clampf(float v, float lo, float hi) {
-        return v < lo ? lo : (v > hi ? hi : v);
+    // --- Horizontal resize handle input (resizes left-neighbour column width) ---
+    void _on_h_handle_input(Ref<InputEvent> event, int idx) {
+        if (idx < 0 || idx >= MAX_H) return;
+        Ref<InputEventMouseButton> mb = event;
+        if (mb.is_valid() && mb->get_button_index() == MouseButton::MOUSE_BUTTON_LEFT) {
+            if (mb->is_pressed()) {
+                float init_w = 0.f;
+                if (h_left_[idx]) {
+                    double fw = h_left_[idx]->get_fixed_width();
+                    init_w = (fw > 0.0) ? (float)fw : (float)h_left_[idx]->get_size().x;
+                }
+                h_drag_[idx] = { true, mb->get_global_position().x, init_w };
+                if (h_handles_[idx]) h_handles_[idx]->set_color(Color(0.30f, 0.55f, 0.90f, 0.50f));
+            } else {
+                h_drag_[idx].active = false;
+                if (h_handles_[idx]) h_handles_[idx]->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+            }
+        }
+        Ref<InputEventMouseMotion> mm = event;
+        if (mm.is_valid() && h_drag_[idx].active && h_left_[idx]) {
+            float delta = mm->get_global_position().x - h_drag_[idx].origin;
+            h_left_[idx]->set_fixed_width((double)maxf(MIN_COL_W, h_drag_[idx].initial + delta));
+            queue_sort();
+        }
     }
+
+    // --- Vertical resize handle input (resizes top/bottom split ratio) ---
+    void _on_v_handle_input(Ref<InputEvent> event, int idx) {
+        if (idx < 0 || idx >= MAX_V) return;
+        Ref<InputEventMouseButton> mb = event;
+        if (mb.is_valid() && mb->get_button_index() == MouseButton::MOUSE_BUTTON_LEFT) {
+            if (mb->is_pressed()) {
+                float init_pct = 50.f;
+                if (v_bot_[idx]) {
+                    float hp = (float)v_bot_[idx]->get_height_percent();
+                    if (hp > 0.f) init_pct = 100.f - hp;
+                }
+                v_drag_[idx] = { true, mb->get_global_position().y, init_pct };
+                if (v_handles_[idx]) v_handles_[idx]->set_color(Color(0.30f, 0.55f, 0.90f, 0.50f));
+            } else {
+                v_drag_[idx].active = false;
+                if (v_handles_[idx]) v_handles_[idx]->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+            }
+        }
+        Ref<InputEventMouseMotion> mm = event;
+        if (mm.is_valid() && v_drag_[idx].active && v_bot_[idx]) {
+            float total_h = get_size().y;
+            if (total_h < 1.f) return;
+            float delta     = mm->get_global_position().y - v_drag_[idx].origin;
+            float delta_pct = (delta / total_h) * 100.f;
+            // bot height_percent = 100 - top_percent
+            float new_top_pct = clampf(v_drag_[idx].initial + delta_pct, 10.f, 90.f);
+            v_bot_[idx]->set_height_percent((double)(100.f - new_top_pct));
+            queue_sort();
+        }
+    }
+
+private:
+    static float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
     static float maxf(float a, float b) { return a > b ? a : b; }
 
     static float resolve_column_width(ForgeDockingContainerControl* top,
-                                      ForgeDockingContainerControl* bot,
-                                      float fallback) {
+                                      ForgeDockingContainerControl* bot, float fallback) {
         float w = fallback;
-        if (top && top->get_fixed_width() > 0.0) w = static_cast<float>(top->get_fixed_width());
-        if (bot && bot->get_fixed_width() > 0.0) w = static_cast<float>(bot->get_fixed_width());
-        return maxf(1.0f, w);
+        if (top && top->get_fixed_width() > 0.0) w = (float)top->get_fixed_width();
+        if (bot && bot->get_fixed_width() > 0.0) w = (float)bot->get_fixed_width();
+        return maxf(1.f, w);
     }
 
     static float resolve_bottom_height(ForgeDockingContainerControl* bot, float total_h) {
-        if (!bot) return 0.0f;
-        const float fixed_h = static_cast<float>(bot->get_fixed_height());
-        if (fixed_h > 0.0f) return clampf(fixed_h, 0.0f, total_h);
-        const String side = bot->get_dock_side().to_lower();
-        if (side == "rightbottom") return total_h * 0.5f;
-        const float pct = static_cast<float>(bot->get_height_percent());
-        if (pct > 0.0f) return clampf(total_h * (pct / 100.0f), 0.0f, total_h);
-        return total_h * 0.42f;
+        if (!bot) return 0.f;
+        const float fixed_h = (float)bot->get_fixed_height();
+        if (fixed_h > 0.f) return clampf(fixed_h, 0.f, total_h);
+        const float pct = (float)bot->get_height_percent();
+        if (pct > 0.f) return clampf(total_h * (pct / 100.f), 0.f, total_h);
+        return total_h * 0.5f;
     }
 
-    void layout_column(ForgeDockingContainerControl* top, ForgeDockingContainerControl* bot,
-                       const Rect2& rect, float gap_px) {
+    // Layout top+bottom into rect; returns gap top-y (for v-handle placement), -1 if no split
+    float layout_column(ForgeDockingContainerControl* top, ForgeDockingContainerControl* bot,
+                        const Rect2& rect, float gap_px) {
         if (top && bot) {
-            const float total_h = maxf(0.0f, rect.size.y);
-            const float bot_max = maxf(0.0f, total_h - gap_px);
-            const float bot_h   = Math::floor(clampf(resolve_bottom_height(bot, total_h), 0.0f, bot_max));
+            const float total_h = maxf(0.f, rect.size.y);
+            const float bot_max = maxf(0.f, total_h - gap_px);
+            const float bot_h   = Math::floor(clampf(resolve_bottom_height(bot, total_h), 0.f, bot_max));
             const float bot_y   = rect.position.y + total_h - bot_h;
-            const float top_h   = maxf(0.0f, bot_y - rect.position.y - gap_px);
+            const float top_h   = maxf(0.f, bot_y - rect.position.y - gap_px);
             fit_child_in_rect(top, Rect2(rect.position, Vector2(rect.size.x, top_h)));
             fit_child_in_rect(bot, Rect2(Vector2(rect.position.x, bot_y), Vector2(rect.size.x, bot_h)));
-            return;
+            return bot_y - gap_px;  // gap top-y (where v-handle goes)
         }
-        if (top) { fit_child_in_rect(top, rect); return; }
+        if (top) { fit_child_in_rect(top, rect); }
         if (bot) { fit_child_in_rect(bot, rect); }
+        return -1.f;
+    }
+
+
+    ColorRect* _ensure_h_handle(int idx) {
+        if (h_handles_[idx]) return h_handles_[idx];
+        ColorRect* cr = memnew(ColorRect);
+        cr->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+        cr->set_mouse_filter(Control::MOUSE_FILTER_STOP);
+        cr->set_default_cursor_shape(Control::CURSOR_HSIZE);
+        cr->set_z_index(900);
+        cr->connect("gui_input",
+            callable_mp(this, &ForgeDockingHostControl::_on_h_handle_input).bind(Variant(idx)));
+        add_child(cr);
+        h_handles_[idx] = cr;
+        return cr;
+    }
+
+    ColorRect* _ensure_v_handle(int idx) {
+        if (v_handles_[idx]) return v_handles_[idx];
+        ColorRect* cr = memnew(ColorRect);
+        cr->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+        cr->set_mouse_filter(Control::MOUSE_FILTER_STOP);
+        cr->set_default_cursor_shape(Control::CURSOR_VSIZE);
+        cr->set_z_index(900);
+        cr->connect("gui_input",
+            callable_mp(this, &ForgeDockingHostControl::_on_v_handle_input).bind(Variant(idx)));
+        add_child(cr);
+        v_handles_[idx] = cr;
+        return cr;
     }
 
     void arrange_children() {
-        ForgeDockingContainerControl* left_top    = nullptr;
-        ForgeDockingContainerControl* left_bottom = nullptr;
+        // 5 columns: 0=farleft, 1=left, 2=center, 3=right, 4=farright
+        // Bottom rows:          0=farleftbottom, 1=leftbottom, -, 3=rightbottom, 4=farrightbottom
+        ForgeDockingContainerControl* col_top[5] = {};
+        ForgeDockingContainerControl* col_bot[5] = {};
         std::vector<ForgeDockingContainerControl*> centers;
-        ForgeDockingContainerControl* right_top   = nullptr;
-        ForgeDockingContainerControl* right_bot   = nullptr;
 
         const int n = get_child_count();
         for (int i = 0; i < n; ++i) {
             auto* dock = Object::cast_to<ForgeDockingContainerControl>(get_child(i));
             if (!dock || !dock->is_visible()) continue;
             const String side = dock->get_dock_side().to_lower();
-            if      (side == "left")        left_top    = dock;
-            else if (side == "leftbottom")  left_bottom = dock;
-            else if (side == "right")       right_top   = dock;
-            else if (side == "rightbottom") right_bot   = dock;
-            else                            centers.push_back(dock);
+            if      (side == "farleft")        col_top[0] = dock;
+            else if (side == "farleftbottom")  col_bot[0] = dock;
+            else if (side == "left")           col_top[1] = dock;
+            else if (side == "leftbottom")     col_bot[1] = dock;
+            else if (side == "right")          col_top[3] = dock;
+            else if (side == "rightbottom")    col_bot[3] = dock;
+            else if (side == "farright")       col_top[4] = dock;
+            else if (side == "farrightbottom") col_bot[4] = dock;
+            else                               centers.push_back(dock);
         }
 
-        const float total_w   = get_size().x;
-        const float total_h   = get_size().y;
-        const bool  has_left  = (left_top || left_bottom);
-        const bool  has_right = (right_top || right_bot);
-        const float gap_px    = Math::floor(maxf(0.0f, gap_));
+        // Center uses first item for sizing; rest stacked invisibly
+        bool has[5];
+        for (int i = 0; i < 5; ++i) has[i] = (col_top[i] || col_bot[i]);
+        if (!centers.empty()) has[2] = true;
 
-        float left_w  = has_left  ? resolve_column_width(left_top,  left_bottom, 240.0f) : 0.0f;
-        float right_w = has_right ? resolve_column_width(right_top, right_bot,   240.0f) : 0.0f;
+        const float total_w = get_size().x;
+        const float total_h = get_size().y;
+        const float gap_px  = Math::floor(maxf(0.f, gap_));
+        const float h_thick = maxf(gap_px, 4.f);  // handle click target width
 
-        float used_gap = 0.0f;
-        if (has_left)  used_gap += gap_px;
-        if (has_right) used_gap += gap_px;
-        const float center_w = maxf(0.0f, total_w - left_w - right_w - used_gap);
+        // Fixed widths for side columns; center is whatever remains
+        float cw[5] = {};
+        cw[0] = has[0] ? resolve_column_width(col_top[0], col_bot[0], 220.f) : 0.f;
+        cw[1] = has[1] ? resolve_column_width(col_top[1], col_bot[1], 240.f) : 0.f;
+        cw[3] = has[3] ? resolve_column_width(col_top[3], col_bot[3], 240.f) : 0.f;
+        cw[4] = has[4] ? resolve_column_width(col_top[4], col_bot[4], 220.f) : 0.f;
 
-        float x = 0.0f;
-        if (has_left) {
-            layout_column(left_top, left_bottom, Rect2(x, 0.0f, left_w, total_h), gap_px);
-            x += left_w + gap_px;
+        int gap_count = 0;
+        int prev_vis  = -1;
+        for (int i = 0; i < 5; ++i) {
+            if (has[i]) { if (prev_vis >= 0) ++gap_count; prev_vis = i; }
         }
-        if (!centers.empty()) {
-            Rect2 cr(x, 0.0f, center_w, total_h);
-            fit_child_in_rect(centers.front(), cr);
-            for (std::size_t idx = 1; idx < centers.size(); ++idx)
-                fit_child_in_rect(centers[idx], Rect2(cr.position, Vector2(0.0f, 0.0f)));
-            x += center_w + (has_right ? gap_px : 0.0f);
+        cw[2] = maxf(0.f, total_w - cw[0] - cw[1] - cw[3] - cw[4] - (float)gap_count * gap_px);
+
+        // Hide all handles before re-placing
+        for (int i = 0; i < MAX_H; ++i) {
+            h_left_[i] = nullptr;
+            if (h_handles_[i]) {
+                if (!h_drag_[i].active) h_handles_[i]->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+                h_handles_[i]->set_visible(false);
+            }
         }
-        if (has_right) {
-            layout_column(right_top, right_bot, Rect2(x, 0.0f, right_w, total_h), gap_px);
+        for (int i = 0; i < MAX_V; ++i) {
+            v_bot_[i] = nullptr;
+            if (v_handles_[i]) {
+                if (!v_drag_[i].active) v_handles_[i]->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+                v_handles_[i]->set_visible(false);
+            }
+        }
+
+        // V-handle index by column: 0=farleft, 1=left, -=center, 2=right, 3=farright
+        static const int V_IDX[5] = { 0, 1, -1, 2, 3 };
+
+        float x     = 0.f;
+        int   h_idx = 0;
+        prev_vis    = -1;
+
+        for (int ci = 0; ci < 5; ++ci) {
+            if (!has[ci]) continue;
+
+            // Horizontal handle between columns — always placed, min 4px, overlaid if no gap
+            if (prev_vis >= 0) {
+                const float hw  = maxf(gap_px, 4.f);
+                const float hx  = (gap_px > 0.f) ? x : (x - hw * 0.5f);
+                ColorRect* hh   = _ensure_h_handle(h_idx);
+                fit_child_in_rect(hh, Rect2(hx, 0.f, hw, total_h));
+                hh->set_visible(true);
+                // Left neighbour (skip flex center — can't resize it directly)
+                if (prev_vis != 2)
+                    h_left_[h_idx] = col_top[prev_vis] ? col_top[prev_vis] : col_bot[prev_vis];
+                ++h_idx;
+                x += gap_px;
+            }
+
+            Rect2 col_rect(x, 0.f, cw[ci], total_h);
+
+            if (ci == 2) {
+                // Center: all extras stacked at zero size
+                if (!centers.empty()) {
+                    fit_child_in_rect(centers.front(), col_rect);
+                    for (std::size_t k = 1; k < centers.size(); ++k)
+                        fit_child_in_rect(centers[k], Rect2(col_rect.position, Vector2(0.f, 0.f)));
+                }
+            } else {
+                float gap_y = layout_column(col_top[ci], col_bot[ci], col_rect, gap_px);
+                // Vertical handle for split columns — always placed, min 4px, overlaid if no gap
+                if (col_top[ci] && col_bot[ci] && gap_y >= 0.f) {
+                    int vi = V_IDX[ci];
+                    if (vi >= 0) {
+                        const float vh_h = maxf(gap_px, 4.f);
+                        const float vh_y = (gap_px > 0.f) ? gap_y : (gap_y - vh_h * 0.5f);
+                        ColorRect* vh = _ensure_v_handle(vi);
+                        fit_child_in_rect(vh, Rect2(x, vh_y, cw[ci], vh_h));
+                        vh->set_visible(true);
+                        v_bot_[vi] = col_bot[ci];
+                    }
+                }
+            }
+
+            x += cw[ci];
+            prev_vis = ci;
         }
     }
 
@@ -596,7 +777,6 @@ private:
             "farright","farrightbottom"
         };
 
-        // Collect existing ForgeDockingContainerControl children
         std::vector<ForgeDockingContainerControl*> existing;
         int n = get_child_count();
         for (int i = 0; i < n; ++i) {
@@ -604,10 +784,8 @@ private:
             if (d) existing.push_back(d);
         }
 
-        // Only auto-create if at least one slot already exists (guards against bare hosts)
         if (existing.empty()) return;
 
-        // Inherit rearrange group from first container that has one set
         int drag_group = 1;
         for (auto* d : existing) {
             int rg = d->get_tabs_rearrange_group();
@@ -633,7 +811,14 @@ private:
         }
     }
 
-    float gap_ = 0.0f;
+    float gap_ = 0.f;
+
+    ColorRect*                    h_handles_[MAX_H] = {};
+    ColorRect*                    v_handles_[MAX_V] = {};
+    ForgeDockingContainerControl* h_left_[MAX_H]    = {};  // left neighbour for each h-handle
+    ForgeDockingContainerControl* v_bot_[MAX_V]     = {};  // bottom container for each v-handle
+    DragState                     h_drag_[MAX_H]    = {};
+    DragState                     v_drag_[MAX_V]    = {};
 };
 
 // ---------------------------------------------------------------------------
