@@ -1,4 +1,5 @@
 #include "forge_ui_builder.h"
+#include "forge_sms_bridge.h"
 #include "generated/schema_properties.h"
 
 #include <algorithm>
@@ -84,6 +85,8 @@ UiBuilder::UiBuilder(const std::string& base_dir, const std::string& appres_root
 // ---------------------------------------------------------------------------
 
 Control* UiBuilder::build(const smlcore::Document& doc, WindowConfig& out_window) {
+    forge::SmsBridge::id_map().clear();
+
     if (doc.roots.empty()) return memnew(Control);
 
     const auto& root = doc.roots[0];
@@ -389,9 +392,11 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
     std::transform(nl.begin(), nl.end(), nl.begin(),
                    [](unsigned char c){ return std::tolower(c); });
 
-    // --- id → node name; fallback: attached *.title property ---
+    // --- id → node name + SMS id_map registration ---
     if (node.has_property("id")) {
-        ctrl->set_name(String(node.get_value("id").c_str()));
+        const auto id_val = node.get_value("id");
+        ctrl->set_name(String(id_val.c_str()));
+        forge::SmsBridge::id_map()[id_val] = ctrl;
     } else {
         for (const auto& prop : node.properties) {
             const auto& pn = prop.name;

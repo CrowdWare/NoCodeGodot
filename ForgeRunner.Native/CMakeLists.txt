@@ -47,6 +47,7 @@ endif()
 add_library(forge_runner_native SHARED
     src/forge_runner_extension.cpp
     src/forge_runner_main.cpp
+    src/forge_sms_bridge.cpp
     src/forge_ui_builder.cpp
     "${SMLCORE_NATIVE_DIR}/src/smlcore_native.cpp"
 )

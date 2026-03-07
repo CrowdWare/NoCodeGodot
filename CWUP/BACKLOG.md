@@ -89,7 +89,7 @@
 - [x] tasks/sms_language_spec_2026_native.md
 - [ ] tasks/forgerunner_cpp_native_runtime.md
 - [x] tasks/native_schema_codegen.md
-- [ ] tasks/native_sms_ui_bridge.md
+- [x] tasks/native_sms_ui_bridge.md
 - [ ] tasks/native_plugin_hosting.md
 - [ ] tasks/native_splash_main_transition.md
 - [ ] tasks/native_theme_localization.md
