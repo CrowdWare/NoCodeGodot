@@ -241,16 +241,6 @@ Control* UiBuilder::build_node(const smlcore::Node& node) {
             if (cnl == "item") continue;
             auto* cc = build_node(child);
             if (!cc) continue;
-            if (dynamic_cast<HBoxContainer*>(inner)) {
-                if (!child.has_property("sizeFlagsHorizontal") && !child.has_property("fixedWidth") &&
-                    !child.has_property("width") && !child.has_property("shrinkH"))
-                    cc->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-            }
-            if (dynamic_cast<VBoxContainer*>(inner)) {
-                if (!child.has_property("sizeFlagsVertical") && !child.has_property("fixedHeight") &&
-                    !child.has_property("height") && !child.has_property("shrinkV"))
-                    cc->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-            }
             inner->add_child(cc);
         }
 
@@ -282,21 +272,21 @@ Control* UiBuilder::build_node(const smlcore::Node& node) {
         auto* child_ctrl = build_node(child);
         if (!child_ctrl) continue;
 
-        // Auto size flags inside box containers
-        if (dynamic_cast<HBoxContainer*>(ctrl)) {
-            if (!child.has_property("sizeFlagsHorizontal") && !child.has_property("fixedWidth") &&
-                !child.has_property("width") && !child.has_property("shrinkH")) {
-                child_ctrl->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-            }
-        }
-        if (dynamic_cast<VBoxContainer*>(ctrl)) {
-            if (!child.has_property("sizeFlagsVertical") && !child.has_property("fixedHeight") &&
-                !child.has_property("height") && !child.has_property("shrinkV")) {
-                child_ctrl->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-            }
-        }
+        // No auto size flags — explicit sizeFlagsHorizontal/Vertical in SML required
 
         ctrl->add_child(child_ctrl);
+
+        // Set tab title from attached *.title property (DockingContainer / TabContainer)
+        if (auto* tc = Object::cast_to<TabContainer>(ctrl)) {
+            for (const auto& prop : child.properties) {
+                if (prop.name.size() > 6 &&
+                    prop.name.substr(prop.name.size() - 6) == ".title") {
+                    int idx = tc->get_tab_count() - 1;
+                    tc->set_tab_title(idx, String(prop.value.c_str()));
+                    break;
+                }
+            }
+        }
     }
 
     return ctrl;
@@ -382,9 +372,18 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
     std::transform(nl.begin(), nl.end(), nl.begin(),
                    [](unsigned char c){ return std::tolower(c); });
 
-    // --- id → node name ---
-    if (node.has_property("id"))
+    // --- id → node name; fallback: attached *.title property ---
+    if (node.has_property("id")) {
         ctrl->set_name(String(node.get_value("id").c_str()));
+    } else {
+        for (const auto& prop : node.properties) {
+            const auto& pn = prop.name;
+            if (pn.size() > 6 && pn.substr(pn.size() - 6) == ".title") {
+                ctrl->set_name(String(prop.value.c_str()));
+                break;
+            }
+        }
+    }
 
     // --- visible ---
     if (node.has_property("visible"))
