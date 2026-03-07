@@ -122,6 +122,7 @@ Usage:
   ./run.sh remote-default     Run hosted Default app (AppServer manifest)
   ./run.sh remote-designer    Run hosted ForgeDesigner app (AppServer manifest)
   ./run.sh poser              Run local ForgePoser app
+  ./run.sh docs               Generate SML/SMS documentation (headless Godot)
   ./run.sh build              Build native stack (default)
   ./run.sh build-native       Same as build
   ./run.sh build-host         Build ForgeRunner.Native only
@@ -238,7 +239,7 @@ run_native_window_host() {
 
   echo "Starting ForgeRunner.Native window host with url: $url"
   FORGE_RUNNER_URL="$url" \
-  FORGE_RUNNER_APPRES_ROOT="$REPO_ROOT/ForgeRunner" \
+  FORGE_RUNNER_APPRES_ROOT="$REPO_ROOT/ForgeRunner.Native" \
     exec "$godot_bin" --path "$NATIVE_HOST_DIR"
 }
 
@@ -263,12 +264,13 @@ if [[ -z "$MODE" ]]; then
   echo "  4) poser           -> Lokales ForgePoser (file://)"
   echo "  5) remote-default  -> Hosted Default (AppServer)"
   echo "  6) remote-designer -> Hosted ForgeDesigner (AppServer)"
-  echo "  7) build           -> Native Stack bauen (SMLCore.Native, SMSCore.Native, ForgeCli.Native, ForgeRunner.Native)"
-  echo "  8) build-host      -> nur ForgeRunner.Native bauen"
-  echo "  9) test            -> Native Tests (SMLCore.Native + SMSCore.Native)"
-  echo " 10) clean           -> Native Build-Artefakte entfernen"
-  echo " 11) help            -> Hilfe anzeigen"
-  read -r -p "Auswahl [1-11] (Default 1): " CHOICE || true
+  echo "  7) docs            -> SML/SMS Docs generieren (headless Godot)"
+  echo "  8) build           -> Native Stack bauen (SMLCore.Native, SMSCore.Native, ForgeCli.Native, ForgeRunner.Native)"
+  echo "  9) build-host      -> nur ForgeRunner.Native bauen"
+  echo " 10) test            -> Native Tests (SMLCore.Native + SMSCore.Native)"
+  echo " 11) clean           -> Native Build-Artefakte entfernen"
+  echo " 12) help            -> Hilfe anzeigen"
+  read -r -p "Auswahl [1-12] (Default 1): " CHOICE || true
   CHOICE="$(printf '%s' "${CHOICE:-}" | tr -d '[:space:]')"
   if [[ -z "$CHOICE" ]]; then
     CHOICE="1"
@@ -281,11 +283,12 @@ if [[ -z "$MODE" ]]; then
     4|poser) MODE="poser" ;;
     5|remote-default) MODE="remote-default" ;;
     6|remote-designer) MODE="remote-designer" ;;
-    7|build|build-native) MODE="build" ;;
-    8|build-host|build-native-host) MODE="build-host" ;;
-    9|test|test-native) MODE="test" ;;
-   10|clean) MODE="clean" ;;
-   11|help|-h|--help) MODE="help" ;;
+    7|docs) MODE="docs" ;;
+    8|build|build-native) MODE="build" ;;
+    9|build-host|build-native-host) MODE="build-host" ;;
+   10|test|test-native) MODE="test" ;;
+   11|clean) MODE="clean" ;;
+   12|help|-h|--help) MODE="help" ;;
     *)
       echo "Ungültige Auswahl. Abbruch."
       exit 1
@@ -338,6 +341,21 @@ case "$MODE" in
   poser)
     poser_url="file://$REPO_ROOT/ForgePoser/app.sml"
     run_native_window_host "$poser_url"
+    ;;
+  docs)
+    docs_godot_bin=""
+    if ! docs_godot_bin="$(resolve_godot_bin)"; then
+      echo "ERROR: Godot binary not found." >&2
+      echo "Set GODOT_BIN or install a 'godot4'/'godot' executable in PATH." >&2
+      exit 1
+    fi
+    echo "Generating SML element docs..."
+    "$docs_godot_bin" --headless --path "$REPO_ROOT/ForgeRunner.Native/host" --script "$REPO_ROOT/tools/generate_sml_element_docs.gd" -- --out "$REPO_ROOT/docs"
+    echo "Generating SMS runtime function docs..."
+    "$docs_godot_bin" --headless --path "$REPO_ROOT/ForgeRunner.Native/host" --script "$REPO_ROOT/tools/generate_sms_functions_docs.gd"
+    echo "Generating SML resource system docs..."
+    "$docs_godot_bin" --headless --path "$REPO_ROOT/ForgeRunner.Native/host" --script "$REPO_ROOT/tools/generate_sml_resources_docs.gd"
+    echo "Documentation generation completed."
     ;;
   build|build-native)
     build_native_lib "SMLCore.Native" "$REPO_ROOT/SMLCore.Native" "$REPO_ROOT/SMLCore.Native/build" true

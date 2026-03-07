@@ -18,7 +18,7 @@ NavTab {
         toggleMode: true
     }
     TextureRect {
-        src: "appRes://logo.svg"
+        src: "appRes:/logo.svg"
         top: 15
         left: 10
         width: 30

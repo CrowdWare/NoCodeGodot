@@ -7,7 +7,7 @@ SplashScreen {
     TextureRect {
         id: logo
         src: "appRes:/assets/images/splash3d.png"
-        width: 640
+        width: 960
         height: 480
     }
 

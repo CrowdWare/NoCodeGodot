@@ -1,5 +1,8 @@
 extends SceneTree
 
+# Set to true once ForgeRunner.Native/Generated supports .cpp code generation.
+const GENERATE_CODE := false # CHANGE
+
 var REPO_ROOT := "" # CHANGE
 var SPEC_DIR := ""  # CHANGE
 var OUT_PATH := ""  # CHANGE
@@ -7,16 +10,17 @@ var GENERATED_DIR := "" # CHANGE
 var GENERATED_CS_PATH := "" # CHANGE
 
 func _initialize() -> void: # CHANGE
-    REPO_ROOT = ProjectSettings.globalize_path("res://") + "/.." # CHANGE
+    REPO_ROOT = ProjectSettings.globalize_path("res://") + "/../.." # CHANGE
     SPEC_DIR = REPO_ROOT + "/tools/specs" # CHANGE
     OUT_PATH = REPO_ROOT + "/docs/sms_functions.md" # CHANGE
-    GENERATED_DIR = REPO_ROOT + "/ForgeRunner/Generated" # CHANGE
+    GENERATED_DIR = REPO_ROOT + "/ForgeRunner.Native/Generated" # CHANGE
     GENERATED_CS_PATH = GENERATED_DIR + "/SchemaFunctions.cs" # CHANGE
     generate() # CHANGE
     quit() # CHANGE
 
 func generate() -> void:
-    DirAccess.make_dir_recursive_absolute(GENERATED_DIR)
+    if GENERATE_CODE:
+        DirAccess.make_dir_recursive_absolute(GENERATED_DIR)
 
     var md := "# SMS Runtime Functions\n\n"
     md += "This document lists built-in SMS runtime helper functions available in Forge.\n\n"
@@ -119,10 +123,11 @@ func _generate_schema_functions_cs(functions: Dictionary) -> void:
     cs += "    }\n"
     cs += "}\n"
 
-    var file := FileAccess.open(GENERATED_CS_PATH, FileAccess.WRITE)
-    if file:
-        file.store_string(cs)
-        file.close()
+    if GENERATE_CODE:
+        var file := FileAccess.open(GENERATED_CS_PATH, FileAccess.WRITE)
+        if file:
+            file.store_string(cs)
+            file.close()
 
 
 func _cs_escape(raw: String) -> String:

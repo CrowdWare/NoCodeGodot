@@ -13,7 +13,7 @@ Window {
     }
 
     TextureRect {
-        src: "appRes://logo.svg"
+        src: "appRes:/assets/images/logo.svg"
         top: 13
         left: 70
         width: 30
@@ -160,7 +160,7 @@ Window {
                             spacing: 0
 
                             TextureRect {
-                                src: "appRes://assets/images/document.png"
+                                src: "appRes:/assets/images/document.png"
                                 height: 120
                                 sizeFlagsHorizontal: expandFill
                             }
@@ -192,7 +192,7 @@ Window {
                             spacing: 0
 
                             TextureRect {
-                                src: "appRes://assets/images/document.png"
+                                src: "appRes:/assets/images/document.png"
                                 height: 120
                                 sizeFlagsHorizontal: expandFill
                             }

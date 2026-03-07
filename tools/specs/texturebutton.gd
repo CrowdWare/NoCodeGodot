@@ -6,7 +6,7 @@ func get_spec() -> Dictionary:
         "backing": "TextureButton",
         "notes": [
             "A button that displays textures for each interaction state instead of a text label.",
-            "All texture properties accept the same path formats as TextureRect: res://, user://, appRes://, file://, or absolute paths.",
+            "All texture properties accept the same path formats as TextureRect: res:/, user:/, appRes:/, file://, or absolute paths.",
         ],
         "properties": [
             {"sml":"id",               "type":"identifier",   "default":"—"},
@@ -27,9 +27,9 @@ func get_spec() -> Dictionary:
         "examples_sml": [
             "TextureButton {",
             "    id: myBtn",
-            "    textureNormal:  \"appRes://assets/icons/bell.png\"",
-            "    textureHover:   \"appRes://assets/icons/bell_hover.png\"",
-            "    texturePressed: \"appRes://assets/icons/bell_pressed.png\"",
+            "    textureNormal:  \"appRes:/assets/icons/bell.png\"",
+            "    textureHover:   \"appRes:/assets/icons/bell_hover.png\"",
+            "    texturePressed: \"appRes:/assets/icons/bell_pressed.png\"",
             "}",
         ],
     }

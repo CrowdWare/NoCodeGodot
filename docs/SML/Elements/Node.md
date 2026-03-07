@@ -19,6 +19,7 @@ Classes listed below inherit from `Node`.
 - [EditorFileSystem](EditorFileSystem.md)
 - [EditorPlugin](EditorPlugin.md)
 - [EditorResourcePreview](EditorResourcePreview.md)
+- [ForgeRunnerNativeMain](ForgeRunnerNativeMain.md)
 - [HTTPRequest](HTTPRequest.md)
 - [InstancePlaceholder](InstancePlaceholder.md)
 - [MissingNode](MissingNode.md)

@@ -16,6 +16,7 @@ Inherited properties are documented in: [Control](Control.md)
 | normal_font (theme override) | font | string(path) | — |
 | normal_font (theme override, via Fonts resource block) | fontFace | string | — |
 | normal_font (theme override, via Fonts resource block) | fontWeight | identifier or int | regular |
+| horizontal_alignment | horizontalAlignment | enum or int | 0 |
 
 ## Events
 

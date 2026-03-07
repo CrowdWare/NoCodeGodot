@@ -5,7 +5,7 @@ var SPEC_DIR := ""
 var OUT_PATH := ""
 
 func _initialize() -> void:
-    REPO_ROOT = ProjectSettings.globalize_path("res://") + "/.."
+    REPO_ROOT = ProjectSettings.globalize_path("res://") + "/../.."
     SPEC_DIR = REPO_ROOT + "/tools/specs"
     OUT_PATH = REPO_ROOT + "/docs/sml_resources.md"
     generate()

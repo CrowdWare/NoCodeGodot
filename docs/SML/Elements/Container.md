@@ -15,6 +15,7 @@
 - [EditorProperty](EditorProperty.md)
 - [FlowContainer](FlowContainer.md)
 - [FoldableContainer](FoldableContainer.md)
+- [ForgeDockingHostControl](ForgeDockingHostControl.md)
 - [GraphElement](GraphElement.md)
 - [GridContainer](GridContainer.md)
 - [MarginContainer](MarginContainer.md)

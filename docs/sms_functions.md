@@ -22,16 +22,13 @@ Runs video-to-video stylization via Grok, polls job completion, downloads the st
 ## File System
 
 ### fs.list(path: String)
-Lists files in a directory and returns an array of file names. Path must use `res:/`, `appRes:/`, or `user:/` (single slash, no `..` traversal segments).
-When a host sandbox callback is registered, host trust policy is enforced for this operation.
+Lists files in a directory and returns an array of file names. Path must use res:/, appRes:/, or user:/ (single slash, no '..' traversal segments). When a host sandbox callback is registered, host trust policy is enforced.
 
 ### fs.readText(path: String)
-Reads text content from a file and returns it as a String. Path must use `res:/`, `appRes:/`, or `user:/` (single slash, no `..` traversal segments).
-When a host sandbox callback is registered, host trust policy is enforced for this operation.
+Reads text content from a file and returns it as a String. Path must use res:/, appRes:/, or user:/ (single slash, no '..' traversal segments). When a host sandbox callback is registered, host trust policy is enforced.
 
 ### fs.writeText(path: String, content: String)
-Writes text content to a file. Path must use `res:/`, `appRes:/`, or `user:/` (single slash, no `..` traversal segments).
-When a host sandbox callback is registered, host trust policy is enforced for this operation.
+Writes text content to a file. Path must use res:/, appRes:/, or user:/ (single slash, no '..' traversal segments). When a host sandbox callback is registered, host trust policy is enforced.
 
 ## Internationalization
 
@@ -133,3 +130,4 @@ Gets a Window flag value by enum constant (recommended) or integer value. Exampl
 
 ### <windowId>.setFlag(flag: int, enabled: bool)
 Sets a Window flag by enum constant (recommended) or integer value. Example: mainWindow.setFlag(extendToTitle, true).
+

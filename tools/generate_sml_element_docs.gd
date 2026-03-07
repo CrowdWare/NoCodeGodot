@@ -1,15 +1,18 @@
 extends SceneTree
 
+# Set to true once ForgeRunner.Native/Generated supports .cpp code generation.
+const GENERATE_CODE := false
+
 var REPO_ROOT := ""
 var SPECS: Dictionary = {}
 var OUT_DIR := ""
 var SPEC_DIR := ""
 var GENERATED_DIR := ""
 func _initialize() -> void:
-    REPO_ROOT = ProjectSettings.globalize_path("res://") + "/.."
+    REPO_ROOT = ProjectSettings.globalize_path("res://") + "/../.."
     OUT_DIR = REPO_ROOT + "/docs/SML/Elements"
     SPEC_DIR = REPO_ROOT + "/tools/specs"
-    GENERATED_DIR = REPO_ROOT + "/ForgeRunner/Generated"
+    GENERATED_DIR = REPO_ROOT + "/ForgeRunner.Native/Generated"
     _run()
     quit()
 
@@ -99,13 +102,15 @@ func _run() -> void:
     # Generate SML reference only for SML-instantiable types (exclude base-only classes like Node/CanvasItem/Object)
     var sml_names: Array = sml_targets.keys()
     sml_names.sort()
-    _generate_csharp_schema_files(sml_names)
+    if GENERATE_CODE:
+        _generate_csharp_schema_files(sml_names)
 
     print("SML element docs generated.")
 
 func _ensure_out_dir() -> void:
     DirAccess.make_dir_recursive_absolute(OUT_DIR)
-    DirAccess.make_dir_recursive_absolute(GENERATED_DIR)
+    if GENERATE_CODE:
+        DirAccess.make_dir_recursive_absolute(GENERATED_DIR)
 
 func _is_control(c_name: String) -> bool:
     return c_name == "Control" or ClassDB.is_parent_class(c_name, "Control")

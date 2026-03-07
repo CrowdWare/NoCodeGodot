@@ -847,11 +847,9 @@ std::string UiBuilder::resolve_asset_path(const std::string& raw) const {
         return base_dir_ + "/" + raw.substr(5);
     }
 
-    // appRes:// or appRes:/
+    // appRes:/ — single-slash is the only valid form; appRes:// is rejected
     if (raw.size() > 9 && raw.substr(0, 9) == "appRes://") {
-        const auto tail = raw.substr(9);
-        return appres_root_.empty() ? (base_dir_ + "/" + tail)
-                                    : (appres_root_ + "/" + tail);
+        return {}; // invalid: use appRes:/ (single slash)
     }
     if (raw.size() > 8 && raw.substr(0, 8) == "appRes:/") {
         const auto tail = raw.substr(8);

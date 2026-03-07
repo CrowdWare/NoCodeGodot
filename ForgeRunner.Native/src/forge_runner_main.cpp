@@ -9,6 +9,7 @@
 
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/label.hpp>
+#include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/classes/timer.hpp>
 #include <godot_cpp/classes/window.hpp>
 #include <godot_cpp/core/class_db.hpp>
@@ -111,7 +112,17 @@ void ForgeRunnerNativeMain::show_sml(const std::string& path) {
                                  ? path.substr(0, last_sep) : ".";
 
     const char* env_appres = std::getenv("FORGE_RUNNER_APPRES_ROOT");
-    const std::string appres_root = env_appres ? std::string(env_appres) : "";
+    std::string appres_root;
+    if (env_appres && env_appres[0] != '\0') {
+        appres_root = env_appres;
+    } else {
+        // Default: Godot project root (ForgeRunner.Native/) so that appRes:/
+        // paths resolve relative to the native app, not the SML file location.
+        String proj_root = ProjectSettings::get_singleton()->globalize_path("res://");
+        appres_root = std::string(proj_root.utf8().get_data());
+        if (!appres_root.empty() && appres_root.back() == '/')
+            appres_root.pop_back();
+    }
 
     // Build UI
     forge::UiBuilder builder(base_dir, appres_root);
