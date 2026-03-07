@@ -88,6 +88,7 @@
 - [x] tasks/sms_cpp_native_runtime.md
 - [x] tasks/sms_language_spec_2026_native.md
 - [ ] tasks/forgerunner_cpp_native_runtime.md
+- [ ] tasks/native_docking_improvements.md
 - [ ] tasks/sms_to_cpp_transpiler_local_apps.md
 
 

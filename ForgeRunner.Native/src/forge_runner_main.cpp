@@ -127,6 +127,8 @@ void ForgeRunnerNativeMain::show_sml(const std::string& path) {
             win->set_size(Vector2i(win_cfg.width, win_cfg.height));
         if (win_cfg.min_width > 0 && win_cfg.min_height > 0)
             win->set_min_size(Vector2i(win_cfg.min_width, win_cfg.min_height));
+        if (win_cfg.extend_to_title)
+            win->set_flag(Window::FLAG_EXTEND_TO_TITLE, true);
     }
 
     add_child(ui);

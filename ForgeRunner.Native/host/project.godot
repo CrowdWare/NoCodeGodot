@@ -13,6 +13,7 @@ config/icon="res://icon.svg"
 window/size/viewport_width=1280
 window/size/viewport_height=800
 window/size/mode=0
+window/subwindows/embed_subwindows=false
 
 [rendering]
 renderer/rendering_method="forward_plus"

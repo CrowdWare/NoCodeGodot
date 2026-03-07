@@ -4,6 +4,7 @@ func get_spec() -> Dictionary:
     return {
         "name": "DockingHost",
         "backing": "Container",
+        "backing_native": "ForgeDockingHostControl",  # C++ GDExtension class (Container subclass)
         "properties": [
             {"sml":"id", "type":"identifier", "default":"—"},
             {"sml":"gap", "type":"int", "default":"0"},

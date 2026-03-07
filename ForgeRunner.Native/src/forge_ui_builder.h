@@ -19,6 +19,7 @@ struct WindowConfig {
     int         height               = 0;
     int         min_width            = 0;
     int         min_height           = 0;
+    bool        extend_to_title      = false;
     bool        is_splash            = false;
     int         splash_duration_ms   = 3000;
     std::string splash_load_on_ready;

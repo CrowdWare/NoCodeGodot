@@ -4,6 +4,7 @@ func get_spec() -> Dictionary:
     return {
         "name": "DockingContainer",
         "backing": "PanelContainer",
+        "backing_native": "ForgeDockingContainerControl",  # C++ GDExtension class (TabContainer subclass)
         "properties": [
             {"sml":"id", "type":"identifier", "default":"—"},
             {"sml":"dockSide", "type":"enum", "default":"center"},

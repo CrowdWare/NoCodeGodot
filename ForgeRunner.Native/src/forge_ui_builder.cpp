@@ -158,6 +158,8 @@ void UiBuilder::apply_window_props(const smlcore::Node& root, WindowConfig& out)
             out.min_height = parse_int(msz.substr(comma + 1), 0);
         }
     }
+    out.extend_to_title = parse_bool(root.get_value("extendToTitle", "false"), false);
+
     if (out.is_splash) {
         out.splash_duration_ms   = parse_int(root.get_value("duration", "3000"), 3000);
         out.splash_load_on_ready = root.get_value("loadOnReady");
@@ -335,7 +337,14 @@ Control* UiBuilder::create_control(const std::string& nl) {
     if (nl == "tabcontainer")      return memnew(TabContainer);
     if (nl == "menubar")           return memnew(MenuBar);
     if (nl == "popupmenu")         return memnew(Control); // placeholder
-    if (nl == "windowdrag")        return memnew(Control); // drag area placeholder
+    if (nl == "windowdrag") {
+        Variant v = ClassDB::instantiate("ForgeWindowDragControl");
+        if (v.get_type() != Variant::NIL) {
+            Object* obj = v;
+            if (auto* c = Object::cast_to<Control>(obj)) return c;
+        }
+        return memnew(Control);
+    }
     if (nl == "control")           return memnew(Control);
 
     // Native docking controls (from GDExtension)
@@ -656,6 +665,12 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
             float w = static_cast<float>(parse_int(node.get_value("fixedWidth")));
             ctrl->set_custom_minimum_size(Vector2(w, ctrl->get_custom_minimum_size().y));
         }
+        if (auto* tc = Object::cast_to<TabContainer>(ctrl)) {
+            if (node.has_property("dragToRearrangeEnabled"))
+                tc->set_drag_to_rearrange_enabled(parse_bool(node.get_value("dragToRearrangeEnabled")));
+            if (node.has_property("tabsRearrangeGroup"))
+                tc->set_tabs_rearrange_group(parse_int(node.get_value("tabsRearrangeGroup")));
+        }
     }
 
     // --- Styling: color (font_color) ---
@@ -777,14 +792,45 @@ void UiBuilder::build_menubar_children(Control* menu_bar, const smlcore::Node& n
 
 std::string UiBuilder::resolve_text(const smlcore::Property& prop) const {
     const auto& v = prop.value;
+
+    // Tuple: "@Strings.key, \"Fallback\"" — try the ref first, use fallback if not found
+    if (prop.kind == smlcore::ValueKind::Tuple) {
+        const auto comma = v.find(',');
+        const auto ref   = (comma != std::string::npos) ? v.substr(0, comma) : v;
+        // trim whitespace from ref
+        std::string key_part = ref;
+        key_part.erase(0, key_part.find_first_not_of(" \t\""));
+        key_part.erase(key_part.find_last_not_of(" \t\"") + 1);
+
+        std::string resolved;
+        if (!key_part.empty() && key_part[0] == '@') {
+            const auto dot = key_part.find('.', 1);
+            if (dot != std::string::npos) {
+                const auto key = key_part.substr(dot + 1);
+                auto it = strings_.find(key);
+                if (it != strings_.end()) resolved = it->second;
+            }
+        }
+        if (!resolved.empty()) return resolved;
+
+        // Use fallback (second tuple element, strip quotes)
+        if (comma != std::string::npos) {
+            std::string fallback = v.substr(comma + 1);
+            fallback.erase(0, fallback.find_first_not_of(" \t\""));
+            fallback.erase(fallback.find_last_not_of(" \t\"") + 1);
+            if (!fallback.empty()) return fallback;
+        }
+        return key_part;
+    }
+
+    // Single string reference: @Namespace.key
     if (prop.kind == smlcore::ValueKind::Identifier && !v.empty() && v[0] == '@') {
-        // @Namespace.key
         const auto dot = v.find('.', 1);
         if (dot != std::string::npos) {
             const auto key = v.substr(dot + 1);
             auto it = strings_.find(key);
             if (it != strings_.end()) return it->second;
-            return key; // fallback: key name
+            return key;
         }
         return v.substr(1);
     }
