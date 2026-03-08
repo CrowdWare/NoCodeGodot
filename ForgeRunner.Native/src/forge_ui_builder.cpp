@@ -1,6 +1,7 @@
 #include "forge_ui_builder.h"
 #include "forge_sms_bridge.h"
 #include "generated/schema_properties.h"
+#include "generated/schema_types.h"
 
 #include <algorithm>
 #include <cctype>
@@ -14,6 +15,7 @@
 #include <godot_cpp/classes/center_container.hpp>
 #include <godot_cpp/classes/check_box.hpp>
 #include <godot_cpp/classes/check_button.hpp>
+#include <godot_cpp/classes/code_highlighter.hpp>
 #include <godot_cpp/classes/code_edit.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/control.hpp>
@@ -42,6 +44,7 @@
 #include <godot_cpp/classes/font_file.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/style_box_flat.hpp>
+#include <godot_cpp/classes/syntax_highlighter.hpp>
 #include <godot_cpp/classes/system_font.hpp>
 #include <godot_cpp/classes/tab_bar.hpp>
 #include <godot_cpp/classes/tab_container.hpp>
@@ -69,6 +72,106 @@ static Ref<ImageTexture> load_texture(const std::string& path) {
     img.instantiate();
     if (img->load(String(path.c_str())) != Error::OK) return {};
     return ImageTexture::create_from_image(img);
+}
+
+static std::string to_lower_copy(const std::string& value) {
+    std::string out = value;
+    std::transform(out.begin(), out.end(), out.begin(),
+                   [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+    return out;
+}
+
+static std::string trim_copy(const std::string& value) {
+    const auto first = std::find_if_not(value.begin(), value.end(), [](unsigned char c){ return std::isspace(c) != 0; });
+    if (first == value.end()) return {};
+    const auto last = std::find_if_not(value.rbegin(), value.rend(), [](unsigned char c){ return std::isspace(c) != 0; }).base();
+    return std::string(first, last);
+}
+
+static std::string unquote_copy(const std::string& value) {
+    const auto trimmed = trim_copy(value);
+    if (trimmed.size() >= 2) {
+        const char first = trimmed.front();
+        const char last = trimmed.back();
+        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+            return trimmed.substr(1, trimmed.size() - 2);
+        }
+    }
+    return trimmed;
+}
+
+static void add_keywords(const Ref<CodeHighlighter>& hl, const std::initializer_list<const char*>& tokens, const Color& color) {
+    for (const char* token : tokens) {
+        hl->add_keyword_color(String(token), color);
+    }
+}
+
+static Ref<CodeHighlighter> build_sml_highlighter(const Color& keyword_color) {
+    Ref<CodeHighlighter> hl;
+    hl.instantiate();
+    hl->set_number_color(Color(0.97f, 0.82f, 0.58f, 1.0f));
+    hl->set_symbol_color(Color(0.83f, 0.86f, 0.90f, 1.0f));
+    hl->add_color_region("\"", "\"", Color(0.745f, 0.537f, 0.435f, 1.0f));
+    hl->add_color_region("//", "", Color(0.58f, 0.64f, 0.60f, 1.0f), true);
+    hl->add_color_region("@", " ", Color(0.80f, 0.90f, 1.0f, 1.0f));
+    add_keywords(hl, {"{", "}", ":"}, keyword_color);
+    for (const auto& schema_type : kSchemaTypes) {
+        hl->add_keyword_color(String(schema_type.name.data()), keyword_color);
+    }
+    return hl;
+}
+
+static Ref<CodeHighlighter> build_sms_highlighter(const Color& keyword_color) {
+    Ref<CodeHighlighter> hl;
+    hl.instantiate();
+    hl->set_number_color(Color(0.97f, 0.82f, 0.58f, 1.0f));
+    hl->set_symbol_color(Color(0.83f, 0.86f, 0.90f, 1.0f));
+    hl->add_color_region("\"", "\"", Color(0.745f, 0.537f, 0.435f, 1.0f));
+    hl->add_color_region("//", "", Color(0.58f, 0.64f, 0.60f, 1.0f), true);
+    add_keywords(hl, {
+        "fun", "var", "get", "set", "when", "if", "else", "while", "for", "in",
+        "break", "continue", "return", "true", "false", "null"
+    }, keyword_color);
+    return hl;
+}
+
+static Ref<CodeHighlighter> build_markdown_highlighter(const Color& keyword_color) {
+    Ref<CodeHighlighter> hl;
+    hl.instantiate();
+    hl->set_symbol_color(Color(0.83f, 0.86f, 0.90f, 1.0f));
+    hl->add_color_region("`", "`", Color(0.80f, 0.90f, 1.0f, 1.0f));
+    hl->add_color_region("**", "**", Color(0.94f, 0.96f, 0.99f, 1.0f));
+    hl->add_color_region("_", "_", Color(0.94f, 0.96f, 0.99f, 1.0f));
+    hl->add_color_region("[", ")", Color(0.62f, 0.74f, 0.94f, 1.0f));
+    add_keywords(hl, {"#", "##", "###"}, keyword_color);
+    return hl;
+}
+
+static Ref<CodeHighlighter> build_cs_highlighter(const Color& keyword_color) {
+    Ref<CodeHighlighter> hl;
+    hl.instantiate();
+    hl->set_number_color(Color(0.97f, 0.82f, 0.58f, 1.0f));
+    hl->set_symbol_color(Color(0.83f, 0.86f, 0.90f, 1.0f));
+    hl->set_function_color(Color(0.94f, 0.96f, 0.99f, 1.0f));
+    hl->set_member_variable_color(Color(0.80f, 0.90f, 1.0f, 1.0f));
+    hl->add_color_region("\"", "\"", Color(0.745f, 0.537f, 0.435f, 1.0f));
+    hl->add_color_region("//", "", Color(0.58f, 0.64f, 0.60f, 1.0f), true);
+    hl->add_color_region("/*", "*/", Color(0.58f, 0.64f, 0.60f, 1.0f));
+    hl->add_color_region("#", "", Color(0.86f, 0.70f, 1.0f, 1.0f), true);
+    add_keywords(hl, {
+        "public", "private", "protected", "internal", "class", "interface", "struct", "enum",
+        "void", "string", "int", "float", "double", "bool", "var", "new", "return", "if", "else",
+        "switch", "case", "for", "foreach", "while", "using", "namespace"
+    }, keyword_color);
+    return hl;
+}
+
+static Ref<CodeHighlighter> create_codeedit_highlighter(const std::string& language, const Color& keyword_color) {
+    if (language == "sml") return build_sml_highlighter(keyword_color);
+    if (language == "sms") return build_sms_highlighter(keyword_color);
+    if (language == "markdown" || language == "md") return build_markdown_highlighter(keyword_color);
+    if (language == "cs" || language == "c#") return build_cs_highlighter(keyword_color);
+    return {};
 }
 
 namespace forge {
@@ -722,6 +825,31 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
     if (auto* te = Object::cast_to<TextEdit>(ctrl)) {
         if (const auto* p = node.find_property("text"))
             te->set_text(String(resolve_ref(*p).c_str()));
+    }
+
+    // --- CodeEdit syntax highlighter ---
+    if (auto* code_edit = Object::cast_to<CodeEdit>(ctrl)) {
+        // Support both legacy "syntax" and new "language" property names.
+        std::string language = node.has_property("syntax")
+            ? node.get_value("syntax")
+            : node.get_value("language", "");
+        language = to_lower_copy(unquote_copy(language));
+        if (!language.empty()) {
+            Color keyword_color(0.357f, 0.533f, 0.769f, 1.0f);
+            auto accent_it = colors_.find("accent");
+            if (accent_it != colors_.end()) {
+                float r = 0.0f, g = 0.0f, b = 0.0f, a = 1.0f;
+                if (parse_color(resolve_value(accent_it->second), r, g, b, a)) {
+                    keyword_color = Color(r, g, b, a);
+                }
+            }
+            const Ref<CodeHighlighter> hl = create_codeedit_highlighter(language, keyword_color);
+            if (hl.is_valid()) {
+                code_edit->set_syntax_highlighter(hl);
+            } else {
+                code_edit->set_syntax_highlighter(Ref<SyntaxHighlighter>());
+            }
+        }
     }
 
     // --- TextureRect ---

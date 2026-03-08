@@ -97,7 +97,7 @@
 - [x] tasks/native_asset_download_cache.md
 - [x] tasks/native_docking_improvements.md
 - [x] tasks/native_markdown_container.md
-- [ ] tasks/native_syntax_highlighting.md
+- [x] tasks/native_syntax_highlighting.md
 - [ ] tasks/native_3d_tools_port.md
 - [ ] tasks/native_plugin_hosting.md
 - [ ] tasks/sms_to_cpp_transpiler_local_apps.md

@@ -1,8 +1,7 @@
 Window {
     id: mainWindow
     title: "ForgePoser"
-    //minSize: 1226, 200 // for all panel open
-    minSize: 738, 200 // two panel opem
+    minSize: 738, 200
     size: 1440, 900
 
     MenuBar {

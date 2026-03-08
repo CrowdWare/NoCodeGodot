@@ -29,6 +29,7 @@ Migrate ForgeRunner to a fully native C++ runtime and remove all C# from the pro
 - No runtime calls from C# to C++ and no calls from C++ to C# remain.
 - Default, Designer, and Poser flows start and execute in native-only mode.
 - Existing critical smoke scenarios pass (startup, UI load, SMS event handling).
+- This task is an umbrella/cutover task and remains open until all open items in `Implementation Progress` below are completed.
 
 ## Implementation Progress
 - [x] Native host scaffold created (`ForgeRunner.Native`, GDExtension bootstrap class, build docs).
