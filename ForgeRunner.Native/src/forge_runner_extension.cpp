@@ -14,9 +14,6 @@
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
 #include <godot_cpp/classes/h_separator.hpp>
-#include <godot_cpp/classes/h_split_container.hpp>
-#include <godot_cpp/classes/v_split_container.hpp>
-#include <godot_cpp/classes/input.hpp>
 #include <godot_cpp/classes/input_event_mouse_button.hpp>
 #include <godot_cpp/classes/input_event_mouse_motion.hpp>
 #include <godot_cpp/classes/label.hpp>
@@ -292,13 +289,8 @@ public:
     void   set_dock_side(const String& side) { dock_side_ = side.to_lower(); }
     String get_dock_side()    const { return dock_side_; }
 
-    void   set_fixed_width(double v)  { fixed_width_ = static_cast<float>(v); }
+    void   set_fixed_width(double v)  { fixed_width_  = static_cast<float>(v); }
     double get_fixed_width()    const { return fixed_width_; }
-
-    // Override minimum size so ForgeDockingHostControl can freely resize columns.
-    // Godot's set_size() clamps to get_combined_minimum_size(), which includes
-    // TabContainer's content minimum. Returning zero lets the host set any width.
-    virtual Vector2 _get_minimum_size() const override { return Vector2(0.f, 0.f); }
 
     void   set_fixed_height(double v) { fixed_height_ = static_cast<float>(v); }
     double get_fixed_height()   const { return fixed_height_; }
@@ -454,66 +446,37 @@ private:
         return btn;
     }
 
-    // Walk up the tree to the docking host root (the container that owns all docks).
-    // Since docks are now nested inside HSplitContainer/VSplitContainer, we need to
-    // walk past those intermediate nodes to find siblings in the whole docking tree.
-    Node* _docking_root() const {
-        Node* node = get_parent();
-        while (node) {
-            // Stop when we reach a node that is not a split container or dock container
-            // (i.e. the ForgeDockingHostControl or scene root).
-            if (!Object::cast_to<HSplitContainer>(node) &&
-                !Object::cast_to<VSplitContainer>(node) &&
-                !Object::cast_to<ForgeDockingContainerControl>(node))
-                return node;
-            Node* p = node->get_parent();
-            if (!p) return node;
-            node = p;
-        }
-        return nullptr;
-    }
-
-    // Collect all ForgeDockingContainerControl descendants of root into out.
-    static void _collect_docks(Node* root,
-                                std::vector<ForgeDockingContainerControl*>& out) {
-        for (int i = 0; i < root->get_child_count(); ++i) {
-            Node* child = root->get_child(i);
-            auto* dock  = Object::cast_to<ForgeDockingContainerControl>(child);
-            if (dock) out.push_back(dock);
-            else      _collect_docks(child, out);
-        }
-    }
-
     void _update_dock_buttons() {
         bool  can_move = get_drag_to_rearrange_enabled();
         int   rg       = get_tabs_rearrange_group();
-        Node* root     = _docking_root();
-
-        std::vector<ForgeDockingContainerControl*> all_docks;
-        if (root) _collect_docks(root, all_docks);
+        Node* parent   = get_parent();
 
         for (auto& [pos, btn] : dock_btns_) {
             bool available = false;
-            if (can_move) {
-                for (auto* s : all_docks) {
-                    if (s == this) continue;
+            if (can_move && parent) {
+                int n = parent->get_child_count();
+                for (int i = 0; i < n; ++i) {
+                    auto* s = Object::cast_to<ForgeDockingContainerControl>(parent->get_child(i));
+                    if (!s || s == this) continue;
                     if (!s->get_drag_to_rearrange_enabled()) continue;
                     if (s->get_tabs_rearrange_group() != rg) continue;
                     if (s->get_dock_side() == String(pos.c_str())) { available = true; break; }
                 }
             }
+            // All buttons always visible; disabled when no target exists
             btn->set_visible(true);
             btn->set_disabled(!available);
         }
     }
 
     ForgeDockingContainerControl* _find_sibling(const String& side) {
-        Node* root = _docking_root();
-        if (!root) return nullptr;
-        std::vector<ForgeDockingContainerControl*> all_docks;
-        _collect_docks(root, all_docks);
-        for (auto* s : all_docks) {
-            if (s != this && s->get_dock_side().to_lower() == side.to_lower()) return s;
+        Node* parent = get_parent();
+        if (!parent) return nullptr;
+        int n = parent->get_child_count();
+        for (int i = 0; i < n; ++i) {
+            auto* s = Object::cast_to<ForgeDockingContainerControl>(parent->get_child(i));
+            if (!s || s == this) continue;
+            if (s->get_dock_side() == side.to_lower()) return s;
         }
         return nullptr;
     }
@@ -535,218 +498,333 @@ private:
 
 // ---------------------------------------------------------------------------
 // ForgeDockingHostControl
-// Uses Godot's HSplitContainer / VSplitContainer for smooth native drag.
 // ---------------------------------------------------------------------------
 
 class ForgeDockingHostControl : public Container {
     GDCLASS(ForgeDockingHostControl, Container);
 
-    // Column order: 0=farleft  1=left  2=center  3=right  4=farright
-    static constexpr int         N_COLS   = 5;
-    static constexpr const char* TOP_SIDE[N_COLS] = {
-        "farleft", "left", "center", "right", "farright"
-    };
-    static constexpr const char* BOT_SIDE[N_COLS] = {
-        "farleftbottom", "leftbottom", nullptr, "rightbottom", "farrightbottom"
-    };
-    // VSplitContainer index per column (-1 = center, no split)
-    static int _vi(int ci) {
-        static const int T[] = {0, 1, -1, 2, 3}; return T[ci];
-    }
+    struct DragState { bool active = false; float origin = 0.f; float initial = 0.f; };
+
+    static constexpr int   MAX_H     = 4;     // horizontal gap handles (up to 4 column gaps)
+    static constexpr int   MAX_V     = 4;     // vertical split handles (farleft,left,right,farright)
+    static constexpr float MIN_COL_W = 60.f;
 
 protected:
     static void _bind_methods() {
         ClassDB::bind_method(D_METHOD("set_gap", "value"), &ForgeDockingHostControl::set_gap);
         ClassDB::bind_method(D_METHOD("get_gap"),          &ForgeDockingHostControl::get_gap);
-        ClassDB::bind_method(D_METHOD("_on_dock_vis_changed", "vi"),
-                             &ForgeDockingHostControl::_on_dock_vis_changed);
+        ClassDB::bind_method(D_METHOD("_on_h_handle_input", "event", "idx"),
+                             &ForgeDockingHostControl::_on_h_handle_input);
+        ClassDB::bind_method(D_METHOD("_on_v_handle_input", "event", "idx"),
+                             &ForgeDockingHostControl::_on_v_handle_input);
     }
 
 public:
-    void   set_gap(double v) { gap_ = (float)(v < 0.0 ? 0.0 : v); _apply_gap(); }
-    double get_gap() const   { return gap_; }
+    void   set_gap(double v) { gap_ = (float)(v < 0.0 ? 0.0 : v); queue_sort(); }
+    double get_gap()   const { return gap_; }
 
     void _ready() override {
         _ensure_auto_dock_containers();
-        _collect_docks();
-        _build_split_tree();
+        queue_sort();
     }
 
     void _notification(int what) {
-        // Just fit the root split container to fill us entirely.
-        if (what == NOTIFICATION_SORT_CHILDREN && root_) {
-            fit_child_in_rect(root_, Rect2(0.f, 0.f, get_size().x, get_size().y));
+        if (what == NOTIFICATION_SORT_CHILDREN) arrange_children();
+    }
+
+    // --- Horizontal resize handle input (resizes left-neighbour column width) ---
+    void _on_h_handle_input(Ref<InputEvent> event, int idx) {
+        if (idx < 0 || idx >= MAX_H) return;
+        Ref<InputEventMouseButton> mb = event;
+        if (mb.is_valid() && mb->get_button_index() == MouseButton::MOUSE_BUTTON_LEFT) {
+            if (mb->is_pressed()) {
+                float init_w = 0.f;
+                if (h_left_[idx]) {
+                    double fw = h_left_[idx]->get_fixed_width();
+                    init_w = (fw > 0.0) ? (float)fw : (float)h_left_[idx]->get_size().x;
+                }
+                h_drag_[idx] = { true, mb->get_global_position().x, init_w };
+                if (h_handles_[idx]) h_handles_[idx]->set_color(Color(0.30f, 0.55f, 0.90f, 0.50f));
+            } else {
+                h_drag_[idx].active = false;
+                if (h_handles_[idx]) h_handles_[idx]->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+            }
+        }
+        Ref<InputEventMouseMotion> mm = event;
+        if (mm.is_valid() && h_drag_[idx].active && h_left_[idx]) {
+            float delta = mm->get_global_position().x - h_drag_[idx].origin;
+            h_left_[idx]->set_fixed_width((double)maxf(MIN_COL_W, h_drag_[idx].initial + delta));
+            queue_sort();
+        }
+    }
+
+    // --- Vertical resize handle input (resizes top/bottom split ratio) ---
+    void _on_v_handle_input(Ref<InputEvent> event, int idx) {
+        if (idx < 0 || idx >= MAX_V) return;
+        Ref<InputEventMouseButton> mb = event;
+        if (mb.is_valid() && mb->get_button_index() == MouseButton::MOUSE_BUTTON_LEFT) {
+            if (mb->is_pressed()) {
+                float init_pct = 50.f;
+                if (v_bot_[idx]) {
+                    float hp = (float)v_bot_[idx]->get_height_percent();
+                    if (hp > 0.f) init_pct = 100.f - hp;
+                }
+                v_drag_[idx] = { true, mb->get_global_position().y, init_pct };
+                if (v_handles_[idx]) v_handles_[idx]->set_color(Color(0.30f, 0.55f, 0.90f, 0.50f));
+            } else {
+                v_drag_[idx].active = false;
+                if (v_handles_[idx]) v_handles_[idx]->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+            }
+        }
+        Ref<InputEventMouseMotion> mm = event;
+        if (mm.is_valid() && v_drag_[idx].active && v_bot_[idx]) {
+            float total_h = get_size().y;
+            if (total_h < 1.f) return;
+            float delta     = mm->get_global_position().y - v_drag_[idx].origin;
+            float delta_pct = (delta / total_h) * 100.f;
+            // bot height_percent = 100 - top_percent
+            float new_top_pct = clampf(v_drag_[idx].initial + delta_pct, 10.f, 90.f);
+            v_bot_[idx]->set_height_percent((double)(100.f - new_top_pct));
+            queue_sort();
         }
     }
 
 private:
-    // -----------------------------------------------------------------------
-    // Setup helpers
-    // -----------------------------------------------------------------------
+    static float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
+    static float maxf(float a, float b) { return a > b ? a : b; }
+
+    static float resolve_column_width(ForgeDockingContainerControl* top,
+                                      ForgeDockingContainerControl* bot, float fallback) {
+        float w = fallback;
+        if (top && top->get_fixed_width() > 0.0) w = (float)top->get_fixed_width();
+        if (bot && bot->get_fixed_width() > 0.0) w = (float)bot->get_fixed_width();
+        return maxf(1.f, w);
+    }
+
+    static float resolve_bottom_height(ForgeDockingContainerControl* bot, float total_h) {
+        if (!bot) return 0.f;
+        const float fixed_h = (float)bot->get_fixed_height();
+        if (fixed_h > 0.f) return clampf(fixed_h, 0.f, total_h);
+        const float pct = (float)bot->get_height_percent();
+        if (pct > 0.f) return clampf(total_h * (pct / 100.f), 0.f, total_h);
+        return total_h * 0.5f;
+    }
+
+    // Layout top+bottom into rect; returns gap top-y (for v-handle placement), -1 if no split
+    float layout_column(ForgeDockingContainerControl* top, ForgeDockingContainerControl* bot,
+                        const Rect2& rect, float gap_px) {
+        if (top && bot) {
+            const float total_h = maxf(0.f, rect.size.y);
+            const float bot_max = maxf(0.f, total_h - gap_px);
+            const float bot_h   = Math::floor(clampf(resolve_bottom_height(bot, total_h), 0.f, bot_max));
+            const float bot_y   = rect.position.y + total_h - bot_h;
+            const float top_h   = maxf(0.f, bot_y - rect.position.y - gap_px);
+            fit_child_in_rect(top, Rect2(rect.position, Vector2(rect.size.x, top_h)));
+            fit_child_in_rect(bot, Rect2(Vector2(rect.position.x, bot_y), Vector2(rect.size.x, bot_h)));
+            return bot_y - gap_px;  // gap top-y (where v-handle goes)
+        }
+        if (top) { fit_child_in_rect(top, rect); }
+        if (bot) { fit_child_in_rect(bot, rect); }
+        return -1.f;
+    }
+
+
+    ColorRect* _ensure_h_handle(int idx) {
+        if (h_handles_[idx]) return h_handles_[idx];
+        ColorRect* cr = memnew(ColorRect);
+        cr->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+        cr->set_mouse_filter(Control::MOUSE_FILTER_STOP);
+        cr->set_default_cursor_shape(Control::CURSOR_HSIZE);
+        cr->set_z_index(900);
+        cr->connect("gui_input",
+            callable_mp(this, &ForgeDockingHostControl::_on_h_handle_input).bind(Variant(idx)));
+        add_child(cr);
+        h_handles_[idx] = cr;
+        return cr;
+    }
+
+    ColorRect* _ensure_v_handle(int idx) {
+        if (v_handles_[idx]) return v_handles_[idx];
+        ColorRect* cr = memnew(ColorRect);
+        cr->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+        cr->set_mouse_filter(Control::MOUSE_FILTER_STOP);
+        cr->set_default_cursor_shape(Control::CURSOR_VSIZE);
+        cr->set_z_index(900);
+        cr->connect("gui_input",
+            callable_mp(this, &ForgeDockingHostControl::_on_v_handle_input).bind(Variant(idx)));
+        add_child(cr);
+        v_handles_[idx] = cr;
+        return cr;
+    }
+
+    void arrange_children() {
+        // 5 columns: 0=farleft, 1=left, 2=center, 3=right, 4=farright
+        // Bottom rows:          0=farleftbottom, 1=leftbottom, -, 3=rightbottom, 4=farrightbottom
+        ForgeDockingContainerControl* col_top[5] = {};
+        ForgeDockingContainerControl* col_bot[5] = {};
+        std::vector<ForgeDockingContainerControl*> centers;
+
+        const int n = get_child_count();
+        for (int i = 0; i < n; ++i) {
+            auto* dock = Object::cast_to<ForgeDockingContainerControl>(get_child(i));
+            if (!dock || !dock->is_visible()) continue;
+            const String side = dock->get_dock_side().to_lower();
+            if      (side == "farleft")        col_top[0] = dock;
+            else if (side == "farleftbottom")  col_bot[0] = dock;
+            else if (side == "left")           col_top[1] = dock;
+            else if (side == "leftbottom")     col_bot[1] = dock;
+            else if (side == "right")          col_top[3] = dock;
+            else if (side == "rightbottom")    col_bot[3] = dock;
+            else if (side == "farright")       col_top[4] = dock;
+            else if (side == "farrightbottom") col_bot[4] = dock;
+            else                               centers.push_back(dock);
+        }
+
+        // Center uses first item for sizing; rest stacked invisibly
+        bool has[5];
+        for (int i = 0; i < 5; ++i) has[i] = (col_top[i] || col_bot[i]);
+        if (!centers.empty()) has[2] = true;
+
+        const float total_w = get_size().x;
+        const float total_h = get_size().y;
+        const float gap_px  = Math::floor(maxf(0.f, gap_));
+        const float h_thick = maxf(gap_px, 4.f);  // handle click target width
+
+        // Fixed widths for side columns; center is whatever remains
+        float cw[5] = {};
+        cw[0] = has[0] ? resolve_column_width(col_top[0], col_bot[0], 220.f) : 0.f;
+        cw[1] = has[1] ? resolve_column_width(col_top[1], col_bot[1], 240.f) : 0.f;
+        cw[3] = has[3] ? resolve_column_width(col_top[3], col_bot[3], 240.f) : 0.f;
+        cw[4] = has[4] ? resolve_column_width(col_top[4], col_bot[4], 220.f) : 0.f;
+
+        int gap_count = 0;
+        int prev_vis  = -1;
+        for (int i = 0; i < 5; ++i) {
+            if (has[i]) { if (prev_vis >= 0) ++gap_count; prev_vis = i; }
+        }
+        cw[2] = maxf(0.f, total_w - cw[0] - cw[1] - cw[3] - cw[4] - (float)gap_count * gap_px);
+
+        // Hide all handles before re-placing
+        for (int i = 0; i < MAX_H; ++i) {
+            h_left_[i] = nullptr;
+            if (h_handles_[i]) {
+                if (!h_drag_[i].active) h_handles_[i]->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+                h_handles_[i]->set_visible(false);
+            }
+        }
+        for (int i = 0; i < MAX_V; ++i) {
+            v_bot_[i] = nullptr;
+            if (v_handles_[i]) {
+                if (!v_drag_[i].active) v_handles_[i]->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+                v_handles_[i]->set_visible(false);
+            }
+        }
+
+        // V-handle index by column: 0=farleft, 1=left, -=center, 2=right, 3=farright
+        static const int V_IDX[5] = { 0, 1, -1, 2, 3 };
+
+        float x     = 0.f;
+        int   h_idx = 0;
+        prev_vis    = -1;
+
+        for (int ci = 0; ci < 5; ++ci) {
+            if (!has[ci]) continue;
+
+            // Horizontal handle between columns — always placed, min 4px, overlaid if no gap
+            if (prev_vis >= 0) {
+                const float hw  = maxf(gap_px, 4.f);
+                const float hx  = (gap_px > 0.f) ? x : (x - hw * 0.5f);
+                ColorRect* hh   = _ensure_h_handle(h_idx);
+                fit_child_in_rect(hh, Rect2(hx, 0.f, hw, total_h));
+                hh->set_visible(true);
+                // Left neighbour (skip flex center — can't resize it directly)
+                if (prev_vis != 2)
+                    h_left_[h_idx] = col_top[prev_vis] ? col_top[prev_vis] : col_bot[prev_vis];
+                ++h_idx;
+                x += gap_px;
+            }
+
+            Rect2 col_rect(x, 0.f, cw[ci], total_h);
+
+            if (ci == 2) {
+                // Center: all extras stacked at zero size
+                if (!centers.empty()) {
+                    fit_child_in_rect(centers.front(), col_rect);
+                    for (std::size_t k = 1; k < centers.size(); ++k)
+                        fit_child_in_rect(centers[k], Rect2(col_rect.position, Vector2(0.f, 0.f)));
+                }
+            } else {
+                float gap_y = layout_column(col_top[ci], col_bot[ci], col_rect, gap_px);
+                // Vertical handle for split columns — always placed, min 4px, overlaid if no gap
+                if (col_top[ci] && col_bot[ci] && gap_y >= 0.f) {
+                    int vi = V_IDX[ci];
+                    if (vi >= 0) {
+                        const float vh_h = maxf(gap_px, 4.f);
+                        const float vh_y = (gap_px > 0.f) ? gap_y : (gap_y - vh_h * 0.5f);
+                        ColorRect* vh = _ensure_v_handle(vi);
+                        fit_child_in_rect(vh, Rect2(x, vh_y, cw[ci], vh_h));
+                        vh->set_visible(true);
+                        v_bot_[vi] = col_bot[ci];
+                    }
+                }
+            }
+
+            x += cw[ci];
+            prev_vis = ci;
+        }
+    }
 
     void _ensure_auto_dock_containers() {
         static constexpr const char* SIDES[9] = {
-            "farleft","farleftbottom","left","leftbottom","center",
-            "right","rightbottom","farright","farrightbottom"
+            "farleft", "farleftbottom",
+            "left",    "leftbottom",
+            "center",
+            "right",   "rightbottom",
+            "farright","farrightbottom"
         };
-        // Collect existing + determine drag group
+
         std::vector<ForgeDockingContainerControl*> existing;
-        for (int i = 0; i < get_child_count(); ++i) {
+        int n = get_child_count();
+        for (int i = 0; i < n; ++i) {
             auto* d = Object::cast_to<ForgeDockingContainerControl>(get_child(i));
             if (d) existing.push_back(d);
         }
+
+        if (existing.empty()) return;
+
         int drag_group = 1;
-        for (auto* d : existing) { int rg = d->get_tabs_rearrange_group(); if (rg > 0) { drag_group = rg; break; } }
+        for (auto* d : existing) {
+            int rg = d->get_tabs_rearrange_group();
+            if (rg > 0) { drag_group = rg; break; }
+        }
 
         for (const char* side : SIDES) {
             bool found = false;
-            for (auto* d : existing) if (d->get_dock_side() == String(side)) { found = true; break; }
+            for (auto* d : existing) {
+                if (d->get_dock_side() == String(side)) { found = true; break; }
+            }
             if (found) continue;
-            auto* dock = memnew(ForgeDockingContainerControl);
-            dock->set_name(String("Auto_") + side);
-            dock->set_dock_side(String(side));
-            dock->set_drag_to_rearrange_enabled(true);
-            dock->set_tabs_rearrange_group(drag_group);
-            dock->set_fixed_width(220.0);
-            dock->set_visible(false);
-            add_child(dock);
-            existing.push_back(dock);
+
+            auto* auto_dock = memnew(ForgeDockingContainerControl);
+            auto_dock->set_name(String("Auto_") + side);
+            auto_dock->set_dock_side(String(side));
+            auto_dock->set_drag_to_rearrange_enabled(true);
+            auto_dock->set_tabs_rearrange_group(drag_group);
+            auto_dock->set_fixed_width(220.0);
+            auto_dock->set_visible(false);
+            add_child(auto_dock);
+            existing.push_back(auto_dock);
         }
     }
 
-    void _collect_docks() {
-        for (int ci = 0; ci < N_COLS; ++ci) { dock_top_[ci] = nullptr; dock_bot_[ci] = nullptr; }
-        for (int i = 0; i < get_child_count(); ++i) {
-            auto* d = Object::cast_to<ForgeDockingContainerControl>(get_child(i));
-            if (!d) continue;
-            String s = d->get_dock_side().to_lower();
-            for (int ci = 0; ci < N_COLS; ++ci) {
-                if (s == String(TOP_SIDE[ci])) { dock_top_[ci] = d; break; }
-                if (BOT_SIDE[ci] && s == String(BOT_SIDE[ci])) { dock_bot_[ci] = d; break; }
-            }
-        }
-    }
+    float gap_ = 0.f;
 
-    // Move node to new_parent (handles both fresh nodes and already-parented ones).
-    static void _move_to(Node* node, Node* new_parent) {
-        if (!node || !new_parent || node->get_parent() == new_parent) return;
-        if (node->get_parent()) node->reparent(new_parent, false);
-        else                    new_parent->add_child(node);
-    }
-
-    VSplitContainer* _get_vsplit(int vi) {
-        if (!v_splits_[vi]) {
-            v_splits_[vi] = memnew(VSplitContainer);
-            v_splits_[vi]->add_theme_constant_override("separation", (int)gap_);
-        }
-        return v_splits_[vi];
-    }
-
-    HSplitContainer* _get_hsplit(int hi) {
-        if (!h_splits_[hi]) {
-            h_splits_[hi] = memnew(HSplitContainer);
-            h_splits_[hi]->add_theme_constant_override("separation", (int)gap_);
-        }
-        return h_splits_[hi];
-    }
-
-    // Called when a dock inside a VSplitContainer changes visibility.
-    // Hides the VSplitContainer when both children are invisible so that
-    // the parent HSplitContainer can collapse that column automatically.
-    void _on_dock_vis_changed(int vi) {
-        if (vi < 0 || vi >= 4 || !v_splits_[vi]) return;
-        auto* vs = v_splits_[vi];
-        bool any_vis = false;
-        for (int i = 0; i < vs->get_child_count(); ++i) {
-            auto* c = Object::cast_to<Control>(vs->get_child(i));
-            if (c && c->is_visible()) { any_vis = true; break; }
-        }
-        vs->set_visible(any_vis);
-    }
-
-    void _build_split_tree() {
-        // Build per-column content node.
-        // ALL docks are included regardless of current visibility so that
-        // HSplitContainer can collapse/expand them dynamically as visibility changes.
-        Node* col_node[N_COLS] = {};
-        for (int ci = 0; ci < N_COLS; ++ci) {
-            auto* top = dock_top_[ci];
-            if (!top) continue;
-            auto* bot = dock_bot_[ci];
-            int vi = _vi(ci);
-            if (bot && vi >= 0) {
-                auto* vs = _get_vsplit(vi);
-                _move_to(top, vs);
-                _move_to(bot, vs);
-                vs->move_child(top, 0);
-                vs->move_child(bot, 1);
-                // Set initial VSplit visibility and track changes.
-                vs->set_visible(top->is_visible() || bot->is_visible());
-                top->connect("visibility_changed",
-                    callable_mp(this, &ForgeDockingHostControl::_on_dock_vis_changed).bind(Variant(vi)));
-                bot->connect("visibility_changed",
-                    callable_mp(this, &ForgeDockingHostControl::_on_dock_vis_changed).bind(Variant(vi)));
-                col_node[ci] = vs;
-            } else {
-                col_node[ci] = top;
-            }
-        }
-
-        // Collect visible column indices.
-        std::vector<int> vis;
-        for (int ci = 0; ci < N_COLS; ++ci) if (col_node[ci]) vis.push_back(ci);
-        if (vis.empty()) return;
-
-        if (vis.size() == 1) {
-            auto* ctrl = Object::cast_to<Control>(col_node[vis[0]]);
-            _move_to(col_node[vis[0]], this);
-            if (ctrl) {
-                ctrl->set_h_size_flags(Control::SIZE_FILL | Control::SIZE_EXPAND);
-                ctrl->set_v_size_flags(Control::SIZE_FILL | Control::SIZE_EXPAND);
-            }
-            root_ = ctrl;
-            return;
-        }
-
-        // Multiple columns: build right-skewed HSplitContainer chain.
-        // h[0]{ col[0] | h[1]{ col[1] | h[2]{ ... | col[N-1] }}}
-        // Build from right to left so inner containers exist before outer ones reference them.
-        int n = (int)vis.size();
-        for (int i = n - 2; i >= 0; --i) {
-            auto* hs = _get_hsplit(i);
-            // Clear stale children.
-            while (hs->get_child_count() > 0)
-                hs->remove_child(hs->get_child(0));
-            // Left child: col_node[vis[i]]
-            _move_to(col_node[vis[i]], hs);
-            // Right child: next h_split (or last col_node for the rightmost pair)
-            if (i == n - 2)
-                _move_to(col_node[vis[n - 1]], hs);
-            else
-                _move_to(h_splits_[i + 1], hs);
-        }
-
-        auto* root_hs = h_splits_[0];
-        _move_to(root_hs, this);
-        root_hs->set_h_size_flags(Control::SIZE_FILL | Control::SIZE_EXPAND);
-        root_hs->set_v_size_flags(Control::SIZE_FILL | Control::SIZE_EXPAND);
-        root_ = root_hs;
-    }
-
-    void _apply_gap() {
-        for (auto* hs : h_splits_) if (hs) hs->add_theme_constant_override("separation", (int)gap_);
-        for (auto* vs : v_splits_) if (vs) vs->add_theme_constant_override("separation", (int)gap_);
-    }
-
-    // -----------------------------------------------------------------------
-    // Members
-    // -----------------------------------------------------------------------
-    float            gap_              = 0.f;
-    HSplitContainer* h_splits_[4]      = {};
-    VSplitContainer* v_splits_[4]      = {};
-    ForgeDockingContainerControl* dock_top_[N_COLS] = {};
-    ForgeDockingContainerControl* dock_bot_[N_COLS] = {};
-    Control*         root_             = nullptr;
+    ColorRect*                    h_handles_[MAX_H] = {};
+    ColorRect*                    v_handles_[MAX_V] = {};
+    ForgeDockingContainerControl* h_left_[MAX_H]    = {};  // left neighbour for each h-handle
+    ForgeDockingContainerControl* v_bot_[MAX_V]     = {};  // bottom container for each v-handle
+    DragState                     h_drag_[MAX_H]    = {};
+    DragState                     v_drag_[MAX_V]    = {};
 };
 
 // ---------------------------------------------------------------------------

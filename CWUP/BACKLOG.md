@@ -90,7 +90,6 @@
 - [ ] tasks/forgerunner_cpp_native_runtime.md
 - [x] tasks/native_schema_codegen.md
 - [x] tasks/native_sms_ui_bridge.md
-- [ ] tasks/native_plugin_hosting.md
 - [x] tasks/native_splash_main_transition.md
 - [x] tasks/native_theme_localization.md
 - [x] tasks/native_bg_containers.md
@@ -100,8 +99,8 @@
 - [x] tasks/native_markdown_container.md
 - [ ] tasks/native_syntax_highlighting.md
 - [ ] tasks/native_3d_tools_port.md
+- [ ] tasks/native_plugin_hosting.md
 - [ ] tasks/sms_to_cpp_transpiler_local_apps.md
-
 
 
 ## Future Tasks

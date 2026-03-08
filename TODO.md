@@ -1,5 +1,7 @@
 # ToDo
-Here I will list things we need in general, like demos, tech previews-
+Here I will list things we need in general, like demos, tech previews.
+
+Real tasks you will find in `/CWUP/BACKLOG.md`
 
 - [ ] Default app, which will be loaded on startup id no URL is specified
 - [ ] The designer app, which we can use to design and implement new apps, based on Forge
@@ -65,6 +67,9 @@ Here I will list things we need in general, like demos, tech previews-
   
 
 ### Database sample
+When we would use SML for server tasks, we could use SML to desribe the database.
+
+Sample:
 ```sml
 Database {
     name: "ForgeServer"
@@ -81,14 +86,6 @@ Database {
 }
 ```
 
-Logo in Terminal und https://github.com/magiblot/tvision
-
-
-███████╗ ██████╗ ██████╗  ██████╗ ███████╗   ██╗  ██╗██████╗
-██╔════╝██╔═══██╗██╔══██╗██╔════╝ ██╔════╝   ██║  ██║██╔══██╗
-█████╗  ██║   ██║██████╔╝██║  ███╗█████╗     ███████║██║  ██║
-██╔══╝  ██║   ██║██╔══██╗██║   ██║██╔══╝     ╚════██║██║  ██║
-██║     ╚██████╔╝██║  ██║╚██████╔╝███████╗        ██║██████╔╝
-╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝        ╚═╝╚═════╝
-
-Built with love, coffee, and a stubborn focus on simplicity.
+# Terminal Apps
+ForgeRunner.Native now supports windowless Terminal Apps.
+We might want to user ncurses or TVision here in order to position the cursor and to color text. Maybe a use case can be to use ASCII windoing like the good old days with Norton Commander /Midnight Commander.
