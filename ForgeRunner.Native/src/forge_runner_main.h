@@ -19,6 +19,7 @@ class Control;
 class HTTPRequest;
 class ProgressBar;
 class Timer;
+class TreeItem;
 class VBoxContainer;
 }
 
@@ -39,6 +40,7 @@ public:
     void on_sms_value_event(double value, godot::String object_id, godot::String event_name);
     void on_sms_item_event(int index, godot::String object_id, godot::String event_name);
     void on_sms_item_text_event(int index, godot::String text, godot::String object_id, godot::String event_name);
+    void on_sms_tree_button_clicked(godot::TreeItem* item, int column, int id, int mouse_button_index, godot::String object_id, godot::String event_name);
 
 private:
     // ----- SML / Splash state -----

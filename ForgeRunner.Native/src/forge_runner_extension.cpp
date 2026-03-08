@@ -1,4 +1,5 @@
 #include "forge_runner_main.h"
+#include "forge_sms_bridge.h"
 #include "forge_markdown.h"
 #include "forge_path_resolver.h"
 #include <sml_document.h>
@@ -27,6 +28,8 @@
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/plane_mesh.hpp>
+#include <godot_cpp/classes/shader.hpp>
+#include <godot_cpp/classes/shader_material.hpp>
 #include <godot_cpp/classes/rich_text_label.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/skeleton3d.hpp>
@@ -34,6 +37,8 @@
 #include <godot_cpp/classes/sub_viewport.hpp>
 #include <godot_cpp/classes/text_server.hpp>
 #include <godot_cpp/classes/texture_rect.hpp>
+#include <godot_cpp/classes/tree.hpp>
+#include <godot_cpp/classes/tree_item.hpp>
 #include <godot_cpp/classes/container.hpp>
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
@@ -42,6 +47,7 @@
 #include <godot_cpp/classes/input_event_mouse_motion.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/menu_button.hpp>
+#include <godot_cpp/classes/material.hpp>
 #include <godot_cpp/classes/panel_container.hpp>
 #include <godot_cpp/classes/popup_menu.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
@@ -1662,7 +1668,11 @@ public:
         update_camera_transform();
     }
 
+    void _process(double) override {}
+
     void _notification(int) {}
+
+    void _draw() override {}
 
     void _gui_input(const Ref<InputEvent>& event) override {
         ensure_viewport_scene();
@@ -1758,7 +1768,26 @@ public:
     void set_mode(const String& mode) { mode_ = mode; }
     void set_edit_mode(const String& mode) { edit_mode_ = mode; }
     void set_transform_space(const String& space) { transform_space_ = space; }
-    void set_bone_tree(const String& id) { bone_tree_id_ = id; }
+    void set_bone_tree(const String& id) {
+        if (bone_tree_ != nullptr) {
+            const Callable cb = callable_mp(this, &ForgePosingEditorControl::on_bone_tree_item_selected);
+            if (bone_tree_->is_connected("item_selected", cb)) {
+                bone_tree_->disconnect("item_selected", cb);
+            }
+            bone_tree_ = nullptr;
+        }
+
+        bone_tree_id_ = id;
+        Tree* resolved = resolve_bone_tree_control();
+        if (resolved == nullptr) return;
+
+        bone_tree_ = resolved;
+        const Callable cb = callable_mp(this, &ForgePosingEditorControl::on_bone_tree_item_selected);
+        if (!bone_tree_->is_connected("item_selected", cb)) {
+            bone_tree_->connect("item_selected", cb);
+        }
+        refresh_external_bone_tree();
+    }
     void set_joint_spheres_visible(bool visible) { joint_spheres_visible_ = visible; }
 
     String get_selected_bone_name() const { return selected_bone_name_; }
@@ -1816,7 +1845,13 @@ public:
             return false;
         }
 
-        const std::string source = file->get_as_text().utf8().get_data();
+        std::string source = file->get_as_text().utf8().get_data();
+        if (source.size() >= 3 &&
+            static_cast<unsigned char>(source[0]) == 0xEF &&
+            static_cast<unsigned char>(source[1]) == 0xBB &&
+            static_cast<unsigned char>(source[2]) == 0xBF) {
+            source.erase(0, 3);
+        }
         smlcore::Document doc;
         try {
             doc = smlcore::parse_document(source);
@@ -1886,7 +1921,11 @@ public:
         if (!characters_.empty()) {
             selected_character_index_ = 0;
             selected_prop_index_ = -1;
+            if (characters_[0].node != nullptr) {
+                select_first_bone_from_node(characters_[0].node);
+            }
         }
+        refresh_external_bone_tree();
         update_selection_marker();
         UtilityFunctions::print(String("[ForgeRunner.Native] PosingEditor.loadProject done: chars=") + String::num_int64(characters_.size()) + " props=" + String::num_int64(props_.size()));
         return true;
@@ -1911,6 +1950,7 @@ public:
             characters_.push_back(item);
             selected_character_index_ = static_cast<int>(characters_.size()) - 1;
             selected_prop_index_ = -1;
+            refresh_external_bone_tree();
             update_selection_marker();
             emit_signal("objectSelected", -1);
             return 1;
@@ -1971,6 +2011,8 @@ public:
         }
         characters_.erase(characters_.begin() + index);
         if (selected_character_index_ == index) selected_character_index_ = -1;
+        else if (selected_character_index_ > index) selected_character_index_ -= 1;
+        refresh_external_bone_tree();
         update_selection_marker();
     }
 
@@ -1984,6 +2026,7 @@ public:
         props_.erase(props_.begin() + index);
         emit_signal("scenePropRemoved", index);
         if (selected_prop_index_ == index) selected_prop_index_ = -1;
+        else if (selected_prop_index_ > index) selected_prop_index_ -= 1;
         update_selection_marker();
     }
 
@@ -1991,14 +2034,27 @@ public:
         if (index < 0 || index >= static_cast<int>(characters_.size())) return;
         selected_character_index_ = index;
         selected_prop_index_ = -1;
+        if (characters_[index].node != nullptr) {
+            select_first_bone_from_node(characters_[index].node);
+        }
+        refresh_external_bone_tree();
         update_selection_marker();
         emit_signal("objectSelected", -1);
     }
 
     void select_scene_prop(int index) {
-        if (index < 0 || index >= static_cast<int>(props_.size())) return;
+        if (index < 0) {
+            selected_prop_index_ = -1;
+            selected_character_index_ = -1;
+            refresh_external_bone_tree();
+            update_selection_marker();
+            emit_signal("objectSelected", -1);
+            return;
+        }
+        if (index >= static_cast<int>(props_.size())) return;
         selected_prop_index_ = index;
         selected_character_index_ = -1;
+        refresh_external_bone_tree();
         update_selection_marker();
         emit_signal("objectSelected", index);
     }
@@ -2114,6 +2170,7 @@ public:
             characters_.push_back(item);
             selected_character_index_ = 0;
             selected_prop_index_ = -1;
+            refresh_external_bone_tree();
             update_selection_marker();
             emit_signal("objectSelected", -1);
             return;
@@ -2132,10 +2189,16 @@ public:
             apply_item_transform(item);
             select_first_bone_from_node(item.node);
         }
+        refresh_external_bone_tree();
         update_selection_marker();
     }
     String get_src() const { return src_; }
-    void set_show_bone_tree(bool value) { show_bone_tree_ = value; }
+    void set_show_bone_tree(bool value) {
+        show_bone_tree_ = value;
+        if (show_bone_tree_) {
+            refresh_external_bone_tree();
+        }
+    }
     bool get_show_bone_tree() const { return show_bone_tree_; }
 
 private:
@@ -2194,7 +2257,92 @@ private:
         props_.clear();
         selected_character_index_ = -1;
         selected_prop_index_ = -1;
+        refresh_external_bone_tree();
         update_selection_marker();
+    }
+
+    Tree* resolve_bone_tree_control() {
+        if (bone_tree_id_.is_empty()) return nullptr;
+
+        const std::string id = bone_tree_id_.utf8().get_data();
+        auto it = forge::SmsBridge::id_map().find(id);
+        if (it != forge::SmsBridge::id_map().end()) {
+            if (Tree* mapped = Object::cast_to<Tree>(it->second)) {
+                return mapped;
+            }
+        }
+
+        SceneTree* tree = get_tree();
+        if (tree == nullptr || tree->get_root() == nullptr) return nullptr;
+        Node* found = tree->get_root()->find_child(bone_tree_id_, true, false);
+        return Object::cast_to<Tree>(found);
+    }
+
+    void refresh_external_bone_tree() {
+        Tree* tree = bone_tree_;
+        if (tree == nullptr) {
+            tree = resolve_bone_tree_control();
+            if (tree == nullptr) return;
+            bone_tree_ = tree;
+        }
+
+        tree->clear();
+        tree->set_hide_root(true);
+
+        if (selected_character_index_ < 0 || selected_character_index_ >= static_cast<int>(characters_.size())) {
+            return;
+        }
+        SceneItem* selected_char = at_char(selected_character_index_);
+        if (selected_char == nullptr || selected_char->node == nullptr) return;
+
+        Skeleton3D* skeleton = find_first_skeleton(selected_char->node);
+        if (skeleton == nullptr) return;
+
+        const int bone_count = skeleton->get_bone_count();
+        if (bone_count <= 0) return;
+
+        TreeItem* root = tree->create_item();
+        std::vector<TreeItem*> items(static_cast<size_t>(bone_count), nullptr);
+        TreeItem* selected_item = nullptr;
+
+        for (int i = 0; i < bone_count; ++i) {
+            const int parent_index = skeleton->get_bone_parent(i);
+            TreeItem* parent = root;
+            if (parent_index >= 0 && parent_index < bone_count && items[static_cast<size_t>(parent_index)] != nullptr) {
+                parent = items[static_cast<size_t>(parent_index)];
+            }
+
+            TreeItem* item = tree->create_item(parent);
+            const String bone_name = skeleton->get_bone_name(i);
+            item->set_text(0, bone_name);
+            item->set_metadata(0, bone_name);
+            item->set_collapsed(parent_index >= 0);
+            items[static_cast<size_t>(i)] = item;
+
+            if (bone_name == selected_bone_name_) {
+                selected_item = item;
+            }
+        }
+
+        if (selected_item != nullptr) {
+            suppress_bone_tree_item_selected_ = true;
+            tree->set_selected(selected_item, 0);
+            tree->scroll_to_item(selected_item);
+            suppress_bone_tree_item_selected_ = false;
+        }
+    }
+
+    void on_bone_tree_item_selected() {
+        if (suppress_bone_tree_item_selected_) return;
+        if (bone_tree_ == nullptr) return;
+        TreeItem* selected = bone_tree_->get_selected();
+        if (selected == nullptr) return;
+
+        Variant value = selected->get_metadata(0);
+        if (value.get_type() != Variant::STRING) return;
+        handling_bone_tree_item_selected_ = true;
+        select_bone_name(static_cast<String>(value));
+        handling_bone_tree_item_selected_ = false;
     }
 
     void ensure_viewport_scene() {
@@ -2332,6 +2480,18 @@ private:
         };
 
         const bool pose_mode = (mode_ == "pose");
+        if (pose_mode) {
+            int picked_char_index = -1;
+            String picked_bone_name;
+            if (try_pick_bone_screen(screen_pos, picked_char_index, picked_bone_name)) {
+                if (picked_char_index >= 0) {
+                    select_scene_character(picked_char_index);
+                }
+                select_bone_name(picked_bone_name);
+                return;
+            }
+        }
+
         if (pose_mode) {
             for (int i = 0; i < static_cast<int>(characters_.size()); ++i) {
                 try_pick_item(PickKind::Character, i, characters_[i]);
@@ -2494,27 +2654,84 @@ private:
     }
 
     void update_selection_marker() {
-        if (selection_marker_ == nullptr) return;
+        if (selection_marker_ != nullptr) {
+            selection_marker_->set_visible(false);
+        }
+        update_selection_outline();
+    }
 
+    void ensure_outline_material() {
+        if (outline_material_.is_valid()) return;
+
+        Ref<Shader> shader;
+        shader.instantiate();
+        shader->set_code(
+            "shader_type spatial;\n"
+            "render_mode unshaded, cull_front, depth_draw_never;\n"
+            "uniform vec4 outline_color : source_color = vec4(1.0, 0.55, 0.05, 1.0);\n"
+            "uniform float outline_width = 1.0;\n"
+            "void vertex() {\n"
+            "    VERTEX += NORMAL * outline_width;\n"
+            "}\n"
+            "void fragment() {\n"
+            "    ALBEDO = outline_color.rgb;\n"
+            "    ALPHA = outline_color.a;\n"
+            "}\n");
+
+        outline_material_.instantiate();
+        outline_material_->set_shader(shader);
+        outline_material_->set_shader_parameter("outline_color", Color(1.0f, 0.55f, 0.05f, 1.0f));
+        outline_material_->set_shader_parameter("outline_width", 1.0f);
+    }
+
+    void collect_mesh_instances(Node* node, std::vector<MeshInstance3D*>& out) {
+        if (node == nullptr) return;
+        if (auto* mi = Object::cast_to<MeshInstance3D>(node)) {
+            if (mi->is_visible()) out.push_back(mi);
+        }
+        const int child_count = node->get_child_count();
+        for (int i = 0; i < child_count; ++i) {
+            collect_mesh_instances(node->get_child(i), out);
+        }
+    }
+
+    void set_outline_for_item(Node3D* node, bool enabled) {
+        if (node == nullptr) return;
+        std::vector<MeshInstance3D*> meshes;
+        collect_mesh_instances(node, meshes);
+        for (MeshInstance3D* mesh : meshes) {
+            if (mesh == nullptr) continue;
+            Ref<Material> overlay;
+            if (enabled) {
+                overlay = outline_material_;
+            }
+            mesh->set_material_overlay(overlay);
+        }
+    }
+
+    void clear_outline_materials() {
+        for (SceneItem& item : characters_) {
+            set_outline_for_item(item.node, false);
+        }
+        for (SceneItem& item : props_) {
+            set_outline_for_item(item.node, false);
+        }
+    }
+
+    void update_selection_outline() {
+        clear_outline_materials();
+        ensure_outline_material();
+        if (!outline_material_.is_valid()) return;
+
+        Node3D* selected_node = nullptr;
         if (selected_prop_index_ >= 0) {
-            SceneItem* p = at_prop(selected_prop_index_);
-            if (p != nullptr && p->node != nullptr) {
-                selection_marker_->set_position(pick_anchor_world(*p) + Vector3(0.0f, 0.12f, 0.0f));
-                selection_marker_->set_visible(true);
-                return;
-            }
+            if (SceneItem* p = at_prop(selected_prop_index_)) selected_node = p != nullptr ? p->node : nullptr;
+        } else if (selected_character_index_ >= 0) {
+            if (SceneItem* c = at_char(selected_character_index_)) selected_node = c != nullptr ? c->node : nullptr;
         }
+        if (selected_node == nullptr) return;
 
-        if (selected_character_index_ >= 0) {
-            SceneItem* c = at_char(selected_character_index_);
-            if (c != nullptr && c->node != nullptr) {
-                selection_marker_->set_position(pick_anchor_world(*c) + Vector3(0.0f, 0.16f, 0.0f));
-                selection_marker_->set_visible(true);
-                return;
-            }
-        }
-
-        selection_marker_->set_visible(false);
+        set_outline_for_item(selected_node, true);
     }
 
     Node3D* load_scene_node(const String& path) {
@@ -2596,12 +2813,64 @@ private:
         return nullptr;
     }
 
+    bool try_pick_bone_screen(const Vector2& screen_pos, int& out_char_index, String& out_bone_name) const {
+        if (camera_ == nullptr) return false;
+
+        bool hit = false;
+        float best_dist = std::numeric_limits<float>::infinity();
+        float best_cam_dist = std::numeric_limits<float>::infinity();
+        out_char_index = -1;
+        out_bone_name = String();
+
+        for (int char_index = 0; char_index < static_cast<int>(characters_.size()); ++char_index) {
+            const SceneItem& item = characters_[char_index];
+            if (item.node == nullptr || !item.visible) continue;
+
+            Skeleton3D* skeleton = find_first_skeleton(item.node);
+            if (skeleton == nullptr) continue;
+
+            const int bone_count = skeleton->get_bone_count();
+            for (int bone_index = 0; bone_index < bone_count; ++bone_index) {
+                const Transform3D bone_pose = skeleton->get_bone_global_pose(bone_index);
+                const Vector3 bone_world = skeleton->to_global(bone_pose.origin);
+                if (camera_->is_position_behind(bone_world)) continue;
+
+                const Vector2 projected = camera_->unproject_position(bone_world);
+                const float dist = projected.distance_to(screen_pos);
+                const float cam_dist = camera_->get_global_position().distance_to(bone_world);
+                const float threshold = CLAMP(2200.0f / MAX(1.0f, cam_dist), 14.0f, 40.0f);
+                if (dist > threshold) continue;
+
+                const bool same_dist = std::abs(dist - best_dist) <= 0.001f;
+                const bool better_hit = (dist < best_dist) || (same_dist && cam_dist < best_cam_dist);
+                if (!better_hit) continue;
+
+                hit = true;
+                best_dist = dist;
+                best_cam_dist = cam_dist;
+                out_char_index = char_index;
+                out_bone_name = skeleton->get_bone_name(bone_index);
+            }
+        }
+
+        return hit;
+    }
+
+    void select_bone_name(const String& bone_name) {
+        if (bone_name.is_empty()) return;
+        if (selected_bone_name_ == bone_name) return;
+        selected_bone_name_ = bone_name;
+        if (!suppress_bone_tree_item_selected_ && !handling_bone_tree_item_selected_) {
+            refresh_external_bone_tree();
+        }
+        emit_signal("boneSelected", selected_bone_name_);
+    }
+
     void select_first_bone_from_node(Node3D* node) {
         if (node == nullptr) return;
         if (Skeleton3D* skel = find_first_skeleton(node)) {
             if (skel->get_bone_count() > 0) {
-                selected_bone_name_ = skel->get_bone_name(0);
-                emit_signal("boneSelected", selected_bone_name_);
+                select_bone_name(skel->get_bone_name(0));
             }
         }
     }
@@ -2664,6 +2933,10 @@ private:
     double selected_bone_max_z_ = 180.0;
     String src_;
     bool show_bone_tree_ = false;
+    Tree* bone_tree_ = nullptr;
+    bool suppress_bone_tree_item_selected_ = false;
+    bool handling_bone_tree_item_selected_ = false;
+    Ref<ShaderMaterial> outline_material_;
     SubViewport* sub_viewport_ = nullptr;
     Node3D* scene_root_ = nullptr;
     Camera3D* camera_ = nullptr;

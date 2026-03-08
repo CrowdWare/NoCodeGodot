@@ -52,10 +52,10 @@ var sceneEyeButtonIdByIndex = []
 var sceneLockButtonIdByIndex = []
 var sceneVisibleByIndex = []
 var sceneLockedByIndex = []
-var sceneEyeOpenIcon = "res:/ForgePoser/assets/images/eye_open.png"
-var sceneEyeClosedIcon = "res:/ForgePoser/assets/images/eye_closed.png"
-var sceneLockOpenIcon = "res:/ForgePoser/assets/images/eye_open.png"
-var sceneLockClosedIcon = "res:/ForgePoser/assets/images/eye_closed.png"
+var sceneEyeOpenIcon = "res:/assets/images/eye_open.png"
+var sceneEyeClosedIcon = "res:/assets/images/eye_closed.png"
+var sceneLockOpenIcon = "res:/assets/images/eye_open.png"
+var sceneLockClosedIcon = "res:/assets/images/eye_closed.png"
 var currentMode = "arrange"
 var currentEditMode = "move"
 var currentTransformSpace = "world"
@@ -210,10 +210,15 @@ fun applyTransformSpace(index) {
 }
 
 fun selectFirstSceneAsset() {
-    if (editor.getSceneCharacterCount() > 0) {
-        selectedSceneAssetIndex = 0
-        editor.selectSceneCharacter(0)
-        updateInspectorFromSelection()
+    var charCount = editor.getSceneCharacterCount()
+    if (charCount > 0) {
+        selectSceneAssetByIndex(0)
+        return
+    }
+
+    var propCount = editor.getScenePropCount()
+    if (propCount > 0 && currentMode == "arrange") {
+        selectSceneAssetByIndex(charCount)
     }
 }
 
@@ -766,12 +771,14 @@ fun focusChooserDefaultButton() {
 fun openProjectPath(path) {
     var ok = editor.loadProject(path)
     if (!ok) {
+        statusLabel.text = "Open failed: " + path
         return false
     }
 
     currentProjectPath = path
     saveLastProjectPath(path)
     pullAiSceneProperties()
+    statusLabel.text = "Loaded items: c=" + editor.getSceneCharacterCount() + " p=" + editor.getScenePropCount()
     applyInitialPoseAfterLoad()
     updateScenePanel()
     updateKeyframeTree()
@@ -943,12 +950,10 @@ fun selectSceneAssetByIndex(index) {
         statusLabel.text = "Character selected: " + index
     } else {
         var propIdx = index - charCount
-        if (currentMode == "arrange") {
-            editor.setJointSpheresVisible(false)
-            editor.selectSceneProp(propIdx)
-            updateInspectorFromSelection()
-            statusLabel.text = "Prop selected: " + propIdx
-        }
+        editor.setJointSpheresVisible(false)
+        editor.selectSceneProp(propIdx)
+        updateInspectorFromSelection()
+        statusLabel.text = "Prop selected: " + propIdx
     }
 }
 
@@ -1461,21 +1466,20 @@ on keyframeTree.itemSelected() {
 }
 
 on boneTree.itemSelected() {
-    // Bone rotation drag works only in pose mode.
-    if (currentMode != "pose") {
-        activatePoseMode()
-        statusLabel.text = "Pose Mode"
-    }
+    // Keep current mode; selecting a bone in the tree must not force a mode switch.
 }
 
 // ── Mode toolbar ──────────────────────────────────────────────────────────
 
 on btnPoseMode.clicked() {
+    log.info("btnPoseMode.clicked (before) mode=" + currentMode + " pose=" + ui.getObject("btnPoseMode").buttonPressed + " arrange=" + ui.getObject("btnArrangeMode").buttonPressed)
     activatePoseMode()
+    log.info("btnPoseMode.clicked (after) mode=" + currentMode + " pose=" + ui.getObject("btnPoseMode").buttonPressed + " arrange=" + ui.getObject("btnArrangeMode").buttonPressed)
     statusLabel.text = "Pose Mode"
 }
 
 on btnArrangeMode.clicked() {
+    log.info("btnArrangeMode.clicked (before) mode=" + currentMode + " pose=" + ui.getObject("btnPoseMode").buttonPressed + " arrange=" + ui.getObject("btnArrangeMode").buttonPressed)
     activateArrangeMove()
     // Re-attach gizmo to already-selected scene asset (if any)
     var sel = selectedSceneAssetIndex
@@ -1491,31 +1495,58 @@ on btnArrangeMode.clicked() {
         }
     }
     updateInspectorFromSelection()
+    log.info("btnArrangeMode.clicked (after) mode=" + currentMode + " pose=" + ui.getObject("btnPoseMode").buttonPressed + " arrange=" + ui.getObject("btnArrangeMode").buttonPressed)
     statusLabel.text = "Arrange Mode"
 }
 
 on btnModeMove.clicked() {
+    log.info("btnModeMove.clicked (before) edit=" + currentEditMode + " move=" + ui.getObject("btnModeMove").buttonPressed + " scale=" + ui.getObject("btnModeScale").buttonPressed + " rotate=" + ui.getObject("btnModeRotate").buttonPressed)
     currentEditMode = "move"
     ui.getObject("btnModeMove").buttonPressed = true
     ui.getObject("btnModeScale").buttonPressed = false
     ui.getObject("btnModeRotate").buttonPressed = false
     editor.setEditMode("move")
+    log.info("btnModeMove.clicked (after) edit=" + currentEditMode + " move=" + ui.getObject("btnModeMove").buttonPressed + " scale=" + ui.getObject("btnModeScale").buttonPressed + " rotate=" + ui.getObject("btnModeRotate").buttonPressed)
 }
 
 on btnModeScale.clicked() {
+    log.info("btnModeScale.clicked (before) edit=" + currentEditMode + " move=" + ui.getObject("btnModeMove").buttonPressed + " scale=" + ui.getObject("btnModeScale").buttonPressed + " rotate=" + ui.getObject("btnModeRotate").buttonPressed)
     currentEditMode = "scale"
     ui.getObject("btnModeMove").buttonPressed = false
     ui.getObject("btnModeScale").buttonPressed = true
     ui.getObject("btnModeRotate").buttonPressed = false
     editor.setEditMode("scale")
+    log.info("btnModeScale.clicked (after) edit=" + currentEditMode + " move=" + ui.getObject("btnModeMove").buttonPressed + " scale=" + ui.getObject("btnModeScale").buttonPressed + " rotate=" + ui.getObject("btnModeRotate").buttonPressed)
 }
 
 on btnModeRotate.clicked() {
+    log.info("btnModeRotate.clicked (before) edit=" + currentEditMode + " move=" + ui.getObject("btnModeMove").buttonPressed + " scale=" + ui.getObject("btnModeScale").buttonPressed + " rotate=" + ui.getObject("btnModeRotate").buttonPressed)
     currentEditMode = "rotate"
     ui.getObject("btnModeMove").buttonPressed = false
     ui.getObject("btnModeScale").buttonPressed = false
     ui.getObject("btnModeRotate").buttonPressed = true
     editor.setEditMode("rotate")
+    log.info("btnModeRotate.clicked (after) edit=" + currentEditMode + " move=" + ui.getObject("btnModeMove").buttonPressed + " scale=" + ui.getObject("btnModeScale").buttonPressed + " rotate=" + ui.getObject("btnModeRotate").buttonPressed)
+}
+
+on btnPoseMode.toggled(value) {
+    log.info("btnPoseMode.toggled value=" + value + " mode=" + currentMode)
+}
+
+on btnArrangeMode.toggled(value) {
+    log.info("btnArrangeMode.toggled value=" + value + " mode=" + currentMode)
+}
+
+on btnModeMove.toggled(value) {
+    log.info("btnModeMove.toggled value=" + value + " edit=" + currentEditMode)
+}
+
+on btnModeScale.toggled(value) {
+    log.info("btnModeScale.toggled value=" + value + " edit=" + currentEditMode)
+}
+
+on btnModeRotate.toggled(value) {
+    log.info("btnModeRotate.toggled value=" + value + " edit=" + currentEditMode)
 }
 
 on transformSpaceSelect.itemSelected(index) {

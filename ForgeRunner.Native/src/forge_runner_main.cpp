@@ -11,6 +11,7 @@
 #include <string>
 
 #include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/base_button.hpp>
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
 #include <godot_cpp/classes/http_request.hpp>
@@ -25,6 +26,7 @@
 #include <godot_cpp/classes/spin_box.hpp>
 #include <godot_cpp/classes/text_edit.hpp>
 #include <godot_cpp/classes/timer.hpp>
+#include <godot_cpp/classes/tree.hpp>
 #include <godot_cpp/classes/v_box_container.hpp>
 #include <godot_cpp/classes/window.hpp>
 #include <godot_cpp/core/class_db.hpp>
@@ -51,6 +53,8 @@ void ForgeRunnerNativeMain::_bind_methods() {
                          &ForgeRunnerNativeMain::on_sms_value_event);
     ClassDB::bind_method(D_METHOD("on_sms_item_event", "index", "object_id", "event_name"),
                          &ForgeRunnerNativeMain::on_sms_item_event);
+    ClassDB::bind_method(D_METHOD("on_sms_tree_button_clicked", "item", "column", "id", "mouse_button_index", "object_id", "event_name"),
+                         &ForgeRunnerNativeMain::on_sms_tree_button_clicked);
 }
 
 // ---------------------------------------------------------------------------
@@ -342,8 +346,8 @@ void ForgeRunnerNativeMain::start_sms(const std::string& sml_path, const std::st
                     .bind(gid, String(event)));
         };
 
-        if (auto* btn = Object::cast_to<Button>(ctrl)) {
-            cb0(btn,   "pressed",  "pressed");
+        if (auto* btn = Object::cast_to<BaseButton>(ctrl)) {
+            cb0(btn,   "pressed",  "clicked");
             cbBool(btn, "toggled", "toggled");
         }
         if (auto* le = Object::cast_to<LineEdit>(ctrl)) {
@@ -364,6 +368,12 @@ void ForgeRunnerNativeMain::start_sms(const std::string& sml_path, const std::st
         }
         if (auto* il = Object::cast_to<ItemList>(ctrl)) {
             cbItem(il, "item_selected", "itemSelected");
+        }
+        if (auto* tree = Object::cast_to<Tree>(ctrl)) {
+            cb0(tree, "item_selected", "itemSelected");
+            tree->connect("button_clicked",
+                callable_mp(this, &ForgeRunnerNativeMain::on_sms_tree_button_clicked)
+                    .bind(gid, String("treeItemToggled")));
         }
 
         if (ctrl->has_signal("boneSelected"))      cbText(ctrl, "boneSelected", "boneSelected");
@@ -455,6 +465,12 @@ void ForgeRunnerNativeMain::on_sms_item_text_event(int index, String text, Strin
         else                escaped += static_cast<char>(c);
     }
     const std::string payload = "[" + std::to_string(index) + ",\"" + escaped + "\"]";
+    sms_bridge_.dispatch_event(sms_session_,
+        object_id.utf8().get_data(), event_name.utf8().get_data(), payload);
+}
+
+void ForgeRunnerNativeMain::on_sms_tree_button_clicked(TreeItem*, int, int id, int, String object_id, String event_name) {
+    const std::string payload = "[" + std::to_string(id) + ",false]";
     sms_bridge_.dispatch_event(sms_session_,
         object_id.utf8().get_data(), event_name.utf8().get_data(), payload);
 }

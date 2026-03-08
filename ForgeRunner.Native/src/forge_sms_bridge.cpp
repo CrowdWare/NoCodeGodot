@@ -1,4 +1,5 @@
 #include "forge_sms_bridge.h"
+#include "forge_path_resolver.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -8,6 +9,8 @@
 #include <fstream>
 #include <limits>
 #include <sstream>
+#include <unordered_map>
+#include <unordered_set>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -16,6 +19,7 @@
 #endif
 
 #include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/base_button.hpp>
 #include <godot_cpp/classes/check_box.hpp>
 #include <godot_cpp/classes/check_button.hpp>
 #include <godot_cpp/classes/control.hpp>
@@ -30,6 +34,13 @@
 #include <godot_cpp/classes/slider.hpp>
 #include <godot_cpp/classes/spin_box.hpp>
 #include <godot_cpp/classes/text_edit.hpp>
+#include <godot_cpp/classes/texture2d.hpp>
+#include <godot_cpp/classes/image.hpp>
+#include <godot_cpp/classes/image_texture.hpp>
+#include <godot_cpp/classes/tree.hpp>
+#include <godot_cpp/classes/tree_item.hpp>
+#include <godot_cpp/classes/resource.hpp>
+#include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
 namespace fs = std::filesystem;
@@ -80,6 +91,74 @@ static Variant parse_json_variant(const std::string& json_value, bool* ok = null
     const bool parsed_ok = !(parsed.get_type() == Variant::NIL && json_value != "null");
     if (ok) *ok = parsed_ok;
     return parsed_ok ? parsed : Variant();
+}
+
+static std::unordered_map<std::int64_t, TreeItem*>& tree_item_handles() {
+    static std::unordered_map<std::int64_t, TreeItem*> handles;
+    return handles;
+}
+
+static std::int64_t& next_tree_item_handle() {
+    static std::int64_t next = 1;
+    return next;
+}
+
+static std::int64_t register_tree_item_handle(TreeItem* item) {
+    if (item == nullptr) return 0;
+    const std::int64_t handle = next_tree_item_handle()++;
+    tree_item_handles()[handle] = item;
+    return handle;
+}
+
+static String app_url_base_dir() {
+    const char* env = std::getenv("FORGE_RUNNER_URL");
+    if (env == nullptr || env[0] == '\0') return String();
+    std::string url(env);
+    if (url.rfind("file://", 0) != 0) return String();
+    std::string path = url.substr(7);
+    return String(fs::path(path).parent_path().string().c_str());
+}
+
+static String appres_root_dir() {
+    const char* appres = std::getenv("FORGE_RUNNER_APPRES_ROOT");
+    if (appres == nullptr || appres[0] == '\0') return String();
+    return String(appres);
+}
+
+static Ref<Texture2D> load_texture_best_effort(const String& raw_path) {
+    if (raw_path.is_empty()) return Ref<Texture2D>();
+    const String base_dir = app_url_base_dir();
+    const String appres_root = appres_root_dir();
+    const std::string resolved = forge::resolve_runtime_asset_path(
+        raw_path.utf8().get_data(),
+        base_dir.utf8().get_data(),
+        appres_root.utf8().get_data());
+    if (resolved.empty()) return Ref<Texture2D>();
+
+    const String resolved_path(resolved.c_str());
+    if (!FileAccess::file_exists(resolved_path)) {
+        static std::unordered_set<std::string> warned_missing;
+        if (warned_missing.insert(resolved).second) {
+            UtilityFunctions::push_warning(String("[ForgeRunner.Native] Missing tree icon: ") + resolved_path);
+        }
+        return Ref<Texture2D>();
+    }
+
+    Ref<Image> img;
+    img.instantiate();
+    if (img.is_null() || img->load(resolved_path) != OK) {
+        static std::unordered_set<std::string> warned_unreadable;
+        if (warned_unreadable.insert(resolved).second) {
+            UtilityFunctions::push_warning(String("[ForgeRunner.Native] Failed to read tree icon: ") + resolved_path);
+        }
+        return Ref<Texture2D>();
+    }
+    Ref<ImageTexture> tex;
+    tex.instantiate();
+    if (tex.is_null()) return Ref<Texture2D>();
+    tex->set_image(img);
+    Ref<Texture2D> out = tex;
+    return out;
 }
 
 // Strip surrounding double-quotes from a JSON string value.
@@ -187,11 +266,11 @@ static int sms_ui_get(
         result = buf;
     } else if (prop == "checked" || prop == "buttonPressed") {
         bool pressed = false;
-        if (auto* btn = Object::cast_to<Button>(ctrl)) pressed = btn->is_pressed();
+        if (auto* btn = Object::cast_to<BaseButton>(ctrl)) pressed = btn->is_pressed();
         result = pressed ? "true" : "false";
     } else if (prop == "disabled") {
         bool dis = false;
-        if (auto* btn = Object::cast_to<Button>(ctrl)) dis = btn->is_disabled();
+        if (auto* btn = Object::cast_to<BaseButton>(ctrl)) dis = btn->is_disabled();
         result = dis ? "true" : "false";
     } else if (prop == "selectedIndex") {
         int idx = -1;
@@ -252,10 +331,10 @@ static int sms_ui_set(
         else if (auto* sl = Object::cast_to<Slider>(ctrl))        sl->set_value(v);
         else if (auto* pb = Object::cast_to<ProgressBar>(ctrl))   pb->set_value(v);
     } else if (prop == "checked" || prop == "buttonPressed") {
-        if (auto* btn = Object::cast_to<Button>(ctrl))
+        if (auto* btn = Object::cast_to<BaseButton>(ctrl))
             btn->set_pressed(value == "true" || value == "1");
     } else if (prop == "disabled") {
-        if (auto* btn = Object::cast_to<Button>(ctrl))
+        if (auto* btn = Object::cast_to<BaseButton>(ctrl))
             btn->set_disabled(value == "true" || value == "1");
     } else if (prop == "selectedIndex") {
         int idx = 0;
@@ -307,6 +386,113 @@ static int sms_ui_invoke(
     } else if (mname == "scrollToBottom") {
         if (auto* sc = Object::cast_to<ScrollContainer>(ctrl))
             sc->set_v_scroll(std::numeric_limits<int>::max());
+    } else if (auto* tree = Object::cast_to<Tree>(ctrl)) {
+        if (mname == "Clear" || mname == "clear") {
+            tree->clear();
+            tree_item_handles().clear();
+            write_out(out_json, out_cap, "null");
+            return 0;
+        }
+        if (mname == "CreateRoot") {
+            bool parsed_ok = false;
+            const Variant parsed = parse_json_variant(args, &parsed_ok);
+            if (!parsed_ok || parsed.get_type() != Variant::ARRAY) {
+                write_out(out_json, out_cap, "0");
+                return 0;
+            }
+            const Array arr = parsed;
+            const String text = arr.size() > 0 ? static_cast<String>(arr[0]) : String();
+            const String path = arr.size() > 1 ? static_cast<String>(arr[1]) : String();
+
+            TreeItem* item = tree->create_item();
+            if (item != nullptr) {
+                item->set_text(0, text);
+                item->set_collapsed(false);
+                item->set_metadata(0, path);
+            }
+            const std::int64_t handle = register_tree_item_handle(item);
+            write_out(out_json, out_cap, std::to_string(static_cast<long long>(handle)));
+            return 0;
+        }
+        if (mname == "CreateChild") {
+            bool parsed_ok = false;
+            const Variant parsed = parse_json_variant(args, &parsed_ok);
+            if (!parsed_ok || parsed.get_type() != Variant::ARRAY) {
+                write_out(out_json, out_cap, "0");
+                return 0;
+            }
+            const Array arr = parsed;
+            if (arr.size() < 4) {
+                write_out(out_json, out_cap, "0");
+                return 0;
+            }
+
+            const std::int64_t parent_handle = static_cast<std::int64_t>(arr[0]);
+            auto parent_it = tree_item_handles().find(parent_handle);
+            if (parent_it == tree_item_handles().end() || parent_it->second == nullptr) {
+                write_out(out_json, out_cap, "0");
+                return 0;
+            }
+
+            const String text = static_cast<String>(arr[1]);
+            const String path = static_cast<String>(arr[2]);
+            const bool is_directory = static_cast<bool>(arr[3]);
+
+            TreeItem* item = tree->create_item(parent_it->second);
+            if (item != nullptr) {
+                item->set_text(0, is_directory ? (text + String("/")) : text);
+                item->set_metadata(0, path);
+                item->set_collapsed(true);
+            }
+            const std::int64_t handle = register_tree_item_handle(item);
+            write_out(out_json, out_cap, std::to_string(static_cast<long long>(handle)));
+            return 0;
+        }
+        if (mname == "AddButton") {
+            bool parsed_ok = false;
+            const Variant parsed = parse_json_variant(args, &parsed_ok);
+            if (!parsed_ok || parsed.get_type() != Variant::ARRAY) {
+                write_out(out_json, out_cap, "false");
+                return 0;
+            }
+            const Array arr = parsed;
+            if (arr.size() < 3) {
+                write_out(out_json, out_cap, "false");
+                return 0;
+            }
+
+            const std::int64_t item_handle = static_cast<std::int64_t>(arr[0]);
+            auto item_it = tree_item_handles().find(item_handle);
+            if (item_it == tree_item_handles().end() || item_it->second == nullptr) {
+                write_out(out_json, out_cap, "false");
+                return 0;
+            }
+
+            const String icon_path = static_cast<String>(arr[1]);
+            const int button_id = static_cast<int>(arr[2]);
+            const String tooltip = arr.size() > 3 ? static_cast<String>(arr[3]) : String();
+
+            Ref<Texture2D> icon = load_texture_best_effort(icon_path);
+            if (icon.is_null()) {
+                write_out(out_json, out_cap, "false");
+                return 0;
+            }
+
+            item_it->second->add_button(0, icon, button_id, false, tooltip);
+            write_out(out_json, out_cap, "true");
+            return 0;
+        }
+        if (mname == "GetSelectedPath") {
+            TreeItem* selected = tree->get_selected();
+            const String path = selected != nullptr ? static_cast<String>(selected->get_metadata(0)) : String();
+            write_out(out_json, out_cap, variant_to_json(path));
+            return 0;
+        }
+        if (mname == "BindEvents") {
+            // Events are wired by the native runner bootstrap where applicable.
+            write_out(out_json, out_cap, "null");
+            return 0;
+        }
     } else if (mname == "clearItems") {
         if      (auto* ob = Object::cast_to<OptionButton>(ctrl)) ob->clear();
         else if (auto* il = Object::cast_to<ItemList>(ctrl))     il->clear();
