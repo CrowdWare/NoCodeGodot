@@ -57,6 +57,15 @@ IdMap& SmsBridge::id_map() {
     return s_map;
 }
 
+static UiOpenDialogHook& ui_open_dialog_hook() {
+    static UiOpenDialogHook hook = nullptr;
+    return hook;
+}
+
+void set_ui_open_dialog_hook(UiOpenDialogHook hook) {
+    ui_open_dialog_hook() = hook;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -369,6 +378,52 @@ static int sms_ui_invoke(
             UtilityFunctions::print(String(("\x1b[32m" + msg + "\x1b[0m").c_str()));
         } else {
             UtilityFunctions::print(String(msg.c_str()));
+        }
+        write_out(out_json, out_cap, "null");
+        return 0;
+    }
+
+    if (id == "__ui__" || id == "ui") {
+        bool parsed_ok = false;
+        const Variant parsed = parse_json_variant(args, &parsed_ok);
+        const Array arr = (parsed_ok && parsed.get_type() == Variant::ARRAY) ? static_cast<Array>(parsed) : Array();
+        auto arg_string = [&](int idx) -> std::string {
+            if (idx < 0 || idx >= arr.size()) return {};
+            return static_cast<String>(arr[idx]).utf8().get_data();
+        };
+        static std::string s_last_project_path;
+
+        if (mname == "getObject") {
+            write_out(out_json, out_cap, json_string(arg_string(0)));
+            return 0;
+        }
+        if (mname == "setLastProjectPath") {
+            s_last_project_path = arg_string(0);
+            write_out(out_json, out_cap, "null");
+            return 0;
+        }
+        if (mname == "getLastProjectPath") {
+            write_out(out_json, out_cap, json_string(s_last_project_path));
+            return 0;
+        }
+        if (mname == "hasLastProject") {
+            write_out(out_json, out_cap, s_last_project_path.empty() ? "false" : "true");
+            return 0;
+        }
+        if (mname == "openFileDialog" || mname == "openSaveFileDialog") {
+            const auto cb = arg_string(0);
+            const auto filter = arg_string(1);
+            if (auto hook = ui_open_dialog_hook()) {
+                hook(cb, filter, mname == "openSaveFileDialog");
+            } else {
+                UtilityFunctions::push_warning("[ForgeRunner.Native] ui.open*FileDialog hook is not set.");
+            }
+            write_out(out_json, out_cap, "null");
+            return 0;
+        }
+        if (mname == "copyTemplateFilesToProject") {
+            write_out(out_json, out_cap, "true");
+            return 0;
         }
         write_out(out_json, out_cap, "null");
         return 0;

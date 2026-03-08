@@ -17,6 +17,7 @@
 namespace godot {
 class Control;
 class HTTPRequest;
+class FileDialog;
 class ProgressBar;
 class Timer;
 class TreeItem;
@@ -40,6 +41,11 @@ public:
     void on_sms_value_event(double value, godot::String object_id, godot::String event_name);
     void on_sms_item_event(int index, godot::String object_id, godot::String event_name);
     void on_sms_item_text_event(int index, godot::String text, godot::String object_id, godot::String event_name);
+    void on_sms_popup_item_selected(int id, godot::String object_id, godot::String event_name);
+    void on_sms_popup_item_selected_by_index(int index, godot::String object_id, godot::String event_name);
+    void on_sms_file_dialog_selected(godot::String path, godot::String callback_name, int64_t dialog_id);
+    void on_sms_file_dialog_canceled(godot::String callback_name, int64_t dialog_id);
+    void open_sms_file_dialog(const std::string& callback_name, const std::string& filter, bool save_mode);
     void on_sms_tree_button_clicked(godot::TreeItem* item, int column, int id, int mouse_button_index, godot::String object_id, godot::String event_name);
 
 private:
@@ -71,6 +77,9 @@ private:
     int                                    download_retry_     = 0;
     godot::HTTPRequest*         http_request_       = nullptr;
     godot::ProgressBar*         splash_progress_    = nullptr;
+    std::unordered_map<std::string, std::unordered_map<int, std::string>> popup_item_id_map_;
+    std::unordered_map<std::string, std::unordered_map<int, int>> popup_item_index_to_id_map_;
+    std::unordered_map<std::int64_t, godot::FileDialog*> open_file_dialogs_;
 
     // ----- Helpers -----
 
@@ -82,6 +91,7 @@ private:
     void show_error(const std::string& msg);
     void on_splash_timeout();
     void start_sms(const std::string& sml_path, const std::string& root_name, const std::string& root_id);
+    void bind_popup_menu_events(godot::Node* node);
     void stop_sms();
 
     // ----- HTTP / Manifest download -----

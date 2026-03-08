@@ -8,6 +8,9 @@ namespace godot { class Control; }
 
 namespace forge {
 
+using UiOpenDialogHook = void (*)(const std::string& callback_name, const std::string& filter, bool save_mode);
+void set_ui_open_dialog_hook(UiOpenDialogHook hook);
+
 /// Maps SML id strings to live Godot Control pointers.
 using IdMap = std::unordered_map<std::string, godot::Control*>;
 

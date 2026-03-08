@@ -814,6 +814,9 @@ on menuOpen.clicked() {
 fun onProjectFileSelected(path) {
     openProjectPath(path)
 }
+on ui.onProjectFileSelected(path) {
+    onProjectFileSelected(path)
+}
 
 fun onProjectCreatePathSelected(path) {
     editor.resetPose()
@@ -830,6 +833,9 @@ fun onProjectCreatePathSelected(path) {
     refreshDockingVisuals()
     updateInspectorFromSelection()
     statusLabel.text = "Created: " + path
+}
+on ui.onProjectCreatePathSelected(path) {
+    onProjectCreatePathSelected(path)
 }
 
 fun saveProjectFlow(path, fromSaveAs) {
@@ -873,6 +879,9 @@ on menuSaveAs.clicked() {
 fun onSavePathSelected(path) {
     saveProjectFlow(path, true)
 }
+on ui.onSavePathSelected(path) {
+    onSavePathSelected(path)
+}
 
 on menuOpenGlb.clicked() {
     if (currentProjectPath == "") {
@@ -905,6 +914,9 @@ fun onModelFileSelected(path) {
     }
     syncSceneToSource()
     statusLabel.text = "Loaded: " + path
+}
+on ui.onModelFileSelected(path) {
+    onModelFileSelected(path)
 }
 
 // ── Scene panel ───────────────────────────────────────────────────────────────
@@ -1124,6 +1136,9 @@ fun onScenePropSelected(path) {
     }
     syncSceneToSource()
 }
+on ui.onScenePropSelected(path) {
+    onScenePropSelected(path)
+}
 
 fun addGreyboxPaletteItem(kind, label) {
     if (currentProjectPath == "") {
@@ -1301,6 +1316,9 @@ fun onStyleImageSelected(path) {
     refreshPromptPanelFromState()
     statusLabel.text = "Style image: " + aiStyleImagePath
 }
+on ui.onStyleImageSelected(path) {
+    onStyleImageSelected(path)
+}
 
 fun onExtraImageSelected(path) {
     if (path == "") {
@@ -1310,6 +1328,9 @@ fun onExtraImageSelected(path) {
     pushAiSceneProperties()
     refreshPromptPanelFromState()
     statusLabel.text = "Extra image: " + aiExtraImagePath
+}
+on ui.onExtraImageSelected(path) {
+    onExtraImageSelected(path)
 }
 
 on inspPosX.textChanged(newText) {

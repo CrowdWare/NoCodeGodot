@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <iomanip>
 #include <limits>
 #include <map>
 #include <sstream>
@@ -1831,8 +1832,21 @@ public:
         emit_signal("poseReset");
     }
 
-    String get_project_text(const String&) const { return String(); }
-    bool apply_project_text(const String&, const String&, bool) { return true; }
+    String get_project_text(const String& path) const {
+        return String(build_project_text(path).c_str());
+    }
+
+    bool apply_project_text(const String& path, const String& text, bool) {
+        if (path.is_empty()) return false;
+        Ref<FileAccess> file = FileAccess::open(path, FileAccess::WRITE);
+        if (!file.is_valid()) {
+            UtilityFunctions::push_warning(String("[ForgeRunner.Native] applyProjectText failed to open: ") + path);
+            return false;
+        }
+        file->store_string(text);
+        file.unref();
+        return load_project(path);
+    }
     bool load_project(const String& path) {
         if (path.is_empty()) return false;
         UtilityFunctions::print(String("[ForgeRunner.Native] PosingEditor.loadProject: ") + path);
@@ -1873,6 +1887,10 @@ public:
             }
         }
         if (scene == nullptr) return false;
+        scene_properties_.clear();
+        for (const auto& prop : scene->properties) {
+            scene_properties_[prop.name] = prop.value;
+        }
 
         const std::string project_path = path.utf8().get_data();
         for (const auto& child : scene->children) {
@@ -1930,7 +1948,16 @@ public:
         UtilityFunctions::print(String("[ForgeRunner.Native] PosingEditor.loadProject done: chars=") + String::num_int64(characters_.size()) + " props=" + String::num_int64(props_.size()));
         return true;
     }
-    bool save_project(const String&) { return true; }
+    bool save_project(const String& path) {
+        if (path.is_empty()) return false;
+        Ref<FileAccess> file = FileAccess::open(path, FileAccess::WRITE);
+        if (!file.is_valid()) {
+            UtilityFunctions::push_warning(String("[ForgeRunner.Native] saveProject failed to open: ") + path);
+            return false;
+        }
+        file->store_string(get_project_text(path));
+        return true;
+    }
 
     int add_scene_asset(const String& path, double x, double y, double z) {
         ensure_viewport_scene();
@@ -2204,6 +2231,110 @@ public:
 private:
     static int parse_int_safe(const std::string& value, int fallback) {
         try { return std::stoi(value); } catch (...) { return fallback; }
+    }
+
+    static std::string sml_escape(const String& value) {
+        const std::string raw = value.utf8().get_data();
+        std::string out;
+        out.reserve(raw.size() + 8);
+        for (char c : raw) {
+            if (c == '\\') out += "\\\\";
+            else if (c == '"') out += "\\\"";
+            else if (c == '\n') out += "\\n";
+            else if (c == '\r') out += "\\r";
+            else out += c;
+        }
+        return out;
+    }
+
+    static std::string fmt_num(float value) {
+        std::ostringstream ss;
+        ss << std::setprecision(7) << value;
+        return ss.str();
+    }
+
+    static std::string normalize_slashes(std::string value) {
+        std::replace(value.begin(), value.end(), '\\', '/');
+        return value;
+    }
+
+    static bool starts_with(const std::string& value, const std::string& prefix) {
+        return value.size() >= prefix.size() && value.compare(0, prefix.size(), prefix) == 0;
+    }
+
+    static std::string dirname_from_path(const String& path) {
+        return std::filesystem::path(path.utf8().get_data()).parent_path().string();
+    }
+
+    std::string serialize_scene_path(const String& raw_path, const String& project_path) const {
+        const std::string raw = raw_path.utf8().get_data();
+        if (raw.empty()) return raw;
+        if (starts_with(raw, "builtin:")) return raw;
+        if (starts_with(raw, "res:/") || starts_with(raw, "res://")) return raw;
+        if (project_path.is_empty()) return raw;
+
+        std::error_code ec;
+        const std::filesystem::path base_path = std::filesystem::weakly_canonical(dirname_from_path(project_path), ec);
+        if (ec) return raw;
+        const std::filesystem::path abs_path = std::filesystem::weakly_canonical(raw, ec);
+        if (ec) return raw;
+
+        const std::string base = normalize_slashes(base_path.string());
+        const std::string abs = normalize_slashes(abs_path.string());
+        if (!starts_with(abs, base)) return raw;
+
+        std::string rel = abs.substr(base.size());
+        while (!rel.empty() && rel[0] == '/') rel.erase(rel.begin());
+        return "res:/" + rel;
+    }
+
+    std::string build_project_text(const String& project_path) const {
+        std::ostringstream out;
+        out << "Scene {\n";
+
+        const auto fps_it = scene_properties_.find("fps");
+        const auto total_it = scene_properties_.find("totalFrames");
+        out << "    fps: " << (fps_it != scene_properties_.end() ? fps_it->second : "24") << "\n";
+        out << "    totalFrames: " << (total_it != scene_properties_.end() ? total_it->second : "120") << "\n";
+        for (const auto& [key, value] : scene_properties_) {
+            if (key == "fps" || key == "totalFrames") continue;
+            out << "    " << key << ": \"" << sml_escape(String(value.c_str())) << "\"\n";
+        }
+        out << "\n";
+
+        for (size_t i = 0; i < characters_.size(); ++i) {
+            const SceneItem& c = characters_[i];
+            const String id = c.id.is_empty() ? String(("char" + std::to_string(i + 1)).c_str()) : c.id;
+            const String name = c.name.is_empty() ? String(("Character " + std::to_string(i + 1)).c_str()) : c.name;
+            const std::string src = serialize_scene_path(c.path, project_path);
+
+            out << "    Character {\n";
+            out << "        id: " << id.utf8().get_data() << "  name: \"" << sml_escape(name) << "\"  src: \"" << sml_escape(String(src.c_str())) << "\"\n";
+            out << "        pos: " << fmt_num(c.px) << ", " << fmt_num(c.py) << ", " << fmt_num(c.pz) << "\n";
+            out << "        rot: " << fmt_num(c.rx) << ", " << fmt_num(c.ry) << ", " << fmt_num(c.rz) << "\n";
+            out << "        scale: " << fmt_num(c.sx) << ", " << fmt_num(c.sy) << ", " << fmt_num(c.sz) << "\n";
+            out << "\n";
+            out << "        Animation {\n";
+            out << "        }\n";
+            out << "    }\n";
+        }
+
+        for (size_t i = 0; i < props_.size(); ++i) {
+            const SceneItem& p = props_[i];
+            const String id = p.id.is_empty() ? String(("prop" + std::to_string(i)).c_str()) : p.id;
+            const String name = p.name.is_empty() ? String(("Asset " + std::to_string(i + 1)).c_str()) : p.name;
+            const std::string src = serialize_scene_path(p.path, project_path);
+
+            out << "    Asset {\n";
+            out << "        id: " << id.utf8().get_data() << "  name: \"" << sml_escape(name) << "\"  src: \"" << sml_escape(String(src.c_str())) << "\"\n";
+            out << "        pos: " << fmt_num(p.px) << ", " << fmt_num(p.py) << ", " << fmt_num(p.pz) << "\n";
+            out << "        rot: " << fmt_num(p.rx) << ", " << fmt_num(p.ry) << ", " << fmt_num(p.rz) << "\n";
+            out << "        scale: " << fmt_num(p.sx) << ", " << fmt_num(p.sy) << ", " << fmt_num(p.sz) << "\n";
+            out << "    }\n";
+        }
+
+        out << "}\n";
+        return out.str();
     }
 
     static void parse_vec3(const std::string& value, float& x, float& y, float& z) {
@@ -2956,6 +3087,7 @@ private:
     Vector2 drag_last_mouse_ = Vector2();
     int selected_character_index_ = -1;
     int selected_prop_index_ = -1;
+    std::map<std::string, std::string> scene_properties_;
     std::vector<SceneItem> characters_;
     std::vector<SceneItem> props_;
 };

@@ -1,0 +1,41 @@
+Scene {
+    fps: 24
+    totalFrames: 120
+    aiExtraImagePath: "res:/input/clothing.jpg"
+    aiImageModel: "grok-imagine-image"
+    aiNegativePrompt: ""
+    aiPrompt: "Keep exact pose and composition, camera framing, body proportions, and left-right orientation. Render photorealistic humans with realistic skin pores, hair strands, and clearly defined abdominal muscles. Match clothing design, colors, and materials from the extra image while preserving visible anatomy where appropriate. Apply only scene style, lighting, mood, and color palette from the style image. Never add UI overlays, gizmos, handles, axes, bone markers, or text."
+    aiStyleImagePath: "res:/input/style.jpg"
+    aiVideoModel: "grok-imagine-video"
+
+    Character {
+        id: char1  name: "man"  src: "res:/assets/models/man.glb"
+        pos: 2.007977, -0.0151444, 0.2353845
+        rot: 5.7, -56.55, 0
+        scale: 1, 0.9999998, 1
+
+        Animation {
+        }
+    }
+    Character {
+        id: char2  name: "man"  src: "res:/assets/models/man.glb"
+        pos: -0.6677406, -0.02019253, 1.255374
+        rot: 0, 19.65002, 0
+        scale: 1, 1, 1
+
+        Animation {
+        }
+    }
+    Asset {
+        id: prop0  name: "tree"  src: "builtin:greybox/tree"
+        pos: -3.071512, 0, -1.720766
+        rot: 0, 0, 0
+        scale: 1, 1, 1
+    }
+    Asset {
+        id: prop1  name: "tree"  src: "builtin:greybox/tree"
+        pos: 4.037174, 0, -3.477204
+        rot: 0, 0, 0
+        scale: 1, 1, 1
+    }
+}

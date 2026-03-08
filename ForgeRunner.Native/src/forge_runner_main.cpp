@@ -13,6 +13,7 @@
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/base_button.hpp>
 #include <godot_cpp/classes/control.hpp>
+#include <godot_cpp/classes/file_dialog.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
 #include <godot_cpp/classes/http_request.hpp>
 #include <godot_cpp/classes/item_list.hpp>
@@ -22,6 +23,8 @@
 #include <godot_cpp/classes/option_button.hpp>
 #include <godot_cpp/classes/progress_bar.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
+#include <godot_cpp/classes/popup_menu.hpp>
+#include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/slider.hpp>
 #include <godot_cpp/classes/spin_box.hpp>
 #include <godot_cpp/classes/text_edit.hpp>
@@ -35,6 +38,16 @@
 
 namespace fs = std::filesystem;
 using namespace godot;
+
+namespace {
+ForgeRunnerNativeMain* g_sms_main_instance = nullptr;
+
+void sms_open_dialog_hook(const std::string& callback_name, const std::string& filter, bool save_mode) {
+    if (g_sms_main_instance) {
+        g_sms_main_instance->open_sms_file_dialog(callback_name, filter, save_mode);
+    }
+}
+} // namespace
 
 // ---------------------------------------------------------------------------
 // GDClass boilerplate
@@ -53,6 +66,14 @@ void ForgeRunnerNativeMain::_bind_methods() {
                          &ForgeRunnerNativeMain::on_sms_value_event);
     ClassDB::bind_method(D_METHOD("on_sms_item_event", "index", "object_id", "event_name"),
                          &ForgeRunnerNativeMain::on_sms_item_event);
+    ClassDB::bind_method(D_METHOD("on_sms_popup_item_selected", "id", "object_id", "event_name"),
+                         &ForgeRunnerNativeMain::on_sms_popup_item_selected);
+    ClassDB::bind_method(D_METHOD("on_sms_popup_item_selected_by_index", "index", "object_id", "event_name"),
+                         &ForgeRunnerNativeMain::on_sms_popup_item_selected_by_index);
+    ClassDB::bind_method(D_METHOD("on_sms_file_dialog_selected", "path", "callback_name", "dialog_id"),
+                         &ForgeRunnerNativeMain::on_sms_file_dialog_selected);
+    ClassDB::bind_method(D_METHOD("on_sms_file_dialog_canceled", "callback_name", "dialog_id"),
+                         &ForgeRunnerNativeMain::on_sms_file_dialog_canceled);
     ClassDB::bind_method(D_METHOD("on_sms_tree_button_clicked", "item", "column", "id", "mouse_button_index", "object_id", "event_name"),
                          &ForgeRunnerNativeMain::on_sms_tree_button_clicked);
 }
@@ -63,6 +84,8 @@ void ForgeRunnerNativeMain::_bind_methods() {
 
 void ForgeRunnerNativeMain::_ready() {
     UtilityFunctions::print("[ForgeRunner.Native] _ready");
+    g_sms_main_instance = this;
+    forge::set_ui_open_dialog_hook(&sms_open_dialog_hook);
 
     const char* env_url = std::getenv("FORGE_RUNNER_URL");
     if (!env_url || env_url[0] == '\0') {
@@ -304,6 +327,10 @@ void ForgeRunnerNativeMain::start_sms(const std::string& sml_path, const std::st
     sms_session_ = sms_bridge_.start_session(script.string());
     if (sms_session_ < 0) return;
 
+    popup_item_id_map_.clear();
+    popup_item_index_to_id_map_.clear();
+    bind_popup_menu_events(content_root_);
+
     // Connect signals for all id-registered controls
     const auto& id_map = forge::SmsBridge::id_map();
     for (const auto& [id, ctrl] : id_map) {
@@ -375,7 +402,6 @@ void ForgeRunnerNativeMain::start_sms(const std::string& sml_path, const std::st
                 callable_mp(this, &ForgeRunnerNativeMain::on_sms_tree_button_clicked)
                     .bind(gid, String("treeItemToggled")));
         }
-
         if (ctrl->has_signal("boneSelected"))      cbText(ctrl, "boneSelected", "boneSelected");
         if (ctrl->has_signal("poseChanged"))       cbText(ctrl, "poseChanged", "poseChanged");
         if (ctrl->has_signal("poseReset"))         cb0(ctrl, "poseReset", "poseReset");
@@ -408,7 +434,118 @@ void ForgeRunnerNativeMain::stop_sms() {
         sms_bridge_.dispose_session(sms_session_);
         sms_session_ = -1;
     }
+    for (auto& [_, dlg] : open_file_dialogs_) {
+        if (dlg) {
+            dlg->queue_free();
+        }
+    }
+    open_file_dialogs_.clear();
+    popup_item_id_map_.clear();
+    popup_item_index_to_id_map_.clear();
     forge::SmsBridge::id_map().clear();
+}
+
+void ForgeRunnerNativeMain::open_sms_file_dialog(const std::string& callback_name, const std::string& filter, bool save_mode) {
+    if (callback_name.empty()) {
+        return;
+    }
+    auto* tree = get_tree();
+    if (!tree || !tree->get_root()) {
+        UtilityFunctions::push_warning("[ForgeRunner.Native] ui.open*FileDialog: scene tree not available.");
+        return;
+    }
+
+    auto* dialog = memnew(FileDialog);
+    dialog->set_access(FileDialog::ACCESS_FILESYSTEM);
+    dialog->set_file_mode(save_mode ? FileDialog::FILE_MODE_SAVE_FILE : FileDialog::FILE_MODE_OPEN_FILE);
+    dialog->set_title(save_mode ? "Save File" : "Open File");
+    dialog->set_size(Vector2i(800, 600));
+
+    PackedStringArray filters;
+    if (!filter.empty()) {
+        std::stringstream ss(filter);
+        std::string token;
+        while (std::getline(ss, token, ',')) {
+            const auto start = token.find_first_not_of(" \t\r\n");
+            if (start == std::string::npos) {
+                token.clear();
+            } else {
+                token.erase(0, start);
+                const auto end = token.find_last_not_of(" \t\r\n");
+                token.erase(end + 1);
+            }
+            if (!token.empty()) {
+                filters.push_back(String(token.c_str()));
+            }
+        }
+    }
+    if (filters.size() == 0) {
+        filters.push_back(save_mode ? String("*.scene") : String("*.*"));
+    }
+    dialog->set_filters(filters);
+
+    tree->get_root()->add_child(dialog);
+    const int64_t dialog_id = static_cast<int64_t>(dialog->get_instance_id());
+    open_file_dialogs_[dialog_id] = dialog;
+    const String cb(callback_name.c_str());
+    dialog->connect("file_selected",
+        callable_mp(this, &ForgeRunnerNativeMain::on_sms_file_dialog_selected).bind(cb, dialog_id));
+    dialog->connect("canceled",
+        callable_mp(this, &ForgeRunnerNativeMain::on_sms_file_dialog_canceled).bind(cb, dialog_id));
+    dialog->call_deferred("popup_centered");
+}
+
+void ForgeRunnerNativeMain::bind_popup_menu_events(Node* node) {
+    if (!node) return;
+
+    if (auto* popup = Object::cast_to<PopupMenu>(node)) {
+        String popup_id;
+        if (popup->has_meta("sml_id")) {
+            const Variant popup_meta = popup->get_meta("sml_id");
+            if (popup_meta.get_type() == Variant::STRING) {
+                popup_id = popup_meta;
+            }
+        }
+        if (popup_id.is_empty()) {
+            popup_id = popup->get_name();
+        }
+
+        const std::string popup_key = popup_id.utf8().get_data();
+        if (!popup_key.empty()) {
+            auto& map = popup_item_id_map_[popup_key];
+            auto& index_map = popup_item_index_to_id_map_[popup_key];
+            map.clear();
+            index_map.clear();
+            const int count = popup->get_item_count();
+            for (int i = 0; i < count; ++i) {
+                const int item_id = popup->get_item_id(i);
+                index_map[i] = item_id;
+                String item_sml_id;
+                const Variant md = popup->get_item_metadata(i);
+                if (md.get_type() == Variant::STRING) {
+                    item_sml_id = md;
+                }
+                if (item_sml_id.is_empty()) {
+                    item_sml_id = popup->get_item_text(i);
+                }
+                if (!item_sml_id.is_empty()) {
+                    map[item_id] = item_sml_id.utf8().get_data();
+                }
+            }
+
+            popup->connect(
+                "id_pressed",
+                callable_mp(this, &ForgeRunnerNativeMain::on_sms_popup_item_selected)
+                    .bind(popup_id, String("menuItemSelected")));
+        }
+    }
+
+    const int child_count = node->get_child_count();
+    for (int i = 0; i < child_count; ++i) {
+        if (auto* child = Object::cast_to<Node>(node->get_child(i))) {
+            bind_popup_menu_events(child);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -467,6 +604,81 @@ void ForgeRunnerNativeMain::on_sms_item_text_event(int index, String text, Strin
     const std::string payload = "[" + std::to_string(index) + ",\"" + escaped + "\"]";
     sms_bridge_.dispatch_event(sms_session_,
         object_id.utf8().get_data(), event_name.utf8().get_data(), payload);
+}
+
+void ForgeRunnerNativeMain::on_sms_popup_item_selected(int id, String object_id, String event_name) {
+    String clicked = String::num_int64(id);
+    const auto popup_it = popup_item_id_map_.find(object_id.utf8().get_data());
+    if (popup_it != popup_item_id_map_.end()) {
+        const auto item_it = popup_it->second.find(id);
+        if (item_it != popup_it->second.end() && !item_it->second.empty()) {
+            clicked = String(item_it->second.c_str());
+        }
+    }
+    std::string escaped;
+    const std::string raw = clicked.utf8().get_data();
+    escaped.reserve(raw.size() + 8);
+    for (unsigned char c : raw) {
+        if      (c == '"')  escaped += "\\\"";
+        else if (c == '\\') escaped += "\\\\";
+        else if (c == '\n') escaped += "\\n";
+        else                escaped += static_cast<char>(c);
+    }
+    const std::string payload = "[\"" + escaped + "\"]";
+    if (!clicked.is_empty()) {
+        sms_bridge_.dispatch_event(sms_session_,
+            clicked.utf8().get_data(), "clicked", "[]");
+    }
+    sms_bridge_.dispatch_event(sms_session_,
+        object_id.utf8().get_data(), event_name.utf8().get_data(), payload);
+}
+
+void ForgeRunnerNativeMain::on_sms_popup_item_selected_by_index(int index, String object_id, String event_name) {
+    const auto index_it = popup_item_index_to_id_map_.find(object_id.utf8().get_data());
+    if (index_it == popup_item_index_to_id_map_.end()) {
+        return;
+    }
+    const auto id_it = index_it->second.find(index);
+    if (id_it != index_it->second.end()) {
+        on_sms_popup_item_selected(id_it->second, object_id, event_name);
+        return;
+    }
+    on_sms_popup_item_selected(index, object_id, event_name);
+}
+
+void ForgeRunnerNativeMain::on_sms_file_dialog_selected(String path, String callback_name, int64_t dialog_id) {
+    if (dialog_id > 0) {
+        const auto it = open_file_dialogs_.find(dialog_id);
+        if (it != open_file_dialogs_.end()) {
+            if (it->second) {
+                it->second->queue_free();
+            }
+            open_file_dialogs_.erase(it);
+        }
+    }
+    std::string escaped;
+    const std::string raw = path.utf8().get_data();
+    escaped.reserve(raw.size() + 8);
+    for (unsigned char c : raw) {
+        if      (c == '"')  escaped += "\\\"";
+        else if (c == '\\') escaped += "\\\\";
+        else if (c == '\n') escaped += "\\n";
+        else                escaped += static_cast<char>(c);
+    }
+    const std::string payload = "[\"" + escaped + "\"]";
+    sms_bridge_.dispatch_event(sms_session_, "ui", callback_name.utf8().get_data(), payload);
+}
+
+void ForgeRunnerNativeMain::on_sms_file_dialog_canceled(String, int64_t dialog_id) {
+    if (dialog_id > 0) {
+        const auto it = open_file_dialogs_.find(dialog_id);
+        if (it != open_file_dialogs_.end()) {
+            if (it->second) {
+                it->second->queue_free();
+            }
+            open_file_dialogs_.erase(it);
+        }
+    }
 }
 
 void ForgeRunnerNativeMain::on_sms_tree_button_clicked(TreeItem*, int, int id, int, String object_id, String event_name) {

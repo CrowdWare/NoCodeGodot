@@ -1219,6 +1219,10 @@ void UiBuilder::build_menubar_children(Control* menu_bar, const smlcore::Node& n
         if (cnl != "popupmenu") continue;
 
         auto* popup = memnew(PopupMenu);
+        const auto popup_id = child.get_value("id", "");
+        if (!popup_id.empty()) {
+            popup->set_meta("sml_id", String(popup_id.c_str()));
+        }
         const auto title = child.get_value("title", child.name);
         popup->set_name(String(title.c_str()));
 
@@ -1231,7 +1235,13 @@ void UiBuilder::build_menubar_children(Control* menu_bar, const smlcore::Node& n
 
             const auto* tp = item.find_property("text");
             std::string text = tp ? resolve_ref(*tp) : "Item";
-            popup->add_item(String(text.c_str()), item_id++);
+            popup->add_item(String(text.c_str()), item_id);
+            const int idx = popup->get_item_count() - 1;
+            const auto item_sml_id = item.get_value("id", "");
+            if (!item_sml_id.empty()) {
+                popup->set_item_metadata(idx, String(item_sml_id.c_str()));
+            }
+            item_id++;
         }
         mb->add_child(popup);
     }
