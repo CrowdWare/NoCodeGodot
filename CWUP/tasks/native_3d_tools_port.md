@@ -74,3 +74,46 @@ Start only after `native_sms_ui_bridge.md` and `native_bg_containers.md` are don
 - [x] Visible baseline added: `ForgePosingEditorControl` now creates a native `SubViewport` with camera/light/ground, and `ForgeTimelineControl` now renders ruler/playhead with click-to-seek.
 - [x] Initial model loading wired in `ForgePosingEditorControl` (`src`, `addSceneAsset`) with `ResourceLoader` + GLTF fallback and first-bone auto-select signal.
 - [ ] Replace scaffolds with full runtime parity implementations (3D scene, gizmos, timeline drawing/interpolation, serializer/exporter).
+
+## Remaining Work (Prioritized)
+
+### P0 - Functional Parity (must-have)
+- [ ] Camera interaction parity in `ForgePosingEditorControl` (orbit/pan/zoom behavior matching legacy workflow).
+- [ ] Selection and transform loop parity:
+  - pick object/bone in viewport
+  - apply translate/rotate/scale in arrange mode
+  - apply bone rotation in pose mode
+- [ ] Timeline parity essentials:
+  - add/remove keyframes from UI actions
+  - frame scrubbing updates pose deterministically
+  - playback start/stop emits expected SMS events
+- [ ] Project I/O parity:
+  - `loadProject` + `saveProject` preserve scene chars/props and transforms
+  - no loss of data on load/save roundtrip for demo.scene
+
+Acceptance (P0):
+- Poser demo can load, pose, keyframe, scrub, and save without runtime errors.
+- Main legacy edit flows are executable end-to-end in native runtime.
+
+### P1 - Visual/UX Parity (high)
+- [ ] Gizmo visual pass (`Rotation/Move/Scale`) to match intended readability (axis color, hit targets, depth behavior).
+- [ ] Bone/tree + inspector sync polish (selection, active item highlight, immediate refresh consistency).
+- [ ] Timeline rendering pass (major/minor ticks, keyframe markers, selected frame contrast).
+
+Acceptance (P1):
+- Side-by-side native vs legacy usage shows no major usability regressions in daily posing flow.
+
+### P2 - Export/Serialization Completion
+- [ ] Port `AnimationSerializer` (`.fpose`) and validate compatibility with existing files.
+- [ ] Port `GlbExporter` path for character + optional animation + scene props.
+- [ ] Add focused native tests for serializer/exporter happy-path and malformed input handling.
+
+Acceptance (P2):
+- Native runtime can read/write core animation artifacts used by Poser workflows.
+
+## Task Split Suggestion (next executable tasks)
+- [ ] `native_3d_camera_and_pick_parity.md` (P0 camera + picking)
+- [ ] `native_3d_transform_and_gizmo_parity.md` (P0/P1 transforms + gizmos)
+- [ ] `native_timeline_playback_parity.md` (P0 timeline behavior)
+- [ ] `native_poser_project_roundtrip.md` (P0 load/save roundtrip safety)
+- [ ] `native_animation_serializer_exporter.md` (P2 serializer/exporter)

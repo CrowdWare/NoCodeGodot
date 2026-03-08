@@ -64,6 +64,8 @@ All classes listed below inherit from `Control`.
 - [ForgeDockingContainerControl](ForgeDockingContainerControl.md)
 - [ForgeDockingHostControl](ForgeDockingHostControl.md)
 - [ForgeMarkdownContainer](ForgeMarkdownContainer.md)
+- [ForgePosingEditorControl](ForgePosingEditorControl.md)
+- [ForgeTimelineControl](ForgeTimelineControl.md)
 - [ForgeWindowDragControl](ForgeWindowDragControl.md)
 - [GraphEdit](GraphEdit.md)
 - [GraphElement](GraphElement.md)

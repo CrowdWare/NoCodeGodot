@@ -5,9 +5,11 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <limits>
 #include <map>
 #include <sstream>
 #include <string>
@@ -49,6 +51,7 @@
 #include <godot_cpp/classes/tab_container.hpp>
 #include <godot_cpp/classes/display_server.hpp>
 #include <godot_cpp/classes/input.hpp>
+#include <godot_cpp/classes/immediate_mesh.hpp>
 #include <godot_cpp/classes/v_box_container.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/window.hpp>
@@ -1654,10 +1657,103 @@ public:
     void _ready() override {
         set_clip_contents(true);
         set_stretch(true);
+        set_mouse_filter(Control::MOUSE_FILTER_STOP);
         ensure_viewport_scene();
+        update_camera_transform();
     }
 
     void _notification(int) {}
+
+    void _gui_input(const Ref<InputEvent>& event) override {
+        ensure_viewport_scene();
+        if (camera_ == nullptr) return;
+
+        Ref<InputEventMouseButton> mb = event;
+        if (mb.is_valid()) {
+            const int btn = mb->get_button_index();
+            if (mb->is_pressed()) {
+                if (btn == MOUSE_BUTTON_RIGHT) {
+                    orbit_dragging_ = true;
+                    drag_last_mouse_ = mb->get_position();
+                    accept_event();
+                    return;
+                }
+                if (btn == MOUSE_BUTTON_MIDDLE) {
+                    pan_dragging_ = true;
+                    drag_last_mouse_ = mb->get_position();
+                    accept_event();
+                    return;
+                }
+                if (btn == MOUSE_BUTTON_LEFT) {
+                    left_pressed_ = true;
+                    left_press_pos_ = mb->get_position();
+                    left_moved_ = false;
+                    accept_event();
+                    return;
+                }
+                if (btn == MOUSE_BUTTON_WHEEL_UP) {
+                    orbit_distance_ = MAX(1.0f, orbit_distance_ * 0.9f);
+                    update_camera_transform();
+                    accept_event();
+                    return;
+                }
+                if (btn == MOUSE_BUTTON_WHEEL_DOWN) {
+                    orbit_distance_ = MIN(200.0f, orbit_distance_ * 1.1f);
+                    update_camera_transform();
+                    accept_event();
+                    return;
+                }
+            } else {
+                if (btn == MOUSE_BUTTON_RIGHT) {
+                    orbit_dragging_ = false;
+                    accept_event();
+                    return;
+                }
+                if (btn == MOUSE_BUTTON_MIDDLE) {
+                    pan_dragging_ = false;
+                    accept_event();
+                    return;
+                }
+                if (btn == MOUSE_BUTTON_LEFT) {
+                    if (!left_moved_) {
+                        pick_at_screen_pos(mb->get_position());
+                    }
+                    left_pressed_ = false;
+                    accept_event();
+                    return;
+                }
+            }
+        }
+
+        Ref<InputEventMouseMotion> mm = event;
+        if (!mm.is_valid()) return;
+
+        const Vector2 mouse_pos = mm->get_position();
+        if (left_pressed_ && mouse_pos.distance_to(left_press_pos_) > 4.0f) {
+            left_moved_ = true;
+        }
+
+        const Vector2 rel = mm->get_relative();
+        if (orbit_dragging_) {
+            orbit_yaw_ -= rel.x * 0.01f;
+            orbit_pitch_ = CLAMP(orbit_pitch_ + rel.y * 0.01f, -1.4f, 1.4f);
+            update_camera_transform();
+            accept_event();
+            return;
+        }
+        if (pan_dragging_) {
+            const Basis basis = camera_->get_global_transform().basis;
+            const Vector3 right = basis.get_column(0);
+            const Vector3 up = basis.get_column(1);
+            const float pan_scale = MAX(0.0025f, orbit_distance_ * 0.0025f);
+            orbit_target_ += (-right * rel.x + up * rel.y) * pan_scale;
+            update_camera_transform();
+            accept_event();
+            return;
+        }
+
+        drag_last_mouse_ = mouse_pos;
+    }
 
     void set_mode(const String& mode) { mode_ = mode; }
     void set_edit_mode(const String& mode) { edit_mode_ = mode; }
@@ -1791,6 +1887,7 @@ public:
             selected_character_index_ = 0;
             selected_prop_index_ = -1;
         }
+        update_selection_marker();
         UtilityFunctions::print(String("[ForgeRunner.Native] PosingEditor.loadProject done: chars=") + String::num_int64(characters_.size()) + " props=" + String::num_int64(props_.size()));
         return true;
     }
@@ -1814,6 +1911,7 @@ public:
             characters_.push_back(item);
             selected_character_index_ = static_cast<int>(characters_.size()) - 1;
             selected_prop_index_ = -1;
+            update_selection_marker();
             emit_signal("objectSelected", -1);
             return 1;
         }
@@ -1832,6 +1930,7 @@ public:
         const int idx = static_cast<int>(props_.size()) - 1;
         selected_prop_index_ = idx;
         selected_character_index_ = -1;
+        update_selection_marker();
         emit_signal("scenePropAdded", idx, path);
         emit_signal("objectSelected", idx);
         return 0;
@@ -1872,6 +1971,7 @@ public:
         }
         characters_.erase(characters_.begin() + index);
         if (selected_character_index_ == index) selected_character_index_ = -1;
+        update_selection_marker();
     }
 
     void remove_scene_prop(int index) {
@@ -1884,12 +1984,14 @@ public:
         props_.erase(props_.begin() + index);
         emit_signal("scenePropRemoved", index);
         if (selected_prop_index_ == index) selected_prop_index_ = -1;
+        update_selection_marker();
     }
 
     void select_scene_character(int index) {
         if (index < 0 || index >= static_cast<int>(characters_.size())) return;
         selected_character_index_ = index;
         selected_prop_index_ = -1;
+        update_selection_marker();
         emit_signal("objectSelected", -1);
     }
 
@@ -1897,6 +1999,7 @@ public:
         if (index < 0 || index >= static_cast<int>(props_.size())) return;
         selected_prop_index_ = index;
         selected_character_index_ = -1;
+        update_selection_marker();
         emit_signal("objectSelected", index);
     }
 
@@ -1916,6 +2019,7 @@ public:
         if (auto* c = at_char(index)) {
             set_item_pos(c, x, y, z);
             apply_item_transform(*c);
+            if (index == selected_character_index_) update_selection_marker();
         }
     }
     void set_scene_character_rot(int index, double x, double y, double z) {
@@ -1934,6 +2038,7 @@ public:
         if (auto* p = at_prop(index)) {
             set_item_pos(p, x, y, z);
             apply_item_transform(*p);
+            if (index == selected_prop_index_) update_selection_marker();
             emit_prop_moved(index, *p);
         }
     }
@@ -2009,6 +2114,7 @@ public:
             characters_.push_back(item);
             selected_character_index_ = 0;
             selected_prop_index_ = -1;
+            update_selection_marker();
             emit_signal("objectSelected", -1);
             return;
         }
@@ -2026,6 +2132,7 @@ public:
             apply_item_transform(item);
             select_first_bone_from_node(item.node);
         }
+        update_selection_marker();
     }
     String get_src() const { return src_; }
     void set_show_bone_tree(bool value) { show_bone_tree_ = value; }
@@ -2087,6 +2194,7 @@ private:
         props_.clear();
         selected_character_index_ = -1;
         selected_prop_index_ = -1;
+        update_selection_marker();
     }
 
     void ensure_viewport_scene() {
@@ -2108,6 +2216,8 @@ private:
         camera_->set_position(Vector3(0.0f, 2.0f, 4.5f));
         camera_->look_at_from_position(Vector3(0.0f, 2.0f, 4.5f), Vector3(0.0f, 1.0f, 0.0f), Vector3(0.0f, 1.0f, 0.0f));
         scene_root_->add_child(camera_);
+        orbit_target_ = Vector3(0.0f, 1.0f, 0.0f);
+        orbit_distance_ = camera_->get_position().distance_to(orbit_target_);
 
         light_ = memnew(DirectionalLight3D);
         light_->set_name("Sun");
@@ -2125,6 +2235,286 @@ private:
         mat->set_albedo(Color(0.22f, 0.24f, 0.27f, 1.0f));
         ground_->set_material_override(mat);
         scene_root_->add_child(ground_);
+
+        ground_grid_ = memnew(MeshInstance3D);
+        ground_grid_->set_name("GroundGrid");
+        ground_grid_->set_mesh(build_ground_grid_mesh(20.0f, 40, 5));
+        ground_grid_->set_position(Vector3(0.0f, 0.01f, 0.0f));
+        scene_root_->add_child(ground_grid_);
+
+        selection_marker_ = memnew(MeshInstance3D);
+        selection_marker_->set_name("SelectionMarker");
+        Ref<BoxMesh> marker_box;
+        marker_box.instantiate();
+        marker_box->set_size(Vector3(0.18f, 0.18f, 0.18f));
+        selection_marker_->set_mesh(marker_box);
+        Ref<StandardMaterial3D> marker_mat;
+        marker_mat.instantiate();
+        marker_mat->set_shading_mode(StandardMaterial3D::SHADING_MODE_UNSHADED);
+        marker_mat->set_albedo(Color(0.97f, 0.67f, 0.18f, 0.95f));
+        selection_marker_->set_material_override(marker_mat);
+        selection_marker_->set_visible(false);
+        scene_root_->add_child(selection_marker_);
+    }
+
+    Ref<ImmediateMesh> build_ground_grid_mesh(float size, int steps, int major_every) const {
+        Ref<ImmediateMesh> mesh;
+        mesh.instantiate();
+
+        Ref<StandardMaterial3D> minor_mat;
+        minor_mat.instantiate();
+        minor_mat->set_shading_mode(StandardMaterial3D::SHADING_MODE_UNSHADED);
+        minor_mat->set_albedo(Color(0.28f, 0.30f, 0.34f, 1.0f));
+
+        Ref<StandardMaterial3D> major_mat;
+        major_mat.instantiate();
+        major_mat->set_shading_mode(StandardMaterial3D::SHADING_MODE_UNSHADED);
+        major_mat->set_albedo(Color(0.42f, 0.45f, 0.50f, 1.0f));
+
+        const float half = size * 0.5f;
+        const int clamped_steps = MAX(2, steps);
+        const float step = size / static_cast<float>(clamped_steps);
+        const int major_step = MAX(1, major_every);
+
+        auto emit_line_surface = [&](bool major) {
+            mesh->surface_begin(Mesh::PRIMITIVE_LINES, major ? major_mat : minor_mat);
+            for (int i = 0; i <= clamped_steps; ++i) {
+                const float coord = -half + static_cast<float>(i) * step;
+                const bool is_major = (i % major_step) == 0;
+                if (is_major != major) continue;
+                mesh->surface_add_vertex(Vector3(coord, 0.0f, -half));
+                mesh->surface_add_vertex(Vector3(coord, 0.0f, half));
+                mesh->surface_add_vertex(Vector3(-half, 0.0f, coord));
+                mesh->surface_add_vertex(Vector3(half, 0.0f, coord));
+            }
+            mesh->surface_end();
+        };
+
+        emit_line_surface(false);
+        emit_line_surface(true);
+        return mesh;
+    }
+
+    void update_camera_transform() {
+        if (camera_ == nullptr) return;
+        const float cp = std::cos(orbit_pitch_);
+        const float sp = std::sin(orbit_pitch_);
+        const float cy = std::cos(orbit_yaw_);
+        const float sy = std::sin(orbit_yaw_);
+        const Vector3 offset(
+            orbit_distance_ * cp * sy,
+            orbit_distance_ * sp,
+            orbit_distance_ * cp * cy);
+        const Vector3 cam_pos = orbit_target_ + offset;
+        camera_->set_position(cam_pos);
+        camera_->look_at_from_position(cam_pos, orbit_target_, Vector3(0.0f, 1.0f, 0.0f));
+    }
+
+    void pick_at_screen_pos(const Vector2& screen_pos) {
+        if (camera_ == nullptr) return;
+        const Vector3 ray_origin = camera_->project_ray_origin(screen_pos);
+        const Vector3 ray_dir = camera_->project_ray_normal(screen_pos);
+
+        enum class PickKind { None, Character, Prop };
+        PickKind best_kind = PickKind::None;
+        int best_index = -1;
+        float best_t = std::numeric_limits<float>::infinity();
+
+        auto try_pick_item = [&](PickKind kind, int index, const SceneItem& item) {
+            if (item.node == nullptr || !item.visible) return;
+            float hit_t = std::numeric_limits<float>::infinity();
+            if (!raycast_scene_item(item, ray_origin, ray_dir, hit_t)) return;
+            if (hit_t < best_t) {
+                best_t = hit_t;
+                best_kind = kind;
+                best_index = index;
+            }
+        };
+
+        const bool pose_mode = (mode_ == "pose");
+        if (pose_mode) {
+            for (int i = 0; i < static_cast<int>(characters_.size()); ++i) {
+                try_pick_item(PickKind::Character, i, characters_[i]);
+            }
+            // In pose mode we still allow prop selection, but only when no character was hit.
+            if (best_kind == PickKind::None) {
+                for (int i = 0; i < static_cast<int>(props_.size()); ++i) {
+                    try_pick_item(PickKind::Prop, i, props_[i]);
+                }
+            }
+        } else {
+            for (int i = 0; i < static_cast<int>(props_.size()); ++i) {
+                try_pick_item(PickKind::Prop, i, props_[i]);
+            }
+            for (int i = 0; i < static_cast<int>(characters_.size()); ++i) {
+                try_pick_item(PickKind::Character, i, characters_[i]);
+            }
+        }
+
+        // Fallback: if AABB raycast misses (e.g. imported scene graph edge-cases),
+        // use screen-space proximity to visible item anchors.
+        if (best_kind == PickKind::None) {
+            float best_dist = 1.0e9f;
+            auto try_pick_screen = [&](PickKind kind, int index, const SceneItem& item, float threshold_px) {
+                if (item.node == nullptr || !item.visible) return;
+                const Vector3 world = pick_anchor_world(item);
+                if (camera_->is_position_behind(world)) return;
+                const Vector2 projected = camera_->unproject_position(world);
+                const float dist = projected.distance_to(screen_pos);
+                if (dist < best_dist && dist <= threshold_px) {
+                    best_dist = dist;
+                    best_kind = kind;
+                    best_index = index;
+                }
+            };
+            for (int i = 0; i < static_cast<int>(characters_.size()); ++i) {
+                if (characters_[i].node == nullptr || !characters_[i].visible) continue;
+                const Vector3 world = pick_anchor_world(characters_[i]);
+                const float cam_dist = camera_->get_global_position().distance_to(world);
+                const float dynamic_threshold = CLAMP(4200.0f / MAX(1.0f, cam_dist), 140.0f, 320.0f);
+                try_pick_screen(PickKind::Character, i, characters_[i], dynamic_threshold);
+            }
+            if (!pose_mode && best_kind == PickKind::None) {
+                for (int i = 0; i < static_cast<int>(props_.size()); ++i) {
+                    try_pick_screen(PickKind::Prop, i, props_[i], 40.0f);
+                }
+            }
+        }
+
+        if (best_kind == PickKind::Prop) {
+            UtilityFunctions::print(String("[ForgeRunner.Native] pick: prop #") + String::num_int64(best_index));
+            select_scene_prop(best_index);
+            return;
+        }
+        if (best_kind == PickKind::Character) {
+            UtilityFunctions::print(String("[ForgeRunner.Native] pick: character #") + String::num_int64(best_index));
+            select_scene_character(best_index);
+            if (auto* ch = at_char(best_index)) {
+                if (mode_ == "pose" && ch->node != nullptr) {
+                    select_first_bone_from_node(ch->node);
+                }
+            }
+            return;
+        }
+        UtilityFunctions::print("[ForgeRunner.Native] pick: none");
+    }
+
+    static bool intersect_ray_aabb_local(
+        const Vector3& origin,
+        const Vector3& dir,
+        const AABB& box,
+        float& out_t)
+    {
+        const Vector3 bmin = box.position;
+        const Vector3 bmax = box.position + box.size;
+        float tmin = 0.0f;
+        float tmax = std::numeric_limits<float>::infinity();
+
+        auto axis_slab = [&](float o, float d, float mn, float mx) -> bool {
+            if (std::abs(d) < 1.0e-6f) {
+                return o >= mn && o <= mx;
+            }
+            const float inv = 1.0f / d;
+            float t1 = (mn - o) * inv;
+            float t2 = (mx - o) * inv;
+            if (t1 > t2) std::swap(t1, t2);
+            tmin = MAX(tmin, t1);
+            tmax = MIN(tmax, t2);
+            return tmax >= tmin;
+        };
+
+        if (!axis_slab(origin.x, dir.x, bmin.x, bmax.x)) return false;
+        if (!axis_slab(origin.y, dir.y, bmin.y, bmax.y)) return false;
+        if (!axis_slab(origin.z, dir.z, bmin.z, bmax.z)) return false;
+        if (tmax < 0.0f) return false;
+        out_t = tmin >= 0.0f ? tmin : tmax;
+        return out_t >= 0.0f;
+    }
+
+    static bool raycast_node_meshes(Node* node, const Vector3& ray_origin, const Vector3& ray_dir, float& out_t) {
+        bool hit_any = false;
+        float best_t = out_t;
+
+        if (auto* mi = Object::cast_to<MeshInstance3D>(node)) {
+            if (mi->is_visible()) {
+                Ref<Mesh> mesh = mi->get_mesh();
+                if (mesh.is_valid()) {
+                    const AABB local_aabb = mesh->get_aabb();
+                    const Transform3D inv = mi->get_global_transform().affine_inverse();
+                    const Vector3 local_origin = inv.xform(ray_origin);
+                    const Vector3 local_dir = inv.basis.xform(ray_dir);
+                    float t = std::numeric_limits<float>::infinity();
+                    if (intersect_ray_aabb_local(local_origin, local_dir, local_aabb, t) && t < best_t) {
+                        best_t = t;
+                        hit_any = true;
+                    }
+                }
+            }
+        }
+
+        const int child_count = node->get_child_count();
+        for (int i = 0; i < child_count; ++i) {
+            Node* child = node->get_child(i);
+            if (child == nullptr) continue;
+            float child_t = best_t;
+            if (raycast_node_meshes(child, ray_origin, ray_dir, child_t) && child_t < best_t) {
+                best_t = child_t;
+                hit_any = true;
+            }
+        }
+
+        if (hit_any) {
+            out_t = best_t;
+        }
+        return hit_any;
+    }
+
+    static bool raycast_scene_item(const SceneItem& item, const Vector3& ray_origin, const Vector3& ray_dir, float& out_t) {
+        if (item.node == nullptr || !item.visible) return false;
+        out_t = std::numeric_limits<float>::infinity();
+        return raycast_node_meshes(item.node, ray_origin, ray_dir, out_t);
+    }
+
+    static Node3D* find_first_mesh_node(Node* root) {
+        if (root == nullptr) return nullptr;
+        if (auto* mi = Object::cast_to<MeshInstance3D>(root)) return mi;
+        const int child_count = root->get_child_count();
+        for (int i = 0; i < child_count; ++i) {
+            if (Node3D* found = find_first_mesh_node(root->get_child(i))) return found;
+        }
+        return nullptr;
+    }
+
+    static Vector3 pick_anchor_world(const SceneItem& item) {
+        if (item.node == nullptr) return Vector3();
+        if (Node3D* mesh_node = find_first_mesh_node(item.node)) {
+            return mesh_node->get_global_position();
+        }
+        return item.node->get_global_position();
+    }
+
+    void update_selection_marker() {
+        if (selection_marker_ == nullptr) return;
+
+        if (selected_prop_index_ >= 0) {
+            SceneItem* p = at_prop(selected_prop_index_);
+            if (p != nullptr && p->node != nullptr) {
+                selection_marker_->set_position(pick_anchor_world(*p) + Vector3(0.0f, 0.12f, 0.0f));
+                selection_marker_->set_visible(true);
+                return;
+            }
+        }
+
+        if (selected_character_index_ >= 0) {
+            SceneItem* c = at_char(selected_character_index_);
+            if (c != nullptr && c->node != nullptr) {
+                selection_marker_->set_position(pick_anchor_world(*c) + Vector3(0.0f, 0.16f, 0.0f));
+                selection_marker_->set_visible(true);
+                return;
+            }
+        }
+
+        selection_marker_->set_visible(false);
     }
 
     Node3D* load_scene_node(const String& path) {
@@ -2279,6 +2669,18 @@ private:
     Camera3D* camera_ = nullptr;
     DirectionalLight3D* light_ = nullptr;
     MeshInstance3D* ground_ = nullptr;
+    MeshInstance3D* ground_grid_ = nullptr;
+    MeshInstance3D* selection_marker_ = nullptr;
+    Vector3 orbit_target_ = Vector3(0.0f, 1.0f, 0.0f);
+    float orbit_distance_ = 4.5f;
+    float orbit_yaw_ = 0.0f;
+    float orbit_pitch_ = 0.22f;
+    bool orbit_dragging_ = false;
+    bool pan_dragging_ = false;
+    bool left_pressed_ = false;
+    bool left_moved_ = false;
+    Vector2 left_press_pos_ = Vector2();
+    Vector2 drag_last_mouse_ = Vector2();
     int selected_character_index_ = -1;
     int selected_prop_index_ = -1;
     std::vector<SceneItem> characters_;

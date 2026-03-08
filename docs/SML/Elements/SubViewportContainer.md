@@ -8,6 +8,8 @@
 
 ### Direct subclasses
 
+- [ForgePosingEditorControl](ForgePosingEditorControl.md)
+- [ForgeTimelineControl](ForgeTimelineControl.md)
 - [PosingEditor](PosingEditor.md)
 - [Viewport3D](Viewport3D.md)
 
