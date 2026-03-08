@@ -249,6 +249,14 @@ public sealed class NodePropertyMapper
                 control.CustomMinimumSize = new Vector2(customMinSize.X, customMinSize.Y);
                 return;
 
+            case "minwidth":
+                control.CustomMinimumSize = new Vector2(value.AsIntOrThrow(propertyName), control.CustomMinimumSize.Y);
+                return;
+
+            case "minheight":
+                control.CustomMinimumSize = new Vector2(control.CustomMinimumSize.X, value.AsIntOrThrow(propertyName));
+                return;
+
             case "fontsize":
             case "fontsizepx":
                 ApplyFontSize(control, value.AsIntOrThrow(propertyName));

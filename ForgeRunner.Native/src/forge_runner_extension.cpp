@@ -25,6 +25,7 @@
 #include <godot_cpp/classes/tab_bar.hpp>
 #include <godot_cpp/classes/tab_container.hpp>
 #include <godot_cpp/classes/display_server.hpp>
+#include <godot_cpp/classes/input.hpp>
 #include <godot_cpp/classes/v_box_container.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/window.hpp>
@@ -70,12 +71,15 @@ protected:
         ClassDB::bind_method(D_METHOD("get_dock_side"),               &ForgeDockingContainerControl::get_dock_side);
         ClassDB::bind_method(D_METHOD("set_fixed_width",    "value"), &ForgeDockingContainerControl::set_fixed_width);
         ClassDB::bind_method(D_METHOD("get_fixed_width"),             &ForgeDockingContainerControl::get_fixed_width);
+        ClassDB::bind_method(D_METHOD("get_base_fixed_width"),        &ForgeDockingContainerControl::get_base_fixed_width);
         ClassDB::bind_method(D_METHOD("set_fixed_height",   "value"), &ForgeDockingContainerControl::set_fixed_height);
         ClassDB::bind_method(D_METHOD("get_fixed_height"),            &ForgeDockingContainerControl::get_fixed_height);
         ClassDB::bind_method(D_METHOD("set_height_percent", "value"), &ForgeDockingContainerControl::set_height_percent);
         ClassDB::bind_method(D_METHOD("get_height_percent"),          &ForgeDockingContainerControl::get_height_percent);
         ClassDB::bind_method(D_METHOD("set_flex",           "value"), &ForgeDockingContainerControl::set_flex);
         ClassDB::bind_method(D_METHOD("is_flex"),                     &ForgeDockingContainerControl::is_flex);
+        ClassDB::bind_method(D_METHOD("set_collapsed",      "value"), &ForgeDockingContainerControl::set_collapsed);
+        ClassDB::bind_method(D_METHOD("is_collapsed"),                &ForgeDockingContainerControl::is_collapsed);
         ClassDB::bind_method(D_METHOD("_on_about_to_popup"),          &ForgeDockingContainerControl::_on_about_to_popup);
         ClassDB::bind_method(D_METHOD("_return_from_float", "win_id"),&ForgeDockingContainerControl::_return_from_float);
         ClassDB::bind_method(D_METHOD("_on_dock_btn_pressed", "pos"), &ForgeDockingContainerControl::_on_dock_btn_pressed);
@@ -89,6 +93,8 @@ public:
     // Lifecycle
     // -----------------------------------------------------------------------
     void _ready() override {
+        // Prevent dock content from drawing outside its assigned column rect.
+        set_clip_contents(true);
         // Use set_popup() to get the built-in ⋮ button in the tab bar.
         // We suppress the actual popup and show our custom dialog instead.
         popup_ = memnew(PopupMenu);
@@ -289,8 +295,12 @@ public:
     void   set_dock_side(const String& side) { dock_side_ = side.to_lower(); }
     String get_dock_side()    const { return dock_side_; }
 
-    void   set_fixed_width(double v)  { fixed_width_  = static_cast<float>(v); }
+    void   set_fixed_width(double v)  {
+        fixed_width_ = static_cast<float>(v);
+        if (fixed_width_ > 0.f && base_fixed_width_ <= 0.f) base_fixed_width_ = fixed_width_;
+    }
     double get_fixed_width()    const { return fixed_width_; }
+    double get_base_fixed_width() const { return base_fixed_width_; }
 
     void   set_fixed_height(double v) { fixed_height_ = static_cast<float>(v); }
     double get_fixed_height()   const { return fixed_height_; }
@@ -300,6 +310,11 @@ public:
 
     void set_flex(bool v) { flex_ = v; }
     bool is_flex()  const { return flex_; }
+    void set_collapsed(bool v) {
+        collapsed_ = v;
+        set_visible(!collapsed_);
+    }
+    bool is_collapsed() const { return collapsed_; }
 
 private:
     // -----------------------------------------------------------------------
@@ -491,9 +506,11 @@ private:
     std::vector<FloatEntry>                 float_entries_;
     String                                  dock_side_     = "center";
     float                                   fixed_width_   = -1.0f;
+    float                                   base_fixed_width_ = -1.0f;
     float                                   fixed_height_  = -1.0f;
     float                                   height_percent_= -1.0f;
     bool                                    flex_          = false;
+    bool                                    collapsed_     = false;
 };
 
 // ---------------------------------------------------------------------------
@@ -517,6 +534,16 @@ protected:
                              &ForgeDockingHostControl::_on_h_handle_input);
         ClassDB::bind_method(D_METHOD("_on_v_handle_input", "event", "idx"),
                              &ForgeDockingHostControl::_on_v_handle_input);
+        ClassDB::bind_method(D_METHOD("_on_overlay_input", "event"),
+                             &ForgeDockingHostControl::_on_overlay_input);
+        ClassDB::bind_method(D_METHOD("_on_h_handle_entered", "idx"),
+                             &ForgeDockingHostControl::_on_h_handle_entered);
+        ClassDB::bind_method(D_METHOD("_on_h_handle_exited", "idx"),
+                             &ForgeDockingHostControl::_on_h_handle_exited);
+        ClassDB::bind_method(D_METHOD("_on_v_handle_entered", "idx"),
+                             &ForgeDockingHostControl::_on_v_handle_entered);
+        ClassDB::bind_method(D_METHOD("_on_v_handle_exited", "idx"),
+                             &ForgeDockingHostControl::_on_v_handle_exited);
     }
 
 public:
@@ -524,6 +551,12 @@ public:
     double get_gap()   const { return gap_; }
 
     void _ready() override {
+        // Prevent visual overdraw between neighbouring dock columns on tight widths.
+        set_clip_contents(true);
+        if (Window* win = get_window()) {
+            window_base_min_size_ = win->get_min_size();
+            window_base_min_captured_ = true;
+        }
         _ensure_auto_dock_containers();
         queue_sort();
     }
@@ -532,66 +565,157 @@ public:
         if (what == NOTIFICATION_SORT_CHILDREN) arrange_children();
     }
 
-    // --- Horizontal resize handle input (resizes left-neighbour column width) ---
+    // --- Horizontal resize handle input ---
     void _on_h_handle_input(Ref<InputEvent> event, int idx) {
         if (idx < 0 || idx >= MAX_H) return;
         Ref<InputEventMouseButton> mb = event;
-        if (mb.is_valid() && mb->get_button_index() == MouseButton::MOUSE_BUTTON_LEFT) {
-            if (mb->is_pressed()) {
-                float init_w = 0.f;
-                if (h_left_[idx]) {
-                    double fw = h_left_[idx]->get_fixed_width();
-                    init_w = (fw > 0.0) ? (float)fw : (float)h_left_[idx]->get_size().x;
-                }
-                h_drag_[idx] = { true, mb->get_global_position().x, init_w };
-                if (h_handles_[idx]) h_handles_[idx]->set_color(Color(0.30f, 0.55f, 0.90f, 0.50f));
-            } else {
-                h_drag_[idx].active = false;
-                if (h_handles_[idx]) h_handles_[idx]->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
-            }
+        if (mb.is_valid() && mb->get_button_index() == MouseButton::MOUSE_BUTTON_LEFT
+                          && !mb->is_pressed() && overlay_h_idx_ == idx) {
+            // Godot sends release to the control that received the press — end drag here.
+            _end_drag();
+            return;
         }
-        Ref<InputEventMouseMotion> mm = event;
-        if (mm.is_valid() && h_drag_[idx].active && h_left_[idx]) {
-            float delta = mm->get_global_position().x - h_drag_[idx].origin;
-            h_left_[idx]->set_fixed_width((double)maxf(MIN_COL_W, h_drag_[idx].initial + delta));
-            queue_sort();
+        if (mb.is_valid() && mb->get_button_index() == MouseButton::MOUSE_BUTTON_LEFT
+                          && mb->is_pressed()) {
+            drag_target_dock_ = h_left_[idx];  // save reference — h_left_ is cleared each layout
+            float init_w = 0.f;
+            if (drag_target_dock_) {
+                double fw = drag_target_dock_->get_fixed_width();
+                init_w = (fw > 0.0) ? (float)fw : (float)drag_target_dock_->get_size().x;
+            }
+            h_drag_[idx] = { true, mb->get_global_position().x, init_w };
+            if (h_handles_[idx]) h_handles_[idx]->set_color(COL_DRAG());
+            overlay_h_idx_ = idx;
+            overlay_v_idx_ = -1;
+            _show_overlay(Control::CURSOR_HSIZE);
         }
     }
 
-    // --- Vertical resize handle input (resizes top/bottom split ratio) ---
+    // --- Vertical resize handle input ---
     void _on_v_handle_input(Ref<InputEvent> event, int idx) {
         if (idx < 0 || idx >= MAX_V) return;
         Ref<InputEventMouseButton> mb = event;
-        if (mb.is_valid() && mb->get_button_index() == MouseButton::MOUSE_BUTTON_LEFT) {
-            if (mb->is_pressed()) {
-                float init_pct = 50.f;
-                if (v_bot_[idx]) {
-                    float hp = (float)v_bot_[idx]->get_height_percent();
-                    if (hp > 0.f) init_pct = 100.f - hp;
-                }
-                v_drag_[idx] = { true, mb->get_global_position().y, init_pct };
-                if (v_handles_[idx]) v_handles_[idx]->set_color(Color(0.30f, 0.55f, 0.90f, 0.50f));
-            } else {
-                v_drag_[idx].active = false;
-                if (v_handles_[idx]) v_handles_[idx]->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+        if (mb.is_valid() && mb->get_button_index() == MouseButton::MOUSE_BUTTON_LEFT
+                          && !mb->is_pressed() && overlay_v_idx_ == idx) {
+            // Godot sends release to the control that received the press — end drag here.
+            _end_drag();
+            return;
+        }
+        if (mb.is_valid() && mb->get_button_index() == MouseButton::MOUSE_BUTTON_LEFT
+                          && mb->is_pressed()) {
+            drag_target_dock_ = v_bot_[idx];  // save reference — v_bot_ is cleared each layout
+            float init_pct = 50.f;
+            if (drag_target_dock_) {
+                float hp = (float)drag_target_dock_->get_height_percent();
+                if (hp > 0.f) init_pct = 100.f - hp;
             }
+            v_drag_[idx] = { true, mb->get_global_position().y, init_pct };
+            if (v_handles_[idx]) v_handles_[idx]->set_color(COL_DRAG());
+            overlay_h_idx_ = -1;
+            overlay_v_idx_ = idx;
+            _show_overlay(Control::CURSOR_VSIZE);
+        }
+    }
+
+    // Hover colours (not constexpr — Color has no constexpr constructor in godot-cpp)
+    static Color COL_NORMAL() { return Color(0.45f, 0.45f, 0.55f, 0.40f); }
+    static Color COL_HOVER()  { return Color(0.30f, 0.55f, 0.90f, 0.35f); }
+    static Color COL_DRAG()   { return Color(0.30f, 0.55f, 0.90f, 0.55f); }
+
+    void _on_h_handle_entered(int idx) {
+        if (idx < 0 || idx >= MAX_H || !h_handles_[idx]) return;
+        if (!h_drag_[idx].active) h_handles_[idx]->set_color(COL_HOVER());
+    }
+    void _on_h_handle_exited(int idx) {
+        if (idx < 0 || idx >= MAX_H || !h_handles_[idx]) return;
+        if (!h_drag_[idx].active) h_handles_[idx]->set_color(COL_NORMAL());
+    }
+    void _on_v_handle_entered(int idx) {
+        if (idx < 0 || idx >= MAX_V || !v_handles_[idx]) return;
+        if (!v_drag_[idx].active) v_handles_[idx]->set_color(COL_HOVER());
+    }
+    void _on_v_handle_exited(int idx) {
+        if (idx < 0 || idx >= MAX_V || !v_handles_[idx]) return;
+        if (!v_drag_[idx].active) v_handles_[idx]->set_color(COL_NORMAL());
+    }
+
+    void _show_overlay(Control::CursorShape cursor) {
+        ColorRect* ov = _ensure_overlay();
+        ov->set_default_cursor_shape(cursor);
+        ov->set_position(Vector2(0.f, 0.f));
+        ov->set_size(get_size());
+        ov->set_visible(true);
+    }
+
+    void _end_drag() {
+        if (overlay_h_idx_ >= 0) {
+            if (h_handles_[overlay_h_idx_])
+                h_handles_[overlay_h_idx_]->set_color(COL_NORMAL());
+            h_drag_[overlay_h_idx_].active = false;
+        }
+        if (overlay_v_idx_ >= 0) {
+            if (v_handles_[overlay_v_idx_])
+                v_handles_[overlay_v_idx_]->set_color(COL_NORMAL());
+            v_drag_[overlay_v_idx_].active = false;
+        }
+        overlay_h_idx_    = -1;
+        overlay_v_idx_    = -1;
+        drag_target_dock_ = nullptr;
+        if (drag_overlay_) drag_overlay_->set_visible(false);
+    }
+
+    // --- Overlay captures all mouse events during drag ---
+    void _on_overlay_input(Ref<InputEvent> event) {
+        Ref<InputEventMouseButton> mb = event;
+        if (mb.is_valid() && mb->get_button_index() == MouseButton::MOUSE_BUTTON_LEFT) {
+            // End drag only on release. Press is expected when drag starts.
+            if (!mb->is_pressed()) _end_drag();
+            return;
         }
         Ref<InputEventMouseMotion> mm = event;
-        if (mm.is_valid() && v_drag_[idx].active && v_bot_[idx]) {
-            float total_h = get_size().y;
-            if (total_h < 1.f) return;
-            float delta     = mm->get_global_position().y - v_drag_[idx].origin;
-            float delta_pct = (delta / total_h) * 100.f;
-            // bot height_percent = 100 - top_percent
-            float new_top_pct = clampf(v_drag_[idx].initial + delta_pct, 10.f, 90.f);
-            v_bot_[idx]->set_height_percent((double)(100.f - new_top_pct));
-            queue_sort();
+        if (mm.is_valid()) {
+            // Fallback: end drag if button no longer held.
+            if (!Input::get_singleton()->is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT)) {
+                _end_drag();
+                return;
+            }
+            if (overlay_h_idx_ >= 0 && drag_target_dock_) {
+                int idx = overlay_h_idx_;
+                if (h_drag_[idx].active) {
+                    float delta = mm->get_global_position().x - h_drag_[idx].origin;
+                    float min_w = resolve_dock_min_width(drag_target_dock_, MIN_COL_W);
+                    if (h_pair_[idx]) min_w = maxf(min_w, resolve_dock_min_width(h_pair_[idx], MIN_COL_W));
+                    const float new_w = maxf(min_w, h_drag_[idx].initial + delta * h_delta_sign_[idx]);
+                    drag_target_dock_->set_fixed_width((double)new_w);
+                    if (h_pair_[idx]) h_pair_[idx]->set_fixed_width((double)new_w);
+                    queue_sort();
+                }
+            }
+            if (overlay_v_idx_ >= 0 && drag_target_dock_) {
+                int idx = overlay_v_idx_;
+                if (v_drag_[idx].active) {
+                    float total_h = get_size().y;
+                    if (total_h > 0.f) {
+                        float delta = mm->get_global_position().y - v_drag_[idx].origin;
+                        const float gap_px = Math::floor(maxf(0.f, gap_));
+                        float top_min = resolve_dock_min_height(v_top_[idx], 40.f);
+                        float bot_min = resolve_dock_min_height(drag_target_dock_, 40.f);
+                        const float top_max = maxf(top_min, total_h - gap_px - bot_min);
+                        const float initial_top_h = (v_drag_[idx].initial / 100.f) * total_h;
+                        const float new_top_h = clampf(initial_top_h + delta, top_min, top_max);
+                        const float new_bot_h = maxf(bot_min, total_h - gap_px - new_top_h);
+                        drag_target_dock_->set_height_percent((double)((new_bot_h / total_h) * 100.f));
+                        queue_sort();
+                    }
+                }
+            }
         }
     }
 
 private:
     static float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
     static float maxf(float a, float b) { return a > b ? a : b; }
+    static float minf(float a, float b) { return a < b ? a : b; }
 
     static float resolve_column_width(ForgeDockingContainerControl* top,
                                       ForgeDockingContainerControl* bot, float fallback) {
@@ -601,6 +725,45 @@ private:
         return maxf(1.f, w);
     }
 
+    static float resolve_column_min_width(ForgeDockingContainerControl* top,
+                                          ForgeDockingContainerControl* bot, float fallback) {
+        float w = fallback;
+        if (top) {
+            w = maxf(w, top->get_custom_minimum_size().x);
+        }
+        if (bot) {
+            w = maxf(w, bot->get_custom_minimum_size().x);
+        }
+        return maxf(1.f, w);
+    }
+
+    static float resolve_center_min_width(ForgeDockingContainerControl* center, float fallback) {
+        float w = fallback;
+        if (!center) return maxf(1.f, w);
+        w = maxf(w, center->get_custom_minimum_size().x);
+        const int tabs = center->get_tab_count();
+        for (int i = 0; i < tabs; ++i) {
+            Control* tab = center->get_tab_control(i);
+            if (!tab) continue;
+            w = maxf(w, tab->get_custom_minimum_size().x);
+        }
+        return maxf(1.f, w);
+    }
+
+    static float resolve_dock_min_width(ForgeDockingContainerControl* dock, float fallback) {
+        float w = fallback;
+        if (!dock) return maxf(1.f, w);
+        w = maxf(w, dock->get_custom_minimum_size().x);
+        return maxf(1.f, w);
+    }
+
+    static float resolve_dock_min_height(ForgeDockingContainerControl* dock, float fallback) {
+        float h = fallback;
+        if (!dock) return maxf(1.f, h);
+        h = maxf(h, dock->get_custom_minimum_size().y);
+        return maxf(1.f, h);
+    }
+
     static float resolve_bottom_height(ForgeDockingContainerControl* bot, float total_h) {
         if (!bot) return 0.f;
         const float fixed_h = (float)bot->get_fixed_height();
@@ -608,6 +771,19 @@ private:
         const float pct = (float)bot->get_height_percent();
         if (pct > 0.f) return clampf(total_h * (pct / 100.f), 0.f, total_h);
         return total_h * 0.5f;
+    }
+
+    ColorRect* _ensure_overlay() {
+        if (drag_overlay_) return drag_overlay_;
+        drag_overlay_ = memnew(ColorRect);
+        drag_overlay_->set_color(Color(0.f, 0.f, 0.f, 0.f));  // fully transparent
+        drag_overlay_->set_mouse_filter(Control::MOUSE_FILTER_STOP);
+        drag_overlay_->set_z_index(4095);
+        drag_overlay_->set_visible(false);
+        drag_overlay_->connect("gui_input",
+            callable_mp(this, &ForgeDockingHostControl::_on_overlay_input));
+        add_child(drag_overlay_);
+        return drag_overlay_;
     }
 
     // Layout top+bottom into rect; returns gap top-y (for v-handle placement), -1 if no split
@@ -632,12 +808,16 @@ private:
     ColorRect* _ensure_h_handle(int idx) {
         if (h_handles_[idx]) return h_handles_[idx];
         ColorRect* cr = memnew(ColorRect);
-        cr->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+        cr->set_color(COL_NORMAL());
         cr->set_mouse_filter(Control::MOUSE_FILTER_STOP);
         cr->set_default_cursor_shape(Control::CURSOR_HSIZE);
         cr->set_z_index(900);
         cr->connect("gui_input",
             callable_mp(this, &ForgeDockingHostControl::_on_h_handle_input).bind(Variant(idx)));
+        cr->connect("mouse_entered",
+            callable_mp(this, &ForgeDockingHostControl::_on_h_handle_entered).bind(Variant(idx)));
+        cr->connect("mouse_exited",
+            callable_mp(this, &ForgeDockingHostControl::_on_h_handle_exited).bind(Variant(idx)));
         add_child(cr);
         h_handles_[idx] = cr;
         return cr;
@@ -646,12 +826,16 @@ private:
     ColorRect* _ensure_v_handle(int idx) {
         if (v_handles_[idx]) return v_handles_[idx];
         ColorRect* cr = memnew(ColorRect);
-        cr->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+        cr->set_color(COL_NORMAL());
         cr->set_mouse_filter(Control::MOUSE_FILTER_STOP);
         cr->set_default_cursor_shape(Control::CURSOR_VSIZE);
         cr->set_z_index(900);
         cr->connect("gui_input",
             callable_mp(this, &ForgeDockingHostControl::_on_v_handle_input).bind(Variant(idx)));
+        cr->connect("mouse_entered",
+            callable_mp(this, &ForgeDockingHostControl::_on_v_handle_entered).bind(Variant(idx)));
+        cr->connect("mouse_exited",
+            callable_mp(this, &ForgeDockingHostControl::_on_v_handle_exited).bind(Variant(idx)));
         add_child(cr);
         v_handles_[idx] = cr;
         return cr;
@@ -667,7 +851,14 @@ private:
         const int n = get_child_count();
         for (int i = 0; i < n; ++i) {
             auto* dock = Object::cast_to<ForgeDockingContainerControl>(get_child(i));
-            if (!dock || !dock->is_visible()) continue;
+            if (!dock) continue;
+            // Drag-to-rearrange can bypass our explicit move path. Ensure empty docks
+            // do not keep occupying layout space.
+            if (dock->get_tab_count() == 0) {
+                dock->set_visible(false);
+                continue;
+            }
+            if (!dock->is_visible()) continue;
             const String side = dock->get_dock_side().to_lower();
             if      (side == "farleft")        col_top[0] = dock;
             else if (side == "farleftbottom")  col_bot[0] = dock;
@@ -692,30 +883,82 @@ private:
 
         // Fixed widths for side columns; center is whatever remains
         float cw[5] = {};
+        float cmin[5] = {};
         cw[0] = has[0] ? resolve_column_width(col_top[0], col_bot[0], 220.f) : 0.f;
         cw[1] = has[1] ? resolve_column_width(col_top[1], col_bot[1], 240.f) : 0.f;
         cw[3] = has[3] ? resolve_column_width(col_top[3], col_bot[3], 240.f) : 0.f;
         cw[4] = has[4] ? resolve_column_width(col_top[4], col_bot[4], 220.f) : 0.f;
+        cmin[0] = has[0] ? resolve_column_min_width(col_top[0], col_bot[0], MIN_COL_W) : 0.f;
+        cmin[1] = has[1] ? resolve_column_min_width(col_top[1], col_bot[1], MIN_COL_W) : 0.f;
+        cmin[3] = has[3] ? resolve_column_min_width(col_top[3], col_bot[3], MIN_COL_W) : 0.f;
+        cmin[4] = has[4] ? resolve_column_min_width(col_top[4], col_bot[4], MIN_COL_W) : 0.f;
 
         int gap_count = 0;
         int prev_vis  = -1;
         for (int i = 0; i < 5; ++i) {
             if (has[i]) { if (prev_vis >= 0) ++gap_count; prev_vis = i; }
         }
-        cw[2] = maxf(0.f, total_w - cw[0] - cw[1] - cw[3] - cw[4] - (float)gap_count * gap_px);
+        const float gaps_w     = (float)gap_count * gap_px;
+        const float avail_cols = maxf(0.f, total_w - gaps_w);
+        float center_min = 0.f;
+        if (has[2]) {
+            center_min = resolve_center_min_width(centers.empty() ? nullptr : centers.front(), MIN_COL_W);
+        }
+
+        // Dynamic docking host minimum width: once all columns are at min width,
+        // prevent additional window shrink that would force overlap.
+        const float layout_min_w = gaps_w + cmin[0] + cmin[1] + center_min + cmin[3] + cmin[4];
+        set_custom_minimum_size(Vector2(layout_min_w, 0.f));
+        if (Window* win = get_window()) {
+            if (!window_base_min_captured_) {
+                window_base_min_size_ = win->get_min_size();
+                window_base_min_captured_ = true;
+            }
+            // Include non-docking horizontal space (other UI + paddings) so the
+            // window minimum reflects the complete layout.
+            const float non_host_w = maxf(0.f, (float)win->get_size().x - total_w);
+            const int dock_required_w = (int)Math::ceil((double)(layout_min_w + non_host_w));
+            const int min_w = dock_required_w > window_base_min_size_.x ? dock_required_w : window_base_min_size_.x;
+            const Vector2i target_min(min_w, window_base_min_size_.y);
+            if (win->get_min_size() != target_min) {
+                win->set_min_size(target_min);
+            }
+        }
+
+        // Center shrinks first (down to center_min), then side columns shrink in UX order.
+        float side_sum = cw[0] + cw[1] + cw[3] + cw[4];
+        const float max_side_sum = has[2] ? maxf(0.f, avail_cols - center_min) : avail_cols;
+        float overflow = maxf(0.f, side_sum - max_side_sum);
+        if (overflow > 0.f) {
+            static const int SHRINK_ORDER[4] = { 3, 4, 1, 0 };
+            for (int si = 0; si < 4 && overflow > 0.f; ++si) {
+                const int ci = SHRINK_ORDER[si];
+                if (!has[ci]) continue;
+                const float can_shrink = maxf(0.f, cw[ci] - cmin[ci]);
+                const float take = minf(can_shrink, overflow);
+                cw[ci] -= take;
+                overflow -= take;
+            }
+        }
+
+        side_sum = cw[0] + cw[1] + cw[3] + cw[4];
+        cw[2] = maxf(0.f, avail_cols - side_sum);
 
         // Hide all handles before re-placing
         for (int i = 0; i < MAX_H; ++i) {
             h_left_[i] = nullptr;
+            h_pair_[i] = nullptr;
+            h_delta_sign_[i] = 1.f;
             if (h_handles_[i]) {
-                if (!h_drag_[i].active) h_handles_[i]->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+                if (!h_drag_[i].active) h_handles_[i]->set_color(COL_NORMAL());
                 h_handles_[i]->set_visible(false);
             }
         }
         for (int i = 0; i < MAX_V; ++i) {
             v_bot_[i] = nullptr;
+            v_top_[i] = nullptr;
             if (v_handles_[i]) {
-                if (!v_drag_[i].active) v_handles_[i]->set_color(Color(0.45f, 0.45f, 0.55f, 0.4f));
+                if (!v_drag_[i].active) v_handles_[i]->set_color(COL_NORMAL());
                 v_handles_[i]->set_visible(false);
             }
         }
@@ -737,9 +980,24 @@ private:
                 ColorRect* hh   = _ensure_h_handle(h_idx);
                 fit_child_in_rect(hh, Rect2(hx, 0.f, hw, total_h));
                 hh->set_visible(true);
-                // Left neighbour (skip flex center — can't resize it directly)
-                if (prev_vis != 2)
+                // Usually resize the left neighbour.
+                // For handles with center on the left (center|right) or farRight on the
+                // right (right|farRight), resize the current/right column instead.
+                // In that mode the drag happens on the left edge of the resized column,
+                // so the horizontal delta must be inverted.
+                if (prev_vis == 2 || ci == 4) {
+                    h_left_[h_idx] = col_top[ci] ? col_top[ci] : col_bot[ci];
+                    h_pair_[h_idx] = (col_top[ci] && col_bot[ci])
+                        ? (h_left_[h_idx] == col_top[ci] ? col_bot[ci] : col_top[ci])
+                        : nullptr;
+                    h_delta_sign_[h_idx] = -1.f;
+                } else {
                     h_left_[h_idx] = col_top[prev_vis] ? col_top[prev_vis] : col_bot[prev_vis];
+                    h_pair_[h_idx] = (col_top[prev_vis] && col_bot[prev_vis])
+                        ? (h_left_[h_idx] == col_top[prev_vis] ? col_bot[prev_vis] : col_top[prev_vis])
+                        : nullptr;
+                    h_delta_sign_[h_idx] = 1.f;
+                }
                 ++h_idx;
                 x += gap_px;
             }
@@ -764,6 +1022,7 @@ private:
                         ColorRect* vh = _ensure_v_handle(vi);
                         fit_child_in_rect(vh, Rect2(x, vh_y, cw[ci], vh_h));
                         vh->set_visible(true);
+                        v_top_[vi] = col_top[ci];
                         v_bot_[vi] = col_bot[ci];
                     }
                 }
@@ -822,9 +1081,19 @@ private:
     ColorRect*                    h_handles_[MAX_H] = {};
     ColorRect*                    v_handles_[MAX_V] = {};
     ForgeDockingContainerControl* h_left_[MAX_H]    = {};  // left neighbour for each h-handle
+    ForgeDockingContainerControl* h_pair_[MAX_H]    = {};  // second dock in same resized column (if split)
+    float                         h_delta_sign_[MAX_H] = {1.f, 1.f, 1.f, 1.f}; // width delta sign per h-handle
+    ForgeDockingContainerControl* v_top_[MAX_V]     = {};  // top container for each v-handle
     ForgeDockingContainerControl* v_bot_[MAX_V]     = {};  // bottom container for each v-handle
     DragState                     h_drag_[MAX_H]    = {};
     DragState                     v_drag_[MAX_V]    = {};
+    Vector2i                      window_base_min_size_ = Vector2i(0, 0);
+    bool                          window_base_min_captured_ = false;
+    // Drag capture overlay — shown during resize drag to capture all mouse events.
+    ColorRect*                    drag_overlay_     = nullptr;
+    int                           overlay_h_idx_    = -1;  // active h-drag index, -1 if none
+    int                           overlay_v_idx_    = -1;  // active v-drag index, -1 if none
+    ForgeDockingContainerControl* drag_target_dock_ = nullptr; // saved at drag start
 };
 
 // ---------------------------------------------------------------------------

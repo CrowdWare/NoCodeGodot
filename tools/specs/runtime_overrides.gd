@@ -130,6 +130,20 @@ func get_spec() -> Dictionary:
                     "type": "padding",
                     "default": "0",
                     "description": "Inner padding — space between the container border and its children. Use 1 (all sides), 2 (top/bottom left/right), or 4 (top right bottom left) integer values. On VBoxContainer/HBoxContainer, an inner layout container preserves child stacking order."
+                },
+                {
+                    "sml": "minWidth",
+                    "godot": "custom_minimum_size.x",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Minimum control width in pixels."
+                },
+                {
+                    "sml": "minHeight",
+                    "godot": "custom_minimum_size.y",
+                    "type": "int",
+                    "default": "—",
+                    "description": "Minimum control height in pixels."
                 }
             ],
             "Label": [

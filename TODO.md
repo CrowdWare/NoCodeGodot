@@ -89,3 +89,4 @@ Database {
 # Terminal Apps
 ForgeRunner.Native now supports windowless Terminal Apps.
 We might want to user ncurses or TVision here in order to position the cursor and to color text. Maybe a use case can be to use ASCII windoing like the good old days with Norton Commander /Midnight Commander.
+

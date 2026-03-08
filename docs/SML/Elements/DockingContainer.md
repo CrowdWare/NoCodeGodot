@@ -16,9 +16,11 @@ Inherited properties are documented in: [PanelContainer](PanelContainer.md)
 | — | fixedWidth | int | 240 |
 | — | minFixedWidth | int | 140 |
 | — | fixedHeight | int | — |
+| — | minHeight | int | — |
 | — | minFixedHeight | int | 80 |
 | — | heightPercent | float | 50 |
 | — | flex | bool | false |
+| — | collapsed | bool | false |
 | — | closeable | bool | true |
 | — | dragToRearrangeEnabled | bool | true |
 | — | tabsRearrangeGroup | int | 1 |
@@ -29,6 +31,8 @@ Inherited properties are documented in: [PanelContainer](PanelContainer.md)
 > dockSide supports: farLeft, farLeftBottom, left, leftBottom, center, right, rightBottom, farRight, farRightBottom.
 > For split columns (top/bottom), height can be controlled via fixedHeight (px) or heightPercent (0..100).
 > Priority: fixedHeight > heightPercent > automatic 50/50 fallback.
+> When flex is true, fixedWidth is ignored (warning emitted). Use minWidth to enforce a lower bound.
+> collapsed:true hides the docking container from layout until shown or moved into.
 > Use enum syntax without quotes, e.g. dockSide: left.
 > dragToRearrangeEnabled: false excludes this container from docking move targets (kebab menu).
 > A container is not listed as move target for itself (same dock slot is filtered).

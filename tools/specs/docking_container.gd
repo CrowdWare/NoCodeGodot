@@ -11,9 +11,11 @@ func get_spec() -> Dictionary:
             {"sml":"fixedWidth", "type":"int", "default":"240"},
             {"sml":"minFixedWidth", "type":"int", "default":"140"},
             {"sml":"fixedHeight", "type":"int", "default":"—"},
+            {"sml":"minHeight", "type":"int", "default":"—"},
             {"sml":"minFixedHeight", "type":"int", "default":"80"},
             {"sml":"heightPercent", "type":"float", "default":"50"},
             {"sml":"flex", "type":"bool", "default":"false"},
+            {"sml":"collapsed", "type":"bool", "default":"false"},
             {"sml":"closeable", "type":"bool", "default":"true"},
             {"sml":"dragToRearrangeEnabled", "type":"bool", "default":"true"},
             {"sml":"tabsRearrangeGroup", "type":"int", "default":"1"}
@@ -26,6 +28,8 @@ func get_spec() -> Dictionary:
             "dockSide supports: farLeft, farLeftBottom, left, leftBottom, center, right, rightBottom, farRight, farRightBottom.",
             "For split columns (top/bottom), height can be controlled via fixedHeight (px) or heightPercent (0..100).",
             "Priority: fixedHeight > heightPercent > automatic 50/50 fallback.",
+            "When flex is true, fixedWidth is ignored (warning emitted). Use minWidth to enforce a lower bound.",
+            "collapsed:true hides the docking container from layout until shown or moved into.",
             "Use enum syntax without quotes, e.g. dockSide: left.",
             "dragToRearrangeEnabled: false excludes this container from docking move targets (kebab menu).",
             "A container is not listed as move target for itself (same dock slot is filtered)."

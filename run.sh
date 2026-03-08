@@ -222,6 +222,22 @@ resolve_godot_bin() {
   return 1
 }
 
+try_local_mode_override() {
+  if ! declare -F forge_local_handle_mode >/dev/null 2>&1; then
+    return 1
+  fi
+
+  case "$MODE" in
+    release|docs|test|export|app|poser|publish|upd)
+      forge_local_handle_mode "$MODE" "$@"
+      return $?
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 run_native_window_host() {
   local url="$1"
   if [[ ! -d "$NATIVE_HOST_DIR" ]]; then
@@ -278,8 +294,9 @@ if [[ -z "$MODE" ]]; then
   echo "  9) build-host      -> nur ForgeRunner.Native bauen"
   echo " 10) test            -> Native Tests (SMLCore.Native + SMSCore.Native)"
   echo " 11) clean           -> Native Build-Artefakte entfernen"
-  echo " 12) help            -> Hilfe anzeigen"
-  read -r -p "Auswahl [1-12] (Default 1): " CHOICE || true
+  echo " 12) upd             -> Lokaler Update-Override (run.local.sh)"
+  echo " 13) help            -> Hilfe anzeigen"
+  read -r -p "Auswahl [1-13] (Default 1): " CHOICE || true
   CHOICE="$(printf '%s' "${CHOICE:-}" | tr -d '[:space:]')"
   if [[ -z "$CHOICE" ]]; then
     CHOICE="1"
@@ -297,12 +314,17 @@ if [[ -z "$MODE" ]]; then
     9|build-host|build-native-host) MODE="build-host" ;;
    10|test|test-native) MODE="test" ;;
    11|clean) MODE="clean" ;;
-   12|help|-h|--help) MODE="help" ;;
+   12|upd) MODE="upd" ;;
+   13|help|-h|--help) MODE="help" ;;
     *)
       echo "Ungültige Auswahl. Abbruch."
       exit 1
       ;;
 esac
+fi
+
+if try_local_mode_override "$@"; then
+  exit 0
 fi
 
 case "$MODE" in
@@ -405,6 +427,10 @@ case "$MODE" in
            "$REPO_ROOT/ForgeRunner.Native/build" \
            "$REPO_ROOT/ForgeRunner.Native/dist"
     echo "Native build artifacts cleaned."
+    ;;
+  upd)
+    echo "ERROR: mode 'upd' is not handled by default run.sh. Add it to run.local.sh via forge_local_handle_mode()." >&2
+    exit 1
     ;;
   help|-h|--help)
     usage

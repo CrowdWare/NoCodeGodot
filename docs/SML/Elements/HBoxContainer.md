@@ -10,6 +10,7 @@
 
 - [EditorResourcePicker](EditorResourcePicker.md)
 - [EditorToaster](EditorToaster.md)
+- [ForgeBgHBoxContainer](ForgeBgHBoxContainer.md)
 - [HBoxContainer](HBoxContainer.md)
 - [OpenXRInteractionProfileEditorBase](OpenXRInteractionProfileEditorBase.md)
 

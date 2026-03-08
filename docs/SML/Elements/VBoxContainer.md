@@ -9,6 +9,8 @@
 ### Direct subclasses
 
 - [ColorPicker](ColorPicker.md)
+- [ForgeBgVBoxContainer](ForgeBgVBoxContainer.md)
+- [ForgeMarkdownContainer](ForgeMarkdownContainer.md)
 - [Markdown](Markdown.md)
 - [ScriptEditorBase](ScriptEditorBase.md)
 - [VBoxContainer](VBoxContainer.md)

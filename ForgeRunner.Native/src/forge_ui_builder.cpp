@@ -542,7 +542,7 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
     if (node.has_property("visible"))
         ctrl->set_visible(parse_bool(node.get_value("visible"), true));
 
-    // --- size: fixedWidth / fixedHeight / width / height / customMinimumSize ---
+    // --- size: minWidth/minHeight + fixedWidth/fixedHeight/width/height + customMinimumSize ---
     {
         float min_w = ctrl->get_custom_minimum_size().x;
         float min_h = ctrl->get_custom_minimum_size().y;
@@ -556,6 +556,14 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
             } else {
                 min_w = min_h = parse_float(v);
             }
+            changed = true;
+        }
+        if (node.has_property("minWidth")) {
+            min_w = static_cast<float>(parse_int(node.get_value("minWidth")));
+            changed = true;
+        }
+        if (node.has_property("minHeight")) {
+            min_h = static_cast<float>(parse_int(node.get_value("minHeight")));
             changed = true;
         }
         for (const char* key : {"fixedWidth", "width"}) {
@@ -788,16 +796,28 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
     // --- DockingContainer ---
     if (nl == "dockingcontainer") {
         const auto side = node.get_value("dockSide", "center");
+        const bool is_flex = parse_bool(node.get_value("flex", "false"));
         if (ctrl->has_method("set_dock_side"))
             ctrl->call("set_dock_side", String(side.c_str()));
-        if (node.has_property("fixedWidth") && ctrl->has_method("set_fixed_width"))
-            ctrl->call("set_fixed_width", (double)parse_int(node.get_value("fixedWidth")));
+        if (node.has_property("fixedWidth") && ctrl->has_method("set_fixed_width")) {
+            if (is_flex) {
+                const std::string id = node.get_value("id", "");
+                std::string msg = "[ForgeRunner] DockingContainer";
+                if (!id.empty()) msg += " id='" + id + "'";
+                msg += " has flex:true with fixedWidth. fixedWidth is ignored; use minWidth for constraints.";
+                UtilityFunctions::push_warning(String(msg.c_str()));
+            } else {
+                ctrl->call("set_fixed_width", (double)parse_int(node.get_value("fixedWidth")));
+            }
+        }
         if (node.has_property("fixedHeight") && ctrl->has_method("set_fixed_height"))
             ctrl->call("set_fixed_height", (double)parse_int(node.get_value("fixedHeight")));
         if (node.has_property("heightPercent") && ctrl->has_method("set_height_percent"))
             ctrl->call("set_height_percent", (double)parse_float(node.get_value("heightPercent")));
         if (ctrl->has_method("set_flex"))
-            ctrl->call("set_flex", parse_bool(node.get_value("flex", "false")));
+            ctrl->call("set_flex", is_flex);
+        if (node.has_property("collapsed") && ctrl->has_method("set_collapsed"))
+            ctrl->call("set_collapsed", parse_bool(node.get_value("collapsed"), false));
         if (side == "center") {
             ctrl->set_h_size_flags(Control::SIZE_EXPAND_FILL);
             ctrl->set_v_size_flags(Control::SIZE_EXPAND_FILL);
@@ -805,9 +825,15 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
             ctrl->set_h_size_flags(Control::SIZE_FILL);
             ctrl->set_v_size_flags(Control::SIZE_EXPAND_FILL);
         }
-        // DockingHost manages column widths — do NOT enforce fixedWidth as minimum size
-        // (set_size would clamp to it, preventing resize handles from working)
-        ctrl->set_custom_minimum_size(Vector2(0.f, ctrl->get_custom_minimum_size().y));
+        // DockingHost manages column widths. Keep an explicit minWidth/customMinimumSize.x
+        // if provided, but do not treat fixedWidth as an implicit minimum.
+        float min_x = 0.f;
+        if (node.has_property("minWidth")) {
+            min_x = static_cast<float>(parse_int(node.get_value("minWidth")));
+        } else if (node.has_property("customMinimumSize")) {
+            min_x = ctrl->get_custom_minimum_size().x;
+        }
+        ctrl->set_custom_minimum_size(Vector2(min_x, ctrl->get_custom_minimum_size().y));
         if (auto* tc = Object::cast_to<TabContainer>(ctrl)) {
             if (node.has_property("dragToRearrangeEnabled"))
                 tc->set_drag_to_rearrange_enabled(parse_bool(node.get_value("dragToRearrangeEnabled")));
@@ -898,7 +924,7 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
                 "visible", "id", "spacing", "padding", "paddingLeft",
                 "paddingTop", "paddingRight", "paddingBottom", "columns",
                 "sizeFlagsHorizontal", "sizeFlagsVertical", "mouseFilter",
-                "customMinimumSize", "fixedWidth", "fixedHeight", "width", "height",
+                "customMinimumSize", "minWidth", "minHeight", "fixedWidth", "fixedHeight", "width", "height",
                 "anchorLeft", "anchorRight", "anchorTop", "anchorBottom", "anchors",
                 "offsetLeft", "offsetTop", "offsetRight", "offsetBottom",
                 "top", "left", "right", "bottom",

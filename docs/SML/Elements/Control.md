@@ -59,8 +59,11 @@ All classes listed below inherit from `Control`.
 - [FileSystemDock](FileSystemDock.md)
 - [FlowContainer](FlowContainer.md)
 - [FoldableContainer](FoldableContainer.md)
+- [ForgeBgHBoxContainer](ForgeBgHBoxContainer.md)
+- [ForgeBgVBoxContainer](ForgeBgVBoxContainer.md)
 - [ForgeDockingContainerControl](ForgeDockingContainerControl.md)
 - [ForgeDockingHostControl](ForgeDockingHostControl.md)
+- [ForgeMarkdownContainer](ForgeMarkdownContainer.md)
 - [ForgeWindowDragControl](ForgeWindowDragControl.md)
 - [GraphEdit](GraphEdit.md)
 - [GraphElement](GraphElement.md)
@@ -151,6 +154,8 @@ Inherited properties are documented in: [CanvasItem](CanvasItem.md)
 | — (drawn via BgControl._Draw) | highlightColor | color | — |
 | — (expands to profile properties before build) | elevation | identifier | — |
 | — (inner MarginContainer injected at build time) | padding | padding | 0 |
+| custom_minimum_size.x | minWidth | int | — |
+| custom_minimum_size.y | minHeight | int | — |
 
 ## Events
 

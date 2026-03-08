@@ -1,7 +1,8 @@
 Window {
     id: mainWindow
     title: "ForgePoser"
-    minSize: 1024, 680
+    //minSize: 1226, 200 // for all panel open
+    minSize: 738, 200 // two panel opem
     size: 1440, 900
 
     MenuBar {
@@ -34,11 +35,20 @@ Window {
             sizeFlagsVertical: expandFill
             gap: 4
 
+            DockingContainer {
+                id: farLeftDock
+                dockSide: farLeft
+                minWidth: 220
+                dragToRearrangeEnabled: true
+                tabsRearrangeGroup: 1
+                collapsed: true
+            }
+
             // ── Left panel: Scene Assets + Keyframe Inspector (two tabs) ──────
             DockingContainer {
                 id: leftDock
                 dockSide: left
-                fixedWidth: 240
+                minWidth: 240
                 dragToRearrangeEnabled: true
                 tabsRearrangeGroup: 1
 
@@ -108,6 +118,7 @@ Window {
                 id: centerDock
                 dockSide: center
                 flex: true
+                minWidth: 290
                 closeable: false
                 dragToRearrangeEnabled: true
                 tabsRearrangeGroup: 2
@@ -256,7 +267,9 @@ Window {
             DockingContainer {
                 id: rightDock
                 dockSide: right
-                fixedWidth: 240
+                minWidth: 240
+                minHeight: 100
+                
                 dragToRearrangeEnabled: true
                 tabsRearrangeGroup: 1
 
@@ -280,7 +293,8 @@ Window {
             DockingContainer {
                 id: rightBottomDock
                 dockSide: rightBottom
-                fixedWidth: 240
+                minWidth: 240
+                minHeight: 100
                 dragToRearrangeEnabled: true
                 tabsRearrangeGroup: 1
 
@@ -358,6 +372,15 @@ Window {
                     }
                 }
 
+            }
+
+            DockingContainer {
+                id: farRightDock
+                dockSide: farRight
+                minWidth: 220
+                dragToRearrangeEnabled: true
+                tabsRearrangeGroup: 1
+                collapsed: true
             }
 
         }
