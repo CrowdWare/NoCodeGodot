@@ -3,6 +3,17 @@ Here I will list things we need in general, like demos, tech previews.
 
 Real tasks you will find in `/CWUP/BACKLOG.md`
 
+# Erklärung notwendig
+Codex: 
+Ich setze nun die Bridge-Erweiterung (get/set/invoke generisch über Godot-Variant/JSON) um, damit die
+  neuen 3D-Controls sofort aus SMS aufrufbar sind. Danach kommt das Control-Scaffold.
+
+Art: 
+Was macht der JSON Teil da? 
+Ist das nicht etwas, was wir optimieren sollten?
+
+
+# List
 - [ ] Default app, which will be loaded on startup id no URL is specified
 - [ ] The designer app, which we can use to design and implement new apps, based on Forge
 - [ ] Compiler that compiles SMS and SML to create native apps. Two phases convert to C# or create LLVM, depends on performance

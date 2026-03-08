@@ -65,3 +65,12 @@ Start only after `native_sms_ui_bridge.md` and `native_bg_containers.md` are don
 ## Reference
 - C#: `ForgeRunner/Runtime/ThreeD/`
 - Godot API: `GltfDocument`, `GltfState`, `Skeleton3D`, `AnimationPlayer`
+
+## Implementation Progress
+- [x] Native class scaffolds registered: `ForgeTimelineControl` and `ForgePosingEditorControl`.
+- [x] UI builder wiring added for `Timeline` / `PosingEditor` node creation and core property mapping (`fps`, `totalFrames`, `src`, `showBoneTree`).
+- [x] SMS bridge upgraded with generic property/method fallback (`ui.get`/`ui.set`/`ui.invoke` via Godot `Variant` + JSON), enabling scripted calls to native control methods.
+- [x] Native SMS event hookup extended for 3D-tool signal names (`boneSelected`, `poseChanged`, `scenePropAdded`, `keyframeAdded`, `frameChanged`, etc.).
+- [x] Visible baseline added: `ForgePosingEditorControl` now creates a native `SubViewport` with camera/light/ground, and `ForgeTimelineControl` now renders ruler/playhead with click-to-seek.
+- [x] Initial model loading wired in `ForgePosingEditorControl` (`src`, `addSceneAsset`) with `ResourceLoader` + GLTF fallback and first-bone auto-select signal.
+- [ ] Replace scaffolds with full runtime parity implementations (3D scene, gizmos, timeline drawing/interpolation, serializer/exporter).
