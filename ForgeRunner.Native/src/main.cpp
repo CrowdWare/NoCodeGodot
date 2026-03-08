@@ -376,11 +376,6 @@ UiState& ui_state() {
     return state;
 }
 
-bool source_contains_ready_function(const std::string& source) {
-    const std::string needle = "fun ready(";
-    return source.find(needle) != std::string::npos;
-}
-
 std::optional<std::size_t> find_matching_brace(const std::string& source, std::size_t open_index) {
     if (open_index >= source.size() || source[open_index] != '{') {
         return std::nullopt;
@@ -1251,16 +1246,7 @@ public:
             return false;
         }
 
-        std::string source_for_session = sms_source;
-        if (source_for_session.find("on __runtime__.ready()") == std::string::npos
-            && source_contains_ready_function(source_for_session)) {
-            source_for_session.append("\n");
-            source_for_session.append("on __runtime__.ready() {\n");
-            source_for_session.append("    ready()\n");
-            source_for_session.append("}\n");
-        }
-
-        if (load_fn_(session, source_for_session.c_str(), error, static_cast<int>(sizeof(error))) != 0) {
+        if (load_fn_(session, sms_source.c_str(), error, static_cast<int>(sizeof(error))) != 0) {
             std::cerr << "[ForgeRunner.Native] session load failed for '" << sms_path.string() << "': " << error << "\n";
             (void)dispose_fn_(session, nullptr, 0);
             return false;

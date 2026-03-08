@@ -88,6 +88,7 @@ var sourceEditorLastChangeAtMs = 0
 var sourceEditorIdleApplyMs = 700
 var sourceApplyInProgress = false
 var sourceApplyCooldownUntilMs = 0
+var defaultBootstrapProjectPath = "/Users/art/SourceCode/Forge/PoserDemoProjects/demo.scene"
 
 fun initThemePresets() {
     themeNames = []
@@ -138,13 +139,19 @@ fun pullAiSceneProperties() {
     if (currentProjectPath == "") {
         return
     }
-    var cfg = os.loadPromptConfig(currentProjectPath, aiPrompt, aiNegativePrompt, aiStyleImagePath, aiExtraImagePath, aiImageModel, aiVideoModel)
-    aiPrompt = cfg.prompt
-    aiNegativePrompt = cfg.negativePrompt
-    aiStyleImagePath = cfg.styleImagePath
-    aiExtraImagePath = cfg.extraImagePath
-    aiImageModel = cfg.imageModel
-    aiVideoModel = cfg.videoModel
+    try {
+        var cfg = os.loadPromptConfig(currentProjectPath, aiPrompt, aiNegativePrompt, aiStyleImagePath, aiExtraImagePath, aiImageModel, aiVideoModel)
+        if (cfg != null) {
+            aiPrompt = cfg.prompt
+            aiNegativePrompt = cfg.negativePrompt
+            aiStyleImagePath = cfg.styleImagePath
+            aiExtraImagePath = cfg.extraImagePath
+            aiImageModel = cfg.imageModel
+            aiVideoModel = cfg.videoModel
+        }
+    } catch (e) {
+        log.warn("Prompt config unavailable: " + e.message)
+    }
     refreshPromptPanelFromState()
 }
 
@@ -422,7 +429,8 @@ fun onInspectorRefreshTimer() {
     updateInspectorFromSelection()
 }
 
-fun ready() {
+on mainWindow.ready() {
+    log.success("on ready has been called")
     kfTreeRef    = ui.getObject("keyframeTree")
     sceneTreeRef = ui.getObject("sceneAssetTree")
     editor       = ui.getObject("editor")
@@ -777,6 +785,11 @@ fun openProjectPath(path) {
 }
 
 fun bootstrapProjectChooser() {
+    if (defaultBootstrapProjectPath != "") {
+        if (openProjectPath(defaultBootstrapProjectPath)) {
+            return
+        }
+    }
     showProjectChooser("Choose project: Open Last, Open, or Create.")
     focusChooserDefaultButton()
 }

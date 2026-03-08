@@ -40,7 +40,7 @@ public:
     void dispatch_event(std::int64_t session,
                         const std::string& object_id,
                         const std::string& event_name,
-                        const std::string& payload_json = "null");
+                        const std::string& payload_json = "[]");
 
     /// Dispose a session obtained from start_session().
     void dispose_session(std::int64_t session);

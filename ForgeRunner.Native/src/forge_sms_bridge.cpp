@@ -20,6 +20,7 @@
 #include <godot_cpp/classes/check_button.hpp>
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/item_list.hpp>
+#include <godot_cpp/classes/json.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/line_edit.hpp>
 #include <godot_cpp/classes/option_button.hpp>
@@ -66,6 +67,19 @@ static std::string json_string(const std::string& s) {
 static void write_out(char* buf, int cap, const std::string& s) {
     if (buf == nullptr || cap <= 0) return;
     std::snprintf(buf, static_cast<std::size_t>(cap), "%s", s.c_str());
+}
+
+static std::string variant_to_json(const Variant& value) {
+    if (value.get_type() == Variant::NIL) return "null";
+    const String json = JSON::stringify(value);
+    return json.utf8().get_data();
+}
+
+static Variant parse_json_variant(const std::string& json_value, bool* ok = nullptr) {
+    const Variant parsed = JSON::parse_string(String(json_value.c_str()));
+    const bool parsed_ok = !(parsed.get_type() == Variant::NIL && json_value != "null");
+    if (ok) *ok = parsed_ok;
+    return parsed_ok ? parsed : Variant();
 }
 
 // Strip surrounding double-quotes from a JSON string value.
@@ -140,7 +154,9 @@ static int sms_ui_get(
     const std::string prop = property  ? property  : "";
 
     if (prop == "__exists") {
-        write_out(out_json, out_cap, "1");
+        const auto it = SmsBridge::id_map().find(id);
+        const bool exists = (it != SmsBridge::id_map().end() && it->second != nullptr);
+        write_out(out_json, out_cap, exists ? "1" : "0");
         return 0;
     }
 
@@ -199,6 +215,9 @@ static int sms_ui_get(
         if (auto* sc = Object::cast_to<ScrollContainer>(ctrl)) v = sc->get_v_scroll();
         char buf[32]; std::snprintf(buf, sizeof(buf), "%d", v);
         result = buf;
+    } else {
+        const Variant value = ctrl->get(StringName(prop.c_str()));
+        result = variant_to_json(value);
     }
 
     write_out(out_json, out_cap, result);
@@ -246,6 +265,13 @@ static int sms_ui_set(
         int v = 0;
         try { v = std::stoi(value); } catch (...) {}
         if (auto* sc = Object::cast_to<ScrollContainer>(ctrl)) sc->set_v_scroll(v);
+    } else {
+        bool parsed_ok = false;
+        Variant parsed_value = parse_json_variant(value, &parsed_ok);
+        if (!parsed_ok) {
+            parsed_value = String(json_unquote(value).c_str());
+        }
+        ctrl->set(StringName(prop.c_str()), parsed_value);
     }
     return 0;
 }
@@ -259,7 +285,12 @@ static int sms_ui_invoke(
     const std::string args  = args_json ? args_json : "[]";
 
     if (id == "__log__") {
-        UtilityFunctions::print(String(("[SMS] " + first_string_arg(args)).c_str()));
+        const std::string msg = first_string_arg(args);
+        if (mname == "success") {
+            UtilityFunctions::print(String(("\x1b[32m" + msg + "\x1b[0m").c_str()));
+        } else {
+            UtilityFunctions::print(String(msg.c_str()));
+        }
         write_out(out_json, out_cap, "null");
         return 0;
     }
@@ -283,6 +314,18 @@ static int sms_ui_invoke(
         const String item(first_string_arg(args).c_str());
         if      (auto* ob = Object::cast_to<OptionButton>(ctrl)) ob->add_item(item);
         else if (auto* il = Object::cast_to<ItemList>(ctrl))     il->add_item(item);
+    } else if (ctrl->has_method(StringName(mname.c_str()))) {
+        Array call_args;
+        bool parsed_ok = false;
+        const Variant parsed = parse_json_variant(args, &parsed_ok);
+        if (parsed_ok && parsed.get_type() == Variant::ARRAY) {
+            call_args = parsed;
+        } else if (parsed_ok && parsed.get_type() != Variant::NIL) {
+            call_args.push_back(parsed);
+        }
+        const Variant ret = ctrl->callv(StringName(mname.c_str()), call_args);
+        write_out(out_json, out_cap, variant_to_json(ret));
+        return 0;
     }
 
     write_out(out_json, out_cap, "null");
@@ -387,10 +430,18 @@ void SmsBridge::dispatch_event(std::int64_t session,
                                const std::string& event_name,
                                const std::string& payload_json) {
     if (!loaded_ || session < 0) return;
+    const char* args_json = payload_json.empty() ? "[]" : payload_json.c_str();
     std::int64_t result_session = -1;
-    char out[64] = {};
-    invoke_fn_(session, object_id.c_str(), event_name.c_str(), payload_json.c_str(),
-               &result_session, out, static_cast<int>(sizeof(out)));
+    char err[512] = {};
+    const int rc = invoke_fn_(session, object_id.c_str(), event_name.c_str(), args_json,
+                              &result_session, err, static_cast<int>(sizeof(err)));
+    if (rc != 0) {
+        const std::string msg = err[0] != '\0' ? std::string(err) : std::string("unknown invoke error");
+        if (msg.find("No SMS event handler found") != std::string::npos) {
+            return;
+        }
+        UtilityFunctions::push_warning(String(("[ForgeRunner.Native] SMS dispatch failed for '" + object_id + "." + event_name + "': " + msg).c_str()));
+    }
 }
 
 void SmsBridge::dispose_session(std::int64_t session) {

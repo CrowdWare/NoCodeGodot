@@ -38,6 +38,7 @@ public:
     void on_sms_text_event(godot::String text, godot::String object_id, godot::String event_name);
     void on_sms_value_event(double value, godot::String object_id, godot::String event_name);
     void on_sms_item_event(int index, godot::String object_id, godot::String event_name);
+    void on_sms_item_text_event(int index, godot::String text, godot::String object_id, godot::String event_name);
 
 private:
     // ----- SML / Splash state -----
@@ -78,7 +79,7 @@ private:
     void clear_content();
     void show_error(const std::string& msg);
     void on_splash_timeout();
-    void start_sms(const std::string& sml_path, const std::string& root_name);
+    void start_sms(const std::string& sml_path, const std::string& root_name, const std::string& root_id);
     void stop_sms();
 
     // ----- HTTP / Manifest download -----

@@ -197,7 +197,8 @@ void ForgeRunnerNativeMain::show_sml(const std::string& path) {
 
     // Start SMS if a companion .sms script exists
     if (!win_cfg.is_splash) {
-        start_sms(path, doc.roots[0].name);
+        const std::string root_id = doc.roots[0].get_value("id", "");
+        start_sms(path, doc.roots[0].name, root_id);
     }
 
     // Splash: schedule next load
@@ -275,7 +276,7 @@ void ForgeRunnerNativeMain::on_splash_timeout() {
 // SMS integration
 // ---------------------------------------------------------------------------
 
-void ForgeRunnerNativeMain::start_sms(const std::string& sml_path, const std::string& root_name) {
+void ForgeRunnerNativeMain::start_sms(const std::string& sml_path, const std::string& root_name, const std::string& root_id) {
     // Companion script: same base path with .sms extension
     fs::path script = fs::path(sml_path);
     script.replace_extension(".sms");
@@ -335,6 +336,11 @@ void ForgeRunnerNativeMain::start_sms(const std::string& sml_path, const std::st
                 callable_mp(this, &ForgeRunnerNativeMain::on_sms_item_event)
                     .bind(gid, String(event)));
         };
+        auto cbItemText = [&](Control* c, const char* signal, const char* event) {
+            c->connect(signal,
+                callable_mp(this, &ForgeRunnerNativeMain::on_sms_item_text_event)
+                    .bind(gid, String(event)));
+        };
 
         if (auto* btn = Object::cast_to<Button>(ctrl)) {
             cb0(btn,   "pressed",  "pressed");
@@ -359,6 +365,19 @@ void ForgeRunnerNativeMain::start_sms(const std::string& sml_path, const std::st
         if (auto* il = Object::cast_to<ItemList>(ctrl)) {
             cbItem(il, "item_selected", "itemSelected");
         }
+
+        if (ctrl->has_signal("boneSelected"))      cbText(ctrl, "boneSelected", "boneSelected");
+        if (ctrl->has_signal("poseChanged"))       cbText(ctrl, "poseChanged", "poseChanged");
+        if (ctrl->has_signal("poseReset"))         cb0(ctrl, "poseReset", "poseReset");
+        if (ctrl->has_signal("scenePropAdded"))    cbItemText(ctrl, "scenePropAdded", "scenePropAdded");
+        if (ctrl->has_signal("scenePropRemoved"))  cbItem(ctrl, "scenePropRemoved", "scenePropRemoved");
+        if (ctrl->has_signal("objectSelected"))    cbItem(ctrl, "objectSelected", "objectSelected");
+        if (ctrl->has_signal("objectMoved"))       cbItemText(ctrl, "objectMoved", "objectMoved");
+        if (ctrl->has_signal("keyframeAdded"))     cbItemText(ctrl, "keyframeAdded", "keyframeAdded");
+        if (ctrl->has_signal("keyframeRemoved"))   cbItem(ctrl, "keyframeRemoved", "keyframeRemoved");
+        if (ctrl->has_signal("frameChanged"))      cbItem(ctrl, "frameChanged", "frameChanged");
+        if (ctrl->has_signal("playbackStarted"))   cb0(ctrl, "playbackStarted", "playbackStarted");
+        if (ctrl->has_signal("playbackStopped"))   cb0(ctrl, "playbackStopped", "playbackStopped");
     }
 
     // Dispatch ready event
@@ -368,6 +387,9 @@ void ForgeRunnerNativeMain::start_sms(const std::string& sml_path, const std::st
         return s;
     }();
     sms_bridge_.dispatch_event(sms_session_, root_lower, "ready");
+    if (!root_id.empty() && root_id != root_lower) {
+        sms_bridge_.dispatch_event(sms_session_, root_id, "ready");
+    }
     UtilityFunctions::print(String(("[ForgeRunner.Native] SMS session started: " + script.string()).c_str()));
 }
 
@@ -391,11 +413,11 @@ void ForgeRunnerNativeMain::on_sms_event(String object_id, String event_name) {
 void ForgeRunnerNativeMain::on_sms_bool_event(bool value, String object_id, String event_name) {
     sms_bridge_.dispatch_event(sms_session_,
         object_id.utf8().get_data(), event_name.utf8().get_data(),
-        value ? "true" : "false");
+        value ? "[true]" : "[false]");
 }
 
 void ForgeRunnerNativeMain::on_sms_text_event(String text, String object_id, String event_name) {
-    std::string json = "\"";
+    std::string json = "[\"";
     const std::string raw = text.utf8().get_data();
     for (unsigned char c : raw) {
         if      (c == '"')  json += "\\\"";
@@ -403,23 +425,38 @@ void ForgeRunnerNativeMain::on_sms_text_event(String text, String object_id, Str
         else if (c == '\n') json += "\\n";
         else                json += static_cast<char>(c);
     }
-    json += "\"";
+    json += "\"]";
     sms_bridge_.dispatch_event(sms_session_,
         object_id.utf8().get_data(), event_name.utf8().get_data(), json);
 }
 
 void ForgeRunnerNativeMain::on_sms_value_event(double value, String object_id, String event_name) {
     char buf[64];
-    std::snprintf(buf, sizeof(buf), "%g", value);
+    std::snprintf(buf, sizeof(buf), "[%g]", value);
     sms_bridge_.dispatch_event(sms_session_,
         object_id.utf8().get_data(), event_name.utf8().get_data(), buf);
 }
 
 void ForgeRunnerNativeMain::on_sms_item_event(int index, String object_id, String event_name) {
     char buf[32];
-    std::snprintf(buf, sizeof(buf), "%d", index);
+    std::snprintf(buf, sizeof(buf), "[%d]", index);
     sms_bridge_.dispatch_event(sms_session_,
         object_id.utf8().get_data(), event_name.utf8().get_data(), buf);
+}
+
+void ForgeRunnerNativeMain::on_sms_item_text_event(int index, String text, String object_id, String event_name) {
+    std::string escaped;
+    const std::string raw = text.utf8().get_data();
+    escaped.reserve(raw.size() + 8);
+    for (unsigned char c : raw) {
+        if      (c == '"')  escaped += "\\\"";
+        else if (c == '\\') escaped += "\\\\";
+        else if (c == '\n') escaped += "\\n";
+        else                escaped += static_cast<char>(c);
+    }
+    const std::string payload = "[" + std::to_string(index) + ",\"" + escaped + "\"]";
+    sms_bridge_.dispatch_event(sms_session_,
+        object_id.utf8().get_data(), event_name.utf8().get_data(), payload);
 }
 
 // ---------------------------------------------------------------------------

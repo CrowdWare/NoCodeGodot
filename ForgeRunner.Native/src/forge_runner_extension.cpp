@@ -1,13 +1,35 @@
 #include "forge_runner_main.h"
 #include "forge_markdown.h"
+#include "forge_path_resolver.h"
+#include <sml_document.h>
 
+#include <algorithm>
+#include <cctype>
 #include <cstdio>
+#include <cstdlib>
+#include <filesystem>
 #include <map>
+#include <sstream>
+#include <string>
 #include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/box_mesh.hpp>
 #include <godot_cpp/classes/code_edit.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
+#include <godot_cpp/classes/camera3d.hpp>
+#include <godot_cpp/classes/directional_light3d.hpp>
 #include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/gltf_document.hpp>
+#include <godot_cpp/classes/gltf_state.hpp>
+#include <godot_cpp/classes/mesh_instance3d.hpp>
+#include <godot_cpp/classes/node3d.hpp>
+#include <godot_cpp/classes/node.hpp>
+#include <godot_cpp/classes/packed_scene.hpp>
+#include <godot_cpp/classes/plane_mesh.hpp>
 #include <godot_cpp/classes/rich_text_label.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/skeleton3d.hpp>
+#include <godot_cpp/classes/standard_material3d.hpp>
+#include <godot_cpp/classes/sub_viewport.hpp>
 #include <godot_cpp/classes/text_server.hpp>
 #include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/classes/container.hpp>
@@ -22,6 +44,7 @@
 #include <godot_cpp/classes/popup_menu.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/style_box_flat.hpp>
+#include <godot_cpp/classes/sub_viewport_container.hpp>
 #include <godot_cpp/classes/tab_bar.hpp>
 #include <godot_cpp/classes/tab_container.hpp>
 #include <godot_cpp/classes/display_server.hpp>
@@ -1359,6 +1382,910 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// ForgeTimelineControl (native scaffold)
+// ---------------------------------------------------------------------------
+
+class ForgeTimelineControl : public SubViewportContainer {
+    GDCLASS(ForgeTimelineControl, SubViewportContainer);
+
+protected:
+    static void _bind_methods() {
+        ClassDB::bind_method(D_METHOD("setCurrentFrame", "frame"), &ForgeTimelineControl::set_current_frame);
+        ClassDB::bind_method(D_METHOD("setKeyframe", "frame", "pose"), &ForgeTimelineControl::set_keyframe);
+        ClassDB::bind_method(D_METHOD("getPoseAt", "frame"), &ForgeTimelineControl::get_pose_at);
+        ClassDB::bind_method(D_METHOD("setVisibleCharacterId", "characterId"), &ForgeTimelineControl::set_visible_character_id);
+        ClassDB::bind_method(D_METHOD("getKeyframeCount"), &ForgeTimelineControl::get_keyframe_count);
+        ClassDB::bind_method(D_METHOD("getKeyframeFrameAt", "index"), &ForgeTimelineControl::get_keyframe_frame_at);
+        ClassDB::bind_method(D_METHOD("getKeyframeCountForCharacter", "characterId"), &ForgeTimelineControl::get_keyframe_count_for_character);
+        ClassDB::bind_method(D_METHOD("getKeyframeFrameAtForCharacter", "index", "characterId"), &ForgeTimelineControl::get_keyframe_frame_at_for_character);
+        ClassDB::bind_method(D_METHOD("getKeyframeBoneCountForCharacter", "frame", "characterId"), &ForgeTimelineControl::get_keyframe_bone_count_for_character);
+        ClassDB::bind_method(D_METHOD("debugLogKeyframesForCharacter", "characterId"), &ForgeTimelineControl::debug_log_keyframes_for_character);
+        ClassDB::bind_method(D_METHOD("clearAllKeyframes"), &ForgeTimelineControl::clear_all_keyframes);
+
+        ClassDB::bind_method(D_METHOD("set_fps", "value"), &ForgeTimelineControl::set_fps);
+        ClassDB::bind_method(D_METHOD("get_fps"), &ForgeTimelineControl::get_fps);
+        ClassDB::bind_method(D_METHOD("set_total_frames", "value"), &ForgeTimelineControl::set_total_frames);
+        ClassDB::bind_method(D_METHOD("get_total_frames"), &ForgeTimelineControl::get_total_frames);
+        ClassDB::bind_method(D_METHOD("set_current_frame_prop", "value"), &ForgeTimelineControl::set_current_frame_prop);
+        ClassDB::bind_method(D_METHOD("get_current_frame_prop"), &ForgeTimelineControl::get_current_frame_prop);
+
+        ADD_PROPERTY(PropertyInfo(Variant::INT, "fps"), "set_fps", "get_fps");
+        ADD_PROPERTY(PropertyInfo(Variant::INT, "totalFrames"), "set_total_frames", "get_total_frames");
+        ADD_PROPERTY(PropertyInfo(Variant::INT, "currentFrame"), "set_current_frame_prop", "get_current_frame_prop");
+
+        ADD_SIGNAL(MethodInfo("keyframeAdded", PropertyInfo(Variant::INT, "frame"), PropertyInfo(Variant::STRING, "boneName")));
+        ADD_SIGNAL(MethodInfo("keyframeRemoved", PropertyInfo(Variant::INT, "frame")));
+        ADD_SIGNAL(MethodInfo("frameChanged", PropertyInfo(Variant::INT, "frame")));
+        ADD_SIGNAL(MethodInfo("playbackStarted"));
+        ADD_SIGNAL(MethodInfo("playbackStopped"));
+    }
+
+public:
+    void _ready() override {
+        set_mouse_filter(Control::MOUSE_FILTER_STOP);
+        queue_redraw();
+    }
+
+    void _draw() override {
+        const Vector2 size = get_size();
+        if (size.x <= 1.0f || size.y <= 1.0f) return;
+
+        draw_rect(Rect2(Vector2(), size), Color(0.09f, 0.10f, 0.12f, 1.0f), true);
+        draw_line(Vector2(0.0f, 20.0f), Vector2(size.x, 20.0f), Color(0.24f, 0.26f, 0.30f, 1.0f), 1.0f);
+
+        const int frame_count = total_frames_ > 0 ? total_frames_ : 1;
+        const float px_per_frame = size.x / static_cast<float>(frame_count);
+        for (int frame = 0; frame <= frame_count; ++frame) {
+            const float x = frame * px_per_frame;
+            const bool major = (frame % 10) == 0;
+            const float y0 = major ? 0.0f : 8.0f;
+            draw_line(Vector2(x, y0), Vector2(x, 20.0f),
+                      major ? Color(0.55f, 0.60f, 0.67f, 1.0f) : Color(0.32f, 0.35f, 0.40f, 1.0f),
+                      major ? 1.5f : 1.0f);
+        }
+
+        const float playhead_x = CLAMP(static_cast<float>(current_frame_), 0.0f, static_cast<float>(frame_count)) * px_per_frame;
+        draw_line(Vector2(playhead_x, 0.0f), Vector2(playhead_x, size.y), Color(1.0f, 0.43f, 0.24f, 1.0f), 2.0f);
+    }
+
+    void _gui_input(const Ref<InputEvent>& event) override {
+        Ref<InputEventMouseButton> mb = event;
+        if (!mb.is_valid() || mb->get_button_index() != MOUSE_BUTTON_LEFT || !mb->is_pressed()) return;
+        const float width = get_size().x;
+        if (width <= 1.0f) return;
+        const int frame_count = total_frames_ > 0 ? total_frames_ : 1;
+        const float ratio = CLAMP(mb->get_position().x / width, 0.0f, 1.0f);
+        set_current_frame(static_cast<int>(ratio * frame_count));
+    }
+
+    void set_fps(int value) { fps_ = value > 0 ? value : 1; }
+    int get_fps() const { return fps_; }
+    void set_total_frames(int value) { total_frames_ = value > 0 ? value : 1; }
+    int get_total_frames() const { return total_frames_; }
+    void set_current_frame_prop(int value) { set_current_frame(value); }
+    int get_current_frame_prop() const { return current_frame_; }
+
+    void set_current_frame(int frame) {
+        const int clamped = CLAMP(frame, 0, total_frames_);
+        if (clamped == current_frame_) return;
+        current_frame_ = clamped;
+        emit_signal("frameChanged", current_frame_);
+        queue_redraw();
+    }
+
+    void set_keyframe(int frame, const Variant& pose) {
+        const std::string cid = visible_character_id_.is_empty() ? std::string("_default") : std::string(visible_character_id_.utf8().get_data());
+        keyframes_[cid][frame] = pose;
+        emit_signal("keyframeAdded", frame, String("*"));
+    }
+
+    Variant get_pose_at(int frame) const {
+        const std::string cid = visible_character_id_.is_empty() ? std::string("_default") : std::string(visible_character_id_.utf8().get_data());
+        auto char_it = keyframes_.find(cid);
+        if (char_it == keyframes_.end()) return Variant();
+        auto frame_it = char_it->second.find(frame);
+        if (frame_it == char_it->second.end()) return Variant();
+        return frame_it->second;
+    }
+
+    void set_visible_character_id(const String& character_id) {
+        visible_character_id_ = character_id;
+    }
+
+    int get_keyframe_count() const {
+        const String cid = visible_character_id_.is_empty() ? String("_default") : visible_character_id_;
+        return get_keyframe_count_for_character(cid);
+    }
+
+    int get_keyframe_frame_at(int index) const {
+        const String cid = visible_character_id_.is_empty() ? String("_default") : visible_character_id_;
+        return get_keyframe_frame_at_for_character(index, cid);
+    }
+
+    int get_keyframe_count_for_character(const String& character_id) const {
+        auto char_it = keyframes_.find(character_id.utf8().get_data());
+        if (char_it == keyframes_.end()) return 0;
+        return static_cast<int>(char_it->second.size());
+    }
+
+    int get_keyframe_frame_at_for_character(int index, const String& character_id) const {
+        auto char_it = keyframes_.find(character_id.utf8().get_data());
+        if (char_it == keyframes_.end() || index < 0 || index >= static_cast<int>(char_it->second.size())) return -1;
+        int i = 0;
+        for (const auto& [frame, _] : char_it->second) {
+            if (i == index) return frame;
+            ++i;
+        }
+        return -1;
+    }
+
+    int get_keyframe_bone_count_for_character(int frame, const String& character_id) const {
+        auto char_it = keyframes_.find(character_id.utf8().get_data());
+        if (char_it == keyframes_.end()) return 0;
+        auto frame_it = char_it->second.find(frame);
+        if (frame_it == char_it->second.end()) return 0;
+        if (frame_it->second.get_type() == Variant::DICTIONARY) {
+            return static_cast<int>(Dictionary(frame_it->second).size());
+        }
+        return 1;
+    }
+
+    void debug_log_keyframes_for_character(const String& character_id) const {
+        UtilityFunctions::print(String("[ForgeRunner.Native] Timeline keyframes for '") + character_id + "': " + String::num_int64(get_keyframe_count_for_character(character_id)));
+    }
+
+    void clear_all_keyframes() {
+        keyframes_.clear();
+        queue_redraw();
+    }
+
+private:
+    int fps_ = 24;
+    int total_frames_ = 120;
+    int current_frame_ = 0;
+    String visible_character_id_;
+    std::map<std::string, std::map<int, Variant>> keyframes_;
+};
+
+// ---------------------------------------------------------------------------
+// ForgePosingEditorControl (native scaffold)
+// ---------------------------------------------------------------------------
+
+class ForgePosingEditorControl : public SubViewportContainer {
+    GDCLASS(ForgePosingEditorControl, SubViewportContainer);
+
+    struct SceneItem {
+        String id;
+        String name;
+        String path;
+        Node3D* node = nullptr;
+        float px = 0.0f, py = 0.0f, pz = 0.0f;
+        float rx = 0.0f, ry = 0.0f, rz = 0.0f;
+        float sx = 1.0f, sy = 1.0f, sz = 1.0f;
+        bool visible = true;
+    };
+
+protected:
+    static void _bind_methods() {
+        ClassDB::bind_method(D_METHOD("setMode", "mode"), &ForgePosingEditorControl::set_mode);
+        ClassDB::bind_method(D_METHOD("setEditMode", "mode"), &ForgePosingEditorControl::set_edit_mode);
+        ClassDB::bind_method(D_METHOD("setTransformSpace", "space"), &ForgePosingEditorControl::set_transform_space);
+        ClassDB::bind_method(D_METHOD("setBoneTree", "id"), &ForgePosingEditorControl::set_bone_tree);
+        ClassDB::bind_method(D_METHOD("setJointSpheresVisible", "visible"), &ForgePosingEditorControl::set_joint_spheres_visible);
+        ClassDB::bind_method(D_METHOD("getSelectedBoneName"), &ForgePosingEditorControl::get_selected_bone_name);
+        ClassDB::bind_method(D_METHOD("getSelectedBoneRotX"), &ForgePosingEditorControl::get_selected_bone_rot_x);
+        ClassDB::bind_method(D_METHOD("getSelectedBoneRotY"), &ForgePosingEditorControl::get_selected_bone_rot_y);
+        ClassDB::bind_method(D_METHOD("getSelectedBoneRotZ"), &ForgePosingEditorControl::get_selected_bone_rot_z);
+        ClassDB::bind_method(D_METHOD("getSelectedBoneMinX"), &ForgePosingEditorControl::get_selected_bone_min_x);
+        ClassDB::bind_method(D_METHOD("getSelectedBoneMinY"), &ForgePosingEditorControl::get_selected_bone_min_y);
+        ClassDB::bind_method(D_METHOD("getSelectedBoneMinZ"), &ForgePosingEditorControl::get_selected_bone_min_z);
+        ClassDB::bind_method(D_METHOD("getSelectedBoneMaxX"), &ForgePosingEditorControl::get_selected_bone_max_x);
+        ClassDB::bind_method(D_METHOD("getSelectedBoneMaxY"), &ForgePosingEditorControl::get_selected_bone_max_y);
+        ClassDB::bind_method(D_METHOD("getSelectedBoneMaxZ"), &ForgePosingEditorControl::get_selected_bone_max_z);
+        ClassDB::bind_method(D_METHOD("setSelectedBoneRot", "x", "y", "z"), &ForgePosingEditorControl::set_selected_bone_rot);
+        ClassDB::bind_method(D_METHOD("setSelectedBoneConstraint", "minX", "maxX", "minY", "maxY", "minZ", "maxZ"), &ForgePosingEditorControl::set_selected_bone_constraint);
+        ClassDB::bind_method(D_METHOD("getPoseDataForActiveCharacter"), &ForgePosingEditorControl::get_pose_data_for_active_character);
+        ClassDB::bind_method(D_METHOD("loadPose", "pose"), &ForgePosingEditorControl::load_pose);
+        ClassDB::bind_method(D_METHOD("resetPose"), &ForgePosingEditorControl::reset_pose);
+        ClassDB::bind_method(D_METHOD("getProjectText", "path"), &ForgePosingEditorControl::get_project_text);
+        ClassDB::bind_method(D_METHOD("applyProjectText", "path", "text", "sync"), &ForgePosingEditorControl::apply_project_text);
+        ClassDB::bind_method(D_METHOD("loadProject", "path"), &ForgePosingEditorControl::load_project);
+        ClassDB::bind_method(D_METHOD("saveProject", "path"), &ForgePosingEditorControl::save_project);
+        ClassDB::bind_method(D_METHOD("addSceneAsset", "path", "x", "y", "z"), &ForgePosingEditorControl::add_scene_asset);
+        ClassDB::bind_method(D_METHOD("addGreyboxItem", "kind", "x", "y", "z"), &ForgePosingEditorControl::add_greybox_item);
+        ClassDB::bind_method(D_METHOD("removeSceneCharacter", "index"), &ForgePosingEditorControl::remove_scene_character);
+        ClassDB::bind_method(D_METHOD("removeSceneProp", "index"), &ForgePosingEditorControl::remove_scene_prop);
+        ClassDB::bind_method(D_METHOD("selectSceneCharacter", "index"), &ForgePosingEditorControl::select_scene_character);
+        ClassDB::bind_method(D_METHOD("selectSceneProp", "index"), &ForgePosingEditorControl::select_scene_prop);
+        ClassDB::bind_method(D_METHOD("setSceneCharacterVisible", "index", "visible"), &ForgePosingEditorControl::set_scene_character_visible);
+        ClassDB::bind_method(D_METHOD("setScenePropVisible", "index", "visible"), &ForgePosingEditorControl::set_scene_prop_visible);
+        ClassDB::bind_method(D_METHOD("setSceneCharacterPos", "index", "x", "y", "z"), &ForgePosingEditorControl::set_scene_character_pos);
+        ClassDB::bind_method(D_METHOD("setSceneCharacterRot", "index", "x", "y", "z"), &ForgePosingEditorControl::set_scene_character_rot);
+        ClassDB::bind_method(D_METHOD("setSceneCharacterScale", "index", "x", "y", "z"), &ForgePosingEditorControl::set_scene_character_scale);
+        ClassDB::bind_method(D_METHOD("setScenePropPos", "index", "x", "y", "z"), &ForgePosingEditorControl::set_scene_prop_pos);
+        ClassDB::bind_method(D_METHOD("setScenePropRot", "index", "x", "y", "z"), &ForgePosingEditorControl::set_scene_prop_rot);
+        ClassDB::bind_method(D_METHOD("setScenePropScale", "index", "x", "y", "z"), &ForgePosingEditorControl::set_scene_prop_scale);
+        ClassDB::bind_method(D_METHOD("placeSelectedOnGround", "groundY"), &ForgePosingEditorControl::place_selected_on_ground);
+
+        ClassDB::bind_method(D_METHOD("getSceneCharacterCount"), &ForgePosingEditorControl::get_scene_character_count);
+        ClassDB::bind_method(D_METHOD("getScenePropCount"), &ForgePosingEditorControl::get_scene_prop_count);
+        ClassDB::bind_method(D_METHOD("getSceneCharacterId", "index"), &ForgePosingEditorControl::get_scene_character_id);
+        ClassDB::bind_method(D_METHOD("getActiveCharacterId"), &ForgePosingEditorControl::get_active_character_id);
+        ClassDB::bind_method(D_METHOD("getSceneCharacterName", "index"), &ForgePosingEditorControl::get_scene_character_name);
+        ClassDB::bind_method(D_METHOD("getScenePropName", "index"), &ForgePosingEditorControl::get_scene_prop_name);
+
+        ClassDB::bind_method(D_METHOD("getSceneCharacterPosX", "index"), &ForgePosingEditorControl::get_scene_character_pos_x);
+        ClassDB::bind_method(D_METHOD("getSceneCharacterPosY", "index"), &ForgePosingEditorControl::get_scene_character_pos_y);
+        ClassDB::bind_method(D_METHOD("getSceneCharacterPosZ", "index"), &ForgePosingEditorControl::get_scene_character_pos_z);
+        ClassDB::bind_method(D_METHOD("getSceneCharacterRotX", "index"), &ForgePosingEditorControl::get_scene_character_rot_x);
+        ClassDB::bind_method(D_METHOD("getSceneCharacterRotY", "index"), &ForgePosingEditorControl::get_scene_character_rot_y);
+        ClassDB::bind_method(D_METHOD("getSceneCharacterRotZ", "index"), &ForgePosingEditorControl::get_scene_character_rot_z);
+        ClassDB::bind_method(D_METHOD("getSceneCharacterScaleX", "index"), &ForgePosingEditorControl::get_scene_character_scale_x);
+        ClassDB::bind_method(D_METHOD("getSceneCharacterScaleY", "index"), &ForgePosingEditorControl::get_scene_character_scale_y);
+        ClassDB::bind_method(D_METHOD("getSceneCharacterScaleZ", "index"), &ForgePosingEditorControl::get_scene_character_scale_z);
+        ClassDB::bind_method(D_METHOD("getScenePropPosX", "index"), &ForgePosingEditorControl::get_scene_prop_pos_x);
+        ClassDB::bind_method(D_METHOD("getScenePropPosY", "index"), &ForgePosingEditorControl::get_scene_prop_pos_y);
+        ClassDB::bind_method(D_METHOD("getScenePropPosZ", "index"), &ForgePosingEditorControl::get_scene_prop_pos_z);
+        ClassDB::bind_method(D_METHOD("getScenePropRotX", "index"), &ForgePosingEditorControl::get_scene_prop_rot_x);
+        ClassDB::bind_method(D_METHOD("getScenePropRotY", "index"), &ForgePosingEditorControl::get_scene_prop_rot_y);
+        ClassDB::bind_method(D_METHOD("getScenePropRotZ", "index"), &ForgePosingEditorControl::get_scene_prop_rot_z);
+        ClassDB::bind_method(D_METHOD("getScenePropScaleX", "index"), &ForgePosingEditorControl::get_scene_prop_scale_x);
+        ClassDB::bind_method(D_METHOD("getScenePropScaleY", "index"), &ForgePosingEditorControl::get_scene_prop_scale_y);
+        ClassDB::bind_method(D_METHOD("getScenePropScaleZ", "index"), &ForgePosingEditorControl::get_scene_prop_scale_z);
+
+        ClassDB::bind_method(D_METHOD("set_src", "path"), &ForgePosingEditorControl::set_src);
+        ClassDB::bind_method(D_METHOD("get_src"), &ForgePosingEditorControl::get_src);
+        ClassDB::bind_method(D_METHOD("set_show_bone_tree", "value"), &ForgePosingEditorControl::set_show_bone_tree);
+        ClassDB::bind_method(D_METHOD("get_show_bone_tree"), &ForgePosingEditorControl::get_show_bone_tree);
+
+        ADD_PROPERTY(PropertyInfo(Variant::STRING, "src"), "set_src", "get_src");
+        ADD_PROPERTY(PropertyInfo(Variant::BOOL, "showBoneTree"), "set_show_bone_tree", "get_show_bone_tree");
+
+        ADD_SIGNAL(MethodInfo("boneSelected", PropertyInfo(Variant::STRING, "boneName")));
+        ADD_SIGNAL(MethodInfo("poseChanged", PropertyInfo(Variant::STRING, "boneName")));
+        ADD_SIGNAL(MethodInfo("poseReset"));
+        ADD_SIGNAL(MethodInfo("scenePropAdded", PropertyInfo(Variant::INT, "index"), PropertyInfo(Variant::STRING, "path")));
+        ADD_SIGNAL(MethodInfo("scenePropRemoved", PropertyInfo(Variant::INT, "index")));
+        ADD_SIGNAL(MethodInfo("objectSelected", PropertyInfo(Variant::INT, "propIdx")));
+        ADD_SIGNAL(MethodInfo("objectMoved", PropertyInfo(Variant::INT, "propIdx"), PropertyInfo(Variant::STRING, "pos")));
+    }
+
+public:
+    void _ready() override {
+        set_clip_contents(true);
+        set_stretch(true);
+        ensure_viewport_scene();
+    }
+
+    void _notification(int) {}
+
+    void set_mode(const String& mode) { mode_ = mode; }
+    void set_edit_mode(const String& mode) { edit_mode_ = mode; }
+    void set_transform_space(const String& space) { transform_space_ = space; }
+    void set_bone_tree(const String& id) { bone_tree_id_ = id; }
+    void set_joint_spheres_visible(bool visible) { joint_spheres_visible_ = visible; }
+
+    String get_selected_bone_name() const { return selected_bone_name_; }
+    double get_selected_bone_rot_x() const { return selected_bone_rot_x_; }
+    double get_selected_bone_rot_y() const { return selected_bone_rot_y_; }
+    double get_selected_bone_rot_z() const { return selected_bone_rot_z_; }
+    double get_selected_bone_min_x() const { return selected_bone_min_x_; }
+    double get_selected_bone_min_y() const { return selected_bone_min_y_; }
+    double get_selected_bone_min_z() const { return selected_bone_min_z_; }
+    double get_selected_bone_max_x() const { return selected_bone_max_x_; }
+    double get_selected_bone_max_y() const { return selected_bone_max_y_; }
+    double get_selected_bone_max_z() const { return selected_bone_max_z_; }
+
+    void set_selected_bone_rot(double x, double y, double z) {
+        selected_bone_rot_x_ = x;
+        selected_bone_rot_y_ = y;
+        selected_bone_rot_z_ = z;
+        emit_signal("poseChanged", selected_bone_name_);
+    }
+
+    void set_selected_bone_constraint(double min_x, double max_x, double min_y, double max_y, double min_z, double max_z) {
+        selected_bone_min_x_ = min_x; selected_bone_max_x_ = max_x;
+        selected_bone_min_y_ = min_y; selected_bone_max_y_ = max_y;
+        selected_bone_min_z_ = min_z; selected_bone_max_z_ = max_z;
+    }
+
+    Dictionary get_pose_data_for_active_character() const {
+        Dictionary d;
+        d["bone"] = selected_bone_name_;
+        d["x"] = selected_bone_rot_x_;
+        d["y"] = selected_bone_rot_y_;
+        d["z"] = selected_bone_rot_z_;
+        return d;
+    }
+
+    void load_pose(const Variant&) {}
+    void reset_pose() {
+        selected_bone_rot_x_ = 0.0;
+        selected_bone_rot_y_ = 0.0;
+        selected_bone_rot_z_ = 0.0;
+        emit_signal("poseReset");
+    }
+
+    String get_project_text(const String&) const { return String(); }
+    bool apply_project_text(const String&, const String&, bool) { return true; }
+    bool load_project(const String& path) {
+        if (path.is_empty()) return false;
+        UtilityFunctions::print(String("[ForgeRunner.Native] PosingEditor.loadProject: ") + path);
+        ensure_viewport_scene();
+        clear_scene_items();
+
+        Ref<FileAccess> file = FileAccess::open(path, FileAccess::READ);
+        if (!file.is_valid()) {
+            UtilityFunctions::push_warning(String("[ForgeRunner.Native] loadProject failed to open: ") + path);
+            return false;
+        }
+
+        const std::string source = file->get_as_text().utf8().get_data();
+        smlcore::Document doc;
+        try {
+            doc = smlcore::parse_document(source);
+        } catch (const std::exception& ex) {
+            UtilityFunctions::push_warning(String("[ForgeRunner.Native] loadProject parse error: ") + String(ex.what()));
+            return false;
+        } catch (...) {
+            UtilityFunctions::push_warning("[ForgeRunner.Native] loadProject parse error.");
+            return false;
+        }
+
+        const smlcore::Node* scene = nullptr;
+        for (const auto& root : doc.roots) {
+            std::string name = root.name;
+            std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+            if (name == "scene") {
+                scene = &root;
+                break;
+            }
+        }
+        if (scene == nullptr) return false;
+
+        const std::string project_path = path.utf8().get_data();
+        for (const auto& child : scene->children) {
+            std::string child_name = child.name;
+            std::transform(child_name.begin(), child_name.end(), child_name.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+
+            if (child_name == "character") {
+                SceneItem item;
+                item.id = String(child.get_value("id", ("char_" + std::to_string(characters_.size())).c_str()).c_str());
+                item.name = String(child.get_value("name", "Character").c_str());
+                item.path = String(resolve_project_asset_path(project_path, child.get_value("src", "")).c_str());
+                parse_vec3(child.get_value("pos", "0,0,0"), item.px, item.py, item.pz);
+                parse_vec3(child.get_value("rot", "0,0,0"), item.rx, item.ry, item.rz);
+                parse_vec3(child.get_value("scale", "1,1,1"), item.sx, item.sy, item.sz);
+                item.node = load_scene_node(item.path);
+                if (item.node != nullptr) {
+                    scene_root_->add_child(item.node);
+                    apply_item_transform(item);
+                    select_first_bone_from_node(item.node);
+                } else {
+                    UtilityFunctions::push_warning(String("[ForgeRunner.Native] Character node not loaded: ") + item.path);
+                }
+                characters_.push_back(item);
+                continue;
+            }
+
+            if (child_name == "asset") {
+                SceneItem item;
+                item.id = String(child.get_value("id", ("prop_" + std::to_string(props_.size())).c_str()).c_str());
+                item.name = String(child.get_value("name", "Asset").c_str());
+                item.path = String(resolve_project_asset_path(project_path, child.get_value("src", "")).c_str());
+                parse_vec3(child.get_value("pos", "0,0,0"), item.px, item.py, item.pz);
+                parse_vec3(child.get_value("rot", "0,0,0"), item.rx, item.ry, item.rz);
+                parse_vec3(child.get_value("scale", "1,1,1"), item.sx, item.sy, item.sz);
+                item.node = load_scene_node(item.path);
+                if (item.node != nullptr) {
+                    scene_root_->add_child(item.node);
+                    apply_item_transform(item);
+                } else {
+                    UtilityFunctions::push_warning(String("[ForgeRunner.Native] Asset node not loaded: ") + item.path);
+                }
+                props_.push_back(item);
+            }
+        }
+
+        if (!characters_.empty()) {
+            selected_character_index_ = 0;
+            selected_prop_index_ = -1;
+        }
+        UtilityFunctions::print(String("[ForgeRunner.Native] PosingEditor.loadProject done: chars=") + String::num_int64(characters_.size()) + " props=" + String::num_int64(props_.size()));
+        return true;
+    }
+    bool save_project(const String&) { return true; }
+
+    int add_scene_asset(const String& path, double x, double y, double z) {
+        ensure_viewport_scene();
+        const bool as_character = characters_.empty();
+        if (as_character) {
+            SceneItem item;
+            item.id = String("char_") + String::num_int64(characters_.size());
+            item.name = String("Character ") + String::num_int64(characters_.size() + 1);
+            item.path = path;
+            item.px = static_cast<float>(x); item.py = static_cast<float>(y); item.pz = static_cast<float>(z);
+            item.node = load_scene_node(path);
+            if (item.node != nullptr) {
+                scene_root_->add_child(item.node);
+                apply_item_transform(item);
+                select_first_bone_from_node(item.node);
+            }
+            characters_.push_back(item);
+            selected_character_index_ = static_cast<int>(characters_.size()) - 1;
+            selected_prop_index_ = -1;
+            emit_signal("objectSelected", -1);
+            return 1;
+        }
+
+        SceneItem prop;
+        prop.id = String("prop_") + String::num_int64(props_.size());
+        prop.name = String("Prop ") + String::num_int64(props_.size() + 1);
+        prop.path = path;
+        prop.px = static_cast<float>(x); prop.py = static_cast<float>(y); prop.pz = static_cast<float>(z);
+        prop.node = load_scene_node(path);
+        if (prop.node != nullptr) {
+            scene_root_->add_child(prop.node);
+            apply_item_transform(prop);
+        }
+        props_.push_back(prop);
+        const int idx = static_cast<int>(props_.size()) - 1;
+        selected_prop_index_ = idx;
+        selected_character_index_ = -1;
+        emit_signal("scenePropAdded", idx, path);
+        emit_signal("objectSelected", idx);
+        return 0;
+    }
+
+    int add_greybox_item(const String&, double x, double y, double z) {
+        ensure_viewport_scene();
+        SceneItem prop;
+        prop.id = String("prop_") + String::num_int64(props_.size());
+        prop.name = String("Greybox ") + String::num_int64(props_.size() + 1);
+        prop.px = static_cast<float>(x); prop.py = static_cast<float>(y); prop.pz = static_cast<float>(z);
+        auto* mesh = memnew(MeshInstance3D);
+        Ref<BoxMesh> box;
+        box.instantiate();
+        box->set_size(Vector3(1.0f, 1.0f, 1.0f));
+        mesh->set_mesh(box);
+        Ref<StandardMaterial3D> mat;
+        mat.instantiate();
+        mat->set_albedo(Color(0.62f, 0.62f, 0.65f, 1.0f));
+        mesh->set_material_override(mat);
+        prop.node = mesh;
+        if (prop.node != nullptr) {
+            scene_root_->add_child(prop.node);
+            apply_item_transform(prop);
+        }
+        props_.push_back(prop);
+        const int idx = static_cast<int>(props_.size()) - 1;
+        emit_signal("scenePropAdded", idx, String("greybox"));
+        return idx;
+    }
+
+    void remove_scene_character(int index) {
+        if (index < 0 || index >= static_cast<int>(characters_.size())) return;
+        if (characters_[index].node != nullptr) {
+            if (characters_[index].node->get_parent() != nullptr) characters_[index].node->get_parent()->remove_child(characters_[index].node);
+            characters_[index].node->queue_free();
+            characters_[index].node = nullptr;
+        }
+        characters_.erase(characters_.begin() + index);
+        if (selected_character_index_ == index) selected_character_index_ = -1;
+    }
+
+    void remove_scene_prop(int index) {
+        if (index < 0 || index >= static_cast<int>(props_.size())) return;
+        if (props_[index].node != nullptr) {
+            if (props_[index].node->get_parent() != nullptr) props_[index].node->get_parent()->remove_child(props_[index].node);
+            props_[index].node->queue_free();
+            props_[index].node = nullptr;
+        }
+        props_.erase(props_.begin() + index);
+        emit_signal("scenePropRemoved", index);
+        if (selected_prop_index_ == index) selected_prop_index_ = -1;
+    }
+
+    void select_scene_character(int index) {
+        if (index < 0 || index >= static_cast<int>(characters_.size())) return;
+        selected_character_index_ = index;
+        selected_prop_index_ = -1;
+        emit_signal("objectSelected", -1);
+    }
+
+    void select_scene_prop(int index) {
+        if (index < 0 || index >= static_cast<int>(props_.size())) return;
+        selected_prop_index_ = index;
+        selected_character_index_ = -1;
+        emit_signal("objectSelected", index);
+    }
+
+    void set_scene_character_visible(int index, bool visible) {
+        if (auto* c = at_char(index)) {
+            c->visible = visible;
+            apply_item_transform(*c);
+        }
+    }
+    void set_scene_prop_visible(int index, bool visible) {
+        if (auto* p = at_prop(index)) {
+            p->visible = visible;
+            apply_item_transform(*p);
+        }
+    }
+    void set_scene_character_pos(int index, double x, double y, double z) {
+        if (auto* c = at_char(index)) {
+            set_item_pos(c, x, y, z);
+            apply_item_transform(*c);
+        }
+    }
+    void set_scene_character_rot(int index, double x, double y, double z) {
+        if (auto* c = at_char(index)) {
+            set_item_rot(c, x, y, z);
+            apply_item_transform(*c);
+        }
+    }
+    void set_scene_character_scale(int index, double x, double y, double z) {
+        if (auto* c = at_char(index)) {
+            set_item_scale(c, x, y, z);
+            apply_item_transform(*c);
+        }
+    }
+    void set_scene_prop_pos(int index, double x, double y, double z) {
+        if (auto* p = at_prop(index)) {
+            set_item_pos(p, x, y, z);
+            apply_item_transform(*p);
+            emit_prop_moved(index, *p);
+        }
+    }
+    void set_scene_prop_rot(int index, double x, double y, double z) {
+        if (auto* p = at_prop(index)) {
+            set_item_rot(p, x, y, z);
+            apply_item_transform(*p);
+            emit_prop_moved(index, *p);
+        }
+    }
+    void set_scene_prop_scale(int index, double x, double y, double z) {
+        if (auto* p = at_prop(index)) {
+            set_item_scale(p, x, y, z);
+            apply_item_transform(*p);
+            emit_prop_moved(index, *p);
+        }
+    }
+    bool place_selected_on_ground(double ground_y) {
+        if (selected_prop_index_ >= 0) {
+            if (auto* p = at_prop(selected_prop_index_)) p->py = static_cast<float>(ground_y);
+            return true;
+        }
+        if (selected_character_index_ >= 0) {
+            if (auto* c = at_char(selected_character_index_)) c->py = static_cast<float>(ground_y);
+            return true;
+        }
+        return false;
+    }
+
+    int get_scene_character_count() const { return static_cast<int>(characters_.size()); }
+    int get_scene_prop_count() const { return static_cast<int>(props_.size()); }
+    String get_scene_character_id(int index) const { return (index >= 0 && index < static_cast<int>(characters_.size())) ? characters_[index].id : String(); }
+    String get_active_character_id() const { return (selected_character_index_ >= 0 && selected_character_index_ < static_cast<int>(characters_.size())) ? characters_[selected_character_index_].id : String(); }
+    String get_scene_character_name(int index) const { return (index >= 0 && index < static_cast<int>(characters_.size())) ? characters_[index].name : String(); }
+    String get_scene_prop_name(int index) const { return (index >= 0 && index < static_cast<int>(props_.size())) ? props_[index].name : String(); }
+
+    double get_scene_character_pos_x(int index) const { return get_num_char(index, &SceneItem::px); }
+    double get_scene_character_pos_y(int index) const { return get_num_char(index, &SceneItem::py); }
+    double get_scene_character_pos_z(int index) const { return get_num_char(index, &SceneItem::pz); }
+    double get_scene_character_rot_x(int index) const { return get_num_char(index, &SceneItem::rx); }
+    double get_scene_character_rot_y(int index) const { return get_num_char(index, &SceneItem::ry); }
+    double get_scene_character_rot_z(int index) const { return get_num_char(index, &SceneItem::rz); }
+    double get_scene_character_scale_x(int index) const { return get_num_char(index, &SceneItem::sx); }
+    double get_scene_character_scale_y(int index) const { return get_num_char(index, &SceneItem::sy); }
+    double get_scene_character_scale_z(int index) const { return get_num_char(index, &SceneItem::sz); }
+    double get_scene_prop_pos_x(int index) const { return get_num_prop(index, &SceneItem::px); }
+    double get_scene_prop_pos_y(int index) const { return get_num_prop(index, &SceneItem::py); }
+    double get_scene_prop_pos_z(int index) const { return get_num_prop(index, &SceneItem::pz); }
+    double get_scene_prop_rot_x(int index) const { return get_num_prop(index, &SceneItem::rx); }
+    double get_scene_prop_rot_y(int index) const { return get_num_prop(index, &SceneItem::ry); }
+    double get_scene_prop_rot_z(int index) const { return get_num_prop(index, &SceneItem::rz); }
+    double get_scene_prop_scale_x(int index) const { return get_num_prop(index, &SceneItem::sx); }
+    double get_scene_prop_scale_y(int index) const { return get_num_prop(index, &SceneItem::sy); }
+    double get_scene_prop_scale_z(int index) const { return get_num_prop(index, &SceneItem::sz); }
+
+    void set_src(const String& path) {
+        src_ = path;
+        if (src_.is_empty()) {
+            return;
+        }
+        ensure_viewport_scene();
+        if (characters_.empty()) {
+            SceneItem item;
+            item.id = "char_0";
+            item.name = "Character 1";
+            item.path = src_;
+            item.node = load_scene_node(src_);
+            if (item.node != nullptr) {
+                scene_root_->add_child(item.node);
+                apply_item_transform(item);
+                select_first_bone_from_node(item.node);
+            }
+            characters_.push_back(item);
+            selected_character_index_ = 0;
+            selected_prop_index_ = -1;
+            emit_signal("objectSelected", -1);
+            return;
+        }
+
+        SceneItem& item = characters_[0];
+        if (item.node != nullptr) {
+            if (item.node->get_parent() != nullptr) item.node->get_parent()->remove_child(item.node);
+            item.node->queue_free();
+            item.node = nullptr;
+        }
+        item.path = src_;
+        item.node = load_scene_node(src_);
+        if (item.node != nullptr) {
+            scene_root_->add_child(item.node);
+            apply_item_transform(item);
+            select_first_bone_from_node(item.node);
+        }
+    }
+    String get_src() const { return src_; }
+    void set_show_bone_tree(bool value) { show_bone_tree_ = value; }
+    bool get_show_bone_tree() const { return show_bone_tree_; }
+
+private:
+    static int parse_int_safe(const std::string& value, int fallback) {
+        try { return std::stoi(value); } catch (...) { return fallback; }
+    }
+
+    static void parse_vec3(const std::string& value, float& x, float& y, float& z) {
+        x = 0.0f; y = 0.0f; z = 0.0f;
+        std::stringstream ss(value);
+        std::string token;
+        float* out[3] = {&x, &y, &z};
+        int idx = 0;
+        while (std::getline(ss, token, ',') && idx < 3) {
+            try { *out[idx] = std::stof(token); } catch (...) {}
+            ++idx;
+        }
+    }
+
+    std::string resolve_appres_root() const {
+        const char* appres = std::getenv("FORGE_RUNNER_APPRES_ROOT");
+        if (appres != nullptr && appres[0] != '\0') {
+            return appres;
+        }
+        const char* env = std::getenv("FORGE_RUNNER_URL");
+        if (env == nullptr || env[0] == '\0') return {};
+        std::string url(env);
+        if (url.rfind("file://", 0) != 0) return {};
+        std::string file_path = url.substr(7);
+        return forge::dirname_copy(file_path);
+    }
+
+    std::string resolve_project_asset_path(const std::string& project_path, const std::string& raw_value) const {
+        return forge::resolve_runtime_asset_path(
+            raw_value,
+            forge::dirname_copy(project_path),
+            resolve_appres_root());
+    }
+
+    void clear_scene_items() {
+        for (auto& item : characters_) {
+            if (item.node != nullptr) {
+                if (item.node->get_parent() != nullptr) item.node->get_parent()->remove_child(item.node);
+                item.node->queue_free();
+                item.node = nullptr;
+            }
+        }
+        for (auto& item : props_) {
+            if (item.node != nullptr) {
+                if (item.node->get_parent() != nullptr) item.node->get_parent()->remove_child(item.node);
+                item.node->queue_free();
+                item.node = nullptr;
+            }
+        }
+        characters_.clear();
+        props_.clear();
+        selected_character_index_ = -1;
+        selected_prop_index_ = -1;
+    }
+
+    void ensure_viewport_scene() {
+        if (sub_viewport_ != nullptr) return;
+
+        sub_viewport_ = memnew(SubViewport);
+        sub_viewport_->set_name("PoserViewport");
+        sub_viewport_->set_disable_3d(false);
+        sub_viewport_->set_transparent_background(false);
+        sub_viewport_->set_update_mode(SubViewport::UPDATE_ALWAYS);
+        add_child(sub_viewport_);
+
+        scene_root_ = memnew(Node3D);
+        scene_root_->set_name("SceneRoot3D");
+        sub_viewport_->add_child(scene_root_);
+
+        camera_ = memnew(Camera3D);
+        camera_->set_name("Camera3D");
+        camera_->set_position(Vector3(0.0f, 2.0f, 4.5f));
+        camera_->look_at_from_position(Vector3(0.0f, 2.0f, 4.5f), Vector3(0.0f, 1.0f, 0.0f), Vector3(0.0f, 1.0f, 0.0f));
+        scene_root_->add_child(camera_);
+
+        light_ = memnew(DirectionalLight3D);
+        light_->set_name("Sun");
+        light_->set_rotation_degrees(Vector3(-45.0f, -35.0f, 0.0f));
+        scene_root_->add_child(light_);
+
+        ground_ = memnew(MeshInstance3D);
+        ground_->set_name("Ground");
+        Ref<PlaneMesh> plane;
+        plane.instantiate();
+        plane->set_size(Vector2(20.0f, 20.0f));
+        ground_->set_mesh(plane);
+        Ref<StandardMaterial3D> mat;
+        mat.instantiate();
+        mat->set_albedo(Color(0.22f, 0.24f, 0.27f, 1.0f));
+        ground_->set_material_override(mat);
+        scene_root_->add_child(ground_);
+    }
+
+    Node3D* load_scene_node(const String& path) {
+        if (path.is_empty()) return nullptr;
+        const std::string path_utf8 = path.utf8().get_data();
+        const String godot_path = path;
+        const String path_lower = godot_path.to_lower();
+        const bool is_gltf = path_lower.ends_with(".glb") || path_lower.ends_with(".gltf");
+        const bool is_res_uri = godot_path.begins_with("res://") || godot_path.begins_with("user://");
+
+        if (path_utf8.rfind("builtin:greybox/", 0) == 0) {
+            auto* mesh = memnew(MeshInstance3D);
+            Ref<BoxMesh> box;
+            box.instantiate();
+            if (path_utf8 == "builtin:greybox/tree") {
+                box->set_size(Vector3(0.7f, 2.2f, 0.7f));
+            } else if (path_utf8 == "builtin:greybox/wall") {
+                box->set_size(Vector3(2.5f, 2.0f, 0.3f));
+            } else {
+                box->set_size(Vector3(1.0f, 1.0f, 1.0f));
+            }
+            mesh->set_mesh(box);
+            Ref<StandardMaterial3D> mat;
+            mat.instantiate();
+            mat->set_albedo(Color(0.62f, 0.62f, 0.65f, 1.0f));
+            mesh->set_material_override(mat);
+            return mesh;
+        }
+
+        // Avoid noisy "No loader found" logs for absolute .glb/.gltf paths:
+        // these should go through GLTFDocument directly.
+        if (!is_gltf && is_res_uri && ResourceLoader::get_singleton() != nullptr) {
+            Ref<Resource> res = ResourceLoader::get_singleton()->load(path);
+            if (res.is_valid()) {
+                Ref<PackedScene> ps = res;
+                if (ps.is_valid()) {
+                    if (Node* inst = ps->instantiate()) {
+                        if (auto* n3d = Object::cast_to<Node3D>(inst)) {
+                            return n3d;
+                        }
+                        auto* wrapper = memnew(Node3D);
+                        wrapper->add_child(inst);
+                        return wrapper;
+                    }
+                }
+            }
+        }
+
+        Ref<GLTFDocument> gltf_doc;
+        gltf_doc.instantiate();
+        Ref<GLTFState> gltf_state;
+        gltf_state.instantiate();
+        if (gltf_doc.is_valid() && gltf_state.is_valid()) {
+            const Error err = gltf_doc->append_from_file(godot_path, gltf_state);
+            if (err == OK) {
+                if (Node* generated = gltf_doc->generate_scene(gltf_state)) {
+                    if (auto* n3d = Object::cast_to<Node3D>(generated)) {
+                        return n3d;
+                    }
+                    auto* wrapper = memnew(Node3D);
+                    wrapper->add_child(generated);
+                    return wrapper;
+                }
+            }
+        }
+
+        UtilityFunctions::push_warning(String("[ForgeRunner.Native] Could not load 3D scene: ") + path);
+        return nullptr;
+    }
+
+    Skeleton3D* find_first_skeleton(Node* root) const {
+        if (root == nullptr) return nullptr;
+        if (auto* skel = Object::cast_to<Skeleton3D>(root)) return skel;
+        const int child_count = root->get_child_count();
+        for (int i = 0; i < child_count; ++i) {
+            Node* child = root->get_child(i);
+            if (auto* found = find_first_skeleton(child)) return found;
+        }
+        return nullptr;
+    }
+
+    void select_first_bone_from_node(Node3D* node) {
+        if (node == nullptr) return;
+        if (Skeleton3D* skel = find_first_skeleton(node)) {
+            if (skel->get_bone_count() > 0) {
+                selected_bone_name_ = skel->get_bone_name(0);
+                emit_signal("boneSelected", selected_bone_name_);
+            }
+        }
+    }
+
+    static void apply_item_transform(const SceneItem& item) {
+        if (item.node == nullptr) return;
+        item.node->set_position(Vector3(item.px, item.py, item.pz));
+        item.node->set_rotation_degrees(Vector3(item.rx, item.ry, item.rz));
+        item.node->set_scale(Vector3(item.sx, item.sy, item.sz));
+        item.node->set_visible(item.visible);
+    }
+
+    SceneItem* at_char(int index) {
+        if (index < 0 || index >= static_cast<int>(characters_.size())) return nullptr;
+        return &characters_[index];
+    }
+    SceneItem* at_prop(int index) {
+        if (index < 0 || index >= static_cast<int>(props_.size())) return nullptr;
+        return &props_[index];
+    }
+    static void set_item_pos(SceneItem* item, double x, double y, double z) {
+        if (!item) return;
+        item->px = static_cast<float>(x); item->py = static_cast<float>(y); item->pz = static_cast<float>(z);
+    }
+    static void set_item_rot(SceneItem* item, double x, double y, double z) {
+        if (!item) return;
+        item->rx = static_cast<float>(x); item->ry = static_cast<float>(y); item->rz = static_cast<float>(z);
+    }
+    static void set_item_scale(SceneItem* item, double x, double y, double z) {
+        if (!item) return;
+        item->sx = static_cast<float>(x); item->sy = static_cast<float>(y); item->sz = static_cast<float>(z);
+    }
+    void emit_prop_moved(int index, const SceneItem& item) {
+        const String pos_json = String("{\"x\":") + String::num(item.px) + ",\"y\":" + String::num(item.py) + ",\"z\":" + String::num(item.pz) + "}";
+        emit_signal("objectMoved", index, pos_json);
+    }
+    double get_num_char(int index, float SceneItem::* field) const {
+        if (index < 0 || index >= static_cast<int>(characters_.size())) return 0.0;
+        return characters_[index].*field;
+    }
+    double get_num_prop(int index, float SceneItem::* field) const {
+        if (index < 0 || index >= static_cast<int>(props_.size())) return 0.0;
+        return props_[index].*field;
+    }
+
+    String mode_ = "pose";
+    String edit_mode_ = "rotate";
+    String transform_space_ = "local";
+    String bone_tree_id_;
+    bool joint_spheres_visible_ = true;
+    String selected_bone_name_ = "Hips";
+    double selected_bone_rot_x_ = 0.0;
+    double selected_bone_rot_y_ = 0.0;
+    double selected_bone_rot_z_ = 0.0;
+    double selected_bone_min_x_ = -180.0;
+    double selected_bone_min_y_ = -180.0;
+    double selected_bone_min_z_ = -180.0;
+    double selected_bone_max_x_ = 180.0;
+    double selected_bone_max_y_ = 180.0;
+    double selected_bone_max_z_ = 180.0;
+    String src_;
+    bool show_bone_tree_ = false;
+    SubViewport* sub_viewport_ = nullptr;
+    Node3D* scene_root_ = nullptr;
+    Camera3D* camera_ = nullptr;
+    DirectionalLight3D* light_ = nullptr;
+    MeshInstance3D* ground_ = nullptr;
+    int selected_character_index_ = -1;
+    int selected_prop_index_ = -1;
+    std::vector<SceneItem> characters_;
+    std::vector<SceneItem> props_;
+};
+
+// ---------------------------------------------------------------------------
 // GDExtension entry points
 // ---------------------------------------------------------------------------
 
@@ -1371,6 +2298,8 @@ void initialize_forge_runner_native(ModuleInitializationLevel p_level) {
     ClassDB::register_class<ForgeWindowDragControl>();
     ClassDB::register_class<ForgeDockingHostControl>();
     ClassDB::register_class<ForgeDockingContainerControl>();
+    ClassDB::register_class<ForgeTimelineControl>();
+    ClassDB::register_class<ForgePosingEditorControl>();
     ClassDB::register_class<ForgeRunnerNativeMain>();
     fprintf(stderr, "[FRN] classes registered\n");
 }

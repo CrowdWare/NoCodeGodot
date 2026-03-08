@@ -1,4 +1,5 @@
 #include "forge_ui_builder.h"
+#include "forge_path_resolver.h"
 #include "forge_sms_bridge.h"
 #include "generated/schema_properties.h"
 #include "generated/schema_types.h"
@@ -581,6 +582,20 @@ Control* UiBuilder::create_control(const std::string& nl) {
         }
         return memnew(Control);
     }
+    if (nl == "timeline") {
+        Variant v = ClassDB::instantiate("ForgeTimelineControl");
+        if (v.get_type() != Variant::NIL) {
+            if (auto* c = Object::cast_to<Control>(static_cast<Object*>(v))) return c;
+        }
+        return memnew(Control);
+    }
+    if (nl == "posingeditor") {
+        Variant v = ClassDB::instantiate("ForgePosingEditorControl");
+        if (v.get_type() != Variant::NIL) {
+            if (auto* c = Object::cast_to<Control>(static_cast<Object*>(v))) return c;
+        }
+        return memnew(Control);
+    }
     if (nl == "control")           return memnew(Control);
 
     // Native docking controls (from GDExtension)
@@ -989,6 +1004,26 @@ void UiBuilder::apply_props(Control* ctrl, const smlcore::Node& node) {
             ctrl->call("set_markdown", String(resolve_value(node.get_value("text")).c_str()));
     }
 
+    // --- Native PosingEditor ---
+    if (nl == "posingeditor") {
+        if (node.has_property("src") && ctrl->has_method("set_src")) {
+            ctrl->call("set_src", String(resolve_asset_path(node.get_value("src")).c_str()));
+        }
+        if (node.has_property("showBoneTree") && ctrl->has_method("set_show_bone_tree")) {
+            ctrl->call("set_show_bone_tree", parse_bool(node.get_value("showBoneTree"), false));
+        }
+    }
+
+    // --- Native Timeline ---
+    if (nl == "timeline") {
+        if (node.has_property("fps") && ctrl->has_method("set_fps")) {
+            ctrl->call("set_fps", parse_int(node.get_value("fps"), 24));
+        }
+        if (node.has_property("totalFrames") && ctrl->has_method("set_total_frames")) {
+            ctrl->call("set_total_frames", parse_int(node.get_value("totalFrames"), 120));
+        }
+    }
+
     // --- Styling: color (font_color) ---
     if (const auto* p = node.find_property("color")) {
         float r, g, b, a = 1.0f;
@@ -1353,35 +1388,7 @@ std::string UiBuilder::resolve_ref(const smlcore::Property& prop) const {
 }
 
 std::string UiBuilder::resolve_asset_path(const std::string& raw) const {
-    if (raw.empty()) return raw;
-    // res:// or res:/ (Godot project-relative, maps to base_dir)
-    if (raw.size() > 6 && raw.substr(0, 6) == "res://") {
-        return base_dir_ + "/" + raw.substr(6);
-    }
-    if (raw.size() > 5 && raw.substr(0, 5) == "res:/") {
-        return base_dir_ + "/" + raw.substr(5);
-    }
-
-    // appRes:/ — single-slash is the only valid form; appRes:// is rejected
-    if (raw.size() > 9 && raw.substr(0, 9) == "appRes://") {
-        return {}; // invalid: use appRes:/ (single slash)
-    }
-    if (raw.size() > 8 && raw.substr(0, 8) == "appRes:/") {
-        const auto tail = raw.substr(8);
-        return appres_root_.empty() ? (base_dir_ + "/" + tail)
-                                    : (appres_root_ + "/" + tail);
-    }
-    // file://
-    if (raw.size() > 7 && raw.substr(0, 7) == "file://") {
-        auto path = raw.substr(7);
-        if (path.size() >= 9 && path.substr(0, 9) == "localhost") path = path.substr(9);
-        if (!path.empty() && path[0] != '/') path = "/" + path;
-        return path;
-    }
-    // Absolute path
-    if (!raw.empty() && raw[0] == '/') return raw;
-    // Relative
-    return base_dir_ + "/" + raw;
+    return resolve_runtime_asset_path(raw, base_dir_, appres_root_);
 }
 
 
