@@ -1,4 +1,4 @@
-﻿Scene {
+Scene {
     fps: 24
     totalFrames: 120
     aiExtraImagePath: "res:/input/clothing.jpg"
@@ -10,46 +10,50 @@
 
     Character {
         id: char1  name: "man"  src: "res:/assets/models/man.glb"
-        pos: 2.246849, -0.06730843, 0.7532347
-        rot: 9.999996, -56.55, 0.0
-        scale: 1.0, 0.9999998, 1.0
+        pos: 10, 0, 0.753235
+        rot: 3, -56.2999992, 10
+        scale: 1, 1, 1
 
         Animation {
             Key { frame: 0
-                Bone { name: "mixamorig1_LeftArm" x: 0.5182542 y: -0.4758154 z: 0.005317055 w: 0.7106223 }
-                Bone { name: "mixamorig1_RightArm" x: 0.4619998 y: -0.1141995 z: -0.2297128 w: 0.848968 }
+                Bone { name: "mixamorig1_Spine1" x: 0.4539905 y: 0.0 z: 0.0 w: 0.8910065 }
             }
-            Key { frame: 10
-                Bone { name: "mixamorig1_LeftArm" x: 0.6034247 y: -0.3968719 z: 0.03259039 w: 0.6908757 }
-                Bone { name: "mixamorig1_RightArm" x: 0.4619998 y: -0.1141995 z: -0.2297128 w: 0.848968 }
+            Key { frame: 3
+                Bone { name: "mixamorig1_Spine1" x: 0.453835 y: 0.0233238 z: -0.0118841 w: 0.8907012 }
+            }
+            Key { frame: 8
+                Bone { name: "mixamorig1_Spine2" x: 0.0348982 y: 0.0087212 z: -0.0003046 w: 0.9993528 }
+            }
+            Key { frame: 9
+                Bone { name: "mixamorig1_Hips" x: -0.7071068 y: 0.0 z: 0.0 w: 0.7071068 }
             }
         }
     }
     Character {
         id: char2  name: "man"  src: "res:/assets/models/man.glb"
-        pos: -0.6677406, -0.07235657, 1.53022
-        rot: 0.0, 19.65, 0.0
-        scale: 1.0, 1.0, 1.0
+        pos: -0.6677406, -0.0723566, 1.53022
+        rot: 0, 19.6499996, 0
+        scale: 1, 1, 1
 
         Animation {
         }
     }
     Asset {
         id: prop0  name: "tree"  src: "builtin:greybox/tree"
-        pos: -3.071512, 0.0, -1.720766
-        rot: 0.0, 0.0, 0.0
-        scale: 1.0, 1.0, 1.0
+        pos: -3.071512, 0, -1.7207659
+        rot: 0, 0, 0
+        scale: 1, 1, 1
     }
     Asset {
         id: prop1  name: "tree"  src: "builtin:greybox/tree"
-        pos: 2.562767, -0.00000006, -3.477204
-        rot: 0.0, 0.0, 0.0
-        scale: 1.0, 1.0, 1.0
+        pos: 2.562767, 0, -3.4772041
+        rot: 0, 0, 0
+        scale: 1, 1, 1
     }
     Asset {
         id: prop2  name: "wall"  src: "builtin:greybox/wall"
-        pos: 2.0, 0.0, -4.162365
-        rot: 0.0, 0.0, 0.0
-        scale: 1.0, 1.0, 1.0
+        pos: 2, 0, -4.162365
+        rot: 0, 0, 0
+        scale: 1, 1, 1
     }
 }

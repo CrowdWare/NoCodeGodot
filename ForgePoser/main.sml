@@ -217,6 +217,21 @@ Window {
                             tooltipText: "Toggle Joint Spheres"
                             visible: false
                         }
+
+                        VSeparator { }
+
+                        Button {
+                            id: btnSetKeyframe
+                            text: "Set Key"
+                            customMinimumSize: 78, 28
+                            tooltipText: "Set keyframe at current frame from current pose"
+                        }
+                        Button {
+                            id: btnDeleteKeyframe
+                            text: "Del Key"
+                            customMinimumSize: 78, 28
+                            tooltipText: "Delete keyframe at current frame"
+                        }
                     }
                     VSplitContainer {
                         sizeFlagsHorizontal: expandFill

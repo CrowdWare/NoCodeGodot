@@ -190,6 +190,28 @@ static std::string first_string_arg(const std::string& args_json) {
     return {};
 }
 
+static LineEdit* resolve_line_edit_by_id(const std::string& id) {
+    auto it = SmsBridge::id_map().find(id);
+    if (it == SmsBridge::id_map().end() || it->second == nullptr) return nullptr;
+    return Object::cast_to<LineEdit>(it->second);
+}
+
+static double parse_numeric_from_text(const String& text) {
+    const std::string raw = text.utf8().get_data();
+    std::string normalized;
+    normalized.reserve(raw.size());
+    for (unsigned char c : raw) {
+        const bool ok =
+            (c >= '0' && c <= '9') || c == '.' || c == ',' ||
+            c == '-' || c == '+' || c == 'e' || c == 'E';
+        normalized += ok ? static_cast<char>(c == ',' ? '.' : c) : ' ';
+    }
+    std::stringstream ss(normalized);
+    double v = 0.0;
+    ss >> v;
+    return ss.fail() ? 0.0 : v;
+}
+
 // ---------------------------------------------------------------------------
 // Platform library helpers
 // ---------------------------------------------------------------------------
@@ -423,6 +445,41 @@ static int sms_ui_invoke(
         }
         if (mname == "copyTemplateFilesToProject") {
             write_out(out_json, out_cap, "true");
+            return 0;
+        }
+        if (mname == "configureNumericLineEdit") {
+            const std::string control_id = arg_string(0);
+            if (LineEdit* le = resolve_line_edit_by_id(control_id)) {
+                le->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_RIGHT);
+                le->set_select_all_on_focus(true);
+            }
+            write_out(out_json, out_cap, "true");
+            return 0;
+        }
+        if (mname == "setNumericLineEditValue") {
+            const std::string control_id = arg_string(0);
+            if (LineEdit* le = resolve_line_edit_by_id(control_id)) {
+                String value_text;
+                if (arr.size() > 1) {
+                    const Variant value = arr[1];
+                    if (value.get_type() == Variant::FLOAT || value.get_type() == Variant::INT) {
+                        value_text = String::num(static_cast<double>(value));
+                    } else {
+                        value_text = String(value);
+                    }
+                }
+                le->set_text(value_text);
+            }
+            write_out(out_json, out_cap, "true");
+            return 0;
+        }
+        if (mname == "getNumericLineEditValue") {
+            const std::string control_id = arg_string(0);
+            double value = 0.0;
+            if (LineEdit* le = resolve_line_edit_by_id(control_id)) {
+                value = parse_numeric_from_text(le->get_text());
+            }
+            write_out(out_json, out_cap, std::to_string(value));
             return 0;
         }
         write_out(out_json, out_cap, "null");

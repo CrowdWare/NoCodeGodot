@@ -554,7 +554,7 @@ Control* UiBuilder::create_control(const std::string& nl) {
     if (nl == "linkbutton")        return memnew(LinkButton);
     if (nl == "checkbox")          return memnew(CheckBox);
     if (nl == "checkbutton")       return memnew(CheckButton);
-    if (nl == "lineedit")          return memnew(LineEdit);
+    if (nl == "lineedit" || nl == "numberpicker") return memnew(LineEdit);
     if (nl == "textedit")          return memnew(TextEdit);
     if (nl == "codeedit")          return memnew(CodeEdit);
     if (nl == "optionbutton")      return memnew(OptionButton);

@@ -15,6 +15,7 @@ var styleImagePathEditRef = null
 var extraImagePathEditRef = null
 var promptPanelWriteLock = false
 var rightDockRef = null
+var rightBottomDockRef = null
 var bonesPanelRef = null
 var inspectorPanelRef = null
 var inspectorTargetLabel = null
@@ -447,6 +448,7 @@ on mainWindow.ready() {
     timeline     = ui.getObject("timeline")
     statusLabel  = ui.getObject("statusLabel")
     rightDockRef = ui.getObject("rightDock")
+    rightBottomDockRef = ui.getObject("rightBottomDock")
     bonesPanelRef = ui.getObject("bonesPanel")
     inspectorPanelRef = ui.getObject("inspectorPanel")
     inspectorTargetLabel = ui.getObject("inspectorTargetLabel")
@@ -550,13 +552,19 @@ fun configureInspectorNumericFields() {
 fun setRightPanels(selectionKind) {
     // selectionKind: "none" | "character" | "prop"
     if (rightDockRef != null) {
-        rightDockRef.visible = selectionKind == "character"
+        rightDockRef.visible = selectionKind != "none"
+    }
+    if (rightBottomDockRef != null) {
+        rightBottomDockRef.visible = selectionKind != "none"
     }
     if (bonesPanelRef != null) {
         bonesPanelRef.visible = selectionKind == "character"
     }
     if (inspectorPanelRef != null) {
         inspectorPanelRef.visible = selectionKind != "none"
+    }
+    if (selectionKind != "none" && mainDockHostRef != null) {
+        mainDockHostRef.ShowPanelById("inspectorPanel")
     }
 }
 
@@ -1480,6 +1488,25 @@ on timeline.playbackStarted() {
 
 on timeline.playbackStopped() {
     statusLabel.text = "Stopped."
+}
+
+on btnSetKeyframe.clicked() {
+    if (timeline == null || editor == null) {
+        return
+    }
+    var pose = editor.getPoseDataForActiveCharacter()
+    timeline.setKeyframe(timeline.currentFrame, pose)
+    updateKeyframeTree()
+    statusLabel.text = "Keyframe set @ " + timeline.currentFrame
+}
+
+on btnDeleteKeyframe.clicked() {
+    if (timeline == null) {
+        return
+    }
+    timeline.removeKeyframe(timeline.currentFrame)
+    updateKeyframeTree()
+    statusLabel.text = "Keyframe removed @ " + timeline.currentFrame
 }
 
 on keyframeTree.itemSelected() {

@@ -132,6 +132,7 @@ Usage:
   ./run.sh poser              Run local ForgePoser app
   ./run.sh url <url>          Run any app by URL (file:// or http(s)://)
   ./run.sh docs               Generate SML/SMS documentation (headless Godot)
+  ./run.sh pub "msg"          Local publish override flow (run.local.sh)
   ./run.sh build              Build native stack (default)
   ./run.sh build-native       Same as build
   ./run.sh build-host         Build ForgeRunner.Native only
@@ -228,7 +229,7 @@ try_local_mode_override() {
   fi
 
   case "$MODE" in
-    release|docs|test|export|app|poser|publish|upd)
+    release|docs|test|export|app|poser|pub)
       forge_local_handle_mode "$MODE" "$@"
       return $?
       ;;
@@ -294,7 +295,7 @@ if [[ -z "$MODE" ]]; then
   echo "  9) build-host      -> nur ForgeRunner.Native bauen"
   echo " 10) test            -> Native Tests (SMLCore.Native + SMSCore.Native)"
   echo " 11) clean           -> Native Build-Artefakte entfernen"
-  echo " 12) upd             -> Lokaler Update-Override (run.local.sh)"
+  echo " 12) pub             -> Lokaler Publish-Override (run.local.sh)"
   echo " 13) help            -> Hilfe anzeigen"
   read -r -p "Auswahl [1-13] (Default 1): " CHOICE || true
   CHOICE="$(printf '%s' "${CHOICE:-}" | tr -d '[:space:]')"
@@ -314,7 +315,7 @@ if [[ -z "$MODE" ]]; then
     9|build-host|build-native-host) MODE="build-host" ;;
    10|test|test-native) MODE="test" ;;
    11|clean) MODE="clean" ;;
-   12|upd) MODE="upd" ;;
+   12|pub) MODE="pub" ;;
    13|help|-h|--help) MODE="help" ;;
     *)
       echo "Ungültige Auswahl. Abbruch."
@@ -428,8 +429,8 @@ case "$MODE" in
            "$REPO_ROOT/ForgeRunner.Native/dist"
     echo "Native build artifacts cleaned."
     ;;
-  upd)
-    echo "ERROR: mode 'upd' is not handled by default run.sh. Add it to run.local.sh via forge_local_handle_mode()." >&2
+  pub)
+    echo "ERROR: mode 'pub' is not handled by default run.sh. Add it to run.local.sh via forge_local_handle_mode()." >&2
     exit 1
     ;;
   help|-h|--help)
