@@ -36,7 +36,7 @@ sms_native_ui_invoke_fn g_ui_invoke = nullptr;
 sms_native_sandbox_path_allow_fn g_sandbox_path_allow = nullptr;
 constexpr int kBridgeJsonBufferSize = 65536;
 constexpr std::size_t kMaxInterpreterCallDepth = 1024;
-constexpr int kMaxSessionInvokeDepth = 1;
+constexpr int kMaxSessionInvokeDepth = 2;
 
 bool has_parent_traversal_segment(const std::string& path) {
     std::size_t start = 0;

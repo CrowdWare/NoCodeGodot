@@ -2390,19 +2390,19 @@ public:
     }
 
     void set_mode(const String& mode) {
-        mode_ = mode;
+        mode_ = mode.to_lower();
         if (active_drag_mode_ != DRAG_NONE) {
             end_active_drag();
         }
     }
     void set_edit_mode(const String& mode) {
-        edit_mode_ = mode;
+        edit_mode_ = mode.to_lower();
         if (active_drag_mode_ != DRAG_NONE && mode_ != "pose") {
             end_active_drag();
         }
     }
     void set_transform_space(const String& space) {
-        transform_space_ = space;
+        transform_space_ = space.to_lower();
         if (active_drag_mode_ != DRAG_NONE && mode_ != "pose") {
             end_active_drag();
         }
@@ -2946,11 +2946,22 @@ public:
     }
     bool place_selected_on_ground(double ground_y) {
         if (selected_prop_index_ >= 0) {
-            if (auto* p = at_prop(selected_prop_index_)) p->py = static_cast<float>(ground_y);
+            if (auto* p = at_prop(selected_prop_index_)) {
+                p->py = static_cast<float>(ground_y);
+                apply_item_transform(*p);
+                update_selection_marker();
+                emit_prop_moved(selected_prop_index_, *p);
+            }
             return true;
         }
         if (selected_character_index_ >= 0) {
-            if (auto* c = at_char(selected_character_index_)) c->py = static_cast<float>(ground_y);
+            if (auto* c = at_char(selected_character_index_)) {
+                c->py = static_cast<float>(ground_y);
+                apply_item_transform(*c);
+                update_selection_marker();
+                const String pos_json = String("{\"x\":") + String::num(c->px) + ",\"y\":" + String::num(c->py) + ",\"z\":" + String::num(c->pz) + "}";
+                emit_signal("objectMoved", -1, pos_json);
+            }
             return true;
         }
         return false;

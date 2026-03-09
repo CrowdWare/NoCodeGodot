@@ -117,4 +117,4 @@ Acceptance (P2):
 - [ ] `native_timeline_playback_parity.md` (P0 timeline behavior)
 - [ ] `native_poser_project_roundtrip.md` (P0 load/save roundtrip safety)
 - [ ] `native_animation_serializer_exporter.md` (P2 serializer/exporter)
-- [ ] `sms_native_reentrant_invoke_guard.md` additional task after getting a stackoverflow runtime error
+- [x] `sms_native_reentrant_invoke_guard.md` additional task after getting a stackoverflow runtime error

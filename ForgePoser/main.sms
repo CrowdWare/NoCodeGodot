@@ -1020,6 +1020,7 @@ fun clearSceneSelection() {
 }
 
 fun updateScenePanel() {
+    var previousSelection = selectedSceneAssetIndex
     sceneTreeRef.Clear()
     scenePathByIndex = []
     sceneEyeButtonIdByIndex = []
@@ -1112,7 +1113,11 @@ fun updateScenePanel() {
         i = i + 1
     }
 
-    selectedSceneAssetIndex = -1
+    if (previousSelection >= 0 && previousSelection < total) {
+        selectedSceneAssetIndex = previousSelection
+    } else {
+        selectedSceneAssetIndex = -1
+    }
     updateInspectorFromSelection()
 }
 
