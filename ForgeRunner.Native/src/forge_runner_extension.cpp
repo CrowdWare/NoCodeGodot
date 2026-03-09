@@ -51,6 +51,7 @@
 #include <godot_cpp/classes/input_event_mouse_button.hpp>
 #include <godot_cpp/classes/input_event_mouse_motion.hpp>
 #include <godot_cpp/classes/label.hpp>
+#include <godot_cpp/classes/line_edit.hpp>
 #include <godot_cpp/classes/menu_button.hpp>
 #include <godot_cpp/classes/material.hpp>
 #include <godot_cpp/classes/panel_container.hpp>
@@ -1399,6 +1400,163 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// ForgeNumberPickerControl
+// ---------------------------------------------------------------------------
+
+class ForgeNumberPickerControl : public LineEdit {
+    GDCLASS(ForgeNumberPickerControl, LineEdit);
+
+protected:
+    static void _bind_methods() {
+        ClassDB::bind_method(D_METHOD("set_numeric_config", "axis", "unit", "color", "step", "dragSensitivity", "decimals"),
+                             &ForgeNumberPickerControl::set_numeric_config);
+        ClassDB::bind_method(D_METHOD("set_numeric_value", "value"), &ForgeNumberPickerControl::set_numeric_value);
+        ClassDB::bind_method(D_METHOD("get_numeric_value"), &ForgeNumberPickerControl::get_numeric_value);
+    }
+
+public:
+    void set_numeric_config(const String& axis, const String& unit, const Color& color, double step, double drag_sensitivity, int decimals) {
+        axis_ = axis.is_empty() ? String("x") : axis.to_lower();
+        unit_ = unit;
+        axis_color_ = color;
+        step_ = static_cast<float>(MAX(0.000001, Math::abs(step)));
+        drag_sensitivity_ = static_cast<float>(MAX(0.000001, Math::abs(drag_sensitivity)));
+        decimals_ = CLAMP(decimals, 0, 6);
+
+        set_horizontal_alignment(HORIZONTAL_ALIGNMENT_RIGHT);
+        set_select_all_on_focus(true);
+        add_theme_color_override("font_color", axis_color_);
+        add_theme_color_override("caret_color", axis_color_);
+        set_numeric_value(parse_numeric_from_text(get_text()));
+    }
+
+    void set_numeric_value(double value) {
+        value_ = static_cast<float>(value);
+        if (editing_) {
+            set_text(String::num(value_));
+        } else {
+            set_text(String(format_preview(value_).c_str()));
+        }
+    }
+
+    double get_numeric_value() {
+        if (editing_) {
+            value_ = static_cast<float>(parse_numeric_from_text(get_text()));
+        }
+        return value_;
+    }
+
+    void _notification(int what) {
+        if (what == NOTIFICATION_FOCUS_ENTER) {
+            editing_ = true;
+            set_text(String::num(value_));
+            select_all();
+        } else if (what == NOTIFICATION_FOCUS_EXIT) {
+            if (!dragging_) {
+                value_ = static_cast<float>(parse_numeric_from_text(get_text()));
+                editing_ = false;
+                set_text(String(format_preview(value_).c_str()));
+            }
+        }
+    }
+
+    void _gui_input(const Ref<InputEvent>& event) override {
+        Ref<InputEventMouseButton> mb = event;
+        if (mb.is_valid() && mb->get_button_index() == MOUSE_BUTTON_LEFT) {
+            if (mb->is_pressed()) {
+                pressed_ = true;
+                dragging_ = false;
+                drag_start_pos_ = mb->get_position();
+                drag_start_value_ = static_cast<float>(get_numeric_value());
+                if (!editing_) {
+                    accept_event();
+                }
+                return;
+            }
+
+            if (pressed_) {
+                const bool was_dragging = dragging_;
+                pressed_ = false;
+                dragging_ = false;
+                if (was_dragging) {
+                    accept_event();
+                } else if (!editing_) {
+                    accept_event();
+                    grab_focus();
+                    select_all();
+                }
+            }
+            return;
+        }
+
+        Ref<InputEventMouseMotion> mm = event;
+        if (!mm.is_valid() || !pressed_) return;
+        if (!Input::get_singleton()->is_mouse_button_pressed(MOUSE_BUTTON_LEFT)) {
+            pressed_ = false;
+            dragging_ = false;
+            return;
+        }
+
+        const float delta_x = mm->get_position().x - drag_start_pos_.x;
+        if (!dragging_ && Math::abs(delta_x) >= 2.0f) {
+            if (editing_) {
+                value_ = static_cast<float>(parse_numeric_from_text(get_text()));
+                editing_ = false;
+                release_focus();
+            }
+            dragging_ = true;
+        }
+
+        if (!dragging_) return;
+        const float next = drag_start_value_ + ((delta_x * drag_sensitivity_) * step_);
+        value_ = next;
+        set_text(String(format_preview(value_).c_str()));
+        emit_signal("text_changed", get_text());
+        accept_event();
+    }
+
+private:
+    static double parse_numeric_from_text(const String& text) {
+        const std::string raw = text.utf8().get_data();
+        std::string normalized;
+        normalized.reserve(raw.size());
+        for (unsigned char c : raw) {
+            const bool ok =
+                (c >= '0' && c <= '9') || c == '.' || c == ',' ||
+                c == '-' || c == '+' || c == 'e' || c == 'E';
+            normalized += ok ? static_cast<char>(c == ',' ? '.' : c) : ' ';
+        }
+        std::stringstream ss(normalized);
+        double v = 0.0;
+        ss >> v;
+        return ss.fail() ? 0.0 : v;
+    }
+
+    std::string format_preview(float value) const {
+        std::ostringstream ss;
+        ss.setf(std::ios::fixed, std::ios::floatfield);
+        ss << std::setprecision(decimals_) << value;
+        if (unit_.is_empty()) {
+            return std::string(axis_.utf8().get_data()) + " " + ss.str();
+        }
+        return std::string(axis_.utf8().get_data()) + " " + ss.str() + " " + std::string(unit_.utf8().get_data());
+    }
+
+    String axis_ = "x";
+    String unit_;
+    Color axis_color_ = Color(1.0f, 1.0f, 1.0f, 1.0f);
+    int decimals_ = 3;
+    float step_ = 0.01f;
+    float drag_sensitivity_ = 0.02f;
+    float value_ = 0.0f;
+    bool editing_ = false;
+    bool pressed_ = false;
+    bool dragging_ = false;
+    Vector2 drag_start_pos_ = Vector2();
+    float drag_start_value_ = 0.0f;
+};
+
+// ---------------------------------------------------------------------------
 // ForgeTimelineControl (native scaffold)
 // ---------------------------------------------------------------------------
 
@@ -1409,6 +1567,9 @@ protected:
     static void _bind_methods() {
         ClassDB::bind_method(D_METHOD("setCurrentFrame", "frame"), &ForgeTimelineControl::set_current_frame);
         ClassDB::bind_method(D_METHOD("setKeyframe", "frame", "pose"), &ForgeTimelineControl::set_keyframe);
+        ClassDB::bind_method(D_METHOD("setKeyframeBone", "frame", "pose", "boneName"), &ForgeTimelineControl::set_keyframe_bone);
+        ClassDB::bind_method(D_METHOD("setKeyframeMove", "frame"), &ForgeTimelineControl::set_keyframe_move);
+        ClassDB::bind_method(D_METHOD("setKeyframeRotate", "frame"), &ForgeTimelineControl::set_keyframe_rotate);
         ClassDB::bind_method(D_METHOD("removeKeyframe", "frame"), &ForgeTimelineControl::remove_keyframe);
         ClassDB::bind_method(D_METHOD("hasKeyframeAt", "frame"), &ForgeTimelineControl::has_keyframe_at);
         ClassDB::bind_method(D_METHOD("getPoseAt", "frame"), &ForgeTimelineControl::get_pose_at);
@@ -1544,7 +1705,10 @@ public:
                     if (!pose_has_bone_for_visible_character(pose, tracked_bones[row])) continue;
                     const float x = timeline_left + CLAMP(static_cast<float>(frame), 0.0f, static_cast<float>(frame_count)) * px_per_frame - scroll_offset_;
                     if (x < timeline_left - 8.0f || x > size.x + 8.0f) continue;
-                    const bool is_focus_key = (frame == selected_keyframe_frame_);
+                    const bool is_focus_key =
+                        (frame == selected_keyframe_frame_) &&
+                        !selected_keyframe_bone_.is_empty() &&
+                        tracked_bones[row].nocasecmp_to(selected_keyframe_bone_) == 0;
                     const float hs = is_focus_key ? 6.5f : 5.0f;
                     PackedVector2Array pts;
                     pts.push_back(Vector2(x, center_y - hs));
@@ -1562,7 +1726,9 @@ public:
 
         const float playhead_x = timeline_left + CLAMP(static_cast<float>(current_frame_), 0.0f, static_cast<float>(frame_count)) * px_per_frame - scroll_offset_;
         if (playhead_x >= timeline_left - 1.0f && playhead_x <= size.x + 1.0f) {
-            draw_line(Vector2(playhead_x, timeline_top), Vector2(playhead_x, timeline_bottom), Color(1.0f, 0.43f, 0.24f, 1.0f), 2.0f);
+            const Color playhead_color(1.0f, 0.43f, 0.24f, 1.0f);
+            draw_line(Vector2(playhead_x, timeline_top), Vector2(playhead_x, timeline_bottom), playhead_color, 2.0f);
+            draw_playhead_frame_badge(playhead_x, timeline_top, playhead_color, font, MAX(10, font_size - 1));
         }
     }
 
@@ -1575,8 +1741,10 @@ public:
                 if (mb->is_pressed()) {
                     grab_focus();
                     int hit_frame = -1;
-                    if (try_pick_keyframe_at(mb->get_position(), hit_frame)) {
+                    String hit_bone;
+                    if (try_pick_keyframe_at(mb->get_position(), hit_frame, hit_bone)) {
                         selected_keyframe_frame_ = hit_frame;
+                        selected_keyframe_bone_ = hit_bone;
                         queue_redraw();
                         accept_event();
                         return;
@@ -1596,7 +1764,11 @@ public:
         if (key.is_valid() && key->is_pressed() && !key->is_echo()) {
             if (key->get_keycode() == Key::KEY_BACKSPACE || key->get_keycode() == Key::KEY_DELETE) {
                 if (selected_keyframe_frame_ >= 0 && has_keyframe_at(selected_keyframe_frame_)) {
-                    remove_keyframe(selected_keyframe_frame_);
+                    if (!selected_keyframe_bone_.is_empty()) {
+                        remove_keyframe_bone(selected_keyframe_frame_, selected_keyframe_bone_);
+                    } else {
+                        remove_keyframe(selected_keyframe_frame_);
+                    }
                     accept_event();
                     return;
                 }
@@ -1605,6 +1777,10 @@ public:
 
         Ref<InputEventMouseMotion> mm = event;
         if (!mm.is_valid() || !timeline_dragging_) return;
+        if (!Input::get_singleton()->is_mouse_button_pressed(MOUSE_BUTTON_LEFT)) {
+            timeline_dragging_ = false;
+            return;
+        }
         seek_to_x(mm->get_position().x);
         accept_event();
     }
@@ -1639,11 +1815,107 @@ public:
     }
 
     void set_keyframe(int frame, const Variant& pose) {
+        set_keyframe_internal(frame, pose, String());
+    }
+
+    void set_keyframe_bone(int frame, const Variant& pose, const String& bone_name) {
+        set_keyframe_internal(frame, pose, bone_name);
+    }
+
+    void set_keyframe_move(int frame) {
+        auto it = forge::SmsBridge::id_map().find("editor");
+        if (it == forge::SmsBridge::id_map().end() || it->second == nullptr) return;
+
+        const Variant cid_variant = it->second->call("getActiveCharacterId");
+        if (cid_variant.get_type() != Variant::STRING) return;
+        const String cid = static_cast<String>(cid_variant);
+        if (cid.is_empty()) return;
+
+        const Variant count_variant = it->second->call("getSceneCharacterCount");
+        if (count_variant.get_type() != Variant::INT) return;
+        const int count = static_cast<int>(count_variant);
+
+        int index = -1;
+        for (int i = 0; i < count; ++i) {
+            const Variant id_variant = it->second->call("getSceneCharacterId", i);
+            if (id_variant.get_type() != Variant::STRING) continue;
+            if (static_cast<String>(id_variant).nocasecmp_to(cid) == 0) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0) return;
+
+        const Variant x_var = it->second->call("getSceneCharacterPosX", index);
+        const Variant y_var = it->second->call("getSceneCharacterPosY", index);
+        const Variant z_var = it->second->call("getSceneCharacterPosZ", index);
+        const bool valid_x = x_var.get_type() == Variant::INT || x_var.get_type() == Variant::FLOAT;
+        const bool valid_y = y_var.get_type() == Variant::INT || y_var.get_type() == Variant::FLOAT;
+        const bool valid_z = z_var.get_type() == Variant::INT || z_var.get_type() == Variant::FLOAT;
+        if (!valid_x || !valid_y || !valid_z) return;
+
+        Dictionary pos;
+        pos["x"] = static_cast<double>(x_var);
+        pos["y"] = static_cast<double>(y_var);
+        pos["z"] = static_cast<double>(z_var);
+
+        Dictionary payload;
+        payload[cid + String(":@pos")] = pos;
+        set_keyframe_internal(frame, payload, String("@pos"));
+    }
+
+    void set_keyframe_rotate(int frame) {
+        auto it = forge::SmsBridge::id_map().find("editor");
+        if (it == forge::SmsBridge::id_map().end() || it->second == nullptr) return;
+
+        const Variant cid_variant = it->second->call("getActiveCharacterId");
+        if (cid_variant.get_type() != Variant::STRING) return;
+        const String cid = static_cast<String>(cid_variant);
+        if (cid.is_empty()) return;
+
+        const Variant count_variant = it->second->call("getSceneCharacterCount");
+        if (count_variant.get_type() != Variant::INT) return;
+        const int count = static_cast<int>(count_variant);
+
+        int index = -1;
+        for (int i = 0; i < count; ++i) {
+            const Variant id_variant = it->second->call("getSceneCharacterId", i);
+            if (id_variant.get_type() != Variant::STRING) continue;
+            if (static_cast<String>(id_variant).nocasecmp_to(cid) == 0) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0) return;
+
+        const Variant x_var = it->second->call("getSceneCharacterRotX", index);
+        const Variant y_var = it->second->call("getSceneCharacterRotY", index);
+        const Variant z_var = it->second->call("getSceneCharacterRotZ", index);
+        const bool valid_x = x_var.get_type() == Variant::INT || x_var.get_type() == Variant::FLOAT;
+        const bool valid_y = y_var.get_type() == Variant::INT || y_var.get_type() == Variant::FLOAT;
+        const bool valid_z = z_var.get_type() == Variant::INT || z_var.get_type() == Variant::FLOAT;
+        if (!valid_x || !valid_y || !valid_z) return;
+
+        Dictionary rot;
+        rot["x"] = static_cast<double>(x_var);
+        rot["y"] = static_cast<double>(y_var);
+        rot["z"] = static_cast<double>(z_var);
+
+        Dictionary payload;
+        payload[cid + String(":@rot")] = rot;
+        set_keyframe_internal(frame, payload, String("@rot"));
+    }
+
+private:
+    void set_keyframe_internal(int frame, const Variant& pose, const String& bone_hint) {
         const std::string cid = current_character_key();
         const int clamped = CLAMP(frame, 0, total_frames_);
         Variant effective_pose = pose;
-        if (effective_pose.get_type() == Variant::NIL ||
-            (effective_pose.get_type() == Variant::DICTIONARY && static_cast<Dictionary>(effective_pose).is_empty())) {
+        Dictionary incoming_pose_dict;
+        if (pose.get_type() == Variant::DICTIONARY) {
+            incoming_pose_dict = static_cast<Dictionary>(pose);
+        }
+        if (effective_pose.get_type() == Variant::NIL) {
             auto it = forge::SmsBridge::id_map().find("editor");
             if (it != forge::SmsBridge::id_map().end() && it->second != nullptr) {
                 const Variant from_editor = it->second->call("getPoseDataForActiveCharacter");
@@ -1653,20 +1925,61 @@ public:
                 }
             }
         }
-        keyframes_[cid][clamped] = effective_pose;
+        if (!bone_hint.is_empty() && effective_pose.get_type() == Variant::DICTIONARY) {
+            const Dictionary src = static_cast<Dictionary>(effective_pose);
+            Dictionary filtered;
+            const Array keys = src.keys();
+            for (int i = 0; i < keys.size(); ++i) {
+                if (keys[i].get_type() != Variant::STRING) continue;
+                const String key = static_cast<String>(keys[i]);
+                String key_char;
+                String key_bone;
+                try_split_bone_key(key, key_char, key_bone);
+                const String candidate = key_bone.is_empty() ? key : key_bone;
+                if (candidate.nocasecmp_to(bone_hint) != 0) continue;
+                filtered[key] = src[key];
+            }
+            if (filtered.is_empty()) {
+                return;
+            }
+            effective_pose = filtered;
+            incoming_pose_dict = filtered;
+        }
+        if (effective_pose.get_type() == Variant::DICTIONARY) {
+            const Dictionary delta = static_cast<Dictionary>(effective_pose);
+            auto char_it = keyframes_.find(cid);
+            if (char_it != keyframes_.end()) {
+                auto frame_it = char_it->second.find(clamped);
+                if (frame_it != char_it->second.end() && frame_it->second.get_type() == Variant::DICTIONARY) {
+                    Dictionary merged = static_cast<Dictionary>(frame_it->second);
+                    const Array keys = delta.keys();
+                    for (int i = 0; i < keys.size(); ++i) {
+                        if (keys[i].get_type() != Variant::STRING) continue;
+                        const String key = static_cast<String>(keys[i]);
+                        merged[key] = delta[key];
+                    }
+                    effective_pose = merged;
+                }
+            }
+            keyframes_[cid][clamped] = effective_pose;
+        } else {
+            keyframes_[cid][clamped] = effective_pose;
+        }
         int bone_count = 0;
         UtilityFunctions::print(String("[ForgeRunner.Native] Timeline.setKeyframe poseType=") + String::num_int64(effective_pose.get_type()));
-        if (effective_pose.get_type() == Variant::DICTIONARY) {
-            const Dictionary d = static_cast<Dictionary>(effective_pose);
-            bone_count = static_cast<int>(d.size());
-            const Array keys = d.keys();
+        if (!incoming_pose_dict.is_empty()) {
+            const Array keys = incoming_pose_dict.keys();
             for (int i = 0; i < keys.size(); ++i) {
                 if (keys[i].get_type() != Variant::STRING) continue;
                 const String k = static_cast<String>(keys[i]);
-                const Variant v = d[k];
-                UtilityFunctions::print(String("[ForgeRunner.Native] Timeline.setKeyframe key='") +
+                const Variant v = incoming_pose_dict[k];
+                UtilityFunctions::print(String("[ForgeRunner.Native] Timeline.setKeyframe deltaKey='") +
                                         k + "' valueType=" + String::num_int64(v.get_type()));
             }
+        }
+        if (effective_pose.get_type() == Variant::DICTIONARY) {
+            const Dictionary d = static_cast<Dictionary>(effective_pose);
+            bone_count = static_cast<int>(d.size());
         } else if (pose.get_type() != Variant::NIL) {
             bone_count = 1;
         }
@@ -1678,16 +1991,20 @@ public:
         queue_redraw();
         if (effective_pose.get_type() == Variant::DICTIONARY) {
             const Dictionary d = static_cast<Dictionary>(effective_pose);
-            const Array keys = d.keys();
-            for (int i = 0; i < keys.size(); ++i) {
-                if (keys[i].get_type() != Variant::STRING) continue;
-                emit_signal("keyframeAdded", clamped, static_cast<String>(keys[i]));
+            String signal_bone = "*";
+            if (d.size() == 1) {
+                const Array keys = d.keys();
+                if (keys.size() == 1 && keys[0].get_type() == Variant::STRING) {
+                    signal_bone = static_cast<String>(keys[0]);
+                }
             }
+            emit_signal("keyframeAdded", clamped, signal_bone);
         } else if (effective_pose.get_type() != Variant::NIL) {
             emit_signal("keyframeAdded", clamped, String("*"));
         }
     }
 
+public:
     void remove_keyframe(int frame) {
         const std::string cid = current_character_key();
         auto char_it = keyframes_.find(cid);
@@ -1699,7 +2016,63 @@ public:
         }
         if (selected_keyframe_frame_ == clamped) {
             selected_keyframe_frame_ = -1;
+            selected_keyframe_bone_ = String();
         }
+        refresh_scroll_range();
+        queue_redraw();
+        emit_signal("keyframeRemoved", clamped);
+    }
+
+    void remove_keyframe_bone(int frame, const String& bone_name) {
+        if (bone_name.is_empty()) {
+            remove_keyframe(frame);
+            return;
+        }
+        const std::string cid = current_character_key();
+        auto char_it = keyframes_.find(cid);
+        if (char_it == keyframes_.end()) return;
+        const int clamped = CLAMP(frame, 0, total_frames_);
+        auto frame_it = char_it->second.find(clamped);
+        if (frame_it == char_it->second.end()) return;
+
+        if (frame_it->second.get_type() != Variant::DICTIONARY) {
+            remove_keyframe(clamped);
+            return;
+        }
+
+        Dictionary pose = static_cast<Dictionary>(frame_it->second);
+        const Array keys = pose.keys();
+        bool removed = false;
+        for (int i = 0; i < keys.size(); ++i) {
+            if (keys[i].get_type() != Variant::STRING) continue;
+            const String key = static_cast<String>(keys[i]);
+            String key_char;
+            String key_bone;
+            try_split_bone_key(key, key_char, key_bone);
+
+            if (!visible_character_id_.is_empty() && !key_char.is_empty() &&
+                key_char.nocasecmp_to(visible_character_id_) != 0) {
+                continue;
+            }
+
+            const String candidate = key_bone.is_empty() ? key : key_bone;
+            if (candidate.nocasecmp_to(bone_name) != 0) continue;
+            pose.erase(key);
+            removed = true;
+        }
+        if (!removed) return;
+
+        if (pose.is_empty()) {
+            char_it->second.erase(frame_it);
+            if (char_it->second.empty()) {
+                keyframes_.erase(char_it);
+            }
+            selected_keyframe_frame_ = -1;
+            selected_keyframe_bone_ = String();
+        } else {
+            frame_it->second = pose;
+        }
+
         refresh_scroll_range();
         queue_redraw();
         emit_signal("keyframeRemoved", clamped);
@@ -1768,34 +2141,91 @@ public:
     }
 
     Variant interpolate_pose(const Variant& prev_pose, const Variant& next_pose, float t) const {
-        std::map<std::string, Quaternion> prev_map;
-        std::map<std::string, Quaternion> next_map;
-        const bool has_prev = variant_pose_to_map(prev_pose, prev_map);
-        const bool has_next = variant_pose_to_map(next_pose, next_map);
-        if (!has_prev && !has_next) return prev_pose;
-        if (!has_prev) return next_pose;
-        if (!has_next) return prev_pose;
+        const Dictionary prev_dict = prev_pose.get_type() == Variant::DICTIONARY ? static_cast<Dictionary>(prev_pose) : Dictionary();
+        const Dictionary next_dict = next_pose.get_type() == Variant::DICTIONARY ? static_cast<Dictionary>(next_pose) : Dictionary();
+        if (prev_dict.is_empty() && next_dict.is_empty()) return prev_pose;
 
         std::set<std::string> all_keys;
-        for (const auto& [k, _] : prev_map) all_keys.insert(k);
-        for (const auto& [k, _] : next_map) all_keys.insert(k);
-
-        std::map<std::string, Quaternion> out_map;
-        for (const auto& k : all_keys) {
-            const auto p_it = prev_map.find(k);
-            const auto n_it = next_map.find(k);
-            const bool p = p_it != prev_map.end();
-            const bool n = n_it != next_map.end();
-            if (p && n) out_map[k] = p_it->second.slerp(n_it->second, t);
-            else if (p) out_map[k] = p_it->second;
-            else if (n) out_map[k] = n_it->second;
+        if (!prev_dict.is_empty()) {
+            const Array prev_keys = prev_dict.keys();
+            for (int i = 0; i < prev_keys.size(); ++i) {
+                if (prev_keys[i].get_type() != Variant::STRING) continue;
+                all_keys.insert(std::string(static_cast<String>(prev_keys[i]).utf8().get_data()));
+            }
+        }
+        if (!next_dict.is_empty()) {
+            const Array next_keys = next_dict.keys();
+            for (int i = 0; i < next_keys.size(); ++i) {
+                if (next_keys[i].get_type() != Variant::STRING) continue;
+                all_keys.insert(std::string(static_cast<String>(next_keys[i]).utf8().get_data()));
+            }
         }
 
-        return pose_map_to_variant_dict(out_map);
+        Dictionary out;
+        const double tf = static_cast<double>(t);
+        for (const auto& raw : all_keys) {
+            const String key(raw.c_str());
+            const bool has_prev = prev_dict.has(key);
+            const bool has_next = next_dict.has(key);
+            if (has_prev && has_next) {
+                const Variant prev_v = prev_dict[key];
+                const Variant next_v = next_dict[key];
+
+                Quaternion pq;
+                Quaternion nq;
+                if (variant_to_quaternion(prev_v, pq) && variant_to_quaternion(next_v, nq)) {
+                    out[key] = quaternion_to_dict(pq.slerp(nq, t));
+                    continue;
+                }
+
+                String key_char;
+                String key_bone;
+                try_split_bone_key(key, key_char, key_bone);
+                if ((key_bone == "@pos" || key_bone == "@rot") &&
+                    prev_v.get_type() == Variant::DICTIONARY &&
+                    next_v.get_type() == Variant::DICTIONARY) {
+                    const Dictionary prev_pos = static_cast<Dictionary>(prev_v);
+                    const Dictionary next_pos = static_cast<Dictionary>(next_v);
+                    if (prev_pos.has("x") && prev_pos.has("y") && prev_pos.has("z") &&
+                        next_pos.has("x") && next_pos.has("y") && next_pos.has("z")) {
+                        const double px = static_cast<double>(prev_pos["x"]);
+                        const double py = static_cast<double>(prev_pos["y"]);
+                        const double pz = static_cast<double>(prev_pos["z"]);
+                        const double nx = static_cast<double>(next_pos["x"]);
+                        const double ny = static_cast<double>(next_pos["y"]);
+                        const double nz = static_cast<double>(next_pos["z"]);
+                        Dictionary lerped;
+                        lerped["x"] = px + ((nx - px) * tf);
+                        lerped["y"] = py + ((ny - py) * tf);
+                        lerped["z"] = pz + ((nz - pz) * tf);
+                        out[key] = lerped;
+                        continue;
+                    }
+                }
+
+                out[key] = prev_v;
+                continue;
+            }
+
+            if (has_prev) {
+                out[key] = prev_dict[key];
+            } else if (has_next) {
+                out[key] = next_dict[key];
+            }
+        }
+        return out;
     }
 
     Variant get_pose_at(int frame) const {
         return get_pose_at_for_character_key(frame, current_character_key());
+    }
+
+    Variant get_pose_at_exact(int frame) const {
+        return get_pose_at_exact_for_character_key(frame, current_character_key());
+    }
+
+    Variant get_pose_at_exact_for_character(int frame, const String& character_id) const {
+        return get_pose_at_exact_for_character_key(frame, character_id.utf8().get_data());
     }
 
     Variant get_pose_at_for_character_key(int frame, const std::string& cid) const {
@@ -1803,20 +2233,113 @@ public:
         if (char_it == keyframes_.end()) return Variant();
         const auto& timeline = char_it->second;
         const int clamped = CLAMP(frame, 0, total_frames_);
+        if (timeline.empty()) return Variant();
+        std::set<std::string> all_keys;
+        for (const auto& [_, pose] : timeline) {
+            if (pose.get_type() != Variant::DICTIONARY) continue;
+            const Dictionary d = static_cast<Dictionary>(pose);
+            const Array keys = d.keys();
+            for (int i = 0; i < keys.size(); ++i) {
+                if (keys[i].get_type() != Variant::STRING) continue;
+                all_keys.insert(std::string(static_cast<String>(keys[i]).utf8().get_data()));
+            }
+        }
+
+        Dictionary out;
+        for (const auto& raw_key : all_keys) {
+            const String key(raw_key.c_str());
+            bool has_prev = false;
+            bool has_next = false;
+            int prev_frame = 0;
+            int next_frame = 0;
+            Variant prev_value;
+            Variant next_value;
+
+            for (const auto& [kf_frame, pose] : timeline) {
+                if (pose.get_type() != Variant::DICTIONARY) continue;
+                const Dictionary d = static_cast<Dictionary>(pose);
+                if (!d.has(key)) continue;
+
+                if (kf_frame <= clamped && (!has_prev || kf_frame > prev_frame)) {
+                    has_prev = true;
+                    prev_frame = kf_frame;
+                    prev_value = d[key];
+                }
+                if (kf_frame >= clamped && (!has_next || kf_frame < next_frame)) {
+                    has_next = true;
+                    next_frame = kf_frame;
+                    next_value = d[key];
+                }
+            }
+
+            if (!has_prev && !has_next) {
+                continue;
+            }
+            if (has_prev && has_next && prev_frame != next_frame) {
+                const int span = MAX(1, next_frame - prev_frame);
+                const float t = static_cast<float>(clamped - prev_frame) / static_cast<float>(span);
+
+                Quaternion pq;
+                Quaternion nq;
+                if (variant_to_quaternion(prev_value, pq) && variant_to_quaternion(next_value, nq)) {
+                    out[key] = quaternion_to_dict(pq.slerp(nq, t));
+                    continue;
+                }
+
+                String key_char;
+                String key_bone;
+                try_split_bone_key(key, key_char, key_bone);
+                if ((key_bone == "@pos" || key_bone == "@rot") &&
+                    prev_value.get_type() == Variant::DICTIONARY &&
+                    next_value.get_type() == Variant::DICTIONARY) {
+                    const Dictionary prev_pos = static_cast<Dictionary>(prev_value);
+                    const Dictionary next_pos = static_cast<Dictionary>(next_value);
+                    if (prev_pos.has("x") && prev_pos.has("y") && prev_pos.has("z") &&
+                        next_pos.has("x") && next_pos.has("y") && next_pos.has("z")) {
+                        const double px = static_cast<double>(prev_pos["x"]);
+                        const double py = static_cast<double>(prev_pos["y"]);
+                        const double pz = static_cast<double>(prev_pos["z"]);
+                        const double nx = static_cast<double>(next_pos["x"]);
+                        const double ny = static_cast<double>(next_pos["y"]);
+                        const double nz = static_cast<double>(next_pos["z"]);
+                        const double tf = static_cast<double>(t);
+                        Dictionary lerped;
+                        lerped["x"] = px + ((nx - px) * tf);
+                        lerped["y"] = py + ((ny - py) * tf);
+                        lerped["z"] = pz + ((nz - pz) * tf);
+                        out[key] = lerped;
+                        continue;
+                    }
+                }
+
+                out[key] = prev_value;
+                continue;
+            }
+
+            out[key] = has_prev ? prev_value : next_value;
+        }
+
+        if (!out.is_empty()) {
+            return out;
+        }
 
         auto exact = timeline.find(clamped);
         if (exact != timeline.end()) return exact->second;
-        if (timeline.empty()) return Variant();
 
         auto upper = timeline.upper_bound(clamped);
         if (upper == timeline.begin()) return upper->second;
         if (upper == timeline.end()) return std::prev(upper)->second;
+        return std::prev(upper)->second;
+    }
 
-        const auto next = upper;
-        const auto prev = std::prev(upper);
-        const int span = MAX(1, next->first - prev->first);
-        const float t = static_cast<float>(clamped - prev->first) / static_cast<float>(span);
-        return interpolate_pose(prev->second, next->second, t);
+    Variant get_pose_at_exact_for_character_key(int frame, const std::string& cid) const {
+        auto char_it = keyframes_.find(cid);
+        if (char_it == keyframes_.end()) return Variant();
+        const auto& timeline = char_it->second;
+        const int clamped = CLAMP(frame, 0, total_frames_);
+        auto exact = timeline.find(clamped);
+        if (exact == timeline.end()) return Variant();
+        return exact->second;
     }
 
     Variant get_pose_at_all_characters(int frame) const {
@@ -1903,6 +2426,7 @@ public:
     void clear_all_keyframes() {
         keyframes_.clear();
         selected_keyframe_frame_ = -1;
+        selected_keyframe_bone_ = String();
         set_current_frame(0);
         refresh_scroll_range();
         queue_redraw();
@@ -1976,8 +2500,9 @@ private:
         return CLAMP(frame, 0, total_frames_);
     }
 
-    bool try_pick_keyframe_at(const Vector2& pos, int& out_frame) const {
+    bool try_pick_keyframe_at(const Vector2& pos, int& out_frame, String& out_bone) const {
         out_frame = -1;
+        out_bone = String();
         const Vector2 size = get_size();
         const float toolbar_h = get_toolbar_height();
         const float scrollbar_h = (scroll_bar_ != nullptr) ? MAX(12.0f, scroll_bar_->get_size().y) : 16.0f;
@@ -1999,6 +2524,7 @@ private:
         bool found = false;
         float best_dist = std::numeric_limits<float>::infinity();
         int best_frame = -1;
+        String best_bone;
         for (int row = 0; row < static_cast<int>(tracked_bones.size()); ++row) {
             const float center_y = ruler_y + static_cast<float>(row) * track_h + track_h * 0.5f;
             for (const auto& [frame, pose] : char_it->second) {
@@ -2009,12 +2535,14 @@ private:
                 if (dist < best_dist) {
                     best_dist = dist;
                     best_frame = frame;
+                    best_bone = tracked_bones[row];
                     found = true;
                 }
             }
         }
         if (!found) return false;
         out_frame = best_frame;
+        out_bone = best_bone;
         return true;
     }
 
@@ -2055,6 +2583,8 @@ private:
     }
 
     static String display_bone_name(const String& name) {
+        if (name == "@pos") return "xyz";
+        if (name == "@rot") return "rot";
         if (name.length() <= 16) return name;
         int idx = name.rfind("_");
         if (idx < 0) idx = name.rfind(":");
@@ -2132,6 +2662,31 @@ private:
         play_button_->set_text(is_playing_ ? String("Pause") : String("Play"));
     }
 
+    void draw_playhead_frame_badge(float playhead_x, float timeline_top, const Color& color, const Ref<Font>& font, int font_size) {
+        if (!font.is_valid()) return;
+        const String label = String::num_int64(current_frame_);
+        const Vector2 text_size = font->get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size);
+        const float pad_x = 7.0f;
+        const float pad_y = 2.0f;
+        const Vector2 badge_size(text_size.x + pad_x * 2.0f, text_size.y + pad_y * 2.0f);
+        const Vector2 badge_pos(playhead_x - badge_size.x * 0.5f, timeline_top + 3.0f);
+
+        Ref<StyleBoxFlat> style;
+        style.instantiate();
+        style->set_bg_color(color);
+        style->set_corner_radius_all(4);
+        draw_style_box(style, Rect2(badge_pos, badge_size));
+
+        draw_string(
+            font,
+            Vector2(badge_pos.x + pad_x, badge_pos.y + text_size.y - 3.0f),
+            label,
+            HORIZONTAL_ALIGNMENT_LEFT,
+            -1,
+            font_size,
+            Color(1.0f, 1.0f, 1.0f, 1.0f));
+    }
+
     float get_toolbar_height() const {
         return toolbar_ != nullptr ? toolbar_->get_size().y : 28.0f;
     }
@@ -2144,6 +2699,7 @@ private:
     int total_frames_ = 120;
     int current_frame_ = 0;
     int selected_keyframe_frame_ = -1;
+    String selected_keyframe_bone_;
     bool is_playing_ = false;
     float play_accumulated_ = 0.0f;
     HBoxContainer* toolbar_ = nullptr;
@@ -2195,6 +2751,8 @@ protected:
         ClassDB::bind_method(D_METHOD("setSelectedBoneRot", "x", "y", "z"), &ForgePosingEditorControl::set_selected_bone_rot);
         ClassDB::bind_method(D_METHOD("setSelectedBoneConstraint", "minX", "maxX", "minY", "maxY", "minZ", "maxZ"), &ForgePosingEditorControl::set_selected_bone_constraint);
         ClassDB::bind_method(D_METHOD("getPoseDataForActiveCharacter"), &ForgePosingEditorControl::get_pose_data_for_active_character);
+        ClassDB::bind_method(D_METHOD("getPoseDataForBone", "boneName"), &ForgePosingEditorControl::get_pose_data_for_bone);
+        ClassDB::bind_method(D_METHOD("getPoseDataForSelectedBone"), &ForgePosingEditorControl::get_pose_data_for_selected_bone);
         ClassDB::bind_method(D_METHOD("loadPose", "pose"), &ForgePosingEditorControl::load_pose);
         ClassDB::bind_method(D_METHOD("resetPose"), &ForgePosingEditorControl::reset_pose);
         ClassDB::bind_method(D_METHOD("getProjectText", "path"), &ForgePosingEditorControl::get_project_text);
@@ -2305,7 +2863,14 @@ public:
                     left_moved_ = false;
                     drag_last_mouse_ = mb->get_position();
                     if (mode_ == "pose") {
-                        if (begin_pose_rotate_drag(mb->get_position())) {
+                        if (edit_mode_.to_lower() == "move") {
+                            if (begin_arrange_transform_drag(mb->get_position())) {
+                                left_moved_ = true;
+                            }
+                        } else if (!selected_bone_name_.is_empty() && begin_pose_rotate_drag(mb->get_position())) {
+                            left_moved_ = true;
+                        } else if (begin_arrange_transform_drag(mb->get_position())) {
+                            // Pose rotate fallback: keep rotating selected item pivot until a bone is explicitly selected.
                             left_moved_ = true;
                         }
                     } else if (begin_arrange_transform_drag(mb->get_position())) {
@@ -2522,6 +3087,41 @@ public:
         return d;
     }
 
+    Dictionary get_pose_data_for_selected_bone() const {
+        return get_pose_data_for_bone(selected_bone_name_);
+    }
+
+    Dictionary get_pose_data_for_bone(const String& bone_name) const {
+        Dictionary d;
+        if (bone_name.is_empty()) return d;
+
+        String active_character_id = get_active_character_id();
+        if (active_character_id.is_empty() && !characters_.empty()) {
+            active_character_id = characters_[0].id;
+        }
+        if (active_character_id.is_empty()) return d;
+
+        const String key = build_bone_key(active_character_id, bone_name);
+        if (key.is_empty()) return d;
+
+        const auto it = pose_data_.find(key.utf8().get_data());
+        if (it != pose_data_.end()) {
+            d[key] = quaternion_to_dict(it->second);
+            return d;
+        }
+
+        if (selected_character_index_ < 0 || selected_character_index_ >= static_cast<int>(characters_.size())) return d;
+        const SceneItem* character = &characters_[selected_character_index_];
+        if (character == nullptr || character->node == nullptr) return d;
+        Skeleton3D* skel = find_first_skeleton(character->node);
+        if (skel == nullptr) return d;
+        const int bone_index = skel->find_bone(bone_name);
+        if (bone_index < 0) return d;
+        const Quaternion q = skel->get_bone_pose_rotation(bone_index);
+        d[key] = quaternion_to_dict(q);
+        return d;
+    }
+
     void load_pose(const Variant& pose) {
         if (pose.get_type() != Variant::DICTIONARY) return;
         const Dictionary pose_dict = static_cast<Dictionary>(pose);
@@ -2538,6 +3138,37 @@ public:
             if (char_index < 0) continue;
             SceneItem* character = at_char(char_index);
             if (character == nullptr || character->node == nullptr) continue;
+
+            if (bone_name == "@pos") {
+                if (pose_dict[bone_key].get_type() != Variant::DICTIONARY) continue;
+                const Dictionary pos = static_cast<Dictionary>(pose_dict[bone_key]);
+                if (!(pos.has("x") && pos.has("y") && pos.has("z"))) continue;
+                const Vector3 next_pos(
+                    static_cast<float>(static_cast<double>(pos["x"])),
+                    static_cast<float>(static_cast<double>(pos["y"])),
+                    static_cast<float>(static_cast<double>(pos["z"])));
+                character->node->set_global_position(next_pos);
+                sync_item_from_node(*character);
+                if (char_index == selected_character_index_) {
+                    update_selection_marker();
+                }
+                continue;
+            }
+            if (bone_name == "@rot") {
+                if (pose_dict[bone_key].get_type() != Variant::DICTIONARY) continue;
+                const Dictionary rot = static_cast<Dictionary>(pose_dict[bone_key]);
+                if (!(rot.has("x") && rot.has("y") && rot.has("z"))) continue;
+                const Vector3 next_rot(
+                    static_cast<float>(static_cast<double>(rot["x"])),
+                    static_cast<float>(static_cast<double>(rot["y"])),
+                    static_cast<float>(static_cast<double>(rot["z"])));
+                character->node->set_rotation_degrees(next_rot);
+                sync_item_from_node(*character);
+                if (char_index == selected_character_index_) {
+                    update_selection_marker();
+                }
+                continue;
+            }
 
             Skeleton3D* skel = find_first_skeleton(character->node);
             if (skel == nullptr) continue;
@@ -2670,23 +3301,39 @@ public:
                             if (frame < 0) continue;
 
                             Dictionary pose;
-                            for (const auto& bone_node : key_node.children) {
-                                std::string bone_node_name = bone_node.name;
-                                std::transform(bone_node_name.begin(), bone_node_name.end(), bone_node_name.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
-                                if (bone_node_name != "bone") continue;
+                            for (const auto& key_child : key_node.children) {
+                                std::string key_child_name = key_child.name;
+                                std::transform(key_child_name.begin(), key_child_name.end(), key_child_name.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+                                if (key_child_name == "bone") {
+                                    const String bone_name(key_child.get_value("name", "").c_str());
+                                    if (bone_name.is_empty()) continue;
 
-                                const String bone_name(bone_node.get_value("name", "").c_str());
-                                if (bone_name.is_empty()) continue;
+                                    const double x = parse_double_safe(key_child.get_value("x", "0"), 0.0);
+                                    const double y = parse_double_safe(key_child.get_value("y", "0"), 0.0);
+                                    const double z = parse_double_safe(key_child.get_value("z", "0"), 0.0);
+                                    const double w = parse_double_safe(key_child.get_value("w", "1"), 1.0);
+                                    const Quaternion q(static_cast<float>(x), static_cast<float>(y), static_cast<float>(z), static_cast<float>(w));
 
-                                const double x = parse_double_safe(bone_node.get_value("x", "0"), 0.0);
-                                const double y = parse_double_safe(bone_node.get_value("y", "0"), 0.0);
-                                const double z = parse_double_safe(bone_node.get_value("z", "0"), 0.0);
-                                const double w = parse_double_safe(bone_node.get_value("w", "1"), 1.0);
-                                const Quaternion q(static_cast<float>(x), static_cast<float>(y), static_cast<float>(z), static_cast<float>(w));
-
-                                const String bone_key = build_bone_key(item.id, bone_name);
-                                if (!bone_key.is_empty()) {
-                                    pose[bone_key] = quaternion_to_dict(q);
+                                    const String bone_key = build_bone_key(item.id, bone_name);
+                                    if (!bone_key.is_empty()) {
+                                        pose[bone_key] = quaternion_to_dict(q);
+                                    }
+                                    continue;
+                                }
+                                if (key_child_name == "move" || key_child_name == "position" || key_child_name == "pos") {
+                                    Dictionary pos;
+                                    pos["x"] = parse_double_safe(key_child.get_value("x", "0"), 0.0);
+                                    pos["y"] = parse_double_safe(key_child.get_value("y", "0"), 0.0);
+                                    pos["z"] = parse_double_safe(key_child.get_value("z", "0"), 0.0);
+                                    pose[item.id + String(":@pos")] = pos;
+                                    continue;
+                                }
+                                if (key_child_name == "rotate" || key_child_name == "rotation" || key_child_name == "rot") {
+                                    Dictionary rot;
+                                    rot["x"] = parse_double_safe(key_child.get_value("x", "0"), 0.0);
+                                    rot["y"] = parse_double_safe(key_child.get_value("y", "0"), 0.0);
+                                    rot["z"] = parse_double_safe(key_child.get_value("z", "0"), 0.0);
+                                    pose[item.id + String(":@rot")] = rot;
                                 }
                             }
 
@@ -3240,7 +3887,7 @@ private:
                 for (int i = 0; i < keyframe_count; ++i) {
                     const int frame = timeline->get_keyframe_frame_at_for_character(i, c.id);
                     if (frame < 0) continue;
-                    const Variant pose_var = timeline->get_pose_at(frame);
+                    const Variant pose_var = timeline->get_pose_at_exact_for_character(frame, c.id);
                     if (pose_var.get_type() != Variant::DICTIONARY) continue;
                     const Dictionary pose = static_cast<Dictionary>(pose_var);
                     const Array keys = pose.keys();
@@ -3257,6 +3904,34 @@ private:
                             bone_name = bone_key;
                         }
                         if (scoped_char_id != c.id || bone_name.is_empty()) continue;
+                        if (bone_name == "@pos") {
+                            if (pose[bone_key].get_type() != Variant::DICTIONARY) continue;
+                            const Dictionary pos = static_cast<Dictionary>(pose[bone_key]);
+                            if (!(pos.has("x") && pos.has("y") && pos.has("z"))) continue;
+                            if (!wrote_any_bone) {
+                                key_block << "            Key { frame: " << frame << "\n";
+                            }
+                            key_block << "                Move { x: " << fmt_num_float_literal(static_cast<float>(static_cast<double>(pos["x"])))
+                                      << " y: " << fmt_num_float_literal(static_cast<float>(static_cast<double>(pos["y"])))
+                                      << " z: " << fmt_num_float_literal(static_cast<float>(static_cast<double>(pos["z"])))
+                                      << " }\n";
+                            wrote_any_bone = true;
+                            continue;
+                        }
+                        if (bone_name == "@rot") {
+                            if (pose[bone_key].get_type() != Variant::DICTIONARY) continue;
+                            const Dictionary rot = static_cast<Dictionary>(pose[bone_key]);
+                            if (!(rot.has("x") && rot.has("y") && rot.has("z"))) continue;
+                            if (!wrote_any_bone) {
+                                key_block << "            Key { frame: " << frame << "\n";
+                            }
+                            key_block << "                Rotate { x: " << fmt_num_float_literal(static_cast<float>(static_cast<double>(rot["x"])))
+                                      << " y: " << fmt_num_float_literal(static_cast<float>(static_cast<double>(rot["y"])))
+                                      << " z: " << fmt_num_float_literal(static_cast<float>(static_cast<double>(rot["z"])))
+                                      << " }\n";
+                            wrote_any_bone = true;
+                            continue;
+                        }
                         Quaternion q;
                         if (!variant_to_quaternion(pose[bone_key], q)) continue;
                         if (!wrote_any_bone) {
@@ -3724,14 +4399,27 @@ private:
         Vector3 origin;
 
         const bool pose_mode = mode_.to_lower() == String("pose");
+        const String pose_edit_mode = edit_mode_.to_lower();
         if (pose_mode) {
-            Skeleton3D* skel = nullptr;
-            int bone_index = -1;
-            if (resolve_selected_bone(skel, bone_index) && skel != nullptr) {
-                const Transform3D bone_pose = skel->get_bone_global_pose(bone_index);
-                origin = skel->to_global(bone_pose.origin);
-                basis = Basis();
-                visible = true;
+            if (pose_edit_mode == "move") {
+                if (resolve_selected_scene_item(item, is_character, index) && item != nullptr && item->node != nullptr) {
+                    origin = item->node->get_global_position();
+                    basis = transform_space_local() ? item->node->get_global_transform().basis.orthonormalized() : Basis();
+                    visible = true;
+                }
+            } else {
+                Skeleton3D* skel = nullptr;
+                int bone_index = -1;
+                if (resolve_selected_bone(skel, bone_index) && skel != nullptr) {
+                    const Transform3D bone_pose = skel->get_bone_global_pose(bone_index);
+                    origin = skel->to_global(bone_pose.origin);
+                    basis = Basis();
+                    visible = true;
+                } else if (resolve_selected_scene_item(item, is_character, index) && item != nullptr && item->node != nullptr) {
+                    origin = item->node->get_global_position();
+                    basis = transform_space_local() ? item->node->get_global_transform().basis.orthonormalized() : Basis();
+                    visible = true;
+                }
             }
         } else if (resolve_selected_scene_item(item, is_character, index) && item != nullptr && item->node != nullptr) {
             origin = item->node->get_global_position();
@@ -3744,7 +4432,9 @@ private:
 
         gizmo_root_->set_global_transform(Transform3D(basis, origin));
 
-        const String visual_mode = pose_mode ? String("rotate") : edit_mode_.to_lower();
+        const String visual_mode = pose_mode
+            ? (pose_edit_mode == "move" ? String("move") : String("rotate"))
+            : edit_mode_.to_lower();
         const bool rotate_mode = visual_mode == "rotate";
         const bool scale_mode = visual_mode == "scale";
         const bool move_mode = !rotate_mode && !scale_mode;
@@ -4144,14 +4834,16 @@ private:
 
         const bool pose_mode = (mode_ == "pose");
         if (pose_mode) {
-            int picked_char_index = -1;
-            String picked_bone_name;
-            if (try_pick_bone_screen(screen_pos, picked_char_index, picked_bone_name)) {
-                if (picked_char_index >= 0) {
-                    select_scene_character(picked_char_index);
+            if (!selected_bone_name_.is_empty()) {
+                int picked_char_index = -1;
+                String picked_bone_name;
+                if (try_pick_bone_screen(screen_pos, picked_char_index, picked_bone_name)) {
+                    if (picked_char_index >= 0) {
+                        select_scene_character(picked_char_index);
+                    }
+                    select_bone_name(picked_bone_name);
+                    return;
                 }
-                select_bone_name(picked_bone_name);
-                return;
             }
         }
 
@@ -4534,6 +5226,7 @@ private:
     }
 
     void select_first_bone_from_node(Node3D* node) {
+        if (!auto_select_first_bone_) return;
         if (node == nullptr) return;
         if (Skeleton3D* skel = find_first_skeleton(node)) {
             if (skel->get_bone_count() > 0) {
@@ -4596,7 +5289,7 @@ private:
     String transform_space_ = "local";
     String bone_tree_id_;
     bool joint_spheres_visible_ = true;
-    String selected_bone_name_ = "Hips";
+    String selected_bone_name_;
     double selected_bone_rot_x_ = 0.0;
     double selected_bone_rot_y_ = 0.0;
     double selected_bone_rot_z_ = 0.0;
@@ -4657,6 +5350,7 @@ private:
     std::map<std::string, std::string> scene_properties_;
     std::vector<SceneItem> characters_;
     std::vector<SceneItem> props_;
+    bool auto_select_first_bone_ = false;
 };
 
 // ---------------------------------------------------------------------------
@@ -4672,6 +5366,7 @@ void initialize_forge_runner_native(ModuleInitializationLevel p_level) {
     ClassDB::register_class<ForgeWindowDragControl>();
     ClassDB::register_class<ForgeDockingHostControl>();
     ClassDB::register_class<ForgeDockingContainerControl>();
+    ClassDB::register_class<ForgeNumberPickerControl>();
     ClassDB::register_class<ForgeTimelineControl>();
     ClassDB::register_class<ForgePosingEditorControl>();
     ClassDB::register_class<ForgeRunnerNativeMain>();

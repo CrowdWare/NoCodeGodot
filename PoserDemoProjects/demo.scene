@@ -10,22 +10,18 @@ Scene {
 
     Character {
         id: char1  name: "man"  src: "res:/assets/models/man.glb"
-        pos: 1.0012603, 0, 0.753235
-        rot: -18.9114742, -33.0736542, 11.9757538
-        scale: 0.9999998, 0.9999999, 1
+        pos: 0.028401, 0, 0.681092
+        rot: -18.9114552, -56.4265938, 11.975749
+        scale: 0.9999893, 0.9999846, 0.999998
 
         Animation {
-            Key { frame: 15
-                Bone { name: "mixamorig1_Hips" x: -0.7071068 y: 0.0 z: 0.0 w: 0.7071068 }
-                Bone { name: "mixamorig1_LeftArm" x: 0.4025605 y: -0.1790799 z: 0.2559253 w: 0.860452 }
-                Bone { name: "mixamorig1_Spine1" x: 0.453835 y: 0.0233238 z: -0.0118841 w: 0.8907012 }
-                Bone { name: "mixamorig1_Spine2" x: 0.0348982 y: 0.0087212 z: -0.0003046 w: 0.9993528 }
+            Key { frame: 0
+                Move { x: -0.3127699 y: 0.0 z: 0.681092 }
+                Rotate { x: -18.911459 y: -68.6536255 z: 11.9757509 }
             }
-            Key { frame: 25
-                Bone { name: "mixamorig1_Hips" x: -0.7071068 y: 0.0 z: 0.0 w: 0.7071068 }
-                Bone { name: "mixamorig1_LeftArm" x: 0.4908815 y: -0.209227 z: 0.3017998 w: 0.7900483 }
-                Bone { name: "mixamorig1_Spine1" x: 0.453835 y: 0.0233238 z: -0.0118841 w: 0.8907012 }
-                Bone { name: "mixamorig1_Spine2" x: 0.0348982 y: 0.0087212 z: -0.0003046 w: 0.9993528 }
+            Key { frame: 37
+                Move { x: 0.658255 y: 0.0 z: 0.681092 }
+                Rotate { x: -18.9114532 y: -33.8536224 z: 11.975749 }
             }
         }
     }
@@ -36,10 +32,6 @@ Scene {
         scale: 1, 1, 1
 
         Animation {
-            Key { frame: 0
-                Bone { name: "mixamorig1_LeftArm" x: 0.1699976 y: 0.7362646 z: 0.2431366 w: 0.608194 }
-                Bone { name: "mixamorig1_RightArm" x: 0.163111 y: -0.6564755 z: -0.4624751 w: 0.5731941 }
-            }
             Key { frame: 7
                 Bone { name: "mixamorig1_LeftArm" x: 0.3017872 y: 0.7692375 z: 0.2668338 w: 0.495982 }
                 Bone { name: "mixamorig1_RightArm" x: 0.163111 y: -0.6564755 z: -0.4624751 w: 0.5731941 }

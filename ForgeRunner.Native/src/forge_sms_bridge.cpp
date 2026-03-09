@@ -3,11 +3,13 @@
 #include "forge_path_resolver.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <limits>
 #include <sstream>
 #include <unordered_map>
@@ -218,6 +220,18 @@ static LineEdit* resolve_line_edit_by_id(const std::string& id) {
     return Object::cast_to<LineEdit>(it->second);
 }
 
+struct NumericLineEditConfig {
+    std::string axis = "x";
+    std::string unit;
+    int decimals = 3;
+    Color axis_color = Color(1.0f, 1.0f, 1.0f, 1.0f);
+};
+
+static std::unordered_map<std::string, NumericLineEditConfig>& numeric_line_edit_configs() {
+    static std::unordered_map<std::string, NumericLineEditConfig> configs;
+    return configs;
+}
+
 static double parse_numeric_from_text(const String& text) {
     const std::string raw = text.utf8().get_data();
     std::string normalized;
@@ -232,6 +246,17 @@ static double parse_numeric_from_text(const String& text) {
     double v = 0.0;
     ss >> v;
     return ss.fail() ? 0.0 : v;
+}
+
+static std::string format_numeric_preview(const NumericLineEditConfig& cfg, double value) {
+    std::ostringstream ss;
+    ss.setf(std::ios::fixed, std::ios::floatfield);
+    ss << std::setprecision(CLAMP(cfg.decimals, 0, 6)) << value;
+    const std::string number = ss.str();
+    if (cfg.unit.empty()) {
+        return cfg.axis + " " + number;
+    }
+    return cfg.axis + " " + number + " " + cfg.unit;
 }
 
 // ---------------------------------------------------------------------------
@@ -472,8 +497,59 @@ static int sms_ui_invoke(
         if (mname == "configureNumericLineEdit") {
             const std::string control_id = arg_string(0);
             if (LineEdit* le = resolve_line_edit_by_id(control_id)) {
+                const std::string axis = arg_string(1);
+                const std::string unit = arg_string(2);
+                const std::string color_raw = arg_string(3);
+                double step = 0.01;
+                if (arr.size() > 4) {
+                    const Variant step_raw = arr[4];
+                    if (step_raw.get_type() == Variant::INT || step_raw.get_type() == Variant::FLOAT) {
+                        step = static_cast<double>(step_raw);
+                    }
+                }
+                double drag_sensitivity = 0.02;
+                if (arr.size() > 5) {
+                    const Variant drag_raw = arr[5];
+                    if (drag_raw.get_type() == Variant::INT || drag_raw.get_type() == Variant::FLOAT) {
+                        drag_sensitivity = static_cast<double>(drag_raw);
+                    }
+                }
+                int decimals = 3;
+                if (arr.size() > 6) {
+                    const Variant decimals_raw = arr[6];
+                    if (decimals_raw.get_type() == Variant::INT || decimals_raw.get_type() == Variant::FLOAT) {
+                        decimals = CLAMP(static_cast<int>(decimals_raw), 0, 6);
+                    }
+                }
+                const Color color = color_raw.empty()
+                    ? Color(1.0f, 1.0f, 1.0f, 1.0f)
+                    : Color(String(color_raw.c_str()));
+                if (le->has_method("set_numeric_config")) {
+                    le->call("set_numeric_config", String(axis.c_str()), String(unit.c_str()), color, step, drag_sensitivity, decimals);
+                    write_out(out_json, out_cap, "true");
+                    return 0;
+                }
+
+                NumericLineEditConfig cfg;
+                cfg.axis = axis;
+                if (cfg.axis.empty()) cfg.axis = "x";
+                std::transform(cfg.axis.begin(), cfg.axis.end(), cfg.axis.begin(), [](unsigned char c) {
+                    return static_cast<char>(std::tolower(c));
+                });
+                cfg.unit = unit;
+                if (!color_raw.empty()) {
+                    cfg.axis_color = color;
+                }
+                cfg.decimals = decimals;
+                numeric_line_edit_configs()[control_id] = cfg;
+
                 le->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_RIGHT);
                 le->set_select_all_on_focus(true);
+                le->add_theme_color_override("font_color", cfg.axis_color);
+                le->add_theme_color_override("caret_color", cfg.axis_color);
+
+                const double current_value = parse_numeric_from_text(le->get_text());
+                le->set_text(String(format_numeric_preview(cfg, current_value).c_str()));
             }
             write_out(out_json, out_cap, "true");
             return 0;
@@ -481,16 +557,26 @@ static int sms_ui_invoke(
         if (mname == "setNumericLineEditValue") {
             const std::string control_id = arg_string(0);
             if (LineEdit* le = resolve_line_edit_by_id(control_id)) {
-                String value_text;
+                double numeric_value = 0.0;
                 if (arr.size() > 1) {
                     const Variant value = arr[1];
                     if (value.get_type() == Variant::FLOAT || value.get_type() == Variant::INT) {
-                        value_text = String::num(static_cast<double>(value));
+                        numeric_value = static_cast<double>(value);
                     } else {
-                        value_text = String(value);
+                        numeric_value = parse_numeric_from_text(String(value));
                     }
                 }
-                le->set_text(value_text);
+                if (le->has_method("set_numeric_value")) {
+                    le->call("set_numeric_value", numeric_value);
+                    write_out(out_json, out_cap, "true");
+                    return 0;
+                }
+                auto cfg_it = numeric_line_edit_configs().find(control_id);
+                if (cfg_it != numeric_line_edit_configs().end()) {
+                    le->set_text(String(format_numeric_preview(cfg_it->second, numeric_value).c_str()));
+                } else {
+                    le->set_text(String::num(numeric_value));
+                }
             }
             write_out(out_json, out_cap, "true");
             return 0;
@@ -499,7 +585,14 @@ static int sms_ui_invoke(
             const std::string control_id = arg_string(0);
             double value = 0.0;
             if (LineEdit* le = resolve_line_edit_by_id(control_id)) {
-                value = parse_numeric_from_text(le->get_text());
+                if (le->has_method("get_numeric_value")) {
+                    const Variant v = le->call("get_numeric_value");
+                    if (v.get_type() == Variant::FLOAT || v.get_type() == Variant::INT) {
+                        value = static_cast<double>(v);
+                    }
+                } else {
+                    value = parse_numeric_from_text(le->get_text());
+                }
             }
             write_out(out_json, out_cap, std::to_string(value));
             return 0;

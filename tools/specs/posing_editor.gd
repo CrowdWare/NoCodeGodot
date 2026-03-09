@@ -61,6 +61,8 @@ func get_spec() -> Dictionary:
             {"sms":"rebaseSelectedPivotBottom","params":[], "returns":"bool", "note":"Wraps selected character/prop in a pivot helper placed at world-space bottom-center; keeps visual transform unchanged."},
             {"sms":"getPoseDataForCharacter", "params":[{"name":"characterId","type":"string"}], "returns":"object", "note":"Returns scoped poseData dictionary for one character only."},
             {"sms":"getPoseDataForActiveCharacter", "params":[], "returns":"object", "note":"Returns scoped poseData dictionary for the currently active character."},
+            {"sms":"getPoseDataForBone", "params":[{"name":"boneName","type":"string"}], "returns":"object", "note":"Returns scoped poseData dictionary for one specific bone of the active character."},
+            {"sms":"getPoseDataForSelectedBone", "params":[], "returns":"object", "note":"Returns scoped poseData dictionary with only the currently selected bone of the active character."},
             {"sms":"setMode",             "params":[{"name":"mode","type":"string"}], "returns":"void", "note":"Values: 'pose' | 'arrange'. Clears all gizmos and selections."},
             {"sms":"setEditMode",         "params":[{"name":"mode","type":"string"}], "returns":"void", "note":"Values: 'move' | 'scale' | 'rotate'. Only effective in Arrange mode."},
             {"sms":"exportGlb",           "params":[{"name":"path","type":"string"},{"name":"includeAnimation","type":"bool"},{"name":"includeProps","type":"bool"},{"name":"animationOnlyCharacter","type":"bool"}], "returns":"bool", "note":"Starts async GLB export. Progress is reported via exportProgress."},

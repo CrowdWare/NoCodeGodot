@@ -554,7 +554,14 @@ Control* UiBuilder::create_control(const std::string& nl) {
     if (nl == "linkbutton")        return memnew(LinkButton);
     if (nl == "checkbox")          return memnew(CheckBox);
     if (nl == "checkbutton")       return memnew(CheckButton);
-    if (nl == "lineedit" || nl == "numberpicker") return memnew(LineEdit);
+    if (nl == "lineedit") return memnew(LineEdit);
+    if (nl == "numberpicker") {
+        Variant v = ClassDB::instantiate("ForgeNumberPickerControl");
+        if (v.get_type() != Variant::NIL) {
+            if (auto* c = Object::cast_to<Control>(static_cast<Object*>(v))) return c;
+        }
+        return memnew(LineEdit);
+    }
     if (nl == "textedit")          return memnew(TextEdit);
     if (nl == "codeedit")          return memnew(CodeEdit);
     if (nl == "optionbutton")      return memnew(OptionButton);

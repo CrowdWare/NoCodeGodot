@@ -189,15 +189,22 @@ fun activateArrangeMove() {
 
 fun activatePoseMode() {
     currentMode = "pose"
+    if (currentEditMode == "scale") {
+        currentEditMode = "rotate"
+    }
     ui.getObject("btnPoseMode").buttonPressed = true
     ui.getObject("btnArrangeMode").buttonPressed = false
-    ui.getObject("btnModeMove").visible = false
+    ui.getObject("btnModeMove").visible = true
+    ui.getObject("btnModeMove").buttonPressed = currentEditMode == "move"
     ui.getObject("btnModeScale").visible = false
-    ui.getObject("btnModeRotate").visible = false
+    ui.getObject("btnModeScale").buttonPressed = false
+    ui.getObject("btnModeRotate").visible = true
+    ui.getObject("btnModeRotate").buttonPressed = currentEditMode == "rotate"
     ui.getObject("transformSpaceSelect").visible = false
     ui.getObject("btnToggleJoints").visible = true
     ui.getObject("btnToggleJoints").buttonPressed = jointSpheresVisible
     editor.setMode("pose")
+    editor.setEditMode(currentEditMode)
     updatePoseInspectorFromEditor()
 }
 
@@ -689,6 +696,13 @@ fun applyInspectorTransformLive() {
         editor.setSceneCharacterPos(sel, px, py, pz)
         editor.setSceneCharacterRot(sel, rx, ry, rz)
         editor.setSceneCharacterScale(sel, sx, sy, sz)
+        if (currentMode == "pose") {
+            if (currentEditMode == "move") {
+                timeline.setKeyframeMove(timeline.currentFrame)
+            } else if (currentEditMode == "rotate" && editor.getSelectedBoneName() == "") {
+                timeline.setKeyframeRotate(timeline.currentFrame)
+            }
+        }
     } else {
         var propIdx = sel - charCount
         editor.setScenePropPos(propIdx, px, py, pz)
@@ -1285,6 +1299,11 @@ on editor.objectSelected(propIdx) {
 }
 
 on editor.objectMoved(propIdx, pos) {
+    if (currentMode == "pose" && currentEditMode == "move" && propIdx < 0) {
+        timeline.setKeyframeMove(timeline.currentFrame)
+    } else if (currentMode == "pose" && currentEditMode == "rotate" && propIdx < 0 && editor.getSelectedBoneName() == "") {
+        timeline.setKeyframeRotate(timeline.currentFrame)
+    }
     if (isSourceEditorFocused()) {
         return
     }
@@ -1506,7 +1525,14 @@ on editor.boneSelected(boneName) {
 }
 
 on editor.poseChanged(boneName) {
-    timeline.setKeyframe(timeline.currentFrame, editor.getPoseDataForActiveCharacter())
+    if (boneName == "") {
+        return
+    }
+    var pose = editor.getPoseDataForBone(boneName)
+    if (pose == null) {
+        return
+    }
+    timeline.setKeyframeBone(timeline.currentFrame, pose, boneName)
     updatePoseInspectorFromEditor()
 }
 
