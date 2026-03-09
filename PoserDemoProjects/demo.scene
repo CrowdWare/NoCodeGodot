@@ -10,9 +10,9 @@ Scene {
 
     Character {
         id: char1  name: "man"  src: "res:/assets/models/man.glb"
-        pos: 10, 0, 0.753235
-        rot: 3, -56.2999992, 10
-        scale: 1, 1, 1
+        pos: 0.9698763, 0, 0.753235
+        rot: -18.9114761, -33.0736542, 11.9757547
+        scale: 0.9999999, 0.9999999, 1
 
         Animation {
             Key { frame: 0
@@ -31,8 +31,8 @@ Scene {
     }
     Character {
         id: char2  name: "man"  src: "res:/assets/models/man.glb"
-        pos: -0.6677406, -0.0723566, 1.53022
-        rot: 0, 19.6499996, 0
+        pos: -1.2607595, 0, 0.5816569
+        rot: 0, 49.6499863, 0
         scale: 1, 1, 1
 
         Animation {
@@ -40,7 +40,7 @@ Scene {
     }
     Asset {
         id: prop0  name: "tree"  src: "builtin:greybox/tree"
-        pos: -3.071512, 0, -1.7207659
+        pos: 3.9057438, 0, -1.7207659
         rot: 0, 0, 0
         scale: 1, 1, 1
     }

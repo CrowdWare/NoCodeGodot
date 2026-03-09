@@ -707,6 +707,27 @@ fun updateInspectorFromSelection() {
     var sel = selectedSceneAssetIndex
     var charCount = editor.getSceneCharacterCount()
     if (sel < 0) {
+        // Native parity fallback: keep inspector/bone docks visible by recovering
+        // a deterministic selection when scene content exists.
+        if (charCount > 0) {
+            selectedSceneAssetIndex = 0
+            editor.selectSceneCharacter(0)
+            updateKeyframeTree()
+            sel = 0
+        } else if (currentMode == "arrange" && editor.getScenePropCount() > 0) {
+            selectedSceneAssetIndex = charCount
+            editor.selectSceneProp(0)
+            sel = selectedSceneAssetIndex
+        } else {
+            setRightPanels("none")
+            if (inspectorTargetLabel != null) {
+                inspectorTargetLabel.text = "No selection"
+            }
+            refreshInspectorModePanels()
+            return
+        }
+    }
+    if (sel < 0) {
         setRightPanels("none")
         if (inspectorTargetLabel != null) {
             inspectorTargetLabel.text = "No selection"

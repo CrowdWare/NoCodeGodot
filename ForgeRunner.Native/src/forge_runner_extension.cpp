@@ -21,6 +21,7 @@
 #include <godot_cpp/classes/code_edit.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/camera3d.hpp>
+#include <godot_cpp/classes/cylinder_mesh.hpp>
 #include <godot_cpp/classes/directional_light3d.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/gltf_document.hpp>
@@ -37,6 +38,7 @@
 #include <godot_cpp/classes/skeleton3d.hpp>
 #include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/classes/sub_viewport.hpp>
+#include <godot_cpp/classes/sphere_mesh.hpp>
 #include <godot_cpp/classes/text_server.hpp>
 #include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/classes/tree.hpp>
@@ -1582,7 +1584,16 @@ public:
             String(cid.c_str()) + "' frame=" + String::num_int64(clamped) +
             " bones=" + String::num_int64(bone_count));
         queue_redraw();
-        emit_signal("keyframeAdded", clamped, String("*"));
+        if (effective_pose.get_type() == Variant::DICTIONARY) {
+            const Dictionary d = static_cast<Dictionary>(effective_pose);
+            const Array keys = d.keys();
+            for (int i = 0; i < keys.size(); ++i) {
+                if (keys[i].get_type() != Variant::STRING) continue;
+                emit_signal("keyframeAdded", clamped, static_cast<String>(keys[i]));
+            }
+        } else if (effective_pose.get_type() != Variant::NIL) {
+            emit_signal("keyframeAdded", clamped, String("*"));
+        }
     }
 
     void remove_keyframe(int frame) {
@@ -1728,6 +1739,7 @@ public:
 
     void set_visible_character_id(const String& character_id) {
         visible_character_id_ = character_id;
+        queue_redraw();
     }
 
     int get_keyframe_count() const {
@@ -1970,10 +1982,14 @@ public:
         set_stretch(true);
         set_mouse_filter(Control::MOUSE_FILTER_STOP);
         ensure_viewport_scene();
+        ensure_gizmo_nodes();
         update_camera_transform();
+        update_gizmo_visual();
     }
 
-    void _process(double) override {}
+    void _process(double) override {
+        update_gizmo_visual();
+    }
 
     void _notification(int) {}
 
@@ -2003,6 +2019,14 @@ public:
                     left_pressed_ = true;
                     left_press_pos_ = mb->get_position();
                     left_moved_ = false;
+                    drag_last_mouse_ = mb->get_position();
+                    if (mode_ == "pose") {
+                        if (begin_pose_rotate_drag(mb->get_position())) {
+                            left_moved_ = true;
+                        }
+                    } else if (begin_arrange_transform_drag(mb->get_position())) {
+                        left_moved_ = true;
+                    }
                     accept_event();
                     return;
                 }
@@ -2030,6 +2054,12 @@ public:
                     return;
                 }
                 if (btn == MOUSE_BUTTON_LEFT) {
+                    if (active_drag_mode_ != DRAG_NONE) {
+                        end_active_drag();
+                        left_pressed_ = false;
+                        accept_event();
+                        return;
+                    }
                     if (!left_moved_) {
                         pick_at_screen_pos(mb->get_position());
                     }
@@ -2049,6 +2079,11 @@ public:
         }
 
         const Vector2 rel = mm->get_relative();
+        if (left_pressed_ && active_drag_mode_ != DRAG_NONE) {
+            update_active_drag(mouse_pos, rel);
+            accept_event();
+            return;
+        }
         if (orbit_dragging_) {
             orbit_yaw_ -= rel.x * 0.01f;
             orbit_pitch_ = CLAMP(orbit_pitch_ + rel.y * 0.01f, -1.4f, 1.4f);
@@ -2070,9 +2105,24 @@ public:
         drag_last_mouse_ = mouse_pos;
     }
 
-    void set_mode(const String& mode) { mode_ = mode; }
-    void set_edit_mode(const String& mode) { edit_mode_ = mode; }
-    void set_transform_space(const String& space) { transform_space_ = space; }
+    void set_mode(const String& mode) {
+        mode_ = mode;
+        if (active_drag_mode_ != DRAG_NONE) {
+            end_active_drag();
+        }
+    }
+    void set_edit_mode(const String& mode) {
+        edit_mode_ = mode;
+        if (active_drag_mode_ != DRAG_NONE && mode_ != "pose") {
+            end_active_drag();
+        }
+    }
+    void set_transform_space(const String& space) {
+        transform_space_ = space;
+        if (active_drag_mode_ != DRAG_NONE && mode_ != "pose") {
+            end_active_drag();
+        }
+    }
     void set_bone_tree(const String& id) {
         if (bone_tree_ != nullptr) {
             const Callable cb = callable_mp(this, &ForgePosingEditorControl::on_bone_tree_item_selected);
@@ -2386,11 +2436,7 @@ public:
         }
 
         if (!characters_.empty()) {
-            selected_character_index_ = 0;
-            selected_prop_index_ = -1;
-            if (characters_[0].node != nullptr) {
-                select_first_bone_from_node(characters_[0].node);
-            }
+            select_scene_character(0);
             if (timeline != nullptr) {
                 timeline->set_visible_character_id(characters_[0].id);
             }
@@ -3224,6 +3270,562 @@ private:
         camera_->look_at_from_position(cam_pos, orbit_target_, Vector3(0.0f, 1.0f, 0.0f));
     }
 
+    void ensure_gizmo_nodes() {
+        if (scene_root_ == nullptr) return;
+        if (gizmo_root_ != nullptr) return;
+
+        gizmo_root_ = memnew(Node3D);
+        gizmo_root_->set_name("NativeTransformGizmo");
+        gizmo_root_->set_visible(false);
+        scene_root_->add_child(gizmo_root_);
+
+        Ref<SphereMesh> sphere_tip_mesh;
+        sphere_tip_mesh.instantiate();
+        sphere_tip_mesh->set_radius(0.06f);
+        sphere_tip_mesh->set_height(0.12f);
+
+        Ref<BoxMesh> box_tip_mesh;
+        box_tip_mesh.instantiate();
+        box_tip_mesh->set_size(Vector3(0.09f, 0.09f, 0.09f));
+
+        Ref<CylinderMesh> cone_tip_mesh;
+        cone_tip_mesh.instantiate();
+        cone_tip_mesh->set_top_radius(0.0f);
+        cone_tip_mesh->set_bottom_radius(0.035f);
+        cone_tip_mesh->set_height(0.14f);
+        cone_tip_mesh->set_radial_segments(12);
+
+        Ref<CylinderMesh> shaft_mesh;
+        shaft_mesh.instantiate();
+        shaft_mesh->set_top_radius(0.012f);
+        shaft_mesh->set_bottom_radius(0.012f);
+        shaft_mesh->set_height(0.40f);
+        shaft_mesh->set_radial_segments(10);
+
+        const Color axis_colors[3] = {
+            Color(0.95f, 0.20f, 0.20f, 1.0f),
+            Color(0.20f, 0.90f, 0.20f, 1.0f),
+            Color(0.20f, 0.50f, 1.00f, 1.0f),
+        };
+
+        for (int axis = 0; axis < 3; ++axis) {
+            Ref<StandardMaterial3D> mat;
+            mat.instantiate();
+            mat->set_shading_mode(StandardMaterial3D::SHADING_MODE_UNSHADED);
+            mat->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
+            mat->set_albedo(axis_colors[axis]);
+            gizmo_axis_materials_[axis] = mat;
+
+            auto* shaft = memnew(MeshInstance3D);
+            shaft->set_name(String("GizmoShaft") + String::num_int64(axis));
+            shaft->set_mesh(shaft_mesh);
+            shaft->set_material_override(mat);
+            shaft->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+            gizmo_root_->add_child(shaft);
+            gizmo_axis_shafts_[axis] = shaft;
+
+            auto* tip = memnew(MeshInstance3D);
+            tip->set_name(String("GizmoTip") + String::num_int64(axis));
+            tip->set_mesh(sphere_tip_mesh);
+            tip->set_material_override(mat);
+            tip->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+            gizmo_root_->add_child(tip);
+            gizmo_axis_tips_[axis] = tip;
+
+            Ref<ImmediateMesh> axis_line;
+            axis_line.instantiate();
+            axis_line->surface_begin(Mesh::PRIMITIVE_LINES, mat);
+            axis_line->surface_add_vertex(Vector3(-0.34f, 0.0f, 0.0f));
+            axis_line->surface_add_vertex(Vector3(0.34f, 0.0f, 0.0f));
+            axis_line->surface_end();
+            auto* axis_line_mesh = memnew(MeshInstance3D);
+            axis_line_mesh->set_name(String("GizmoAxisLine") + String::num_int64(axis));
+            axis_line_mesh->set_mesh(axis_line);
+            axis_line_mesh->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+            if (axis == 0) axis_line_mesh->set_rotation_degrees(Vector3(0.0f, 0.0f, 0.0f));
+            else if (axis == 1) axis_line_mesh->set_rotation_degrees(Vector3(0.0f, 0.0f, 90.0f));
+            else axis_line_mesh->set_rotation_degrees(Vector3(0.0f, 90.0f, 0.0f));
+            axis_line_mesh->set_visible(false);
+            gizmo_root_->add_child(axis_line_mesh);
+            gizmo_axis_lines_[axis] = axis_line_mesh;
+
+            Ref<ImmediateMesh> ring_mesh;
+            ring_mesh.instantiate();
+            ring_mesh->surface_begin(Mesh::PRIMITIVE_LINES, mat);
+            const float r = 0.35f;
+            const int steps = 96;
+            for (int i = 0; i < steps; ++i) {
+                const float a0 = (static_cast<float>(i) / static_cast<float>(steps)) * static_cast<float>(Math_TAU);
+                const float a1 = (static_cast<float>(i + 1) / static_cast<float>(steps)) * static_cast<float>(Math_TAU);
+                ring_mesh->surface_add_vertex(Vector3(std::cos(a0) * r, std::sin(a0) * r, 0.0f));
+                ring_mesh->surface_add_vertex(Vector3(std::cos(a1) * r, std::sin(a1) * r, 0.0f));
+            }
+            ring_mesh->surface_end();
+
+            auto* ring = memnew(MeshInstance3D);
+            ring->set_name(String("GizmoRing") + String::num_int64(axis));
+            ring->set_mesh(ring_mesh);
+            ring->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+            if (axis == 0) ring->set_rotation_degrees(Vector3(0.0f, 90.0f, 0.0f));
+            else if (axis == 1) ring->set_rotation_degrees(Vector3(90.0f, 0.0f, 0.0f));
+            else ring->set_rotation_degrees(Vector3(0.0f, 0.0f, 0.0f));
+            ring->set_visible(false);
+            gizmo_root_->add_child(ring);
+            gizmo_axis_rings_[axis] = ring;
+        }
+
+        gizmo_sphere_tip_mesh_ = sphere_tip_mesh;
+        gizmo_box_tip_mesh_ = box_tip_mesh;
+        gizmo_cone_tip_mesh_ = cone_tip_mesh;
+
+        Ref<ImmediateMesh> diamond_mesh;
+        diamond_mesh.instantiate();
+        diamond_mesh->surface_begin(Mesh::PRIMITIVE_TRIANGLES);
+        const Vector3 p0(0.0f, 0.030f, 0.0f);
+        const Vector3 p1(0.030f, 0.0f, 0.0f);
+        const Vector3 p2(0.0f, -0.030f, 0.0f);
+        const Vector3 p3(-0.030f, 0.0f, 0.0f);
+        const Vector3 p4(0.0f, 0.0f, 0.018f);
+        const Vector3 p5(0.0f, 0.0f, -0.018f);
+        auto add_tri = [&](const Vector3& a, const Vector3& b, const Vector3& c) {
+            diamond_mesh->surface_add_vertex(a);
+            diamond_mesh->surface_add_vertex(b);
+            diamond_mesh->surface_add_vertex(c);
+        };
+        add_tri(p0, p1, p4); add_tri(p1, p2, p4); add_tri(p2, p3, p4); add_tri(p3, p0, p4);
+        add_tri(p1, p0, p5); add_tri(p2, p1, p5); add_tri(p3, p2, p5); add_tri(p0, p3, p5);
+        diamond_mesh->surface_end();
+        gizmo_diamond_tip_mesh_ = diamond_mesh;
+
+        auto* pivot = memnew(MeshInstance3D);
+        pivot->set_name("GizmoPivot");
+        Ref<SphereMesh> pivot_mesh;
+        pivot_mesh.instantiate();
+        pivot_mesh->set_radius(0.018f);
+        pivot_mesh->set_height(0.036f);
+        pivot->set_mesh(pivot_mesh);
+        Ref<StandardMaterial3D> pivot_mat;
+        pivot_mat.instantiate();
+        pivot_mat->set_shading_mode(StandardMaterial3D::SHADING_MODE_UNSHADED);
+        pivot_mat->set_flag(BaseMaterial3D::FLAG_DISABLE_DEPTH_TEST, true);
+        pivot_mat->set_albedo(Color(0.96f, 0.96f, 0.98f, 0.92f));
+        pivot->set_material_override(pivot_mat);
+        pivot->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+        pivot->set_visible(false);
+        gizmo_root_->add_child(pivot);
+        gizmo_pivot_ = pivot;
+    }
+
+    void update_gizmo_visual() {
+        ensure_gizmo_nodes();
+        if (gizmo_root_ == nullptr) return;
+
+        SceneItem* item = nullptr;
+        bool is_character = false;
+        int index = -1;
+
+        bool visible = false;
+        Basis basis;
+        Vector3 origin;
+
+        const bool pose_mode = mode_.to_lower() == String("pose");
+        if (pose_mode) {
+            Skeleton3D* skel = nullptr;
+            int bone_index = -1;
+            if (resolve_selected_bone(skel, bone_index) && skel != nullptr) {
+                const Transform3D bone_pose = skel->get_bone_global_pose(bone_index);
+                origin = skel->to_global(bone_pose.origin);
+                basis = Basis();
+                visible = true;
+            }
+        } else if (resolve_selected_scene_item(item, is_character, index) && item != nullptr && item->node != nullptr) {
+            origin = item->node->get_global_position();
+            basis = transform_space_local() ? item->node->get_global_transform().basis.orthonormalized() : Basis();
+            visible = true;
+        }
+
+        gizmo_root_->set_visible(visible);
+        if (!visible) return;
+
+        gizmo_root_->set_global_transform(Transform3D(basis, origin));
+
+        const String visual_mode = pose_mode ? String("rotate") : edit_mode_.to_lower();
+        const bool rotate_mode = visual_mode == "rotate";
+        const bool scale_mode = visual_mode == "scale";
+        const bool move_mode = !rotate_mode && !scale_mode;
+
+        const float handle_dist = scale_mode ? 0.46f : 0.54f;
+        const float diag = 0.35f * 0.70710677f;
+        Vector3 tip_offsets[3] = {
+            Vector3(handle_dist, 0.0f, 0.0f),
+            Vector3(0.0f, handle_dist, 0.0f),
+            Vector3(0.0f, 0.0f, -handle_dist),
+        };
+        if (rotate_mode) {
+            tip_offsets[0] = Vector3(0.0f, -diag, diag);
+            tip_offsets[1] = Vector3(diag, 0.0f, diag);
+            tip_offsets[2] = Vector3(diag, diag, 0.0f);
+        }
+
+        const Color axis_colors[3] = {
+            Color(0.95f, 0.20f, 0.20f, 1.0f),
+            Color(0.20f, 0.90f, 0.20f, 1.0f),
+            Color(0.20f, 0.50f, 1.00f, 1.0f),
+        };
+        const Color highlight(1.00f, 0.85f, 0.00f, 1.0f);
+
+        for (int axis = 0; axis < 3; ++axis) {
+            const bool axis_active = (active_drag_mode_ != DRAG_NONE && drag_axis_ == axis);
+            const Color col = axis_active ? highlight : axis_colors[axis];
+            if (gizmo_axis_materials_[axis].is_valid()) {
+                gizmo_axis_materials_[axis]->set_albedo(col);
+            }
+
+            MeshInstance3D* shaft = gizmo_axis_shafts_[axis];
+            MeshInstance3D* tip = gizmo_axis_tips_[axis];
+            MeshInstance3D* ring = gizmo_axis_rings_[axis];
+            MeshInstance3D* axis_line = gizmo_axis_lines_[axis];
+            if (shaft != nullptr) {
+                shaft->set_visible(!rotate_mode);
+                if (!rotate_mode) {
+                    if (axis == 0) {
+                        shaft->set_position(Vector3(0.20f, 0.0f, 0.0f));
+                        shaft->set_rotation_degrees(Vector3(0.0f, 0.0f, 90.0f));
+                    } else if (axis == 1) {
+                        shaft->set_position(Vector3(0.0f, 0.20f, 0.0f));
+                        shaft->set_rotation_degrees(Vector3(0.0f, 0.0f, 0.0f));
+                    } else {
+                        shaft->set_position(Vector3(0.0f, 0.0f, -0.20f));
+                        shaft->set_rotation_degrees(Vector3(-90.0f, 0.0f, 0.0f));
+                    }
+                }
+            }
+            if (tip != nullptr) {
+                tip->set_position(tip_offsets[axis]);
+                tip->set_visible(true);
+                if (scale_mode && gizmo_box_tip_mesh_.is_valid()) {
+                    tip->set_mesh(gizmo_box_tip_mesh_);
+                    tip->set_scale(Vector3(1.0f, 1.0f, 1.0f));
+                    tip->set_rotation_degrees(Vector3());
+                } else if (move_mode && gizmo_cone_tip_mesh_.is_valid()) {
+                    tip->set_mesh(gizmo_cone_tip_mesh_);
+                    tip->set_scale(Vector3(1.0f, 1.0f, 1.0f));
+                    if (axis == 0) tip->set_rotation_degrees(Vector3(0.0f, 0.0f, -90.0f));
+                    else if (axis == 1) tip->set_rotation_degrees(Vector3(0.0f, 0.0f, 0.0f));
+                    else tip->set_rotation_degrees(Vector3(-90.0f, 0.0f, 0.0f));
+                } else if (rotate_mode && gizmo_diamond_tip_mesh_.is_valid()) {
+                    tip->set_mesh(gizmo_diamond_tip_mesh_);
+                    tip->set_scale(Vector3(1.0f, 1.0f, 1.0f));
+                    if (axis == 0) tip->set_rotation_degrees(Vector3(90.0f, 0.0f, 45.0f));
+                    else if (axis == 1) tip->set_rotation_degrees(Vector3(0.0f, 0.0f, -45.0f));
+                    else tip->set_rotation_degrees(Vector3(0.0f, 0.0f, 45.0f));
+                } else if (gizmo_sphere_tip_mesh_.is_valid()) {
+                    tip->set_mesh(gizmo_sphere_tip_mesh_);
+                    tip->set_scale(Vector3(1.0f, 1.0f, 1.0f));
+                    tip->set_rotation_degrees(Vector3());
+                }
+            }
+            if (ring != nullptr) {
+                ring->set_visible(rotate_mode);
+            }
+            if (axis_line != nullptr) {
+                axis_line->set_visible(rotate_mode);
+            }
+        }
+
+        if (gizmo_pivot_ != nullptr) {
+            gizmo_pivot_->set_visible(rotate_mode);
+        }
+    }
+
+    static bool ray_sphere_intersect(
+        const Vector3& origin,
+        const Vector3& dir,
+        const Vector3& center,
+        float radius,
+        float& out_t)
+    {
+        const Vector3 oc = origin - center;
+        const float b = oc.dot(dir);
+        const float c = oc.dot(oc) - radius * radius;
+        const float d = b * b - c;
+        if (d < 0.0f) return false;
+        const float sq = std::sqrt(d);
+        float t = -b - sq;
+        if (t < 0.0f) t = -b + sq;
+        if (t <= 0.0f) return false;
+        out_t = t;
+        return true;
+    }
+
+    static Vector3 axis_base_dir(int axis) {
+        if (axis == 0) return Vector3(1.0f, 0.0f, 0.0f);
+        if (axis == 1) return Vector3(0.0f, 1.0f, 0.0f);
+        return Vector3(0.0f, 0.0f, 1.0f); // Back (+Z)
+    }
+
+    bool transform_space_local() const {
+        return transform_space_.to_lower() == String("local");
+    }
+
+    bool resolve_selected_scene_item(SceneItem*& out_item, bool& out_is_character, int& out_index) {
+        out_item = nullptr;
+        out_is_character = false;
+        out_index = -1;
+        if (selected_character_index_ >= 0) {
+            out_is_character = true;
+            out_index = selected_character_index_;
+            out_item = at_char(selected_character_index_);
+            return out_item != nullptr && out_item->node != nullptr;
+        }
+        if (selected_prop_index_ >= 0) {
+            out_is_character = false;
+            out_index = selected_prop_index_;
+            out_item = at_prop(selected_prop_index_);
+            return out_item != nullptr && out_item->node != nullptr;
+        }
+        return false;
+    }
+
+    static void sync_item_from_node(SceneItem& item) {
+        if (item.node == nullptr) return;
+        const Vector3 p = item.node->get_global_position();
+        const Vector3 r = item.node->get_rotation_degrees();
+        const Vector3 s = item.node->get_scale();
+        item.px = p.x; item.py = p.y; item.pz = p.z;
+        item.rx = r.x; item.ry = r.y; item.rz = r.z;
+        item.sx = s.x; item.sy = s.y; item.sz = s.z;
+    }
+
+    void emit_selected_object_moved() {
+        if (drag_target_is_character_) {
+            SceneItem* c = at_char(drag_target_index_);
+            if (c == nullptr) return;
+            sync_item_from_node(*c);
+            const String pos_json = String("{\"x\":") + String::num(c->px) + ",\"y\":" + String::num(c->py) + ",\"z\":" + String::num(c->pz) + "}";
+            emit_signal("objectMoved", -1, pos_json);
+            return;
+        }
+        SceneItem* p = at_prop(drag_target_index_);
+        if (p == nullptr) return;
+        sync_item_from_node(*p);
+        emit_prop_moved(drag_target_index_, *p);
+    }
+
+    Vector3 resolve_drag_world_axis(int axis, const SceneItem& item) const {
+        const Vector3 base = axis_base_dir(axis);
+        if (!transform_space_local() || item.node == nullptr) return base;
+        Vector3 local_axis = item.node->get_global_transform().basis.xform(base);
+        if (local_axis.length_squared() <= 1.0e-6f) return base;
+        local_axis.normalize();
+        return local_axis;
+    }
+
+    bool begin_arrange_transform_drag(const Vector2& screen_pos) {
+        SceneItem* item = nullptr;
+        bool is_character = false;
+        int index = -1;
+        if (!resolve_selected_scene_item(item, is_character, index)) return false;
+        if (item == nullptr || item->node == nullptr) return false;
+
+        const String mode = edit_mode_.to_lower();
+        if (mode != "move" && mode != "scale" && mode != "rotate") return false;
+
+        const Vector3 origin = item->node->get_global_position();
+        const Basis basis = transform_space_local() ? item->node->get_global_transform().basis.orthonormalized() : Basis();
+        const Vector3 ray_origin = camera_->project_ray_origin(screen_pos);
+        const Vector3 ray_dir = camera_->project_ray_normal(screen_pos);
+
+        float handle_dist = 0.54f; // Move default: shaft + cone
+        float handle_pick_radius = 0.12f;
+        Vector3 offsets[3] = {
+            Vector3(handle_dist, 0.0f, 0.0f),
+            Vector3(0.0f, handle_dist, 0.0f),
+            Vector3(0.0f, 0.0f, -handle_dist),
+        };
+
+        if (mode == "scale") {
+            handle_dist = 0.46f; // Scale: shaft + box
+            offsets[0] = Vector3(handle_dist, 0.0f, 0.0f);
+            offsets[1] = Vector3(0.0f, handle_dist, 0.0f);
+            offsets[2] = Vector3(0.0f, 0.0f, -handle_dist);
+        } else if (mode == "rotate") {
+            const float diag = 0.35f * 0.70710677f;
+            handle_pick_radius = 0.14f;
+            offsets[0] = Vector3(0.0f, -diag, diag);
+            offsets[1] = Vector3(diag, 0.0f, diag);
+            offsets[2] = Vector3(diag, diag, 0.0f);
+        }
+
+        int best_axis = -1;
+        float best_t = std::numeric_limits<float>::infinity();
+        for (int axis = 0; axis < 3; ++axis) {
+            const Vector3 center = origin + basis.xform(offsets[axis]);
+            float t = 0.0f;
+            if (!ray_sphere_intersect(ray_origin, ray_dir, center, handle_pick_radius, t)) continue;
+            if (t < best_t) {
+                best_t = t;
+                best_axis = axis;
+            }
+        }
+        if (best_axis < 0) return false;
+
+        drag_target_index_ = index;
+        drag_target_is_character_ = is_character;
+        drag_axis_ = best_axis;
+        drag_start_pos_ = item->node->get_global_position();
+        drag_start_scale_ = item->node->get_scale();
+        drag_start_quat_ = item->node->get_basis().get_rotation_quaternion();
+        drag_world_axis_ = resolve_drag_world_axis(drag_axis_, *item);
+        drag_accumulated_ = 0.0f;
+        active_drag_mode_ = (mode == "move") ? DRAG_MOVE : (mode == "scale" ? DRAG_SCALE : DRAG_ROTATE);
+        return true;
+    }
+
+    bool begin_pose_rotate_drag(const Vector2& screen_pos) {
+        Skeleton3D* skel = nullptr;
+        int bone_index = -1;
+        if (!resolve_selected_bone(skel, bone_index)) return false;
+
+        const Transform3D bone_pose = skel->get_bone_global_pose(bone_index);
+        const Vector3 bone_world = skel->to_global(bone_pose.origin);
+        const float diag = 0.35f * 0.70710677f;
+        const Vector3 offsets[3] = {
+            Vector3(0.0f, -diag, diag),
+            Vector3(diag, 0.0f, diag),
+            Vector3(diag, diag, 0.0f),
+        };
+
+        const Vector3 ray_origin = camera_->project_ray_origin(screen_pos);
+        const Vector3 ray_dir = camera_->project_ray_normal(screen_pos);
+        int best_axis = -1;
+        float best_t = std::numeric_limits<float>::infinity();
+        for (int axis = 0; axis < 3; ++axis) {
+            const Vector3 center = bone_world + offsets[axis];
+            float t = 0.0f;
+            if (!ray_sphere_intersect(ray_origin, ray_dir, center, 0.14f, t)) continue;
+            if (t < best_t) {
+                best_t = t;
+                best_axis = axis;
+            }
+        }
+        if (best_axis < 0) return false;
+
+        drag_axis_ = best_axis;
+        drag_bone_index_ = bone_index;
+        drag_start_quat_ = skel->get_bone_pose_rotation(bone_index);
+        drag_world_axis_ = axis_base_dir(best_axis);
+        drag_accumulated_ = 0.0f;
+
+        const Transform3D bone_global = skel->get_global_transform() * skel->get_bone_global_pose(bone_index);
+        const Quaternion bone_world_rot = bone_global.basis.get_rotation_quaternion();
+        drag_pre_rot_ = (bone_world_rot * drag_start_quat_.inverse()).normalized();
+        active_drag_mode_ = DRAG_POSE_ROTATE;
+        return true;
+    }
+
+    void update_active_drag(const Vector2&, const Vector2& rel) {
+        const float depth_scale = 0.0018f;
+        SceneItem* item = drag_target_is_character_ ? at_char(drag_target_index_) : at_prop(drag_target_index_);
+
+        if (active_drag_mode_ == DRAG_MOVE) {
+            if (item == nullptr || item->node == nullptr) return;
+            const Vector3 base_pos = item->node->get_global_position();
+            const Vector2 screen_base = camera_->unproject_position(base_pos);
+            const Vector2 screen_end = camera_->unproject_position(base_pos + drag_world_axis_);
+            Vector2 screen_axis = screen_end - screen_base;
+            const float len = screen_axis.length();
+            if (len < 0.01f) return;
+            screen_axis /= len;
+
+            const float scalar_move = rel.dot(screen_axis);
+            const float depth = camera_->get_global_position().distance_to(base_pos);
+            const float world_units_per_px = depth * depth_scale;
+            const Vector3 delta = drag_world_axis_ * (scalar_move * world_units_per_px);
+
+            item->node->set_global_position(item->node->get_global_position() + delta);
+            sync_item_from_node(*item);
+            if (drag_target_is_character_ && drag_target_index_ == selected_character_index_) update_selection_marker();
+            if (!drag_target_is_character_ && drag_target_index_ == selected_prop_index_) update_selection_marker();
+            emit_selected_object_moved();
+            return;
+        }
+
+        if (active_drag_mode_ == DRAG_SCALE) {
+            if (item == nullptr || item->node == nullptr) return;
+            const Vector3 base_pos = item->node->get_global_position();
+            const Vector2 screen_base = camera_->unproject_position(base_pos);
+            const Vector2 screen_end = camera_->unproject_position(base_pos + drag_world_axis_);
+            Vector2 screen_axis = screen_end - screen_base;
+            const float len = screen_axis.length();
+            if (len < 0.01f) return;
+            screen_axis /= len;
+
+            const float scalar_move = rel.dot(screen_axis);
+            const float depth = camera_->get_global_position().distance_to(base_pos);
+            const float world_units_per_px = depth * depth_scale;
+            const float scalar_delta = scalar_move * world_units_per_px;
+
+            Vector3 s = item->node->get_scale();
+            if (drag_axis_ == 0) s.x = MAX(0.01f, s.x + scalar_delta);
+            else if (drag_axis_ == 1) s.y = MAX(0.01f, s.y + scalar_delta);
+            else s.z = MAX(0.01f, s.z + scalar_delta);
+            item->node->set_scale(s);
+
+            sync_item_from_node(*item);
+            emit_selected_object_moved();
+            return;
+        }
+
+        if (active_drag_mode_ == DRAG_ROTATE) {
+            if (item == nullptr || item->node == nullptr) return;
+            const float raw = (drag_axis_ == 0) ? rel.y : (drag_axis_ == 1 ? rel.x : -rel.x);
+            drag_accumulated_ += raw * (0.6f * static_cast<float>(Math_PI / 180.0));
+            const Quaternion world_delta(drag_world_axis_, drag_accumulated_);
+            const Quaternion next_q = (world_delta * drag_start_quat_).normalized();
+            item->node->set_rotation(next_q.get_euler());
+            sync_item_from_node(*item);
+            emit_selected_object_moved();
+            return;
+        }
+
+        if (active_drag_mode_ == DRAG_POSE_ROTATE) {
+            Skeleton3D* skel = nullptr;
+            int bone_index = -1;
+            if (!resolve_selected_bone(skel, bone_index)) return;
+            if (bone_index != drag_bone_index_) return;
+
+            const float raw = (drag_axis_ == 0) ? rel.y : (drag_axis_ == 1 ? rel.x : -rel.x);
+            drag_accumulated_ += raw * (0.6f * static_cast<float>(Math_PI / 180.0));
+            const Quaternion world_delta(drag_world_axis_, drag_accumulated_);
+            Quaternion pose = (drag_pre_rot_.inverse() * world_delta * drag_pre_rot_ * drag_start_quat_).normalized();
+
+            Vector3 e = pose.get_euler();
+            e.x = CLAMP(e.x, static_cast<float>(selected_bone_min_x_ * (Math_PI / 180.0)), static_cast<float>(selected_bone_max_x_ * (Math_PI / 180.0)));
+            e.y = CLAMP(e.y, static_cast<float>(selected_bone_min_y_ * (Math_PI / 180.0)), static_cast<float>(selected_bone_max_y_ * (Math_PI / 180.0)));
+            e.z = CLAMP(e.z, static_cast<float>(selected_bone_min_z_ * (Math_PI / 180.0)), static_cast<float>(selected_bone_max_z_ * (Math_PI / 180.0)));
+            pose = Quaternion::from_euler(e).normalized();
+
+            skel->set_bone_pose_rotation(bone_index, pose);
+            const String bone_name = skel->get_bone_name(bone_index);
+            const String bone_key = build_bone_key(get_active_character_id(), bone_name);
+            if (!bone_key.is_empty()) {
+                pose_data_[bone_key.utf8().get_data()] = pose;
+            }
+            update_selected_bone_rotation_cache();
+            emit_signal("poseChanged", bone_name);
+        }
+    }
+
+    void end_active_drag() {
+        active_drag_mode_ = DRAG_NONE;
+        drag_axis_ = -1;
+        drag_target_index_ = -1;
+        drag_target_is_character_ = false;
+        drag_bone_index_ = -1;
+        drag_accumulated_ = 0.0f;
+    }
+
     void pick_at_screen_pos(const Vector2& screen_pos) {
         if (camera_ == nullptr) return;
         const Vector3 ray_origin = camera_->project_ray_origin(screen_pos);
@@ -3683,6 +4285,14 @@ private:
         return props_[index].*field;
     }
 
+    enum DragMode {
+        DRAG_NONE = 0,
+        DRAG_MOVE = 1,
+        DRAG_SCALE = 2,
+        DRAG_ROTATE = 3,
+        DRAG_POSE_ROTATE = 4,
+    };
+
     String mode_ = "pose";
     String edit_mode_ = "rotate";
     String transform_space_ = "local";
@@ -3711,6 +4321,17 @@ private:
     MeshInstance3D* ground_ = nullptr;
     MeshInstance3D* ground_grid_ = nullptr;
     MeshInstance3D* selection_marker_ = nullptr;
+    Node3D* gizmo_root_ = nullptr;
+    MeshInstance3D* gizmo_axis_shafts_[3] = { nullptr, nullptr, nullptr };
+    MeshInstance3D* gizmo_axis_tips_[3] = { nullptr, nullptr, nullptr };
+    MeshInstance3D* gizmo_axis_rings_[3] = { nullptr, nullptr, nullptr };
+    MeshInstance3D* gizmo_axis_lines_[3] = { nullptr, nullptr, nullptr };
+    MeshInstance3D* gizmo_pivot_ = nullptr;
+    Ref<StandardMaterial3D> gizmo_axis_materials_[3];
+    Ref<SphereMesh> gizmo_sphere_tip_mesh_;
+    Ref<BoxMesh> gizmo_box_tip_mesh_;
+    Ref<CylinderMesh> gizmo_cone_tip_mesh_;
+    Ref<ImmediateMesh> gizmo_diamond_tip_mesh_;
     Vector3 orbit_target_ = Vector3(0.0f, 1.0f, 0.0f);
     float orbit_distance_ = 4.5f;
     float orbit_yaw_ = 0.0f;
@@ -3721,6 +4342,17 @@ private:
     bool left_moved_ = false;
     Vector2 left_press_pos_ = Vector2();
     Vector2 drag_last_mouse_ = Vector2();
+    DragMode active_drag_mode_ = DRAG_NONE;
+    int drag_axis_ = -1;
+    int drag_target_index_ = -1;
+    bool drag_target_is_character_ = false;
+    int drag_bone_index_ = -1;
+    Vector3 drag_start_pos_ = Vector3();
+    Vector3 drag_start_scale_ = Vector3(1.0f, 1.0f, 1.0f);
+    Quaternion drag_start_quat_ = Quaternion();
+    Quaternion drag_pre_rot_ = Quaternion();
+    Vector3 drag_world_axis_ = Vector3(1.0f, 0.0f, 0.0f);
+    float drag_accumulated_ = 0.0f;
     int selected_character_index_ = -1;
     int selected_prop_index_ = -1;
     std::map<std::string, Quaternion> pose_data_;

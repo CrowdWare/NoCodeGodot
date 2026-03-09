@@ -9,6 +9,11 @@ in `ForgeTimelineControl`.
 - Scrubber/frame-change behavior and event emission.
 - Playback start/stop path and interpolation baseline.
 
+## Progress
+- [x] `keyframeAdded(frame, boneName)` emission now mirrors stored pose keys instead of wildcard-only payload.
+- [x] `setVisibleCharacterId(...)` now triggers redraw immediately so visible-track switching is reflected without extra interaction.
+- [ ] Scrubber visuals and timeline canvas behavior are still simplified vs C# widget (track rows, per-bone diamonds, scrollbar/ruler parity pending).
+
 ## Implementation Steps
 - Finalize keyframe storage contract per character and frame.
 - Ensure scrub updates current frame and drives pose load consistently.
@@ -28,4 +33,3 @@ in `ForgeTimelineControl`.
 ## Risks
 - Event storms causing SMS/UI feedback loops.
 - Interpolation mismatch with legacy data expectations.
-
