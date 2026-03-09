@@ -76,6 +76,7 @@ build_forge_runner_native_host() {
   echo "Configuring ForgeRunner.Native..."
   cmake -S "$src_dir" -B "$build_dir" \
     -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_TESTING=ON \
     -DGODOT_CPP_DIR="$GODOT_CPP_DIR"
   echo "Building ForgeRunner.Native..."
   cmake --build "$build_dir" --config Release

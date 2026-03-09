@@ -40,7 +40,7 @@ void test_non_runtime_error_does_not_require_exit() {
 
 void test_plain_stack_overflow_requires_exit() {
     const std::string msg = "Stack overflow.";
-    assert_true(forge::c(msg), "plain stack overflow must require process exit");
+    assert_true(forge::sms_error_requires_exit(msg), "plain stack overflow must require process exit");
 }
 
 const std::vector<TestCase>& all_tests() {

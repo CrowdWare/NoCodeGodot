@@ -7,7 +7,9 @@ bool sms_error_is_missing_handler(const std::string& message) {
 }
 
 bool sms_error_requires_exit(const std::string& message) {
-    return message.find("RuntimeError:") != std::string::npos;
+    if (message.find("RuntimeError:") != std::string::npos) return true;
+    if (message.find("Stack overflow") != std::string::npos) return true;
+    return false;
 }
 
 } // namespace forge

@@ -103,4 +103,52 @@ if(BUILD_TESTING)
         add_test(NAME forge_runner_native_${CASE_NAME}
             COMMAND forge_runner_native_sms_error_policy_tests ${CASE_NAME})
     endforeach()
+
+    # ---------------------------------------------------------------------------
+    # SMS Runner Integration Tests
+    # Exercises SMS script execution + mock UI callbacks + dispatch depth guard.
+    # Reproduces stack overflow scenarios (e.g. setKeyframe cycle in ForgePoser).
+    # No Godot dependency — links sms_native sources directly.
+    # ---------------------------------------------------------------------------
+    set(SMS_NATIVE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../SMSCore.Native")
+
+    if(EXISTS "${SMS_NATIVE_DIR}/src/sms_native.cpp")
+        add_executable(forge_runner_native_sms_integration_tests
+            tests/sms_runner_integration_tests.cpp
+            src/forge_sms_error_policy.cpp
+            "${SMS_NATIVE_DIR}/src/sms_native.cpp"
+            "${SMLCORE_NATIVE_DIR}/src/smlcore_native.cpp"
+        )
+
+        target_include_directories(forge_runner_native_sms_integration_tests PRIVATE
+            "${SMS_NATIVE_DIR}/include"
+            "${SMLCORE_NATIVE_DIR}/include"
+            "src"
+        )
+
+        add_test(NAME forge_runner_native_sms_integration_tests
+            COMMAND forge_runner_native_sms_integration_tests)
+
+        set(FRN_INTEGRATION_CASES
+            runner_integration_basic_dispatch
+            runner_integration_no_handler_is_silent
+            runner_integration_direct_script_recursion_caught
+            runner_integration_dispatch_depth_guard_fires
+            runner_integration_setKeyframe_cycle_caught
+            runner_integration_setKeyframe_cycle_unprotected
+            runner_integration_sequential_dispatches_ok
+            runner_integration_error_policy_on_overflow
+            runner_integration_property_get_set_round_trip
+            runner_sml_known_id_accessible
+            runner_sml_unknown_id_is_null
+            runner_sml_initial_attribute_readable
+            runner_sml_button_click_updates_label
+        )
+        foreach(CASE_NAME IN LISTS FRN_INTEGRATION_CASES)
+            add_test(NAME forge_runner_native_${CASE_NAME}
+                COMMAND forge_runner_native_sms_integration_tests ${CASE_NAME})
+        endforeach()
+    else()
+        message(WARNING "SMSCore.Native not found — skipping SMS integration tests.")
+    endif()
 endif()
