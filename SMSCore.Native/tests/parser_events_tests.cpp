@@ -183,6 +183,18 @@ void test_parse_exponentials_are_rejected() {
         "Unknown variable");
 }
 
+void test_runtime_recursive_function_hits_recursion_limit() {
+    const auto result = execute(
+        "fun loop() { return loop() }"
+        "loop()");
+    if (result.rc == 0) {
+        throw std::runtime_error("runtime_recursive_function_hits_recursion_limit unexpectedly succeeded.");
+    }
+    if (result.error.find("RuntimeError: interpreter recursion limit exceeded") == std::string::npos) {
+        throw std::runtime_error("unexpected error: " + result.error);
+    }
+}
+
 const std::vector<TestCase>& all_tests() {
     static const std::vector<TestCase> tests = {
         {"sms_events_parse_with_event_handlers_parses_top_level_handlers", test_parse_with_event_handlers_parses_top_level_handlers},
@@ -198,6 +210,7 @@ const std::vector<TestCase>& all_tests() {
         {"sms_parser_integer_literal_uses_integer_runtime_value", test_parse_integer_literal_uses_integer_runtime_value},
         {"sms_parser_double_literals_are_rejected_in_native_subset", test_parse_double_literals_are_rejected_in_native_subset},
         {"sms_parser_exponentials_are_rejected", test_parse_exponentials_are_rejected},
+        {"sms_runtime_recursive_function_hits_recursion_limit", test_runtime_recursive_function_hits_recursion_limit},
     };
     return tests;
 }

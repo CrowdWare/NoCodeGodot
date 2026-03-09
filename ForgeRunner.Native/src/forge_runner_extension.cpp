@@ -46,6 +46,7 @@
 #include <godot_cpp/classes/container.hpp>
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
+#include <godot_cpp/classes/h_scroll_bar.hpp>
 #include <godot_cpp/classes/h_separator.hpp>
 #include <godot_cpp/classes/input_event_mouse_button.hpp>
 #include <godot_cpp/classes/input_event_mouse_motion.hpp>
@@ -62,6 +63,7 @@
 #include <godot_cpp/classes/display_server.hpp>
 #include <godot_cpp/classes/font.hpp>
 #include <godot_cpp/classes/input.hpp>
+#include <godot_cpp/classes/input_event_key.hpp>
 #include <godot_cpp/classes/immediate_mesh.hpp>
 #include <godot_cpp/classes/v_box_container.hpp>
 #include <godot_cpp/classes/viewport.hpp>
@@ -1443,8 +1445,10 @@ protected:
 public:
     void _ready() override {
         set_mouse_filter(Control::MOUSE_FILTER_STOP);
+        set_focus_mode(Control::FOCUS_ALL);
         set_process(true);
         ensure_timeline_ui();
+        refresh_scroll_range();
         update_frame_label();
         queue_redraw();
     }
@@ -1461,12 +1465,21 @@ public:
         }
     }
 
+    void _notification(int what) {
+        if (what == NOTIFICATION_RESIZED) {
+            refresh_scroll_range();
+            queue_redraw();
+        }
+    }
+
     void _draw() override {
         const Vector2 size = get_size();
         if (size.x <= 1.0f || size.y <= 1.0f) return;
         const float toolbar_h = get_toolbar_height();
         const float timeline_top = toolbar_h;
-        if (size.y <= timeline_top + 1.0f) return;
+        const float scrollbar_h = (scroll_bar_ != nullptr) ? MAX(12.0f, scroll_bar_->get_size().y) : 16.0f;
+        const float timeline_bottom = size.y - scrollbar_h;
+        if (timeline_bottom <= timeline_top + 1.0f) return;
 
         const float bone_name_w = 140.0f;
         const float ruler_h = 24.0f;
@@ -1475,14 +1488,16 @@ public:
         const float timeline_w = MAX(1.0f, size.x - timeline_left);
         const float ruler_y = timeline_top + ruler_h;
         const int frame_count = total_frames_ > 0 ? total_frames_ : 1;
+        const float px_per_frame = 8.0f;
+        const float content_w = static_cast<float>(frame_count + 1) * px_per_frame + 40.0f;
 
         Ref<Font> font = get_theme_default_font();
         const int font_size = 12;
 
-        draw_rect(Rect2(Vector2(0.0f, timeline_top), Vector2(size.x, size.y - timeline_top)), Color(0.09f, 0.10f, 0.12f, 1.0f), true);
+        draw_rect(Rect2(Vector2(0.0f, timeline_top), Vector2(size.x, timeline_bottom - timeline_top)), Color(0.09f, 0.10f, 0.12f, 1.0f), true);
         draw_rect(Rect2(Vector2(timeline_left, timeline_top), Vector2(timeline_w, ruler_h)), Color(0.20f, 0.20f, 0.20f, 1.0f), true);
         draw_line(Vector2(0.0f, ruler_y), Vector2(size.x, ruler_y), Color(0.24f, 0.26f, 0.30f, 1.0f), 1.0f);
-        draw_line(Vector2(timeline_left, timeline_top), Vector2(timeline_left, size.y), Color(0.24f, 0.26f, 0.30f, 1.0f), 1.0f);
+        draw_line(Vector2(timeline_left, timeline_top), Vector2(timeline_left, timeline_bottom), Color(0.24f, 0.26f, 0.30f, 1.0f), 1.0f);
 
         const std::vector<String> tracked_bones = get_tracked_bones_for_current_character();
         for (int row = 0; row < static_cast<int>(tracked_bones.size()); ++row) {
@@ -1504,11 +1519,12 @@ public:
 
         const auto char_it = keyframes_.find(current_character_key());
         for (int frame = 0; frame <= frame_count; frame += 5) {
-            const float x = timeline_left + (static_cast<float>(frame) / static_cast<float>(frame_count)) * timeline_w;
+            const float x = timeline_left + static_cast<float>(frame) * px_per_frame - scroll_offset_;
+            if (x < timeline_left - 1.0f || x > size.x + 1.0f) continue;
             const bool major = (frame % 10) == 0;
             const Color col = major ? Color(0.10f, 0.10f, 0.10f, 0.78f) : Color(0.46f, 0.46f, 0.46f, 0.42f);
             const float width = major ? 1.5f : 1.0f;
-            draw_line(Vector2(x, ruler_y), Vector2(x, size.y), col, width);
+            draw_line(Vector2(x, ruler_y), Vector2(x, timeline_bottom), col, width);
             if (major && font.is_valid()) {
                 const String label = String::num_int64(frame);
                 draw_string(font,
@@ -1526,22 +1542,28 @@ public:
                 const float center_y = ruler_y + static_cast<float>(row) * track_h + track_h * 0.5f;
                 for (const auto& [frame, pose] : char_it->second) {
                     if (!pose_has_bone_for_visible_character(pose, tracked_bones[row])) continue;
-                    const float x = timeline_left + (CLAMP(static_cast<float>(frame), 0.0f, static_cast<float>(frame_count)) / static_cast<float>(frame_count)) * timeline_w;
-                    const float hs = 5.0f;
+                    const float x = timeline_left + CLAMP(static_cast<float>(frame), 0.0f, static_cast<float>(frame_count)) * px_per_frame - scroll_offset_;
+                    if (x < timeline_left - 8.0f || x > size.x + 8.0f) continue;
+                    const bool is_focus_key = (frame == selected_keyframe_frame_);
+                    const float hs = is_focus_key ? 6.5f : 5.0f;
                     PackedVector2Array pts;
                     pts.push_back(Vector2(x, center_y - hs));
                     pts.push_back(Vector2(x + hs, center_y));
                     pts.push_back(Vector2(x, center_y + hs));
                     pts.push_back(Vector2(x - hs, center_y));
                     PackedColorArray cols;
-                    cols.push_back(Color(0.95f, 0.78f, 0.10f, 1.0f));
+                    cols.push_back(is_focus_key
+                        ? Color(1.0f, 0.90f, 0.30f, 1.0f)
+                        : Color(0.95f, 0.78f, 0.10f, 1.0f));
                     draw_polygon(pts, cols);
                 }
             }
         }
 
-        const float playhead_x = timeline_left + (CLAMP(static_cast<float>(current_frame_), 0.0f, static_cast<float>(frame_count)) / static_cast<float>(frame_count)) * timeline_w;
-        draw_line(Vector2(playhead_x, timeline_top), Vector2(playhead_x, size.y), Color(1.0f, 0.43f, 0.24f, 1.0f), 2.0f);
+        const float playhead_x = timeline_left + CLAMP(static_cast<float>(current_frame_), 0.0f, static_cast<float>(frame_count)) * px_per_frame - scroll_offset_;
+        if (playhead_x >= timeline_left - 1.0f && playhead_x <= size.x + 1.0f) {
+            draw_line(Vector2(playhead_x, timeline_top), Vector2(playhead_x, timeline_bottom), Color(1.0f, 0.43f, 0.24f, 1.0f), 2.0f);
+        }
     }
 
     void _gui_input(const Ref<InputEvent>& event) override {
@@ -1549,12 +1571,16 @@ public:
         if (mb.is_valid()) {
             const float toolbar_h = get_toolbar_height();
             if (mb->get_position().y <= toolbar_h) return;
-            if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed()) {
-                remove_keyframe(current_frame_);
-                return;
-            }
             if (mb->get_button_index() == MOUSE_BUTTON_LEFT) {
                 if (mb->is_pressed()) {
+                    grab_focus();
+                    int hit_frame = -1;
+                    if (try_pick_keyframe_at(mb->get_position(), hit_frame)) {
+                        selected_keyframe_frame_ = hit_frame;
+                        queue_redraw();
+                        accept_event();
+                        return;
+                    }
                     timeline_dragging_ = true;
                     seek_to_x(mb->get_position().x);
                     accept_event();
@@ -1566,6 +1592,17 @@ public:
             }
         }
 
+        Ref<InputEventKey> key = event;
+        if (key.is_valid() && key->is_pressed() && !key->is_echo()) {
+            if (key->get_keycode() == Key::KEY_BACKSPACE || key->get_keycode() == Key::KEY_DELETE) {
+                if (selected_keyframe_frame_ >= 0 && has_keyframe_at(selected_keyframe_frame_)) {
+                    remove_keyframe(selected_keyframe_frame_);
+                    accept_event();
+                    return;
+                }
+            }
+        }
+
         Ref<InputEventMouseMotion> mm = event;
         if (!mm.is_valid() || !timeline_dragging_) return;
         seek_to_x(mm->get_position().x);
@@ -1574,7 +1611,11 @@ public:
 
     void set_fps(int value) { fps_ = value > 0 ? value : 1; }
     int get_fps() const { return fps_; }
-    void set_total_frames(int value) { total_frames_ = value > 0 ? value : 1; }
+    void set_total_frames(int value) {
+        total_frames_ = value > 0 ? value : 1;
+        refresh_scroll_range();
+        queue_redraw();
+    }
     int get_total_frames() const { return total_frames_; }
     void set_current_frame_prop(int value) { set_current_frame(value); }
     int get_current_frame_prop() const { return current_frame_; }
@@ -1633,6 +1674,7 @@ public:
             String("[ForgeRunner.Native] Timeline.setKeyframe cid='") +
             String(cid.c_str()) + "' frame=" + String::num_int64(clamped) +
             " bones=" + String::num_int64(bone_count));
+        refresh_scroll_range();
         queue_redraw();
         if (effective_pose.get_type() == Variant::DICTIONARY) {
             const Dictionary d = static_cast<Dictionary>(effective_pose);
@@ -1655,6 +1697,10 @@ public:
         if (char_it->second.empty()) {
             keyframes_.erase(char_it);
         }
+        if (selected_keyframe_frame_ == clamped) {
+            selected_keyframe_frame_ = -1;
+        }
+        refresh_scroll_range();
         queue_redraw();
         emit_signal("keyframeRemoved", clamped);
     }
@@ -1856,7 +1902,9 @@ public:
 
     void clear_all_keyframes() {
         keyframes_.clear();
+        selected_keyframe_frame_ = -1;
         set_current_frame(0);
+        refresh_scroll_range();
         queue_redraw();
     }
 
@@ -1891,6 +1939,17 @@ private:
         toolbar_->add_child(frame_label_);
 
         update_play_button_text();
+
+        scroll_bar_ = memnew(HScrollBar);
+        scroll_bar_->set_name("TimelineScrollBar");
+        scroll_bar_->set_anchors_preset(Control::PRESET_BOTTOM_WIDE);
+        scroll_bar_->set_offset(Side::SIDE_LEFT, 0.0f);
+        scroll_bar_->set_offset(Side::SIDE_TOP, -16.0f);
+        scroll_bar_->set_offset(Side::SIDE_RIGHT, 0.0f);
+        scroll_bar_->set_offset(Side::SIDE_BOTTOM, 0.0f);
+        scroll_bar_->set_mouse_filter(Control::MOUSE_FILTER_STOP);
+        scroll_bar_->connect("value_changed", callable_mp(this, &ForgeTimelineControl::on_scroll_changed));
+        add_child(scroll_bar_);
     }
 
     void on_play_button_pressed() {
@@ -1904,13 +1963,83 @@ private:
     }
 
     void seek_to_x(float x) {
+        set_current_frame(frame_from_x(x));
+    }
+
+    int frame_from_x(float x) const {
         const float width = get_size().x;
-        if (width <= 1.0f) return;
+        if (width <= 1.0f) return 0;
+        const float timeline_left = 140.0f;
+        const float px_per_frame = 8.0f;
+        const float local_x = MAX(0.0f, x - timeline_left) + scroll_offset_;
+        const int frame = static_cast<int>(std::round(local_x / px_per_frame));
+        return CLAMP(frame, 0, total_frames_);
+    }
+
+    bool try_pick_keyframe_at(const Vector2& pos, int& out_frame) const {
+        out_frame = -1;
+        const Vector2 size = get_size();
+        const float toolbar_h = get_toolbar_height();
+        const float scrollbar_h = (scroll_bar_ != nullptr) ? MAX(12.0f, scroll_bar_->get_size().y) : 16.0f;
+        const float timeline_bottom = size.y - scrollbar_h;
+        const float bone_name_w = 140.0f;
+        const float ruler_h = 24.0f;
+        const float track_h = 22.0f;
+        const float ruler_y = toolbar_h + ruler_h;
+        const int frame_count = total_frames_ > 0 ? total_frames_ : 1;
+        const float px_per_frame = 8.0f;
+
+        if (pos.y < ruler_y || pos.y > timeline_bottom) return false;
+        if (pos.x < bone_name_w) return false;
+
+        const auto char_it = keyframes_.find(current_character_key());
+        if (char_it == keyframes_.end()) return false;
+        const std::vector<String> tracked_bones = get_tracked_bones_for_current_character();
+
+        bool found = false;
+        float best_dist = std::numeric_limits<float>::infinity();
+        int best_frame = -1;
+        for (int row = 0; row < static_cast<int>(tracked_bones.size()); ++row) {
+            const float center_y = ruler_y + static_cast<float>(row) * track_h + track_h * 0.5f;
+            for (const auto& [frame, pose] : char_it->second) {
+                if (!pose_has_bone_for_visible_character(pose, tracked_bones[row])) continue;
+                const float x = bone_name_w + CLAMP(static_cast<float>(frame), 0.0f, static_cast<float>(frame_count)) * px_per_frame - scroll_offset_;
+                const float dist = Vector2(x, center_y).distance_to(pos);
+                if (dist > 8.5f) continue;
+                if (dist < best_dist) {
+                    best_dist = dist;
+                    best_frame = frame;
+                    found = true;
+                }
+            }
+        }
+        if (!found) return false;
+        out_frame = best_frame;
+        return true;
+    }
+
+    void on_scroll_changed(double value) {
+        scroll_offset_ = static_cast<float>(value);
+        queue_redraw();
+    }
+
+    void refresh_scroll_range() {
+        if (scroll_bar_ == nullptr) return;
+        const float width = get_size().x;
         const float timeline_left = 140.0f;
         const float timeline_w = MAX(1.0f, width - timeline_left);
-        const int frame_count = total_frames_ > 0 ? total_frames_ : 1;
-        const float ratio = CLAMP((x - timeline_left) / timeline_w, 0.0f, 1.0f);
-        set_current_frame(static_cast<int>(ratio * frame_count));
+        const float px_per_frame = 8.0f;
+        const float content_w = static_cast<float>(MAX(1, total_frames_ + 1)) * px_per_frame + 40.0f;
+        const float max_scroll = MAX(0.0f, content_w - timeline_w);
+
+        scroll_bar_->set_min(0.0);
+        scroll_bar_->set_max(max_scroll + timeline_w);
+        scroll_bar_->set_page(timeline_w);
+        const double clamped = CLAMP(scroll_bar_->get_value(), 0.0, static_cast<double>(max_scroll));
+        if (std::abs(scroll_bar_->get_value() - clamped) > 0.001) {
+            scroll_bar_->set_value(clamped);
+        }
+        scroll_offset_ = static_cast<float>(clamped);
     }
 
     static bool try_split_bone_key(const String& key, String& out_character_id, String& out_bone_name) {
@@ -2014,13 +2143,16 @@ private:
     int fps_ = 24;
     int total_frames_ = 120;
     int current_frame_ = 0;
+    int selected_keyframe_frame_ = -1;
     bool is_playing_ = false;
     float play_accumulated_ = 0.0f;
     HBoxContainer* toolbar_ = nullptr;
     Button* play_button_ = nullptr;
     Button* stop_button_ = nullptr;
     Label* frame_label_ = nullptr;
+    HScrollBar* scroll_bar_ = nullptr;
     bool timeline_dragging_ = false;
+    float scroll_offset_ = 0.0f;
     String visible_character_id_;
     std::map<std::string, std::map<int, Variant>> keyframes_;
 };
@@ -4023,11 +4155,14 @@ private:
                 }
             }
         } else {
-            for (int i = 0; i < static_cast<int>(props_.size()); ++i) {
-                try_pick_item(PickKind::Prop, i, props_[i]);
-            }
             for (int i = 0; i < static_cast<int>(characters_.size()); ++i) {
                 try_pick_item(PickKind::Character, i, characters_[i]);
+            }
+            // Arrange-mode parity: avoid selecting props behind a character mesh.
+            if (best_kind == PickKind::None) {
+                for (int i = 0; i < static_cast<int>(props_.size()); ++i) {
+                    try_pick_item(PickKind::Prop, i, props_[i]);
+                }
             }
         }
 
@@ -4054,7 +4189,7 @@ private:
                 const float dynamic_threshold = CLAMP(4200.0f / MAX(1.0f, cam_dist), 140.0f, 320.0f);
                 try_pick_screen(PickKind::Character, i, characters_[i], dynamic_threshold);
             }
-            if (!pose_mode && best_kind == PickKind::None) {
+            if (best_kind == PickKind::None) {
                 for (int i = 0; i < static_cast<int>(props_.size()); ++i) {
                     try_pick_screen(PickKind::Prop, i, props_[i], 40.0f);
                 }

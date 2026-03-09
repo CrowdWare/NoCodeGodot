@@ -961,6 +961,21 @@ fun findSceneIndexByPath(path) {
     return -1
 }
 
+fun findCharacterSceneIndexById(characterId) {
+    if (characterId == "") {
+        return -1
+    }
+    var charCount = editor.getSceneCharacterCount()
+    var i = 0
+    while (i < charCount) {
+        if (editor.getSceneCharacterId(i) == characterId) {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
 fun applySceneVisibility(index, visible) {
     var charCount = editor.getSceneCharacterCount()
     if (index < charCount) {
@@ -1248,12 +1263,14 @@ on editor.objectSelected(propIdx) {
         updateInspectorFromSelection()
         statusLabel.text = "Object selected: prop " + propIdx
     } else {
-        // Character selection may emit objectSelected(-1) as part of gizmo switching.
-        // Keep current character selection instead of clearing inspector/bone panels.
-        var charCount = editor.getSceneCharacterCount()
-        if (selectedSceneAssetIndex >= 0 && selectedSceneAssetIndex < charCount) {
+        var activeCharId = editor.getActiveCharacterId()
+        var charIndex = findCharacterSceneIndexById(activeCharId)
+        if (charIndex >= 0) {
+            selectedSceneAssetIndex = charIndex
+            updateScenePanel()
+            updateKeyframeTree()
             updateInspectorFromSelection()
-            statusLabel.text = "Character remains selected."
+            statusLabel.text = "Object selected: character " + charIndex
         } else {
             selectedSceneAssetIndex = -1
             updateInspectorFromSelection()

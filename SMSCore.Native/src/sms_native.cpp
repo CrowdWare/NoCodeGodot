@@ -34,6 +34,7 @@ sms_native_ui_set_prop_fn g_ui_set_prop = nullptr;
 sms_native_ui_invoke_fn g_ui_invoke = nullptr;
 sms_native_sandbox_path_allow_fn g_sandbox_path_allow = nullptr;
 constexpr int kBridgeJsonBufferSize = 65536;
+constexpr std::size_t kMaxInterpreterCallDepth = 1024;
 
 bool has_parent_traversal_segment(const std::string& path) {
     std::size_t start = 0;
@@ -911,6 +912,23 @@ public:
         return it == r->event_handlers_.end() ? nullptr : it->second;
     }
 
+    void enter_call(const std::string& context) {
+        auto* r = root();
+        if (r->call_depth_ >= kMaxInterpreterCallDepth) {
+            throw std::runtime_error(
+                "RuntimeError: interpreter recursion limit exceeded in '" + context
+                + "' (possible stack overflow).");
+        }
+        r->call_depth_++;
+    }
+
+    void leave_call() {
+        auto* r = root();
+        if (r->call_depth_ > 0) {
+            r->call_depth_--;
+        }
+    }
+
 private:
     Env* root() {
         return parent_ == nullptr ? this : parent_->root();
@@ -925,6 +943,7 @@ private:
     std::unordered_map<std::string, const FunctionDeclStmt*> functions_;
     std::unordered_map<std::string, const DataClassDeclStmt*> data_classes_;
     std::unordered_map<std::string, const EventHandlerDeclStmt*> event_handlers_;
+    std::size_t call_depth_ = 0;
 };
 
 struct ReturnSignal final : std::exception {
@@ -1634,6 +1653,20 @@ struct CallExpr final : Expr {
             }
             return Value::Int(static_cast<std::int64_t>(value.array->size()));
         }
+
+        struct CallDepthGuard {
+            Env& env_ref;
+            bool armed = false;
+            CallDepthGuard(Env& env, const std::string& context) : env_ref(env) {
+                env_ref.enter_call(context);
+                armed = true;
+            }
+            ~CallDepthGuard() {
+                if (armed) {
+                    env_ref.leave_call();
+                }
+            }
+        } call_depth_guard(env, name);
 
         const auto* fn = env.get_function(name);
         if (fn == nullptr) {
@@ -2740,7 +2773,10 @@ struct SmsSessionRuntime {
     // Re-entrant because UI callbacks can synchronously trigger nested SMS events
     // while an outer event invoke is still on the stack (e.g. loadProject -> scenePropAdded).
     std::recursive_mutex mutex;
+    std::size_t invoke_depth = 0;
 };
+
+constexpr std::size_t kMaxInvokeDepth = 256;
 
 static std::shared_ptr<SmsSessionRuntime> build_session_runtime_or_throw(const char* source) {
     Lexer lexer(source);
@@ -2803,6 +2839,25 @@ static int invoke_event_on_runtime(
         std::lock_guard<std::recursive_mutex> lock(runtime.mutex);
 
         const std::string key = std::string(target_id) + "." + std::string(event_name);
+        struct InvokeDepthGuard {
+            SmsSessionRuntime& runtime;
+            bool armed = false;
+            explicit InvokeDepthGuard(SmsSessionRuntime& runtime_ref, const std::string& invoke_key) : runtime(runtime_ref) {
+                if (runtime.invoke_depth >= kMaxInvokeDepth) {
+                    throw std::runtime_error(
+                        "RuntimeError: interpreter recursion limit exceeded while invoking '" + invoke_key
+                        + "' (possible stack overflow).");
+                }
+                runtime.invoke_depth++;
+                armed = true;
+            }
+            ~InvokeDepthGuard() {
+                if (armed && runtime.invoke_depth > 0) {
+                    runtime.invoke_depth--;
+                }
+            }
+        } depth_guard(runtime, key);
+
         const auto* handler = runtime.env.get_event_handler(key);
         if (handler == nullptr) {
             write_error(error, error_capacity, "No SMS event handler found for '" + key + "'.");

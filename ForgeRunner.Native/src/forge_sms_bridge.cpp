@@ -1,4 +1,5 @@
 #include "forge_sms_bridge.h"
+#include "forge_sms_error_policy.h"
 #include "forge_path_resolver.h"
 
 #include <algorithm>
@@ -23,13 +24,16 @@
 #include <godot_cpp/classes/check_box.hpp>
 #include <godot_cpp/classes/check_button.hpp>
 #include <godot_cpp/classes/control.hpp>
+#include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/item_list.hpp>
 #include <godot_cpp/classes/json.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/line_edit.hpp>
+#include <godot_cpp/classes/main_loop.hpp>
 #include <godot_cpp/classes/option_button.hpp>
 #include <godot_cpp/classes/progress_bar.hpp>
 #include <godot_cpp/classes/rich_text_label.hpp>
+#include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/scroll_container.hpp>
 #include <godot_cpp/classes/slider.hpp>
 #include <godot_cpp/classes/spin_box.hpp>
@@ -47,6 +51,24 @@ namespace fs = std::filesystem;
 using namespace godot;
 
 namespace forge {
+
+namespace {
+constexpr int kMaxSmsDispatchDepth = 256;
+
+bool try_quit_on_fatal_sms_error(const std::string& message) {
+    if (!sms_error_requires_exit(message)) {
+        return false;
+    }
+
+    UtilityFunctions::printerr(String(("[ForgeRunner.Native] Fatal RuntimeError. Exiting: " + message).c_str()));
+    auto* main_loop = Engine::get_singleton() ? Engine::get_singleton()->get_main_loop() : nullptr;
+    auto* tree = Object::cast_to<SceneTree>(main_loop);
+    if (tree != nullptr) {
+        tree->quit(1);
+    }
+    return true;
+}
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Global id map
@@ -728,6 +750,29 @@ void SmsBridge::dispatch_event(std::int64_t session,
                                const std::string& event_name,
                                const std::string& payload_json) {
     if (!loaded_ || session < 0) return;
+    struct DispatchDepthGuard {
+        int& depth_ref;
+        bool entered = false;
+        explicit DispatchDepthGuard(int& depth) : depth_ref(depth) {
+            depth_ref++;
+            entered = true;
+        }
+        ~DispatchDepthGuard() {
+            if (entered && depth_ref > 0) {
+                depth_ref--;
+            }
+        }
+    };
+    static thread_local int dispatch_depth = 0;
+    if (dispatch_depth >= kMaxSmsDispatchDepth) {
+        const std::string msg = "RuntimeError: SMS dispatch recursion limit exceeded for '"
+            + object_id + "." + event_name + "' (possible stack overflow).";
+        UtilityFunctions::push_warning(String(("[ForgeRunner.Native] SMS dispatch failed for '" + object_id + "." + event_name + "': " + msg).c_str()));
+        (void)try_quit_on_fatal_sms_error(msg);
+        return;
+    }
+    DispatchDepthGuard depth_guard(dispatch_depth);
+
     const char* args_json = payload_json.empty() ? "[]" : payload_json.c_str();
     std::int64_t result_session = -1;
     char err[512] = {};
@@ -735,10 +780,11 @@ void SmsBridge::dispatch_event(std::int64_t session,
                               &result_session, err, static_cast<int>(sizeof(err)));
     if (rc != 0) {
         const std::string msg = err[0] != '\0' ? std::string(err) : std::string("unknown invoke error");
-        if (msg.find("No SMS event handler found") != std::string::npos) {
+        if (sms_error_is_missing_handler(msg)) {
             return;
         }
         UtilityFunctions::push_warning(String(("[ForgeRunner.Native] SMS dispatch failed for '" + object_id + "." + event_name + "': " + msg).c_str()));
+        (void)try_quit_on_fatal_sms_error(msg);
     }
 }
 

@@ -136,7 +136,7 @@ Usage:
   ./run.sh build              Build native stack (default)
   ./run.sh build-native       Same as build
   ./run.sh build-host         Build ForgeRunner.Native only
-  ./run.sh test               Run native tests (SMLCore.Native + SMSCore.Native)
+  ./run.sh test               Run native tests (SMLCore.Native + SMSCore.Native + ForgeRunner.Native)
   ./run.sh clean              Remove native build/dist folders
 
 Environment:
@@ -293,7 +293,7 @@ if [[ -z "$MODE" ]]; then
   echo "  7) docs            -> SML/SMS Docs generieren (headless Godot)"
   echo "  8) build           -> Native Stack bauen (SMLCore.Native, SMSCore.Native, ForgeCli.Native, ForgeRunner.Native)"
   echo "  9) build-host      -> nur ForgeRunner.Native bauen"
-  echo " 10) test            -> Native Tests (SMLCore.Native + SMSCore.Native)"
+  echo " 10) test            -> Native Tests (SMLCore.Native + SMSCore.Native + ForgeRunner.Native)"
   echo " 11) clean           -> Native Build-Artefakte entfernen"
   echo " 12) pub             -> Lokaler Publish-Override (run.local.sh)"
   echo " 13) help            -> Hilfe anzeigen"
@@ -414,12 +414,19 @@ case "$MODE" in
       echo "ERROR: SMSCore.Native tests are not configured. Run './run.sh build' first." >&2
       exit 1
     fi
+    if [[ ! -f "$REPO_ROOT/ForgeRunner.Native/build/CTestTestfile.cmake" ]]; then
+      echo "ERROR: ForgeRunner.Native tests are not configured. Run './run.sh build' first." >&2
+      exit 1
+    fi
 
     echo "Running SMLCore.Native spec tests..."
     ctest --test-dir "$REPO_ROOT/SMLCore.Native/build" --output-on-failure
 
     echo "Running SMSCore.Native spec tests..."
     ctest --test-dir "$REPO_ROOT/SMSCore.Native/build" --output-on-failure
+
+    echo "Running ForgeRunner.Native tests..."
+    ctest --test-dir "$REPO_ROOT/ForgeRunner.Native/build" --output-on-failure
     ;;
   clean)
     rm -rf "$REPO_ROOT/SMLCore.Native/build" \

@@ -15,15 +15,6 @@ Scene {
         scale: 0.9999998, 0.9999999, 1
 
         Animation {
-            Key { frame: 3
-                Bone { name: "mixamorig1_Spine1" x: 0.453835 y: 0.0233238 z: -0.0118841 w: 0.8907012 }
-            }
-            Key { frame: 8
-                Bone { name: "mixamorig1_Spine2" x: 0.0348982 y: 0.0087212 z: -0.0003046 w: 0.9993528 }
-            }
-            Key { frame: 9
-                Bone { name: "mixamorig1_Hips" x: -0.7071068 y: 0.0 z: 0.0 w: 0.7071068 }
-            }
             Key { frame: 15
                 Bone { name: "mixamorig1_Hips" x: -0.7071068 y: 0.0 z: 0.0 w: 0.7071068 }
                 Bone { name: "mixamorig1_LeftArm" x: 0.4025605 y: -0.1790799 z: 0.2559253 w: 0.860452 }

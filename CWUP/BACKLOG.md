@@ -102,11 +102,13 @@
 - [ ] tasks/native_plugin_hosting.md
 - [ ] tasks/sms_to_cpp_transpiler_local_apps.md
 - [ ] tasks/native_release_no_json_bridge.md
+- [ ] tasks/source_of_truth_self_hosted_git_mirror.md
 
 
 ## Future Tasks
 - [ ] Texture-Cache in `NodePropertyMapper` einbauen: `Dictionary<string, Texture2D>` nach resolved path, geteilt über alle Controls. Nur umsetzen wenn Ladezeiten > 1 Sekunde messbar sind.
 - [ ] tasks/stackwide_single_slash_uri_scheme_policy.md
+- [ ] tasks/resilient_source_distribution_playbook.md
 
 ## Tasks for Forge-Designer
 - [ ] Lifecycle-Template für neue Scripts einführen (OnInit / OnReadyAsync sichtbar als optionaler Einstieg)

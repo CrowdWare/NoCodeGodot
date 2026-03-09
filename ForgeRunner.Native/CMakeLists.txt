@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(CTest)
+
 # ---------------------------------------------------------------------------
 # godot-cpp
 # ---------------------------------------------------------------------------
@@ -49,6 +51,7 @@ add_library(forge_runner_native SHARED
     src/forge_markdown.cpp
     src/forge_runner_extension.cpp
     src/forge_runner_main.cpp
+    src/forge_sms_error_policy.cpp
     src/forge_sms_bridge.cpp
     src/forge_ui_builder.cpp
     "${SMLCORE_NATIVE_DIR}/src/smlcore_native.cpp"
@@ -80,3 +83,24 @@ endif()
 add_executable(forge-runner-native
     src/main.cpp
 )
+
+if(BUILD_TESTING)
+    add_executable(forge_runner_native_sms_error_policy_tests
+        tests/sms_error_policy_tests.cpp
+        src/forge_sms_error_policy.cpp
+    )
+
+    add_test(NAME forge_runner_native_sms_error_policy_tests
+        COMMAND forge_runner_native_sms_error_policy_tests)
+
+    set(FRN_SMS_ERROR_POLICY_CASES
+        sms_error_policy_missing_handler_does_not_require_exit
+        sms_error_policy_runtime_error_requires_exit
+        sms_error_policy_non_runtime_error_does_not_require_exit
+        sms_error_policy_plain_stack_overflow_requires_exit
+    )
+    foreach(CASE_NAME IN LISTS FRN_SMS_ERROR_POLICY_CASES)
+        add_test(NAME forge_runner_native_${CASE_NAME}
+            COMMAND forge_runner_native_sms_error_policy_tests ${CASE_NAME})
+    endforeach()
+endif()

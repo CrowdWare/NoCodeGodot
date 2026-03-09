@@ -14,7 +14,8 @@ in `ForgeTimelineControl`.
 - [x] `setVisibleCharacterId(...)` now triggers redraw immediately so visible-track switching is reflected without extra interaction.
 - [x] Native timeline now renders per-bone track rows with left bone-name list and per-row keyframe markers (no longer single-line keyframe row).
 - [x] Native playback/scrubbing now applies merged pose data for all keyed characters (complete scene animation) directly in C++ timeline control.
-- [ ] Timeline scrollbar + full ruler/label polish still differs from C# widget.
+- [x] Horizontal timeline scrollbar and fixed pixel-per-frame scrubbing range are now wired (including right-click keyframe removal at clicked frame).
+- [ ] Remaining visual polish vs C# widget (badge styling / exact tick typography / edge-case row clipping).
 
 ## Implementation Steps
 - Finalize keyframe storage contract per character and frame.
