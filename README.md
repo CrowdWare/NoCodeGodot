@@ -1,16 +1,20 @@
-# 🧭 Forge 4D Vision
+# 🧭 The Forge 4D Vision  
+Forge 4D is an open platform for building applications using SML (Simple Markup Language) and SMS scripting combining 2D UI, 3D scenes and animation timelines, powered by the Godot engine.
 
 [![Manifest CI](https://img.shields.io/github/actions/workflow/status/CrowdWare/Forge/generate-manifest.yml?branch=main&label=manifest%20ci)](https://github.com/CrowdWare/Forge/actions/workflows/generate-manifest.yml) [![Release](https://img.shields.io/github/v/tag/CrowdWare/Forge?sort=semver&label=release)](https://github.com/CrowdWare/Forge/releases) [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/CrowdWare/Forge/blob/main/LICENSE)
 
-![splash](ForgeRunner.Native/assets/images/splash3d.png)
-Forge is not about avoiding code.
-It is about removing unnecessary barriers between ideas and reality.
+Forge 4D is not about avoiding code.  
+It is about removing unnecessary barriers between ideas and reality.  
 
-Today, creating software often requires navigating complex toolchains, fragile frameworks, platform-specific quirks, and constant rewrites. This complexity excludes many people and slows down even experienced developers.
+Today, creating software often means navigating complex toolchains, fragile frameworks, platform-specific quirks, and constant rewrites. This complexity excludes many people and slows down even experienced developers.  
+Forge exists to change that.  
 
-Forge exists to change that.
+The name Forge 4D describes the environment itself.  
+Forge can render traditional 2D user interfaces. Inside a viewport it can display interactive 3D scenes.  
+When you add a timeline for animations and state changes, time becomes the fourth dimension for animation and interaction.  
+2D + 3D + Time = Forge 4D.
 
-Built with love, coffee, and a stubborn focus on simplicity.
+Built with love, coffee, and a stubborn focus on simplicity.  
 
 ![screenprint](images/forge.png)
 
@@ -84,16 +88,45 @@ It is designed to be:
 
 If you can read it, you can reason about it.
 
-Sample:
+Sample shows a minimal Forge application written in SML:  
 ```qml
 Window {
-	title: "My First App
+	title: "My First App"
 	pos: 0, 0
     size: 1920, 1080
 
 	Label { text: "Hello World" }
 }
-```
+```  
+This file alone is enough to start a Forge application.  
+
+---
+
+## Core UI Components
+
+Forge builds on the full UI system of the Godot engine.  
+All standard Godot controls and dialogs are available, including buttons, panels, lists, trees, text inputs, menus and more.
+
+Forge extends this foundation with additional components designed for building modern applications and tools.
+
+### Workspace and Application UI
+
+- **DockingHost** – main workspace container managing dockable panels  
+- **DockingContainer** – dockable panels that can be rearranged by the user  
+- **Window** – Forge window element for application layouts  
+- **Markdown** – rich text and documentation viewer  
+- **Terminal** – integrated terminal for command execution and logs  
+
+### 3D and Time-Based Tools
+
+- **Viewport3D** – embed interactive 3D scenes inside applications  
+- **Timeline** – timeline component for animations and time-based workflows  
+- **PosingEditor** – editor for adjusting poses and animation data  
+
+These components make Forge suitable not only for traditional user interfaces,
+but also for building complex tools such as editors, animation workflows,
+and interactive 3D applications.
+
 ---
 
 ## ⚡ Event-First Scripting (No Dispatcher Boilerplate)
@@ -158,7 +191,7 @@ This is one of Forge's strongest UX advantages:
 
 Forge enforces a strict separation:
 	•	Structure & UI → SML
-	•	Behavior & Logic → runtime host code (currently C#, native C++ migration in progress)
+	•	Behavior & Logic → native C# code
 	•	Execution → Forge-Runner
 
 This prevents the common collapse where UI, logic, and state become tangled and unmaintainable.

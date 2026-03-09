@@ -60,6 +60,7 @@
 #include <godot_cpp/classes/tab_bar.hpp>
 #include <godot_cpp/classes/tab_container.hpp>
 #include <godot_cpp/classes/display_server.hpp>
+#include <godot_cpp/classes/font.hpp>
 #include <godot_cpp/classes/input.hpp>
 #include <godot_cpp/classes/immediate_mesh.hpp>
 #include <godot_cpp/classes/v_box_container.hpp>
@@ -1465,32 +1466,81 @@ public:
         if (size.x <= 1.0f || size.y <= 1.0f) return;
         const float toolbar_h = get_toolbar_height();
         const float timeline_top = toolbar_h;
-        const float ruler_y = timeline_top + 20.0f;
         if (size.y <= timeline_top + 1.0f) return;
 
-        draw_rect(Rect2(Vector2(0.0f, timeline_top), Vector2(size.x, size.y - timeline_top)), Color(0.09f, 0.10f, 0.12f, 1.0f), true);
-        draw_line(Vector2(0.0f, ruler_y), Vector2(size.x, ruler_y), Color(0.24f, 0.26f, 0.30f, 1.0f), 1.0f);
-
+        const float bone_name_w = 140.0f;
+        const float ruler_h = 24.0f;
+        const float track_h = 22.0f;
+        const float timeline_left = bone_name_w;
+        const float timeline_w = MAX(1.0f, size.x - timeline_left);
+        const float ruler_y = timeline_top + ruler_h;
         const int frame_count = total_frames_ > 0 ? total_frames_ : 1;
-        const float px_per_frame = size.x / static_cast<float>(frame_count);
-        for (int frame = 0; frame <= frame_count; ++frame) {
-            const float x = frame * px_per_frame;
-            const bool major = (frame % 10) == 0;
-            const float y0 = timeline_top + (major ? 0.0f : 8.0f);
-            draw_line(Vector2(x, y0), Vector2(x, ruler_y),
-                      major ? Color(0.55f, 0.60f, 0.67f, 1.0f) : Color(0.32f, 0.35f, 0.40f, 1.0f),
-                      major ? 1.5f : 1.0f);
-        }
 
-        auto char_it = keyframes_.find(current_character_key());
-        if (char_it != keyframes_.end()) {
-            for (const auto& [frame, _] : char_it->second) {
-                const float x = CLAMP(static_cast<float>(frame), 0.0f, static_cast<float>(frame_count)) * px_per_frame;
-                draw_rect(Rect2(Vector2(x - 2.0f, timeline_top + 24.0f), Vector2(4.0f, 8.0f)), Color(0.95f, 0.78f, 0.10f, 1.0f), true);
+        Ref<Font> font = get_theme_default_font();
+        const int font_size = 12;
+
+        draw_rect(Rect2(Vector2(0.0f, timeline_top), Vector2(size.x, size.y - timeline_top)), Color(0.09f, 0.10f, 0.12f, 1.0f), true);
+        draw_rect(Rect2(Vector2(timeline_left, timeline_top), Vector2(timeline_w, ruler_h)), Color(0.20f, 0.20f, 0.20f, 1.0f), true);
+        draw_line(Vector2(0.0f, ruler_y), Vector2(size.x, ruler_y), Color(0.24f, 0.26f, 0.30f, 1.0f), 1.0f);
+        draw_line(Vector2(timeline_left, timeline_top), Vector2(timeline_left, size.y), Color(0.24f, 0.26f, 0.30f, 1.0f), 1.0f);
+
+        const std::vector<String> tracked_bones = get_tracked_bones_for_current_character();
+        for (int row = 0; row < static_cast<int>(tracked_bones.size()); ++row) {
+            const float y = ruler_y + static_cast<float>(row) * track_h;
+            if ((row % 2) == 1) {
+                draw_rect(Rect2(Vector2(0.0f, y), Vector2(size.x, track_h)), Color(0.11f, 0.11f, 0.11f, 1.0f), true);
+            }
+            draw_line(Vector2(0.0f, y + track_h), Vector2(size.x, y + track_h), Color(0.24f, 0.26f, 0.30f, 0.6f), 1.0f);
+            if (font.is_valid()) {
+                draw_string(font,
+                            Vector2(6.0f, y + track_h * 0.66f),
+                            display_bone_name(tracked_bones[row]),
+                            HORIZONTAL_ALIGNMENT_LEFT,
+                            static_cast<double>(bone_name_w - 10.0f),
+                            font_size,
+                            Color(0.82f, 0.82f, 0.82f, 1.0f));
             }
         }
 
-        const float playhead_x = CLAMP(static_cast<float>(current_frame_), 0.0f, static_cast<float>(frame_count)) * px_per_frame;
+        const auto char_it = keyframes_.find(current_character_key());
+        for (int frame = 0; frame <= frame_count; frame += 5) {
+            const float x = timeline_left + (static_cast<float>(frame) / static_cast<float>(frame_count)) * timeline_w;
+            const bool major = (frame % 10) == 0;
+            const Color col = major ? Color(0.10f, 0.10f, 0.10f, 0.78f) : Color(0.46f, 0.46f, 0.46f, 0.42f);
+            const float width = major ? 1.5f : 1.0f;
+            draw_line(Vector2(x, ruler_y), Vector2(x, size.y), col, width);
+            if (major && font.is_valid()) {
+                const String label = String::num_int64(frame);
+                draw_string(font,
+                            Vector2(x - 8.0f, timeline_top + 16.0f),
+                            label,
+                            HORIZONTAL_ALIGNMENT_LEFT,
+                            -1,
+                            MAX(10, font_size - 1),
+                            Color(0.82f, 0.82f, 0.82f, 1.0f));
+            }
+        }
+
+        if (char_it != keyframes_.end()) {
+            for (int row = 0; row < static_cast<int>(tracked_bones.size()); ++row) {
+                const float center_y = ruler_y + static_cast<float>(row) * track_h + track_h * 0.5f;
+                for (const auto& [frame, pose] : char_it->second) {
+                    if (!pose_has_bone_for_visible_character(pose, tracked_bones[row])) continue;
+                    const float x = timeline_left + (CLAMP(static_cast<float>(frame), 0.0f, static_cast<float>(frame_count)) / static_cast<float>(frame_count)) * timeline_w;
+                    const float hs = 5.0f;
+                    PackedVector2Array pts;
+                    pts.push_back(Vector2(x, center_y - hs));
+                    pts.push_back(Vector2(x + hs, center_y));
+                    pts.push_back(Vector2(x, center_y + hs));
+                    pts.push_back(Vector2(x - hs, center_y));
+                    PackedColorArray cols;
+                    cols.push_back(Color(0.95f, 0.78f, 0.10f, 1.0f));
+                    draw_polygon(pts, cols);
+                }
+            }
+        }
+
+        const float playhead_x = timeline_left + (CLAMP(static_cast<float>(current_frame_), 0.0f, static_cast<float>(frame_count)) / static_cast<float>(frame_count)) * timeline_w;
         draw_line(Vector2(playhead_x, timeline_top), Vector2(playhead_x, size.y), Color(1.0f, 0.43f, 0.24f, 1.0f), 2.0f);
     }
 
@@ -1537,7 +1587,7 @@ public:
         emit_signal("frameChanged", current_frame_);
         // Native fallback: apply current timeline pose directly to editor so
         // playback/scrubbing works even if SMS event routing is delayed.
-        const Variant pose = get_pose_at(current_frame_);
+        const Variant pose = get_pose_at_all_characters(current_frame_);
         if (pose.get_type() != Variant::NIL) {
             auto it = forge::SmsBridge::id_map().find("editor");
             if (it != forge::SmsBridge::id_map().end() && it->second != nullptr) {
@@ -1699,7 +1749,10 @@ public:
     }
 
     Variant get_pose_at(int frame) const {
-        const std::string cid = current_character_key();
+        return get_pose_at_for_character_key(frame, current_character_key());
+    }
+
+    Variant get_pose_at_for_character_key(int frame, const std::string& cid) const {
         auto char_it = keyframes_.find(cid);
         if (char_it == keyframes_.end()) return Variant();
         const auto& timeline = char_it->second;
@@ -1718,6 +1771,23 @@ public:
         const int span = MAX(1, next->first - prev->first);
         const float t = static_cast<float>(clamped - prev->first) / static_cast<float>(span);
         return interpolate_pose(prev->second, next->second, t);
+    }
+
+    Variant get_pose_at_all_characters(int frame) const {
+        Dictionary merged;
+        for (const auto& [cid, _] : keyframes_) {
+            const Variant pose = get_pose_at_for_character_key(frame, cid);
+            if (pose.get_type() != Variant::DICTIONARY) continue;
+            const Dictionary d = static_cast<Dictionary>(pose);
+            const Array keys = d.keys();
+            for (int i = 0; i < keys.size(); ++i) {
+                if (keys[i].get_type() != Variant::STRING) continue;
+                const String k = static_cast<String>(keys[i]);
+                merged[k] = d[k];
+            }
+        }
+        if (merged.is_empty()) return Variant();
+        return merged;
     }
 
     void play() {
@@ -1836,9 +1906,91 @@ private:
     void seek_to_x(float x) {
         const float width = get_size().x;
         if (width <= 1.0f) return;
+        const float timeline_left = 140.0f;
+        const float timeline_w = MAX(1.0f, width - timeline_left);
         const int frame_count = total_frames_ > 0 ? total_frames_ : 1;
-        const float ratio = CLAMP(x / width, 0.0f, 1.0f);
+        const float ratio = CLAMP((x - timeline_left) / timeline_w, 0.0f, 1.0f);
         set_current_frame(static_cast<int>(ratio * frame_count));
+    }
+
+    static bool try_split_bone_key(const String& key, String& out_character_id, String& out_bone_name) {
+        const int sep = key.find(":");
+        if (sep <= 0 || sep >= key.length() - 1) {
+            out_character_id = String();
+            out_bone_name = key;
+            return false;
+        }
+        out_character_id = key.substr(0, sep);
+        out_bone_name = key.substr(sep + 1, key.length() - sep - 1);
+        return true;
+    }
+
+    static String display_bone_name(const String& name) {
+        if (name.length() <= 16) return name;
+        int idx = name.rfind("_");
+        if (idx < 0) idx = name.rfind(":");
+        if (idx >= 0 && idx < name.length() - 1) {
+            return name.substr(idx + 1, name.length() - idx - 1);
+        }
+        return name;
+    }
+
+    std::vector<String> get_tracked_bones_for_current_character() const {
+        std::vector<String> out;
+        std::set<std::string> seen;
+
+        const auto char_it = keyframes_.find(current_character_key());
+        if (char_it == keyframes_.end()) return out;
+
+        for (const auto& [_, pose] : char_it->second) {
+            if (pose.get_type() != Variant::DICTIONARY) continue;
+            const Dictionary d = static_cast<Dictionary>(pose);
+            const Array keys = d.keys();
+            for (int i = 0; i < keys.size(); ++i) {
+                if (keys[i].get_type() != Variant::STRING) continue;
+                const String key = static_cast<String>(keys[i]);
+                String key_char;
+                String key_bone;
+                try_split_bone_key(key, key_char, key_bone);
+                String use_name = key_bone;
+                if (!visible_character_id_.is_empty() && !key_char.is_empty()) {
+                    if (key_char.nocasecmp_to(visible_character_id_) != 0) continue;
+                } else if (use_name.is_empty()) {
+                    use_name = key;
+                }
+                if (use_name.is_empty()) continue;
+                const std::string lowered = std::string(use_name.to_lower().utf8().get_data());
+                if (seen.insert(lowered).second) {
+                    out.push_back(use_name);
+                }
+            }
+        }
+
+        std::sort(out.begin(), out.end(), [](const String& a, const String& b) {
+            return a.nocasecmp_to(b) < 0;
+        });
+        return out;
+    }
+
+    bool pose_has_bone_for_visible_character(const Variant& pose, const String& bone_name) const {
+        if (pose.get_type() != Variant::DICTIONARY) return false;
+        const Dictionary d = static_cast<Dictionary>(pose);
+        const Array keys = d.keys();
+        for (int i = 0; i < keys.size(); ++i) {
+            if (keys[i].get_type() != Variant::STRING) continue;
+            const String key = static_cast<String>(keys[i]);
+            String key_char;
+            String key_bone;
+            try_split_bone_key(key, key_char, key_bone);
+
+            if (!visible_character_id_.is_empty() && !key_char.is_empty() && key_char.nocasecmp_to(visible_character_id_) != 0) {
+                continue;
+            }
+
+            const String candidate = key_bone.is_empty() ? key : key_bone;
+            if (candidate.nocasecmp_to(bone_name) == 0) return true;
+        }
+        return false;
     }
 
     void update_frame_label() {
