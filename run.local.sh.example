@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 # Copy this file to `run.local.sh` and customize it for your private workflow.
-# `run.local.sh` is ignored by git and loaded automatically by `runLegacy.sh`.
+# `run.local.sh` is ignored by git and loaded automatically by `run.sh`.
 #
 # Supported override modes:
-#   release, docs, test, publish, export, app, poser
+#   release, docs, test, export, app, poser, pub
 #
 # Contract:
 # - Return 0 if this local handler fully handled the mode.
@@ -12,6 +12,8 @@
 
 # Optional: set local machine paths/env here (git-ignored in run.local.sh).
 # export GODOT_CPP_DIR="/absolute/path/to/godot-cpp"
+# export FORGE_PUB_REMOTE="codeberg"
+# export FORGE_PUB_BRANCH="main"
 
 forge_local_handle_mode() {
   local mode="$1"
@@ -30,8 +32,8 @@ forge_local_handle_mode() {
       echo "[local] test override not configured yet."
       return 1
       ;;
-    publish)
-      echo "[local] publish override not configured yet."
+    pub)
+      echo "[local] pub override not configured yet."
       return 1
       ;;
     export)

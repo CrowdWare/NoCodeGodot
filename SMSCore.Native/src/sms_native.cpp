@@ -24,6 +24,7 @@ struct SmsSessionRuntime;
 struct SmsSessionState {
     std::string source;
     std::shared_ptr<SmsSessionRuntime> runtime;
+    int invoke_depth = 0;
 };
 
 std::mutex g_sessions_mutex;
@@ -35,6 +36,7 @@ sms_native_ui_invoke_fn g_ui_invoke = nullptr;
 sms_native_sandbox_path_allow_fn g_sandbox_path_allow = nullptr;
 constexpr int kBridgeJsonBufferSize = 65536;
 constexpr std::size_t kMaxInterpreterCallDepth = 1024;
+constexpr int kMaxSessionInvokeDepth = 1;
 
 bool has_parent_traversal_segment(const std::string& path) {
     std::size_t start = 0;
@@ -3136,6 +3138,29 @@ extern "C" int sms_native_session_invoke(
     char* error,
     int error_capacity) {
     std::shared_ptr<SmsSessionRuntime> runtime;
+
+    struct SessionInvokeGuard {
+        std::int64_t session_id;
+        bool armed = false;
+
+        explicit SessionInvokeGuard(std::int64_t id) : session_id(id) {}
+
+        void arm() { armed = true; }
+
+        ~SessionInvokeGuard() {
+            if (!armed) {
+                return;
+            }
+            std::lock_guard<std::mutex> lock(g_sessions_mutex);
+            const auto it = g_sessions.find(session_id);
+            if (it != g_sessions.end()) {
+                if (it->second.invoke_depth > 0) {
+                    --it->second.invoke_depth;
+                }
+            }
+        }
+    } invoke_guard(session);
+
     {
         std::lock_guard<std::mutex> lock(g_sessions_mutex);
         const auto it = g_sessions.find(session);
@@ -3143,6 +3168,20 @@ extern "C" int sms_native_session_invoke(
             write_error(error, error_capacity, "invalid session");
             return 2;
         }
+        if (it->second.invoke_depth >= kMaxSessionInvokeDepth) {
+            const std::string reentrant_error =
+                "RuntimeError: sms_native_session_invoke recursion limit exceeded for session "
+                + std::to_string(session)
+                + " (possible infinite loop in event handler; nested invoke depth "
+                + std::to_string(it->second.invoke_depth) + ").";
+            write_error(
+                error,
+                error_capacity,
+                reentrant_error.c_str());
+            return 1;
+        }
+        ++it->second.invoke_depth;
+        invoke_guard.arm();
         runtime = it->second.runtime;
     }
 

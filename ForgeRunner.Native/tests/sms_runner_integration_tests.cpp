@@ -284,6 +284,7 @@ static std::int64_t g_cycle_session_id  = -1;
 static int          g_cycle_depth       = 0;
 static bool         g_cycle_guard_hit   = false;
 static int          g_setKeyframe_calls = 0;
+static std::string  g_cycle_engine_error;
 
 // --------------------------------------------------------------------------
 // Unguarded re-entrancy state — used by test_setKeyframe_cycle_unprotected
@@ -341,7 +342,8 @@ static int mock_invoke_unguarded(const char* id, const char* method, const char*
 // Simulates the ForgePoser crash scenario:
 //   timeline.setKeyframe  → C++ emits keyframeAdded → re-dispatch into SMS
 //   editor.poseChanged()  → C++ emits poseChanged   → re-dispatch into SMS
-// Both re-entries increment the same depth counter; guard fires at kTestMaxDispatchDepth.
+// The mock has its own depth guard, but with the engine re-entrancy guard in place
+// the nested dispatch should fail earlier and be captured in g_cycle_engine_error.
 static int mock_invoke_cycling(const char* id, const char* method, const char* args,
                                 char* out, int cap) {
     if (out && cap > 0) out[0] = '\0';
@@ -362,6 +364,8 @@ static int mock_invoke_cycling(const char* id, const char* method, const char* a
                                   "timeline", "keyframeAdded",
                                   "[7,\"Spine\"]",
                                   &result, err, static_cast<int>(sizeof(err)));
+        if (err[0] && g_cycle_engine_error.empty())
+            g_cycle_engine_error = err;
         --g_cycle_depth;
 
     } else if (obj == "editor" && meth == "poseChanged") {
@@ -377,6 +381,8 @@ static int mock_invoke_cycling(const char* id, const char* method, const char* a
                                   "editor", "poseChanged",
                                   args ? args : "[\"Spine\"]",
                                   &result, err, static_cast<int>(sizeof(err)));
+        if (err[0] && g_cycle_engine_error.empty())
+            g_cycle_engine_error = err;
         --g_cycle_depth;
     }
     return 0;
@@ -478,12 +484,13 @@ void test_dispatch_depth_guard_fires() {
 //       → editor.poseChanged(bone)     [mock re-dispatches poseChanged]
 //       → editor.poseChanged (SMS event) → ...
 //
-// The depth guard in mock_invoke_cycling must stop the cycle before the
-// OS stack overflows.
+// The engine-level re-entrancy guard must stop the cycle before the mock
+// depth guard is needed.
 void test_setKeyframe_cycle_caught() {
     g_cycle_depth       = 0;
     g_cycle_guard_hit   = false;
     g_setKeyframe_calls = 0;
+    g_cycle_engine_error.clear();
 
     ScopedMockUi mock;
     mock.state.invoke_hook = mock_invoke_cycling;
@@ -508,13 +515,16 @@ void test_setKeyframe_cycle_caught() {
 
     session.invoke("editor", "poseChanged", "[\"Spine\"]");
 
-    assert_true(g_cycle_guard_hit,
-                "depth guard must trigger during setKeyframe cycle"
-                " (setKeyframe called " + std::to_string(g_setKeyframe_calls) + " times)");
+    assert_false(g_cycle_engine_error.empty(),
+                 "engine must detect re-entrant sms_native_session_invoke in setKeyframe cycle");
+    assert_true(forge::sms_error_requires_exit(g_cycle_engine_error),
+                "re-entrancy error must require exit, got: \"" + g_cycle_engine_error + "\"");
+    assert_false(g_cycle_guard_hit,
+                 "mock depth guard should not be needed once engine guard triggers");
     assert_true(g_setKeyframe_calls > 0,
                 "setKeyframe must have been called at least once");
-    assert_true(g_setKeyframe_calls <= kTestMaxDispatchDepth + 2,
-                "cycle must stop near depth limit (calls: "
+    assert_true(g_setKeyframe_calls <= 2,
+                "cycle must stop immediately after re-entrant invoke is rejected (calls: "
                 + std::to_string(g_setKeyframe_calls) + ")");
 }
 
