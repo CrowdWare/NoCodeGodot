@@ -98,7 +98,6 @@
 - [x] tasks/native_docking_improvements.md
 - [x] tasks/native_markdown_container.md
 - [x] tasks/native_syntax_highlighting.md
-- [ ] tasks/sms_native_reentrant_invoke_guard.md
 - [ ] tasks/native_3d_tools_port.md
 - [ ] tasks/native_plugin_hosting.md
 - [ ] tasks/sms_to_cpp_transpiler_local_apps.md
