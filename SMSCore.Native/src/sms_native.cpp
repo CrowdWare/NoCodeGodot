@@ -1121,10 +1121,12 @@ struct MethodCallExpr final : Expr {
         }
 
         if (receiver.kind == Value::Kind::Object && receiver.class_name == "log") {
-            if (method_ == "info" || method_ == "success" || method_ == "warning" || method_ == "error" || method_ == "debug") {
+            if (method_ == "info" || method_ == "success" || method_ == "warning" || method_ == "warn" || method_ == "error" || method_ == "debug") {
                 if (g_ui_invoke == nullptr) {
                     throw std::runtime_error("ui invoke bridge unavailable.");
                 }
+
+                const std::string bridge_method = (method_ == "warn") ? "warning" : method_;
 
                 std::string args_json = "[";
                 for (std::size_t i = 0; i < args.size(); i++) {
@@ -1139,7 +1141,7 @@ struct MethodCallExpr final : Expr {
                 char error[1024] = {0};
                 const auto rc = g_ui_invoke(
                     "__log__",
-                    method_.c_str(),
+                    bridge_method.c_str(),
                     args_json.c_str(),
                     out_json,
                     static_cast<int>(sizeof(out_json)),
