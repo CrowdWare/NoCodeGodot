@@ -1,0 +1,8 @@
+LicenseRef-CrowdWare-Commercial
+
+This software is available under commercial licensing terms from CrowdWare.
+
+For commercial licensing inquiries, contact CrowdWare.
+
+Use of this software under the commercial license is governed solely by the
+applicable written commercial agreement with CrowdWare.

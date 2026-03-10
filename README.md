@@ -43,6 +43,18 @@ The Forge-Runner interprets this description and executes it on the target platf
 
 ---
 
+## 📜 Licensing
+
+Forge uses dual licensing for source code:
+
+- **Open Source:** GNU GPL v3 (or later), see [LICENSE](LICENSE)
+- **Commercial:** available from CrowdWare for proprietary use, see [LicenseRef-CrowdWare-Commercial](LICENSES/LicenseRef-CrowdWare-Commercial.txt)
+- **Guide:** practical distribution scenarios, see [COMMERCIAL.md](COMMERCIAL.md)
+
+SML and SMS are open languages. You can freely write and use SML/SMS files for your own projects.
+
+---
+
 ## 💡 Feature Requests & Feedback
 
 If you have an idea, a workflow pain point, or a missing feature, please open an issue.

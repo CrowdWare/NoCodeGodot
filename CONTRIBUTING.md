@@ -41,6 +41,16 @@ The clearer the description (expected vs. actual behavior, minimal repro steps, 
 If you're looking for a place to start, check out issues labeled **good first issue** (we try to tag beginner-friendly ones when possible):  
 https://github.com/CrowdWare/Forge/labels/good%20first%20issue
 
+## Licensing of Contributions
+
+To keep Forge maintainable under its dual-licensing model, contributions to this repository are accepted with the understanding that:
+
+- Your contribution can be distributed as part of Forge under `GPL-3.0-or-later`.
+- CrowdWare may also use and distribute your contribution under the Forge commercial licensing model.
+- You confirm you have the right to submit the contribution under these terms.
+
+If this does not work for you, please do not submit a pull request and open an issue instead to discuss alternatives.
+
 Thank you in advance for your time, ideas, and pull requests — every solid contribution makes Forge more powerful and enjoyable for everyone.
 
 Happy forging! 🔨
