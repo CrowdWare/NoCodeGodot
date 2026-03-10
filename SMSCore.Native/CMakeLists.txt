@@ -71,4 +71,16 @@ if(BUILD_TESTING)
     foreach(CASE_NAME IN LISTS SMS_EVENTS_PARSER_CASES)
         add_test(NAME ${CASE_NAME} COMMAND sms_native_parser_events_tests ${CASE_NAME})
     endforeach()
+
+    add_executable(sms_native_ui_string_bridge_tests
+        tests/ui_string_bridge_tests.cpp
+    )
+    target_link_libraries(sms_native_ui_string_bridge_tests PRIVATE sms_native)
+    set(SMS_UI_STRING_BRIDGE_CASES
+        ui_string_bridge_text_roundtrip_uses_raw_callbacks
+        ui_string_bridge_text_roundtrip_falls_back_to_json_without_raw_callbacks
+    )
+    foreach(CASE_NAME IN LISTS SMS_UI_STRING_BRIDGE_CASES)
+        add_test(NAME sms_native_${CASE_NAME} COMMAND sms_native_ui_string_bridge_tests ${CASE_NAME})
+    endforeach()
 endif()

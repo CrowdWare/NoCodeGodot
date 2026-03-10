@@ -461,6 +461,67 @@ static int sms_ui_set(
     return 0;
 }
 
+static int sms_ui_get_string(
+    const char* object_id, const char* property,
+    char* out_text, int out_cap, char* error, int error_cap)
+{
+    const std::string id   = object_id ? object_id : "";
+    const std::string prop = property  ? property  : "";
+    auto it = SmsBridge::id_map().find(id);
+    if (it == SmsBridge::id_map().end() || it->second == nullptr) {
+        write_out(error, error_cap, "ui object not found");
+        return 1;
+    }
+    if (prop != "text") {
+        write_out(error, error_cap, "string bridge supports only 'text'");
+        return 1;
+    }
+
+    Control* ctrl = it->second;
+    String t;
+    if      (auto* l   = Object::cast_to<Label>(ctrl))         t = l->get_text();
+    else if (auto* b   = Object::cast_to<Button>(ctrl))        t = b->get_text();
+    else if (auto* le  = Object::cast_to<LineEdit>(ctrl))      t = le->get_text();
+    else if (auto* te  = Object::cast_to<TextEdit>(ctrl))      t = te->get_text();
+    else if (auto* rtl = Object::cast_to<RichTextLabel>(ctrl)) t = rtl->get_text();
+    else {
+        write_out(error, error_cap, "ui object does not support text");
+        return 1;
+    }
+    write_out(out_text, out_cap, t.utf8().get_data());
+    return 0;
+}
+
+static int sms_ui_set_string(
+    const char* object_id, const char* property, const char* value_text,
+    char* error, int error_cap)
+{
+    const std::string id   = object_id ? object_id : "";
+    const std::string prop = property  ? property  : "";
+    auto it = SmsBridge::id_map().find(id);
+    if (it == SmsBridge::id_map().end() || it->second == nullptr) {
+        write_out(error, error_cap, "ui object not found");
+        return 1;
+    }
+    if (prop != "text") {
+        write_out(error, error_cap, "string bridge supports only 'text'");
+        return 1;
+    }
+
+    const String t((value_text ? value_text : ""));
+    Control* ctrl = it->second;
+    if      (auto* l   = Object::cast_to<Label>(ctrl))         l->set_text(t);
+    else if (auto* b   = Object::cast_to<Button>(ctrl))        b->set_text(t);
+    else if (auto* le  = Object::cast_to<LineEdit>(ctrl))      le->set_text(t);
+    else if (auto* te  = Object::cast_to<TextEdit>(ctrl))      te->set_text(t);
+    else if (auto* rtl = Object::cast_to<RichTextLabel>(ctrl)) rtl->set_text(t);
+    else {
+        write_out(error, error_cap, "ui object does not support text");
+        return 1;
+    }
+    return 0;
+}
+
 static int sms_ui_invoke(
     const char* object_id, const char* method, const char* args_json,
     char* out_json, int out_cap, char*, int)
@@ -908,6 +969,7 @@ bool SmsBridge::load(const std::string& repo_root) {
     invoke_fn_    = reinterpret_cast<InvokeFn> (platform_load_sym(lib_handle_, "sms_native_session_invoke"));
     dispose_fn_   = reinterpret_cast<DisposeFn>(platform_load_sym(lib_handle_, "sms_native_session_dispose"));
     set_ui_cb_fn_ = reinterpret_cast<SetUiCbFn>(platform_load_sym(lib_handle_, "sms_native_set_ui_callbacks"));
+    set_ui_string_cb_fn_ = reinterpret_cast<SetUiStringCbFn>(platform_load_sym(lib_handle_, "sms_native_set_ui_string_callbacks"));
 
     if (!create_fn_ || !load_fn_ || !invoke_fn_ || !dispose_fn_ || !set_ui_cb_fn_) {
         UtilityFunctions::push_warning("[ForgeRunner.Native] SMS library is missing required symbols.");
@@ -921,6 +983,16 @@ bool SmsBridge::load(const std::string& repo_root) {
     if (err[0] != '\0')
         UtilityFunctions::push_warning(String((
             "[ForgeRunner.Native] SMS set_ui_callbacks warning: " + std::string(err)).c_str()));
+    if (set_ui_string_cb_fn_ != nullptr) {
+        char string_err[512] = {};
+        set_ui_string_cb_fn_(&sms_ui_get_string, &sms_ui_set_string,
+                             string_err, static_cast<int>(sizeof(string_err)));
+        if (string_err[0] != '\0') {
+            UtilityFunctions::push_warning(String((
+                "[ForgeRunner.Native] SMS set_ui_string_callbacks warning: "
+                + std::string(string_err)).c_str()));
+        }
+    }
 
     loaded_ = true;
     UtilityFunctions::print("[ForgeRunner.Native] SMS native bridge loaded.");
@@ -936,6 +1008,7 @@ void SmsBridge::unload() {
     invoke_fn_    = nullptr;
     dispose_fn_   = nullptr;
     set_ui_cb_fn_ = nullptr;
+    set_ui_string_cb_fn_ = nullptr;
     loaded_       = false;
 }
 

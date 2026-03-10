@@ -93,12 +93,17 @@ private:
         int (*)(const char*, const char*, const char*, char*, int),
         int (*)(const char*, const char*, const char*, char*, int, char*, int),
         char*, int);
+    using SetUiStringCbFn = int (*)(
+        int (*)(const char*, const char*, char*, int, char*, int),
+        int (*)(const char*, const char*, const char*, char*, int),
+        char*, int);
 
     CreateFn  create_fn_    = nullptr;
     LoadFn    load_fn_      = nullptr;
     InvokeFn  invoke_fn_    = nullptr;
     DisposeFn dispose_fn_   = nullptr;
     SetUiCbFn set_ui_cb_fn_ = nullptr;
+    SetUiStringCbFn set_ui_string_cb_fn_ = nullptr;
 };
 
 } // namespace forge

@@ -58,8 +58,11 @@ std::int64_t g_next_session_id = 1;
 sms_native_ui_get_prop_fn g_ui_get_prop = nullptr;
 sms_native_ui_set_prop_fn g_ui_set_prop = nullptr;
 sms_native_ui_invoke_fn g_ui_invoke = nullptr;
+sms_native_ui_get_string_prop_fn g_ui_get_string_prop = nullptr;
+sms_native_ui_set_string_prop_fn g_ui_set_string_prop = nullptr;
 sms_native_sandbox_path_allow_fn g_sandbox_path_allow = nullptr;
 constexpr int kBridgeJsonBufferSize = 65536;
+constexpr int kBridgeStringBufferSize = 262144;
 constexpr std::size_t kMaxInterpreterCallDepth = 1024;
 constexpr int kMaxSessionInvokeDepth = 3;
 
@@ -1066,6 +1069,21 @@ struct MemberAccessExpr final : Expr {
             if (g_ui_get_prop == nullptr) {
                 throw std::runtime_error("ui bridge unavailable.");
             }
+            if (member_ == "text" && g_ui_get_string_prop != nullptr) {
+                char out_text[kBridgeStringBufferSize] = {0};
+                char error[1024] = {0};
+                const auto string_rc = g_ui_get_string_prop(
+                    id_it->second.string_value.c_str(),
+                    member_.c_str(),
+                    out_text,
+                    static_cast<int>(sizeof(out_text)),
+                    error,
+                    static_cast<int>(sizeof(error)));
+                if (string_rc != 0) {
+                    throw std::runtime_error(error[0] != '\0' ? error : "ui get string failed");
+                }
+                return Value::String(out_text);
+            }
             char out_json[2048] = {0};
             char error[1024] = {0};
             const auto rc = g_ui_get_prop(
@@ -1849,6 +1867,20 @@ struct AssignStmt final : Stmt {
                 }
                 if (g_ui_set_prop == nullptr) {
                     throw std::runtime_error("ui bridge unavailable.");
+                }
+                if (member->member_ == "text" && g_ui_set_string_prop != nullptr) {
+                    char error[1024] = {0};
+                    const auto text = value_to_string(value);
+                    const auto string_rc = g_ui_set_string_prop(
+                        id_it->second.string_value.c_str(),
+                        member->member_.c_str(),
+                        text.c_str(),
+                        error,
+                        static_cast<int>(sizeof(error)));
+                    if (string_rc != 0) {
+                        throw std::runtime_error(error[0] != '\0' ? error : "ui set string failed");
+                    }
+                    return;
                 }
                 char error[1024] = {0};
                 const auto payload = value_to_json(value);
@@ -3238,6 +3270,20 @@ extern "C" int sms_native_set_ui_callbacks(
     g_ui_get_prop = get_prop;
     g_ui_set_prop = set_prop;
     g_ui_invoke = invoke;
+    if (get_prop == nullptr && set_prop == nullptr && invoke == nullptr) {
+        g_ui_get_string_prop = nullptr;
+        g_ui_set_string_prop = nullptr;
+    }
+    return 0;
+}
+
+extern "C" int sms_native_set_ui_string_callbacks(
+    sms_native_ui_get_string_prop_fn get_string_prop,
+    sms_native_ui_set_string_prop_fn set_string_prop,
+    char*,
+    int) {
+    g_ui_get_string_prop = get_string_prop;
+    g_ui_set_string_prop = set_string_prop;
     return 0;
 }
 
