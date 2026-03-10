@@ -48,6 +48,7 @@ endif()
 # ---------------------------------------------------------------------------
 add_library(forge_runner_native SHARED
     src/forge_asset_cache.cpp
+    src/forge_json_string.cpp
     src/forge_markdown.cpp
     src/forge_runner_extension.cpp
     src/forge_runner_main.cpp
@@ -85,6 +86,28 @@ add_executable(forge-runner-native
 )
 
 if(BUILD_TESTING)
+    add_executable(forge_runner_native_sms_text_codec_tests
+        tests/sms_text_codec_tests.cpp
+        src/forge_json_string.cpp
+    )
+
+    add_test(NAME forge_runner_native_sms_text_codec_tests
+        COMMAND forge_runner_native_sms_text_codec_tests)
+
+    set(FRN_SMS_TEXT_CODEC_CASES
+        sms_text_codec_decodes_multiline_html
+        sms_text_codec_real_fixture_qml_payload_roundtrip
+        sms_text_codec_real_fixture_generated_html_contains_expected_markup
+        sms_text_codec_decodes_unicode_escape
+        sms_text_codec_invalid_escape_falls_back
+        sms_text_codec_non_string_falls_back
+        sms_text_codec_perf_large_payload
+    )
+    foreach(CASE_NAME IN LISTS FRN_SMS_TEXT_CODEC_CASES)
+        add_test(NAME forge_runner_native_${CASE_NAME}
+            COMMAND forge_runner_native_sms_text_codec_tests ${CASE_NAME})
+    endforeach()
+
     add_executable(forge_runner_native_sms_error_policy_tests
         tests/sms_error_policy_tests.cpp
         src/forge_sms_error_policy.cpp
