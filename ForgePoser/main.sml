@@ -21,6 +21,9 @@ Window {
         PopupMenu {
             id: menuExport
             title: "Export"
+
+            Item { id: menuExportSaveFrame text: "Save Frame" }
+            Item { id: menuExportSaveVideo text: "Save Video" }
         }
     }
 

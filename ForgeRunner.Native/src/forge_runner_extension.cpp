@@ -51,6 +51,7 @@
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/gltf_document.hpp>
 #include <godot_cpp/classes/gltf_state.hpp>
+#include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/node.hpp>
@@ -60,6 +61,7 @@
 #include <godot_cpp/classes/shader_material.hpp>
 #include <godot_cpp/classes/rich_text_label.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/rendering_server.hpp>
 #include <godot_cpp/classes/skeleton3d.hpp>
 #include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/classes/sub_viewport.hpp>
@@ -84,6 +86,7 @@
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/classes/sub_viewport_container.hpp>
+#include <godot_cpp/classes/viewport_texture.hpp>
 #include <godot_cpp/classes/tab_bar.hpp>
 #include <godot_cpp/classes/tab_container.hpp>
 #include <godot_cpp/classes/display_server.hpp>
@@ -2799,6 +2802,9 @@ protected:
         ClassDB::bind_method(D_METHOD("setScenePropRot", "index", "x", "y", "z"), &ForgePosingEditorControl::set_scene_prop_rot);
         ClassDB::bind_method(D_METHOD("setScenePropScale", "index", "x", "y", "z"), &ForgePosingEditorControl::set_scene_prop_scale);
         ClassDB::bind_method(D_METHOD("placeSelectedOnGround", "groundY"), &ForgePosingEditorControl::place_selected_on_ground);
+        ClassDB::bind_method(D_METHOD("exportCurrentFramePng", "path"), &ForgePosingEditorControl::export_current_frame_png);
+        ClassDB::bind_method(D_METHOD("exportFrameRangePng", "frameFrom", "frameTo", "outputDirectory"), &ForgePosingEditorControl::export_frame_range_png);
+        ClassDB::bind_method(D_METHOD("startExportFrameRangePng", "frameFrom", "frameTo", "outputDirectory"), &ForgePosingEditorControl::start_export_frame_range_png);
 
         ClassDB::bind_method(D_METHOD("getSceneCharacterCount"), &ForgePosingEditorControl::get_scene_character_count);
         ClassDB::bind_method(D_METHOD("getScenePropCount"), &ForgePosingEditorControl::get_scene_prop_count);
@@ -2841,6 +2847,8 @@ protected:
         ADD_SIGNAL(MethodInfo("scenePropRemoved", PropertyInfo(Variant::INT, "index")));
         ADD_SIGNAL(MethodInfo("objectSelected", PropertyInfo(Variant::INT, "propIdx")));
         ADD_SIGNAL(MethodInfo("objectMoved", PropertyInfo(Variant::INT, "propIdx"), PropertyInfo(Variant::STRING, "pos")));
+        ADD_SIGNAL(MethodInfo("exportProgress", PropertyInfo(Variant::STRING, "filename"), PropertyInfo(Variant::INT, "percent")));
+        ADD_SIGNAL(MethodInfo("frameRangeExportFinished", PropertyInfo(Variant::INT, "written"), PropertyInfo(Variant::STRING, "outputDirectory")));
     }
 
 public:
@@ -2855,6 +2863,7 @@ public:
     }
 
     void _process(double) override {
+        process_frame_export_step();
         update_gizmo_visual();
     }
 
@@ -3237,10 +3246,12 @@ public:
         }
         file->store_string(text);
         file.unref();
+        last_project_path_ = path;
         return load_project(path);
     }
     bool load_project(const String& path) {
         if (path.is_empty()) return false;
+        last_project_path_ = path;
         UtilityFunctions::print(String("[ForgeRunner.Native] PosingEditor.loadProject: ") + path);
         ensure_viewport_scene();
         clear_scene_items();
@@ -3404,6 +3415,7 @@ public:
     }
     bool save_project(const String& path) {
         if (path.is_empty()) return false;
+        last_project_path_ = path;
         UtilityFunctions::print(String("[ForgeRunner.Native] PosingEditor.saveProject: ") + path);
         if (ForgeTimelineControl* timeline = resolve_timeline_control()) {
             UtilityFunctions::print(String("[ForgeRunner.Native] saveProject timeline fps=") +
@@ -3424,6 +3436,148 @@ public:
             return false;
         }
         file->store_string(get_project_text(path));
+        return true;
+    }
+
+    bool export_current_frame_png(const String& path) {
+        ensure_viewport_scene();
+        if (sub_viewport_ == nullptr) {
+            UtilityFunctions::push_warning("[ForgeRunner.Native] exportCurrentFramePng: viewport unavailable.");
+            return false;
+        }
+
+        const String resolved = resolve_export_path(path, false);
+        if (resolved.is_empty()) {
+            UtilityFunctions::push_warning("[ForgeRunner.Native] exportCurrentFramePng: output path is empty.");
+            return false;
+        }
+
+        const std::filesystem::path fs_path(resolved.utf8().get_data());
+        const std::filesystem::path parent = fs_path.parent_path();
+        if (!parent.empty()) {
+            std::error_code ec;
+            std::filesystem::create_directories(parent, ec);
+            if (ec) {
+                UtilityFunctions::push_warning(String("[ForgeRunner.Native] exportCurrentFramePng: could not create directory: ") + String(parent.string().c_str()));
+                return false;
+            }
+        }
+
+        const bool gizmo_was_visible = (gizmo_root_ != nullptr) && gizmo_root_->is_visible();
+        const bool marker_was_visible = (selection_marker_ != nullptr) && selection_marker_->is_visible();
+        if (gizmo_root_ != nullptr) {
+            gizmo_root_->set_visible(false);
+        }
+        if (selection_marker_ != nullptr) {
+            selection_marker_->set_visible(false);
+        }
+        clear_outline_materials();
+        if (RenderingServer::get_singleton() != nullptr) {
+            RenderingServer::get_singleton()->force_sync();
+            RenderingServer::get_singleton()->force_draw(false, 0.0);
+        }
+
+        bool ok = false;
+        Ref<ViewportTexture> texture = sub_viewport_->get_texture();
+        if (!texture.is_valid()) {
+            UtilityFunctions::push_warning("[ForgeRunner.Native] exportCurrentFramePng: viewport texture unavailable.");
+        } else {
+            Ref<Image> image = texture->get_image();
+            if (!image.is_valid()) {
+                UtilityFunctions::push_warning("[ForgeRunner.Native] exportCurrentFramePng: image capture failed.");
+            } else {
+                const Error err = image->save_png(resolved);
+                if (err != OK) {
+                    UtilityFunctions::push_warning(String("[ForgeRunner.Native] exportCurrentFramePng: save_png failed: ") + resolved);
+                } else {
+                    ok = true;
+                }
+            }
+        }
+
+        if (gizmo_was_visible) {
+            update_gizmo_visual();
+        } else if (gizmo_root_ != nullptr) {
+            gizmo_root_->set_visible(false);
+        }
+        if (selection_marker_ != nullptr) {
+            selection_marker_->set_visible(marker_was_visible);
+        }
+        update_selection_outline();
+        return ok;
+    }
+
+    int export_frame_range_png(int frame_from, int frame_to, const String& output_directory) {
+        ensure_viewport_scene();
+        const String resolved_dir = resolve_export_path(output_directory, true);
+        if (resolved_dir.is_empty()) {
+            UtilityFunctions::push_warning("[ForgeRunner.Native] exportFrameRangePng: output directory is empty.");
+            return 0;
+        }
+
+        std::error_code ec;
+        std::filesystem::create_directories(std::filesystem::path(resolved_dir.utf8().get_data()), ec);
+        if (ec) {
+            UtilityFunctions::push_warning(String("[ForgeRunner.Native] exportFrameRangePng: could not create directory: ") + resolved_dir);
+            return 0;
+        }
+
+        const int from = MAX(0, frame_from);
+        const int to = MAX(from, frame_to);
+
+        ForgeTimelineControl* timeline = resolve_timeline_control();
+        int written = 0;
+        for (int frame = from; frame <= to; ++frame) {
+            if (timeline != nullptr) {
+                timeline->set_current_frame(frame);
+            }
+
+            char name_buffer[32];
+            std::snprintf(name_buffer, sizeof(name_buffer), "frame_%04d.png", frame - from);
+            const String frame_name(name_buffer);
+            const String frame_path = resolved_dir.path_join(frame_name);
+            if (export_current_frame_png(frame_path)) {
+                written += 1;
+            }
+
+            const int total = to - from + 1;
+            const int percent = total > 0 ? static_cast<int>((static_cast<double>(frame - from + 1) * 100.0) / static_cast<double>(total)) : 100;
+            emit_signal("exportProgress", frame_name, percent);
+        }
+        return written;
+    }
+
+    bool start_export_frame_range_png(int frame_from, int frame_to, const String& output_directory) {
+        const String resolved_dir = resolve_export_path(output_directory, true);
+        if (resolved_dir.is_empty()) {
+            UtilityFunctions::push_warning("[ForgeRunner.Native] startExportFrameRangePng: output directory is empty.");
+            return false;
+        }
+        if (frame_export_active_) {
+            UtilityFunctions::push_warning("[ForgeRunner.Native] startExportFrameRangePng: export already active.");
+            return false;
+        }
+
+        std::error_code ec;
+        std::filesystem::create_directories(std::filesystem::path(resolved_dir.utf8().get_data()), ec);
+        if (ec) {
+            UtilityFunctions::push_warning(String("[ForgeRunner.Native] startExportFrameRangePng: could not create directory: ") + resolved_dir);
+            return false;
+        }
+
+        frame_export_from_ = MAX(0, frame_from);
+        frame_export_to_ = MAX(frame_export_from_, frame_to);
+        frame_export_current_ = frame_export_from_;
+        frame_export_written_ = 0;
+        frame_export_output_dir_ = resolved_dir;
+        frame_export_active_ = true;
+
+        auto it = forge::SmsBridge::id_map().find("statusLabel");
+        if (it != forge::SmsBridge::id_map().end()) {
+            if (Label* status = Object::cast_to<Label>(it->second)) {
+                status->set_text(String("Rendering frames ") + String::num_int64(frame_export_from_) + "..." + String::num_int64(frame_export_to_));
+            }
+        }
         return true;
     }
 
@@ -4038,6 +4192,30 @@ private:
             resolve_appres_root());
     }
 
+    String resolve_export_path(const String& raw_path, bool treat_as_directory) const {
+        const std::string raw = raw_path.utf8().get_data();
+        if (raw.empty()) {
+            return String();
+        }
+
+        std::string base_dir = ".";
+        if (!last_project_path_.is_empty()) {
+            base_dir = forge::dirname_copy(last_project_path_.utf8().get_data());
+        }
+
+        std::string resolved = forge::resolve_runtime_asset_path(raw, base_dir, resolve_appres_root());
+        if (resolved.empty()) {
+            return String();
+        }
+
+        // For file targets keep only parent directory creation later.
+        if (!treat_as_directory) {
+            return String(resolved.c_str());
+        }
+
+        return String(resolved.c_str());
+    }
+
     void clear_scene_items() {
         for (auto& item : characters_) {
             if (item.node != nullptr) {
@@ -4083,6 +4261,47 @@ private:
         auto it = forge::SmsBridge::id_map().find("timeline");
         if (it == forge::SmsBridge::id_map().end() || it->second == nullptr) return nullptr;
         return Object::cast_to<ForgeTimelineControl>(it->second);
+    }
+
+    void process_frame_export_step() {
+        if (!frame_export_active_) return;
+
+        if (frame_export_current_ > frame_export_to_) {
+            frame_export_active_ = false;
+            UtilityFunctions::print(String("[ForgeRunner.Native] frame export finished: written=") +
+                                    String::num_int64(frame_export_written_) +
+                                    " dir=" + frame_export_output_dir_);
+            emit_signal("frameRangeExportFinished", frame_export_written_, frame_export_output_dir_);
+            return;
+        }
+
+        if (ForgeTimelineControl* timeline = resolve_timeline_control()) {
+            timeline->set_current_frame(frame_export_current_);
+        }
+
+        char name_buffer[32];
+        std::snprintf(name_buffer, sizeof(name_buffer), "frame_%04d.png", frame_export_current_ - frame_export_from_);
+        const String frame_name(name_buffer);
+        const String frame_path = frame_export_output_dir_.path_join(frame_name);
+        if (export_current_frame_png(frame_path)) {
+            frame_export_written_ += 1;
+        }
+
+        const int total = frame_export_to_ - frame_export_from_ + 1;
+        const int done = frame_export_current_ - frame_export_from_ + 1;
+        const int percent = total > 0 ? static_cast<int>((static_cast<double>(done) * 100.0) / static_cast<double>(total)) : 100;
+        emit_signal("exportProgress", frame_name, percent);
+        auto it = forge::SmsBridge::id_map().find("statusLabel");
+        if (it != forge::SmsBridge::id_map().end()) {
+            if (Label* status = Object::cast_to<Label>(it->second)) {
+                status->set_text(String("Rendering frame ") +
+                                 String::num_int64(frame_export_current_) + "/" +
+                                 String::num_int64(frame_export_to_) + " (" +
+                                 String::num_int64(percent) + "%)");
+            }
+        }
+
+        frame_export_current_ += 1;
     }
 
     void refresh_external_bone_tree() {
@@ -5312,8 +5531,15 @@ private:
     String mode_ = "pose";
     String edit_mode_ = "rotate";
     String transform_space_ = "local";
+    String last_project_path_;
     String bone_tree_id_;
     bool joint_spheres_visible_ = true;
+    bool frame_export_active_ = false;
+    int frame_export_from_ = 0;
+    int frame_export_to_ = 0;
+    int frame_export_current_ = 0;
+    int frame_export_written_ = 0;
+    String frame_export_output_dir_;
     String selected_bone_name_;
     double selected_bone_rot_x_ = 0.0;
     double selected_bone_rot_y_ = 0.0;

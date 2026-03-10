@@ -72,8 +72,8 @@ var clipFrameTo = 0
 var clipExpectedFrames = 0
 var clipFramesDir = ""
 var clipFps = 24
-var clipSourceVideoPath = ""
-var clipStyledVideoPath = ""
+var clipOutputVideoPath = ""
+var clipExportMode = ""
 var themeNames = []
 var themeStylePaths = []
 var themeExtraPaths = []
@@ -960,6 +960,108 @@ fun onModelFileSelected(path) {
 }
 on ui.onModelFileSelected(path) {
     onModelFileSelected(path)
+}
+
+on menuExportSaveFrame.clicked() {
+    if (editor == null) {
+        statusLabel.text = "Editor not available."
+        return
+    }
+
+    var outputPath = "frame_capture.png"
+    var ok = editor.exportCurrentFramePng(outputPath)
+    if (ok == null || !ok) {
+        // Fallback path in case the runtime expects/creates an exports folder.
+        outputPath = "exports/frame_capture.png"
+        ok = editor.exportCurrentFramePng(outputPath)
+    }
+    if (ok != null && ok) {
+        statusLabel.text = "Saved frame: " + outputPath
+        log.info("Save frame succeeded: " + outputPath)
+    } else {
+        statusLabel.text = "Save frame failed (method/path). Check log."
+        log.info("Save frame failed (null/false) for paths: frame_capture.png and exports/frame_capture.png")
+    }
+}
+
+on menuExportSaveVideo.clicked() {
+    if (clipExportPending) {
+        statusLabel.text = "Video export already running."
+        return
+    }
+    if (editor == null || timeline == null) {
+        statusLabel.text = "Editor/timeline not available."
+        return
+    }
+
+    var frameFrom = 0
+    var frameTo = timeline.totalFrames
+    var maxFrameTo = frameFrom + 239
+    if (frameTo > maxFrameTo) {
+        frameTo = maxFrameTo
+    }
+
+    clipFramesDir = "exports/frames_" + frameFrom + "_" + frameTo
+    clipFrameFrom = frameFrom
+    clipFrameTo = frameTo
+    clipExpectedFrames = (frameTo - frameFrom) + 1
+    clipFps = 24
+    clipOutputVideoPath = "exports/clip_<version>.mp4"
+    clipExportMode = "saveVideo"
+    clipExportPending = true
+
+    statusLabel.text = "Rendering frames " + frameFrom + "..." + frameTo
+    var started = editor.startExportFrameRangePng(frameFrom, frameTo, clipFramesDir)
+    if (!started) {
+        clipExportPending = false
+        statusLabel.text = "Frame sequence render start failed."
+        clipExpectedFrames = 0
+        clipExportMode = ""
+    }
+}
+
+on editor.frameRangeExportFinished(written, outputDirectory) {
+    if (!clipExportPending || clipExportMode != "saveVideo") {
+        return
+    }
+
+    clipExportPending = false
+    if (written <= 1) {
+        statusLabel.text = "Frame sequence render failed."
+        clipExpectedFrames = 0
+        clipExportMode = ""
+        return
+    }
+
+    statusLabel.text = "Encoding video..."
+    var encodedPath = ai.createVideoFromFrames(outputDirectory, clipFps, clipOutputVideoPath, "frame_%04d.png")
+    if (encodedPath == null || encodedPath == "") {
+        statusLabel.text = "Video encoding failed."
+        log.error("Save video failed. Output dir: " + outputDirectory + " target: " + clipOutputVideoPath)
+    } else {
+        statusLabel.text = "Saved video: " + encodedPath
+        log.info("Save video finished: " + encodedPath)
+    }
+
+    clipExpectedFrames = 0
+    clipExportMode = ""
+}
+
+on editor.exportProgress(filename, percent) {
+    if (clipExportPending && clipExportMode == "saveVideo" && clipExpectedFrames > 0) {
+        var current = percent * clipExpectedFrames / 100
+        if (percent > 0 && current < 1) {
+            current = 1
+        }
+        if (current > clipExpectedFrames) {
+            current = clipExpectedFrames
+        }
+        var sourceFrame = clipFrameFrom + current - 1
+        if (sourceFrame < clipFrameFrom) {
+            sourceFrame = clipFrameFrom
+        }
+        statusLabel.text = "Rendering frame " + sourceFrame + "/" + clipFrameTo + " (" + percent + "%)"
+    }
 }
 
 // ── Scene panel ───────────────────────────────────────────────────────────────
