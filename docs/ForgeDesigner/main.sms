@@ -8,7 +8,7 @@ var treeVisitedPaths = []
 var treeDirectoryPaths = []
 var treeMaxDepth = 8
 
-fun ready() {
+on mainWindow.ready() {
     tree = ui.getObject("treeview")
     codeEdit = ui.getObject("codeEdit")
     mainWindow = ui.getObject("mainWindow")
@@ -18,8 +18,30 @@ fun ready() {
         return
     }
 
-    populateTree(tree, ".")
+    var rootPath = resolveTreeRootPath()
+    populateTree(tree, rootPath)
+    if (mainWindow != null) {
+        mainWindow.title = "ForgeDesigner - " + rootPath
+    }
+    log.info("ForgeDesigner tree root: " + rootPath)
     log.success("ForgeDesigner is ready. Shape your interface.")
+}
+
+fun resolveTreeRootPath() {
+    var roots = ["res:/"]
+    for (root in roots) {
+        try {
+            var entries = fs.list(root)
+            if (entries != null) {
+                for (entry in entries) {
+                    return root
+                }
+            }
+        } catch (e) {
+            // try next root
+        }
+    }
+    return "res:/"
 }
 
 fun openFloatingWindow() {
@@ -38,12 +60,12 @@ fun onSettingsWindowClosed() {
 }
 
 fun flushEditorToDiskAndPreview() {
-    var path = codeEdit.GetPath()
+    var path = selectedPath
     if (path == null || path == "") {
         return
     }
 
-    var content = codeEdit.GetText()
+    var content = codeEdit.text
     if (content == lastFlushedText) {
         return
     }
@@ -80,22 +102,53 @@ fun populateTreeChildren(treeObj, parentHandle, dirPath, depth) {
     treeVisitedPaths.add(dirPath)
 
     var entries = fs.list(dirPath)
+    if (entries == null) {
+        return
+    }
     for (entry in entries) {
-        if (entry.Name == ".DS_Store") {
+        var entryName = ""
+        var entryPath = ""
+        var entryIsDirectory = false
+
+        // Runtime can return either object entries ({Name,Path,IsDirectory})
+        // or plain file names (string). Support both.
+        try {
+            entryName = entry.Name
+            entryPath = entry.Path
+            entryIsDirectory = entry.IsDirectory
+        } catch (e) {
+            entryName = entry
+            var sep = "/"
+            if (dirPath == "res:/" || dirPath == "appRes:/") {
+                sep = ""
+            }
+            entryPath = dirPath + sep + entryName
+
+            // Probe directory-ness for string-only list entries.
+            var probe = null
+            try {
+                probe = fs.list(entryPath)
+            } catch (e2) {
+                probe = null
+            }
+            entryIsDirectory = probe != null
+        }
+
+        if (entryName == ".DS_Store") {
             continue
         }
 
-        var child = treeObj.CreateChild(parentHandle, entry.Name, entry.Path, entry.IsDirectory)
-        if (entry.IsDirectory) {
-            treeDirectoryPaths.add(entry.Path)
-            populateTreeChildren(treeObj, child, entry.Path, depth + 1)
+        var child = treeObj.CreateChild(parentHandle, entryName, entryPath, entryIsDirectory)
+        if (entryIsDirectory) {
+            treeDirectoryPaths.add(entryPath)
+            populateTreeChildren(treeObj, child, entryPath, depth + 1)
         }
     }
 }
 
 on treeview.itemSelected() {
     var itemPath = tree.GetSelectedPath()
-    log.debug("treeview.itemSelected -> path='${itemPath}'")
+    log.debug("treeview.itemSelected -> path='" + itemPath + "'")
 
     if (itemPath == null || itemPath == "") {
         return
@@ -108,10 +161,9 @@ on treeview.itemSelected() {
     if (fs.exists(itemPath)) {
         selectedPath = itemPath
         isLoadingEditor = true
-        codeEdit.SetPath(itemPath)
-        codeEdit.SetText(fs.readText(itemPath))
+        codeEdit.text = fs.readText(itemPath)
         isLoadingEditor = false
-        lastFlushedText = codeEdit.GetText()
+        lastFlushedText = codeEdit.text
     }
 }
 
@@ -133,9 +185,8 @@ fun onDesignerSaveAsSelected(path) {
     }
 
     selectedPath = path
-    codeEdit.SetPath(path)
     flushEditorToDiskAndPreview()
-    log.success("Saved As: ${path}")
+    log.success("Saved As: " + path)
 }
 
 on settings.clicked() {

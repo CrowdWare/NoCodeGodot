@@ -8,7 +8,8 @@ var tabUpdates  = null
 //var pageDiscover = null
 //var pageUpdates = null
 
-fun ready() {
+on mainWindow.ready() {
+    log.info("ready called")
     tabStart  = ui.getObject("tabStart")
     tabLearn  = ui.getObject("tabLearn")
     tabDiscover = ui.getObject("tabDiscover")
@@ -21,6 +22,7 @@ fun ready() {
 
     activateTab(0)
     log.success("ForgeRunner is ready. Start exploring.")
+    log.warn("This is a warning")
 }
 
 fun activateTab(index) {
