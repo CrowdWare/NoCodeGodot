@@ -22,5 +22,7 @@ This document is informational and not legal advice.
 
 ## Commercial License Contact
 
-For commercial licensing inquiries, contact CrowdWare.
+For commercial licensing inquiries, contact CrowdWare:
 
+- Website: https://crowdware.info/
+- Email: japp.olaf@gmail.com
