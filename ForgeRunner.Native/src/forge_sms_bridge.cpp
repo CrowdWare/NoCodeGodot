@@ -25,6 +25,7 @@
 
 #include "forge_sms_bridge.h"
 #include "forge_sms_error_policy.h"
+#include "forge_json_string.h"
 #include "forge_path_resolver.h"
 
 #include <algorithm>
@@ -59,6 +60,7 @@
 #include <godot_cpp/classes/main_loop.hpp>
 #include <godot_cpp/classes/option_button.hpp>
 #include <godot_cpp/classes/progress_bar.hpp>
+#include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/classes/rich_text_label.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/scroll_container.hpp>
@@ -421,7 +423,8 @@ static int sms_ui_set(
     if (prop == "visible") {
         ctrl->set_visible(value == "true" || value == "1");
     } else if (prop == "text") {
-        const String t(json_unquote(value).c_str());
+        const std::string decoded = forge::decode_json_string_or_fallback(value);
+        const String t(decoded.c_str());
         if      (auto* l   = Object::cast_to<Label>(ctrl))         l->set_text(t);
         else if (auto* b   = Object::cast_to<Button>(ctrl))        b->set_text(t);
         else if (auto* le  = Object::cast_to<LineEdit>(ctrl))      le->set_text(t);
@@ -473,6 +476,109 @@ static int sms_ui_invoke(
         } else {
             UtilityFunctions::print(String(msg.c_str()));
         }
+        write_out(out_json, out_cap, "null");
+        return 0;
+    }
+
+    if (id == "__fs__") {
+        bool parsed_ok = false;
+        const Variant parsed = parse_json_variant(args, &parsed_ok);
+        const Array arr = (parsed_ok && parsed.get_type() == Variant::ARRAY) ? static_cast<Array>(parsed) : Array();
+        auto arg_string = [&](int idx) -> std::string {
+            if (idx < 0 || idx >= arr.size()) return {};
+            return static_cast<String>(arr[idx]).utf8().get_data();
+        };
+
+        auto resolve_fs_path = [&](const std::string& raw) -> std::string {
+            if (raw.empty()) return {};
+            if (raw.rfind("user:/", 0) == 0) {
+                String user_uri = String("user://") + String(raw.substr(6).c_str());
+                if (ProjectSettings::get_singleton() != nullptr) {
+                    return std::string(ProjectSettings::get_singleton()->globalize_path(user_uri).utf8().get_data());
+                }
+            }
+            return forge::resolve_runtime_asset_path(
+                raw,
+                app_url_base_dir().utf8().get_data(),
+                appres_root_dir().utf8().get_data());
+        };
+
+        auto join_display_path = [&](const std::string& base, const std::string& name) -> std::string {
+            const bool is_uri = base.rfind("res:/", 0) == 0
+                || base.rfind("appRes:/", 0) == 0
+                || base.rfind("user:/", 0) == 0;
+            if (is_uri) {
+                if (base == "res:/" || base == "appRes:/" || base == "user:/") {
+                    return base + name;
+                }
+                return base + "/" + name;
+            }
+            return (fs::path(base) / name).string();
+        };
+
+        if (mname == "exists" && arr.size() >= 1) {
+            const std::string resolved = resolve_fs_path(arg_string(0));
+            const bool exists = !resolved.empty() && fs::exists(fs::path(resolved));
+            write_out(out_json, out_cap, exists ? "true" : "false");
+            return 0;
+        }
+
+        if (mname == "readText" && arr.size() >= 1) {
+            const std::string resolved = resolve_fs_path(arg_string(0));
+            std::ifstream in(resolved, std::ios::binary);
+            std::string content;
+            if (in.is_open()) {
+                std::ostringstream ss;
+                ss << in.rdbuf();
+                content = ss.str();
+            }
+            write_out(out_json, out_cap, json_string(content));
+            return 0;
+        }
+
+        if (mname == "writeText" && arr.size() >= 2) {
+            const std::string resolved = resolve_fs_path(arg_string(0));
+            bool ok = false;
+            if (!resolved.empty()) {
+                std::error_code ec;
+                fs::create_directories(fs::path(resolved).parent_path(), ec);
+                std::ofstream out(resolved, std::ios::binary | std::ios::trunc);
+                if (out.is_open()) {
+                    out << arg_string(1);
+                    ok = static_cast<bool>(out);
+                }
+            }
+            write_out(out_json, out_cap, ok ? "true" : "false");
+            return 0;
+        }
+
+        if (mname == "list" && arr.size() >= 1) {
+            const std::string base_input = arg_string(0);
+            const std::string resolved = resolve_fs_path(base_input);
+            std::error_code ec;
+            std::ostringstream json;
+            json << "[";
+            bool first = true;
+            if (!resolved.empty()) {
+                for (const auto& entry : fs::directory_iterator(fs::path(resolved), ec)) {
+                    if (ec) break;
+                    const std::string name = entry.path().filename().string();
+                    const std::string child_path = join_display_path(base_input, name);
+                    const bool is_dir = entry.is_directory(ec);
+                    if (!first) json << ",";
+                    first = false;
+                    json << "{"
+                         << "\"Name\":" << json_string(name) << ","
+                         << "\"Path\":" << json_string(child_path) << ","
+                         << "\"IsDirectory\":" << (is_dir ? "true" : "false")
+                         << "}";
+                }
+            }
+            json << "]";
+            write_out(out_json, out_cap, json.str());
+            return 0;
+        }
+
         write_out(out_json, out_cap, "null");
         return 0;
     }
