@@ -74,35 +74,7 @@
 ## Use Cases
 
 ## Tasks Forge-Runner
-- [x] tasks/markdown_layout.md
-- [x] tasks/animation_panel.md
-- [x] tasks/animation_panel.md / phase 3
-- [x] tasks/animation_panel.md / phase 4 still open
-- [x] tasks/timeline_scrubber.md
-- [x] tasks/scene_panel.md
-- [x] tasks/sms_parser_multiline_function_calls.md
-- [x] tasks/toolbar.md
-- [x] tasks/rotate_gizmo.md
-- [x] tasks/viewport_code.md
-- [x] tasks/smlcore_cpp_native_runtime.md
-- [x] tasks/sms_cpp_native_runtime.md
-- [x] tasks/sms_language_spec_2026_native.md
-- [ ] tasks/forgerunner_cpp_native_runtime.md
-- [x] tasks/native_schema_codegen.md
-- [x] tasks/native_sms_ui_bridge.md
-- [x] tasks/native_splash_main_transition.md
-- [x] tasks/native_theme_localization.md
-- [x] tasks/native_bg_containers.md
-- [x] tasks/native_post_build_pass.md
-- [x] tasks/native_asset_download_cache.md
-- [x] tasks/native_docking_improvements.md
-- [x] tasks/native_markdown_container.md
-- [x] tasks/native_syntax_highlighting.md
-- [ ] tasks/native_3d_tools_port.md
-- [ ] tasks/native_plugin_hosting.md
-- [ ] tasks/sms_to_cpp_transpiler_local_apps.md
-- [ ] tasks/native_release_no_json_bridge.md
-- [ ] tasks/source_of_truth_self_hosted_git_mirror.md
+- [ ] tasks/pose_library_and_retarget_workflow.md
 
 
 ## Future Tasks

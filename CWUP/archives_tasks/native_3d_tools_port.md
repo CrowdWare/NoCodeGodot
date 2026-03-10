@@ -1,5 +1,9 @@
 # Native 3D Tools Port (Timeline / PosingEditor / Gizmos)
 
+## Status
+- [x] Done (2026-03-10): Native 3D tools are functionally complete for current delivery scope.
+- Remaining items are minor polish/details with low delivery risk.
+
 ## Goal
 Port the 3D posing and animation tools from C# to C++ GDExtension so that
 `ForgePoser` can run on `ForgeRunner.Native` without any C# dependency.

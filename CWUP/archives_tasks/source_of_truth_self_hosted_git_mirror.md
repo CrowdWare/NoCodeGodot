@@ -1,5 +1,8 @@
 # Source Of Truth: Self-Hosted Git, GitHub As Mirror (No PR Flow)
 
+## Status
+- [x] Done (2026-03-10): `codeberg.org/CrowdWare/Forge4D` is the source of truth (`origin`), GitHub is mirror remote.
+
 ## Goal
 Move the Forge repository workflow to a self-hosted Git platform as the single
 source of truth. Keep GitHub as a read-only/public mirror and marketing channel.

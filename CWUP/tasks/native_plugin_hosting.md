@@ -1,5 +1,8 @@
 # Native Plugin Hosting
 
+## Status
+- [ ] Postponed / Deferred (2026-03-10): Plugin capabilities are deprioritized in favor of command-first CLI workflows.
+
 ## Goal
 Port the runtime plugin system from C# (`Main.cs`, lines 677–992) to C++ so that
 `ForgeRunner.Native` can discover, load, and host SML/SMS-based plugins from a

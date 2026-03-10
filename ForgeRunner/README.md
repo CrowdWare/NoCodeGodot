@@ -185,6 +185,37 @@ Built-in UI controls for:
 
 ---
 
+## Navigation Profiles (Global ForgeRunner Standard)
+
+Navigation behavior is defined once in ForgeRunner and reused by all apps (Designer, Poser, and future tools).
+This keeps muscle-memory workflows consistent and avoids per-app input drift.
+
+### Supported Profiles
+	•	`wow`
+	•	`unreal`
+	•	`blender`
+	•	`maya`
+	•	`autodesk`
+
+### Design Rules
+	1.	Use one internal action vocabulary for camera/navigation (for example: `camera.move.forward`, `camera.look.delta`, `camera.speed.up`).
+	2.	Profiles are mapping layers only (keys/buttons/modifiers), not separate logic implementations.
+	3.	Profile switching must be runtime-safe and persisted per user.
+	4.	Input capture must be focus-aware (never steal keys from text fields or terminal input).
+	5.	Behavior must stay deterministic for CLI and automation parity.
+
+### WoW/UE Familiar Baseline
+	•	RMB hold: freelook
+	•	`W/A/S/D`: forward/left/back/right
+	•	`Q/E`: down/up
+	•	`Shift`: fast move
+	•	`Ctrl` (optional): precision/slow move
+	•	Mouse wheel: movement speed
+
+This baseline intentionally follows established gamer muscle memory to reduce onboarding friction.
+
+---
+
 ## Input & Interaction Model
 	•	Godot input system is used directly
 	•	UI and 3D interactions coexist

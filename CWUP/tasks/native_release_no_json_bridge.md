@@ -1,5 +1,9 @@
 # Native Release Cleanup: No JSON Fallback In Hot Path
 
+## Status
+- [ ] Postponed / Deferred (2026-03-10): Not a blocker for current delivery and CLI-first workflow focus.
+- Re-entry trigger: profile-driven need on `release_local` path (performance/call telemetry indicates JSON fallback as measurable hotspot).
+
 ## Goal
 For local-only production builds (especially with SMS -> C++ transpilation), remove JSON-based UI bridge fallbacks from runtime hot paths.
 

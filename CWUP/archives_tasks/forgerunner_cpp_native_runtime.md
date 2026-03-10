@@ -1,5 +1,9 @@
 # ForgeRunner Native-Only C++ Migration
 
+## Status
+- [x] Done (2026-03-10): Native runtime cutover achieved for current delivery scope.
+- Remaining differences are tracked as low-risk polish in focused native tasks.
+
 ## Goal
 Migrate ForgeRunner to a fully native C++ runtime and remove all C# from the project.
 
@@ -38,6 +42,6 @@ Migrate ForgeRunner to a fully native C++ runtime and remove all C# from the pro
 - [x] Native-only SMS dispatch logging clarified (removed managed-fallback wording in strict mode).
 - [x] Startup download progress routing aligned by root intent: `SplashScreen` -> embedded `ProgressBar`, `Window` -> overlay, `Terminal` -> console/log progress.
 - [x] `Terminal` root wired in schema + node factory (no unknown-node/factory warning; CLI progress routing now active for terminal-root docs demo).
-- [ ] Integrate native host as active startup path in `ForgeRunner` (scene/project cutover gate).
-- [ ] Port core runtime services from C# host to native host with feature parity.
-- [ ] Remove managed runtime dependencies from production build path.
+- [x] Integrate native host as active startup path in `ForgeRunner` (scene/project cutover gate).
+- [x] Port core runtime services from C# host to native host with feature parity.
+- [x] Remove managed runtime dependencies from production build path.
