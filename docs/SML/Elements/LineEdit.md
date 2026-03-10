@@ -4,6 +4,12 @@
 
 [LineEdit](LineEdit.md) → [Control](Control.md) → [CanvasItem](CanvasItem.md) → [Node](Node.md) → [Object](Object.md)
 
+## Derived Classes
+
+### Direct subclasses
+
+- [ForgeNumberPickerControl](ForgeNumberPickerControl.md)
+
 ## Properties
 
 This page lists **only properties declared by `LineEdit`**.

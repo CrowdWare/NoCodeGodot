@@ -33,6 +33,9 @@ Inherited actions are documented in: [Control](Control.md)
 | play | `<id>.play()` | — | void |
 | stop | `<id>.stop()` | — | void |
 | setKeyframe | `<id>.setKeyframe(frame, poseData)` | int frame, object poseData | void |
+| setKeyframeBone | `<id>.setKeyframeBone(frame, poseData, boneName)` | int frame, object poseData, string boneName | void |
+| setKeyframeMove | `<id>.setKeyframeMove(frame)` | int frame | void |
+| setKeyframeRotate | `<id>.setKeyframeRotate(frame)` | int frame | void |
 | removeKeyframe | `<id>.removeKeyframe(frame)` | int frame | void |
 | getPoseAt | `<id>.getPoseAt(frame)` | int frame | object |
 | getKeyframeCount | `<id>.getKeyframeCount()` | — | int |

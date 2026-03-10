@@ -67,6 +67,8 @@ Inherited actions are documented in: [SubViewportContainer](SubViewportContainer
 | rebaseSelectedPivotBottom | `<id>.rebaseSelectedPivotBottom()` | — | bool |
 | getPoseDataForCharacter | `<id>.getPoseDataForCharacter(characterId)` | string characterId | object |
 | getPoseDataForActiveCharacter | `<id>.getPoseDataForActiveCharacter()` | — | object |
+| getPoseDataForBone | `<id>.getPoseDataForBone(boneName)` | string boneName | object |
+| getPoseDataForSelectedBone | `<id>.getPoseDataForSelectedBone()` | — | object |
 | setMode | `<id>.setMode(mode)` | string mode | void |
 | setEditMode | `<id>.setEditMode(mode)` | string mode | void |
 | exportGlb | `<id>.exportGlb(path, includeAnimation, includeProps, animationOnlyCharacter)` | string path, bool includeAnimation, bool includeProps, bool animationOnlyCharacter | bool |

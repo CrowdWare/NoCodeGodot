@@ -1,5 +1,5 @@
 Manifest {
-    version: "auto-8dabfa521a25dfe3"
+    version: "auto-2a8b6de599c82d6f"
     entry: "app.sml"
 
     Files {
@@ -12,7 +12,7 @@ Manifest {
         File { path: "assets/models/Idle.glb" hash: "sha256:04256048b90464c614f1513af92389cd76f59bb3bcb7fd6f7c54e16d62197a01" size: 8693124 }
         File { path: "assets/models/Opa.glb" hash: "sha256:12122dcd6f64f6f9ac215ddac5206e91efd546625aae8d6f15ddc5e7bfc7d823" size: 45922076 }
         File { path: "main.sml" hash: "sha256:f76983da90c96b3c1780d3ab600d815c6c9c99c3eb14ca8656432037e9bd766d" size: 8778 }
-        File { path: "main.sms" hash: "sha256:2a4bbac4f2b5d22b44cdc089346f8b4acd0f63ef669218eaea1da1df506d37b0" size: 1394 }
+        File { path: "main.sms" hash: "sha256:6c1018cd2acd4954c9b4ea5e87fb5f4b25ea3f4b22d72cf5888658455fa872af" size: 1467 }
         File { path: "sample.md" hash: "sha256:3d56a90dd760aad476785805cc55f53b75f728b8991cd7b47c7d33366b3a4226" size: 179 }
         File { path: "strings-de.sml" hash: "sha256:1077a743597ba2be04ba870df4015dc0ec36a07da2cc47c170cea81819ca30c8" size: 480 }
         File { path: "strings-es.sml" hash: "sha256:18508aa453bff9c01117d8fd3d06aea4cd0a4ad8311b7d6be1934ac37a8d7227" size: 493 }

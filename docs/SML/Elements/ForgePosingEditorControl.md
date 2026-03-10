@@ -22,6 +22,8 @@ Inherited signals are documented in: [SubViewportContainer](SubViewportContainer
 | Godot Signal | SMS Event | Params |
 |-|-|-|
 | boneSelected | `on <id>.boneSelected(boneName) { ... }` | string boneName |
+| exportProgress | `on <id>.exportProgress(filename, percent) { ... }` | string filename, int percent |
+| frameRangeExportFinished | `on <id>.frameRangeExportFinished(written, outputDirectory) { ... }` | int written, string outputDirectory |
 | objectMoved | `on <id>.objectMoved(propIdx, pos) { ... }` | int propIdx, string pos |
 | objectSelected | `on <id>.objectSelected(propIdx) { ... }` | int propIdx |
 | poseChanged | `on <id>.poseChanged(boneName) { ... }` | string boneName |
@@ -39,8 +41,12 @@ Inherited actions are documented in: [SubViewportContainer](SubViewportContainer
 | addGreyboxItem | `<id>.addGreyboxItem(kind, x, y, z)` | string kind, float x, float y, float z | int |
 | addSceneAsset | `<id>.addSceneAsset(path, x, y, z)` | string path, float x, float y, float z | int |
 | applyProjectText | `<id>.applyProjectText(path, text, sync)` | string path, string text, bool sync | bool |
+| exportCurrentFramePng | `<id>.exportCurrentFramePng(path)` | string path | bool |
+| exportFrameRangePng | `<id>.exportFrameRangePng(frameFrom, frameTo, outputDirectory)` | int frameFrom, int frameTo, string outputDirectory | int |
 | getActiveCharacterId | `<id>.getActiveCharacterId()` | — | string |
 | getPoseDataForActiveCharacter | `<id>.getPoseDataForActiveCharacter()` | — | Variant |
+| getPoseDataForBone | `<id>.getPoseDataForBone(boneName)` | string boneName | Variant |
+| getPoseDataForSelectedBone | `<id>.getPoseDataForSelectedBone()` | — | Variant |
 | getProjectText | `<id>.getProjectText(path)` | string path | string |
 | getSceneCharacterCount | `<id>.getSceneCharacterCount()` | — | int |
 | getSceneCharacterId | `<id>.getSceneCharacterId(index)` | int index | string |
@@ -100,6 +106,7 @@ Inherited actions are documented in: [SubViewportContainer](SubViewportContainer
 | setSelectedBoneRot | `<id>.setSelectedBoneRot(x, y, z)` | float x, float y, float z | void |
 | setTransformSpace | `<id>.setTransformSpace(space)` | string space | void |
 | set_show_bone_tree | `<id>.setShowBoneTree(value)` | bool value | void |
+| startExportFrameRangePng | `<id>.startExportFrameRangePng(frameFrom, frameTo, outputDirectory)` | int frameFrom, int frameTo, string outputDirectory | bool |
 
 ## Attached Properties
 

@@ -45,10 +45,17 @@ Inherited actions are documented in: [SubViewportContainer](SubViewportContainer
 | getPoseAt | `<id>.getPoseAt(frame)` | int frame | void |
 | get_current_frame_prop | `<id>.getCurrentFrameProp()` | — | int |
 | get_total_frames | `<id>.getTotalFrames()` | — | int |
+| hasKeyframeAt | `<id>.hasKeyframeAt(frame)` | int frame | bool |
+| isPlaying | `<id>.isPlaying()` | — | bool |
+| play | `<id>.play()` | — | void |
+| removeKeyframe | `<id>.removeKeyframe(frame)` | int frame | void |
 | setCurrentFrame | `<id>.setCurrentFrame(frame)` | int frame | void |
+| setKeyframeMove | `<id>.setKeyframeMove(frame)` | int frame | void |
+| setKeyframeRotate | `<id>.setKeyframeRotate(frame)` | int frame | void |
 | setVisibleCharacterId | `<id>.setVisibleCharacterId(characterId)` | string characterId | void |
 | set_current_frame_prop | `<id>.setCurrentFrameProp(value)` | int value | void |
 | set_total_frames | `<id>.setTotalFrames(value)` | int value | void |
+| stop | `<id>.stop()` | — | void |
 
 ## Attached Properties
 

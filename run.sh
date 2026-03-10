@@ -226,7 +226,7 @@ resolve_godot_bin() {
 
 try_local_mode_override() {
   if ! declare -F forge_local_handle_mode >/dev/null 2>&1; then
-    return 1
+    return 2
   fi
 
   case "$MODE" in
@@ -235,7 +235,7 @@ try_local_mode_override() {
       return $?
       ;;
     *)
-      return 1
+      return 2
       ;;
   esac
 }
@@ -327,6 +327,11 @@ fi
 
 if try_local_mode_override "$@"; then
   exit 0
+else
+  local_override_rc=$?
+  if [[ $local_override_rc -ne 2 ]]; then
+    exit "$local_override_rc"
+  fi
 fi
 
 case "$MODE" in
