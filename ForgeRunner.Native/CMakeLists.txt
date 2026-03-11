@@ -11,7 +11,8 @@ include(CTest)
 # godot-cpp
 # ---------------------------------------------------------------------------
 if(NOT DEFINED GODOT_CPP_DIR OR GODOT_CPP_DIR STREQUAL "")
-    message(FATAL_ERROR "GODOT_CPP_DIR is required (path to godot-cpp checkout).")
+    set(GODOT_CPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/godot-cpp")
+    message(STATUS "GODOT_CPP_DIR not set — using bundled: ${GODOT_CPP_DIR}")
 endif()
 
 set(GODOT_CPP_GEN_DIR     "${GODOT_CPP_DIR}/gen")
