@@ -75,6 +75,7 @@
 
 ## Tasks Forge-Runner
 - [ ] tasks/pose_library_and_retarget_workflow.md
+- [ ] tasks/partial.md
 
 
 ## Future Tasks

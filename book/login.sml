@@ -1,0 +1,3 @@
+Window {
+    Button { text: "Login" }
+}
