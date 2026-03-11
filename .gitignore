@@ -116,3 +116,8 @@ ForgeRunner.Native/src/generated/
 # =========================================================
 third_party/godot-cpp/bin/
 third_party/godot-cpp/gen/
+
+# =========================================================
+# Godot binary downloaded by scripts/setup_godot.sh
+# =========================================================
+.godot-bin/

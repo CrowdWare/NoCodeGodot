@@ -197,6 +197,22 @@ resolve_godot_bin() {
     echo "$GODOT_BIN"
     return 0
   fi
+  # Bundled via scripts/setup_godot.sh
+  local bundled_macos="$REPO_ROOT/.godot-bin/Godot_mono.app/Contents/MacOS/Godot"
+  if [[ -x "$bundled_macos" ]]; then
+    echo "$bundled_macos"
+    return 0
+  fi
+  local bundled_linux_x64="$REPO_ROOT/.godot-bin/Godot_v4.6-stable_mono_linux_x86_64/Godot_v4.6-stable_mono_linux_x86_64"
+  if [[ -x "$bundled_linux_x64" ]]; then
+    echo "$bundled_linux_x64"
+    return 0
+  fi
+  local bundled_linux_arm64="$REPO_ROOT/.godot-bin/Godot_v4.6-stable_mono_linux_arm64/Godot_v4.6-stable_mono_linux_arm64"
+  if [[ -x "$bundled_linux_arm64" ]]; then
+    echo "$bundled_linux_arm64"
+    return 0
+  fi
   if command -v godot4 >/dev/null 2>&1; then
     command -v godot4
     return 0
@@ -260,7 +276,7 @@ run_native_window_host() {
   local godot_bin
   if ! godot_bin="$(resolve_godot_bin)"; then
     echo "ERROR: Godot binary not found." >&2
-    echo "Set GODOT_BIN or install a 'godot4'/'godot' executable in PATH." >&2
+    echo "Run ./scripts/setup_godot.sh to download the correct version automatically." >&2
     return 1
   fi
 
@@ -391,7 +407,7 @@ case "$MODE" in
     docs_godot_bin=""
     if ! docs_godot_bin="$(resolve_godot_bin)"; then
       echo "ERROR: Godot binary not found." >&2
-      echo "Set GODOT_BIN or install a 'godot4'/'godot' executable in PATH." >&2
+      echo "Run ./scripts/setup_godot.sh to download the correct version automatically." >&2
       exit 1
     fi
     echo "Generating SML element docs..."
