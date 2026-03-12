@@ -41,6 +41,12 @@ The Forge-Runner interprets this description and executes it on the target platf
 - ForgePoser: [ForgePoser/README.md](ForgePoser/README.md)
 - Contribution model: [CONTRIBUTING.md](CONTRIBUTING.md)
 
+### Related Tools
+
+- **Forge STA (Speech To Action)** – voice driven workflow tool that converts speech into structured commands or prompts using Whisper.cpp and CLI post‑processing.  
+  Speech → Whisper → CLI → structured output → application or AI pipeline.  
+  Repository: https://codeberg.org/CrowdWare/ForgeSTA
+
 ---
 
 ## 📜 Licensing
