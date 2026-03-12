@@ -14,9 +14,9 @@
 - Used it to experiment with visual styling, cubes, buttons, and interface elements
 - This experience strongly influenced later thinking about **UI styling, visual systems, and design-driven application development**
 - Motivation: building applications that look as beautiful and usable as early **iPhone apps**
-- Strong influence from the design philosophy of entity["people","Steve Jobs","Apple co‑founder"] and Apple's focus on user experience
+- Strong influence from the design philosophy of Steve Jobs and Apple's focus on user experience
 - Studied **Human‑Computer Interaction / Interaction Design**, combining software engineering with design principles
-- Deeply influenced by the book **entity["book","The Design of Everyday Things"]** by entity["people","Don Norman"]
+- Deeply influenced by the book **The Design of Everyday Things** by Don Norman
 - One exercise from this design thinking later inspired the **Liquid Microcoins (LMC)** concept, including the idea of interacting with time through rotating clock hands to represent work minutes
 
 ## ~1987 (Age ~23) – First Real Programming
@@ -38,6 +38,7 @@
   - Java interpreter written in Java used as **GUI glue**
 - System was actually used in production
 - Result: extremely fast **time‑to‑market** (bug fixes and changes sometimes deployed the next day)
+- **The idea had no name yet. But it was already alive.**
 
 ## Webdesign Studies (SGD Darmstadt)
 - Studied Webdesign to deepen understanding of web technologies
@@ -75,32 +76,65 @@ Result:
 - The original idea (application platform / UI system) did not disappear
 - It simply waited for the right moment and technology
 
-## Iteration Years
-Exploration of different technologies and ideas:
-- Game development ideas
-- Raid Simulator concept
-- Experiments with
-  - Unreal Engine
-  - Unity
-  - Godot
-  - Vulkan
+---
 
-These explorations eventually led back to **Godot**.
+## The Detour That Wasn't a Detour
+*This is the part most people skip in their story. They shouldn't.*
+
+### Kotlin / Compose – The NoCode Designer Attempt
+- Attempted to build a **NoCode Designer** using **Kotlin and Jetpack Compose**
+- Gradle pulled in massive amounts of libraries and tools automatically
+- Many dependencies were unknown: open source? alpha? stable? licensed how?
+- No clear overview of what was actually in the project
+- Licensing became a minefield: transitive GPL dependencies could silently break a dual-licensing model
+- The complexity and lack of transparency became a blocker
+- **The Gradle problem: you think you're building a project. Gradle thinks it's Christmas.**
+
+### Game Development Exploration
+- Parallel exploration of **game development** as a creative and technical outlet
+- Tried **Unreal Engine** – too complex, too heavy for the intended purpose
+- Tried **Unity** – commercial licensing concerns, ecosystem uncertainty
+- Tried **Vulkan** – too low-level, too much boilerplate for application development
+- Tried **Dear ImGUI** – functional but minimal, not suitable for rich application UIs
+
+### The Godot Discovery
+- Came across **Godot Engine** during the game development exploration
+- Immediate observation: **Godot's UI system was significantly better than Compose**
+- Better than Dear ImGUI
+- Clean, node-based, visual, fast
+- Key realization: *this is not just a game engine – this is the best UI framework I have ever worked with*
+- Most developers look at Godot and see a game engine
+- The insight here was different: **Godot is an application platform waiting to be used as one**
+- MIT licensed – clean, permissive, no hidden traps
+- This was not a planned decision. It was discovered through experience.
+- **Intuition, guided by frustration, found the right tool.**
+
+---
 
 ## ~28 Days Ago – Birth of Forge
 - **February 10** – Started the **Forge** project
 - Within the first days rapid progress happened due to iteration and AI-assisted development
 
-Forge concept:
-
 ### Early Milestone
 - **Friday the 13th (February)** – First clear **USP milestone** reached
-- Forge was already able to **render greybox scenes and send frames to Grok for style rendering**
+- Forge was already able to **render greybox scenes and send frames to Groq for style rendering**
 - This proved the core concept: rapid scene creation in Forge followed by AI-based visual styling
 - Marked the moment when the idea of Forge as a **previsualization / mockup pipeline for AI rendering** became tangible
 
+Forge concept:
 - **SML** – Simple Markup Language (UI structure)
 - **SMS** – Simple Multiplatform Script (logic)
+
+### The 28-Day Build
+- SML Parser written in C# (Codex)
+- SMS Parser and Interpreter written in C# (Codex)
+- Full migration from 41,000 lines C# to 19,000 lines C++ 
+- The GdScript Incident: Codex rebuilt the SML compiler in GdScript during C++ migration
+- Claude brought in to fix architecture, clean up detour, complete C++ migration
+- Groq integrated for image processing pipeline
+- ForgeSTA created as a parallel tool: Speech → Whisper → structured output
+
+---
 
 ## Evolution of the Poser Tool
 The Poser did not appear suddenly. It is the latest step in a long evolution of tools for working with movement and animation.
@@ -124,20 +158,25 @@ The Poser did not appear suddenly. It is the latest step in a long evolution of 
 - Designed as part of the **Forge ecosystem**
 - Represents the continuation of the original idea: building creative tools that enable rapid visual experimentation
 
+---
+
 ## Today
-Forge represents the **third incarnation** of an idea that started decades ago:
+Forge represents the **fourth incarnation** of an idea that started decades ago:
 
 1. XML + Swing prototype at Dresdner Bank
 2. Silverlight / RIAMS attempt
-3. Forge
+3. Kotlin / Compose NoCode Designer attempt
+4. Forge – powered by Godot, built with an AI team
 
 The idea survived.
+The technology changed.
+The intuition was right all along.
 
-Only the technology changed.
+---
 
-
+```
 Forge {
     id: 1
-
     owner: Olaf Japp
 }
+```
