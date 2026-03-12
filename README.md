@@ -47,6 +47,8 @@ The Forge-Runner interprets this description and executes it on the target platf
   Speech → Whisper → CLI → structured output → application or AI pipeline.  
   Repository: https://codeberg.org/CrowdWare/ForgeSTA
 
+This pipeline allows ideas to move from human expression (speech or text) into structured intent (SML/SMS) and finally into executable applications - without breaking the flow.
+
 ---
 
 ## 📜 Licensing
