@@ -34,7 +34,7 @@ But open source does not mean free for everyone in every context.
 
 Forge uses a dual license model:
 
-**MIT License – for personal, educational, and open source use.**
+**GPL3 License – for personal, educational, and open source use.**
 
 You are a student learning to build software. Free.
 You are an indie developer building your own tool. Free.
@@ -54,7 +54,7 @@ Open source projects die when the people who build them cannot afford to continu
 
 ---
 
-## CrowdWare DAO
+## CrowdWare DAO 
 
 The commercial license fees do not go to a corporation.
 
@@ -75,6 +75,8 @@ Revenue from commercial licenses funds:
 
 The money is a tool.
 The communities are the purpose.
+
+CrowdWare DAO is not yet founded, because that will cost about 100.000 CHF for notars and the like.
 
 ---
 

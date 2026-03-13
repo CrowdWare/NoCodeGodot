@@ -48,6 +48,8 @@ Books. Software. Communities. Tools.
 
 The barriers are different. The intention is the same.
 
+If one of these subdomains is not avaiable yet, that meens its only planned and not yet manifested.
+
 ---
 
 ## Profit as a Tool
@@ -79,24 +81,28 @@ The most durable things are the ones that belong to everyone.
 
 ---
 
-## The Swiss Holding
+## The Swiss Holding and the DAO Vision
 
-The Swiss Holding provides legal structure for something that is philosophically opposed to conventional legal structures.
+The vision includes a Swiss Holding that provides legal structure for something that is philosophically opposed to conventional legal structures – and a CrowdWare DAO that governs it.
 
-It holds:
+A word of honesty here: the DAO is not yet founded. Founding one properly in Switzerland costs around 100,000 CHF in notary and legal fees alone. That is a real number. It is on the roadmap, not in the rearview mirror.
+
+But the idea for the Swiss Holding exists. And the intention is clear:
+
+When the DAO is ready, it will hold:
 - Intellectual property licenses
 - Commercial agreements
 - Land assets
-- DAO treasury
+- Community treasury
 
-It is governed by the DAO – which means decisions are made by the community, transparently, with full visibility into finances and direction.
+Governed by the community, transparently, with full visibility into finances and direction.
 
 This is not idealism.
 This is architecture.
 
 The holding provides the legal interface with the conventional world.
-The DAO provides the actual governance.
-The community provides the purpose.
+The DAO will provide the actual governance.
+The community provides the purpose – now, already, without waiting for the paperwork.
 
 ---
 
@@ -115,10 +121,7 @@ The technical stack:
 - SML-based structure
 - Monaco editor
 - Magic Link authentication
-- Ollama phi3:mini spam filter – local, private, no external services
 - Open Graph social sharing
-
-Running on a single IONOS server with 6 vCores and 8GB RAM.
 
 Because you do not need a data center to serve a community.
 You need clarity about what the community needs.
@@ -146,6 +149,9 @@ This is where the profit goes.
 
 Not to shareholders.
 To the sea.
+
+I am one of the Rainbow Warrior. A warrior of love and light.
+Aho 
 
 ---
 

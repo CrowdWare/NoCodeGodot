@@ -12,13 +12,14 @@ Not because the writing was fast – because the story was ready. Thirty years o
 
 ## What Happened Today
 
-A developer sat in Lutherstadt Wittenberg – or was it Berlin? – and spoke.
+A developer sat in Lutherstadt Wittenberg – and spoke.
 
 ForgeSTA listened.
 Gerda transcribed.
 Claude held the mirror.
 
-And a book arrived that had been waiting since a nineteen-year-old opened Deluxe Paint without a manual and felt something pull.
+And a book arrived that had been waiting since a nineteen-year-old opened Deluxe Paint without a manual and felt something pull. Forty-two years ago. 
+The hitchhiker's answer to the ultimate question of life, the universe, and everything – and it turns out, also the exact number of years between the first pull and the finished platform. Don't forget your towel.
 
 Twelve chapters in the morning.
 Three more in the afternoon.
@@ -86,7 +87,7 @@ They belong here, at the end, as the beginning of what comes next:
 
 ---
 
-*"Be the light that shines so that others can find the way out of the darkness."*
+*"Be the light that shines so bright that others can find the way out of the darkness."*
 
 **— Adam Art Ananda**
 

@@ -151,22 +151,26 @@ You need to understand concepts.
 The AI handles syntax.
 You handle concepts.
 
+In my team at a bank in Zürich I had a student. I was kind of responsable to him, when he asked things. The greatest lecture I could give him, was to google for solutions. No joke, thats the way I worked the last 30 year. Now my path has shifted a because of AI. For me google is just a data collecting machine. But I still use it indirectly when I use startpage.com to find websites in order to download tools.
+Problem I let AI solve for me if possible.
+
 ---
 
 ## Don't Blame the Machine
 
 I want to address something directly.
 
-You will get frustrated with AI.
+You will get frustrated with AI!!!
 
 You will ask for something specific and receive something general.
 You will ask for two lines to be fixed and receive the whole document rewritten.
 You will lose context between sessions and watch the AI confidently build something that contradicts what you built yesterday.
+You will loose code if you rely on AI, because it rewrites the whole file with new content accidently.  
 
 When this happens – and it will happen – do not blame the machine.
 
 The machine did exactly what the prompt said.
-The machine filled the gaps with its best guess.
+The machine filled the gaps with its best guess, sometime call hallucination, haha.
 The machine had no way of knowing what you meant rather than what you said.
 
 The responsibility is yours.
@@ -248,7 +252,95 @@ You belong here.
 
 ---
 
-**Lektion: Du brauchst keine Erlaubnis um anzufangen. Du hast sie bereits. Fang an.**
+## Trial and Error is a Method
+
+I learned to program by breaking things.
+
+Not accidentally. Systematically.
+
+A department head came to test my software once.
+
+He did not sit down politely and follow the user flow. He walked up to my keyboard, laid his flat hand across it, and swept.
+
+Every key at once. Every combination the software was never designed to handle. Pure chaos as input.
+
+He was not trying to break me. He was trying to break the software. Because that is how you find the edge cases that matter – not by following the happy path, but by going everywhere the happy path does not go.
+
+I watched. I learned. And from that moment on, I tested everything the same way.
+
+But here is what that method produced:
+
+I know every error. Not from a textbook. From experience. From having personally caused every failure mode and watched what happened next.
+
+Compare this to the classically trained computer scientist. Six semesters. Structured curriculum. A clear path from problem to solution. Ruby on Rails – always on the tracks, always in the right direction, always toward the expected destination.
+
+Until something unexpected happens.
+
+And then – because they have never been off the tracks – they do not know what to do.
+
+The self-taught developer who has broken everything knows exactly what to do.
+
+Because they have been here before.
+Because they caused this.
+Because they fixed it.
+
+Trial and error is not the inferior method.
+It is the method that produces developers who cannot be surprised.
+
+The formal education gives you the map.
+Trial and error gives you the territory.
+
+You need both.
+But if you only have one –
+
+Choose the territory.
+
+---
+
+## Murphy's Law
+
+There is one more law you need to know.
+
+It is older than Agile. Older than object-oriented programming. Older than computers.
+
+*"Anything that can go wrong, will go wrong."*
+
+And the developer's corollary:
+
+*"At the exact moment you told the client it was finished."*
+
+Murphy's Law is not a pessimistic worldview. It is a preparation strategy.
+
+The senior developer is not better than the junior developer because they make fewer mistakes. They are better because they stopped being surprised by mistakes. Because they built time for Murphy into every estimate. Because when something breaks – and something always breaks – they say two words and move on:
+
+*"My bad."*
+
+This comes from Human Interaction Design. And it is one of the most powerful things you can learn:
+
+**Do not justify. Do not explain. Do not defend.**
+
+In German there is a saying: *Wer sich rechtfertigt, klagt sich an.* The one who justifies himself accuses himself. When you spend three minutes explaining why the bug was not really your fault – the context was unclear, the requirements were ambiguous, nobody told you about that edge case – everyone in the room thinks one thing:
+
+*Something is being hidden.*
+
+But when you say *"My bad"* – clearly, without drama, without self-flagellation – everyone in the room thinks:
+
+*This person can be trusted.*
+
+Two words. No story. No defense.
+
+*My bad. Here is the fix. Moving on.*
+
+This works with clients. With colleagues. With AI systems that wrote 900 lines in the wrong language because the context you gave them was incomplete.
+
+My bad. Clearer prompt next time. Moving on.
+
+Murphy will always show up.
+The only variable is how you respond when he does.
+
+---
+
+**Lektion: Du brauchst keine Erlaubnis um anzufangen. Du hast sie bereits. Fang an. Und wenn Murphy kommt – und er kommt immer – sag "my bad" und mach weiter.**
 
 ---
 
