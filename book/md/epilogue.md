@@ -100,3 +100,5 @@ They belong here, at the end, as the beginning of what comes next:
 *For the crowd. By the crowd.*
 
 *I am because we are.*
+
+Don't forget your towel, Adam Art Ananda. 🏖️🕯️🌱

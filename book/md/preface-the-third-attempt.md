@@ -117,3 +117,10 @@ Describe it.
 *Berlin / On the road / Somewhere between here and Costa Rica*
 
 ---
+
+From the author: 
+I offer you this book in the spirit of the gift.
+This book is published under a Creative Commons license, which means you are free to use it for any non-commercial purpose. You may quote from it, share excerpts, publish passages in blogs and articles – as long as you are not selling it or using it for advertising. I ask only that you cite the source, so that this work can find its way to others who may need it.
+For the legal details, visit: creativecommons.org
+The nature of a gift is that the counter-gift is not determined in advance. If you received this book for free, or if you choose to share it freely, I welcome any voluntary expression of gratitude or appreciation – whatever feels right to you. You can do so at books.crowdware.info.
+Much of what I know, I once received as a gift myself. I pass it on to you in the same spirit.
